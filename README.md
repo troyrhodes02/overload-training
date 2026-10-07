@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Overload
 
-## Getting Started
+A single-user strength training tracker. See `docs/planning/` for the product
+brief, PRD, architecture, and pitch roadmap, and `CLAUDE.md` for the engineering
+invariants.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router) + React + TypeScript — server-first.
+- Supabase — Postgres + Auth (the Supabase client is used for auth only).
+- Prisma — schema authority and the only path to application data.
+- Tailwind CSS + shadcn/ui — the single styling/component system.
+- Vercel — hosting.
+
+## Getting started
 
 ```bash
+cp .env.example .env   # fill in the Supabase dev project values
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Local development and Vercel previews point at the Supabase **development**
+project. Production uses a separate Supabase **production** project. There is no
+staging tier.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | What it does |
+| ------ | ------------ |
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build (`prisma generate` runs on `postinstall`) |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run format` / `format:check` | Prettier write / check |
+| `npm test` | Jest unit tests |
+| `npm run test:integration` | Jest integration tests against a throwaway Postgres (`TEST_DATABASE_URL`; an embedded Postgres is provisioned automatically) |
+| `npm run test:e2e` | Playwright auth-boundary tests (uses system Chrome via `channel`) |
+| `npm run verify:client-bundle` | Fails if a server DB secret leaked into `.next/static` (run after `build`) |
 
-## Learn More
+## Database & migrations
 
-To learn more about Next.js, take a look at the following resources:
+The Prisma client connects at runtime through the **pooled** `DATABASE_URL`
+(via the pg driver adapter in `src/lib/db.ts`). The migration CLI uses the
+**direct** `DIRECT_URL` (configured in `prisma.config.ts`).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Every table has row-level security enabled with **no** policies (deny-all), so
+the Supabase Data API is closed and Prisma is the only door into application
+data. Do not add a policy to make a query work.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deployment is via Vercel. The build runs `next build` only — it does **not**
+apply migrations. Production database migrations and all external provisioning
+(Supabase projects, environment variables, the single production user) are
+performed by a human following **`docs/runs/01-foundation-runbook.md`**.
