@@ -7,7 +7,7 @@
 **Merge rule for this run:** squash-merge the feature branch into `main` **only if every required check is green** after review/audit. Never merge past a failing check.
 
 **Feature branch:** `feat/02-library-gyms-setup` (from `main` @ `8b8def6`)
-**Feature PR:** _(step 6)_
+**Feature PR:** https://github.com/troyrhodes02/overload-training/pull/7 (base `main`)
 
 ## SAFETY — read before running anything
 
@@ -28,13 +28,19 @@
 
 | # | ID | Title | blockedBy | Branch | PR | Status |
 |---|----|-------|-----------|--------|----|--------|
-| 1 | OVE-10 | Library & Gyms data model: canonical vocabularies, Exercise classification migration, repo hygiene | — | feat/ove-10-library-data-model | — | not started |
-| 2 | OVE-11 | free-exercise-db catalog import: pinned snapshot, normalization, idempotent exercise + image import | OVE-10 | feat/ove-11-catalog-import | — | not started |
+| 1 | OVE-10 | Library & Gyms data model: canonical vocabularies, Exercise classification migration, repo hygiene | — | feat/ove-10-library-data-model | [#8](https://github.com/troyrhodes02/overload-training/pull/8) | PR open, green |
+| 2 | OVE-11 | free-exercise-db catalog import: pinned snapshot, normalization, idempotent exercise + image import | OVE-10 | feat/ove-11-catalog-import | (opening) | implemented, green |
 | 3 | OVE-12 | Exercise Library data layer & server actions | OVE-11 | feat/ove-12-library-data-layer | — | not started |
 | 4 | OVE-13 | Exercise Library UI | OVE-12 | feat/ove-13-library-ui | — | not started |
 | 5 | OVE-14 | Gym Management + deliberate-absence guards | OVE-13 | feat/ove-14-gyms | — | not started |
 
 Branch stacking: OVE-10 branches from `feat/02-library-gyms-setup`; each next ticket branches from the previous ticket branch. Ticket PRs target the previous branch (OVE-10 targets the feature branch).
+
+## Status summary (after first ticket PR)
+
+- **OVE-10 → PR #8 (green):** canonical `MuscleGroup`(16)/`Equipment`(13) vocabulary in `src/lib/exercises/taxonomy.ts` + Prisma enums; hand-written in-place migration `1_library_gyms_setup` (no DROP/RENAME/INSERT; CHECKs for primary∉secondary, distinct secondaries, provenance, custom-no-image, non-blank names; helper fn not executable by anon); schema-drift guard; repo hygiene (.gitattributes, .env.example, lockfile). Verified: lint, build+typecheck, format, unit 32, integration 21, client-bundle guard.
+- **OVE-11 (catalog import):** vendored pinned snapshot (SHA verified by test), total mapping with fail-fast, idempotent `importCatalog` (createMany skipDuplicates by source_id; never updates rows; images skip-if-exists; link only on success; failures non-fatal), `prisma/seed.ts` via `tsx` (new devDependency) with remote-target guard. Verified: unit 62, integration 32, build+typecheck, lint, format, bundle guard. Seed entry smoke-tested under tsx with no DB/Supabase I/O (guards fire).
+- One transient hang of the full integration run was observed once (killed after 10 min); re-runs complete in normal time. If it recurs, run `npx jest --config jest.integration.config.js --verbose` under `timeout` and kill stray `embedded-postgres` processes.
 
 ## Artifacts
 
@@ -61,8 +67,8 @@ Branch stacking: OVE-10 branches from `feat/02-library-gyms-setup`; each next ti
 - [x] 2. Design doc
 - [x] 3–4. Spec + Resolved Decisions (+ method note)
 - [x] 5. Milestone + issues OVE-10..OVE-14 + blockedBy chain
-- [ ] 6. Feature PR into main
-- [ ] 7. Ticket-worker per ticket (stacked PRs)
+- [x] 6. Feature PR into main — PR #7
+- [ ] 7. Ticket-worker per ticket (stacked PRs) — in progress
 - [ ] 8. Runbook
 - [ ] 9. Squash-merge ticket PRs into feature branch
 - [ ] 10. Full verification

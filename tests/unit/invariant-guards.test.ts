@@ -53,14 +53,62 @@ describe("secret hygiene", () => {
   });
 });
 
-describe("no seed data", () => {
-  it("has no Prisma seed script", () => {
-    const candidates = ["prisma/seed.ts", "prisma/seed.js", "prisma/seed.mjs"];
-    for (const c of candidates) {
-      expect(fs.existsSync(path.join(REPO_ROOT, c))).toBe(false);
-    }
+describe("seed imports the exercise catalog only (spec D37)", () => {
+  // Library & Gyms Setup introduces the seed (CLAUDE.md: free-exercise-db is
+  // "imported once by a Prisma seed script"). Foundation's intent — no demo or
+  // training data — is preserved: the seed writes Exercise rows (and Storage
+  // objects) only, and never user preference or archive state.
+  const seedFiles = [
+    path.join(REPO_ROOT, "prisma", "seed.ts"),
+    ...walk(path.join(REPO_ROOT, "prisma", "seed")),
+  ];
+
+  it("the seed entry point and its modules exist", () => {
+    expect(fs.existsSync(path.join(REPO_ROOT, "prisma", "seed.ts"))).toBe(true);
+    expect(seedFiles.length).toBeGreaterThan(1);
   });
 
+  it("writes no model other than Exercise", () => {
+    const otherWrite =
+      /\.\s*(mesocycle|session|sessionExercise|gym|gymExerciseBaseline|loggedSession|loggedExercise|loggedSet|goal|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/;
+    const offenders = seedFiles.filter((f) =>
+      otherWrite.test(fs.readFileSync(f, "utf8")),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("never deletes exercises and never writes favorites or archive state", () => {
+    for (const f of seedFiles) {
+      const src = fs.readFileSync(f, "utf8");
+      expect(src).not.toMatch(/exercise\s*\.\s*(delete|deleteMany|upsert)\b/);
+      expect(src).not.toMatch(/isFavorite\s*:/);
+      expect(src).not.toMatch(/deletedAt\s*:/);
+      expect(src).not.toMatch(/isCustom\s*:\s*true/);
+    }
+  });
+});
+
+describe("free-exercise-db is an ingest dependency, never a runtime one", () => {
+  it("no application source references the source dataset or its host", () => {
+    const offenders = walk(SRC).filter((f) =>
+      /raw\.githubusercontent|yuhonas|from\s+["'][^"']*(prisma\/seed|exercises\.json)/.test(
+        fs.readFileSync(f, "utf8"),
+      ),
+    );
+    expect(offenders.map((f) => path.relative(REPO_ROOT, f))).toEqual([]);
+  });
+
+  it("no application source references the service-role key", () => {
+    const offenders = walk(SRC).filter((f) =>
+      /SUPABASE_SERVICE_ROLE_KEY|service_role|serviceRole/.test(
+        fs.readFileSync(f, "utf8"),
+      ),
+    );
+    expect(offenders.map((f) => path.relative(REPO_ROOT, f))).toEqual([]);
+  });
+});
+
+describe("no seed data in migrations", () => {
   it("the initial migration contains no INSERT (no seeding during migrate)", () => {
     const migration = fs.readFileSync(
       path.join(REPO_ROOT, "prisma", "migrations", "0_init", "migration.sql"),
