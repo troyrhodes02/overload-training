@@ -43,16 +43,25 @@ export async function proxy(request: NextRequest) {
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 
-  if (!user && !isPublic) {
+  // Redirect while preserving any session cookies the Supabase client refreshed
+  // during getUser(): a plain NextResponse.redirect would drop them, leaving the
+  // client with a stale refresh token and bouncing it back to /login next time.
+  const redirectTo = (path: string) => {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    url.pathname = path;
+    const redirect = NextResponse.redirect(url);
+    for (const cookie of response.cookies.getAll()) {
+      redirect.cookies.set(cookie);
+    }
+    return redirect;
+  };
+
+  if (!user && !isPublic) {
+    return redirectTo("/login");
   }
 
   if (user && pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+    return redirectTo("/");
   }
 
   return response;

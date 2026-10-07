@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest --config jest.config.js",
-    "test:integration": "jest --config jest.integration.config.js --runInBand",
+    "test:integration": "jest --config jest.integration.config.js",
     "test:e2e": "playwright test",
     "verify:client-bundle": "node scripts/check-client-bundle.mjs"
   },
