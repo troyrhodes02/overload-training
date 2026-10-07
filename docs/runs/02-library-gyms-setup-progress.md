@@ -71,11 +71,11 @@ Branch stacking: OVE-10 branches from `feat/02-library-gyms-setup`; each next ti
 - [x] 7. Ticket-worker per ticket (stacked PRs #8–#12, each green)
 - [x] 8. Runbook → `docs/runs/02-library-gyms-setup-runbook.md`
 - [x] 9. Squash-merged #8→#12 into the feature branch via GitHub (each next PR retargeted to the feature branch; #12 needed a merge of the feature branch into its branch — add/add conflicts resolved to the OVE-14 side after verifying the feature tree was identical to OVE-13; no force-push)
-- [ ] 10. Full verification
-- [ ] 11. /review → inline comments on feature PR
-- [ ] 12. /overload-review-audit + dispositions
-- [ ] 13. Push, re-verify, squash-merge feature → main (only if green)
-- [ ] 14. Report
+- [x] 10. Full verification on the feature branch — green (lint, format, prisma validate, build, typecheck, unit 92, integration 54, e2e 9, bundle guard)
+- [x] 11. `/code-review high 7 --comment` → 10 inline findings on PR #7
+- [x] 12. Audit: 9 IMPLEMENT + 1 SKIP (replies posted on each comment) + 1 self-found Storage-adapter bug implemented — commit f9c39d7
+- [ ] 13. Pushed; re-verified green after audit (unit 101, integration 54, e2e 9, all static checks). Final pre-merge verification + squash-merge → main: IN PROGRESS (if this box is unchecked and PR #7 is open, re-run the full suite and merge only if green)
+- [x] 14. Report → `docs/runs/02-library-gyms-setup-report.md` (written before the merge; states the merge outcome)
 
 ## Notes / decisions log
 
