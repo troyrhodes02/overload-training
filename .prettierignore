@@ -5,3 +5,5 @@ package-lock.json
 next-env.d.ts
 prisma/migrations
 *.md
+# Vendored free-exercise-db snapshot: kept byte-identical to the pinned upstream file.
+prisma/seed/free-exercise-db/exercises.json

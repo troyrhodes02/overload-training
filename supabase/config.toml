@@ -38,3 +38,16 @@ enable_signup = false
 [auth.email]
 enable_signup = false
 enable_confirmations = false
+
+# Library & Gyms Setup: the exercise-image bucket. PUBLIC-READ (imported,
+# public-domain free-exercise-db images only). Written ONLY by the catalog
+# import (`npm run db:seed`) with the service-role key; there is no storage
+# policy for anon/authenticated, so the browser can never upload.
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[storage.buckets.exercise-images]
+public = true
+file_size_limit = "1MiB"
+allowed_mime_types = ["image/jpeg"]
