@@ -41,7 +41,7 @@ Milestone **Library & Gyms Setup** (`6cbb9134-58a3-4f91-8671-83585956891a`). The
 | Schema | `npx prisma validate` | ✅ |
 | Build | `npm run build` | ✅ |
 | Typecheck | `npm run typecheck` (after build) | ✅ |
-| Unit | `npm test` | ✅ 101 passed / 13 suites |
+| Unit | `npm test` | ✅ 101 passed / 12 suites |
 | Integration | `npm run test:integration` (embedded Postgres 18) | ✅ 54 passed / 7 suites |
 | Browser | `npm run test:e2e` (Playwright, system Chrome) | ✅ 9 passed |
 | Client-bundle secret guard | `npm run verify:client-bundle` | ✅ |
