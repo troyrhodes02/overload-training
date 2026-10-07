@@ -20,11 +20,13 @@
 
 | # | ID | Title | blockedBy | Branch | PR | Status |
 |---|----|-------|-----------|--------|----|--------|
-| 1 | OVE-5 | Project tooling, styling system & conventions | — | feat/ove-5-foundation-tooling | TBD | not started |
-| 2 | OVE-6 | Prisma schema, shared client, migration & deny-all RLS | OVE-5 | feat/ove-6-foundation-schema-rls | TBD | not started |
+| 1 | OVE-5 | Project tooling, styling system & conventions | — | feat/ove-5-foundation-tooling | [#2](https://github.com/troyrhodes02/overload-training/pull/2) | PR open (green: lint/typecheck/format/unit/build) |
+| 2 | OVE-6 | Prisma schema, shared client, migration & deny-all RLS | OVE-5 | feat/ove-6-foundation-schema-rls | TBD | in progress |
 | 3 | OVE-7 | Integration test harness & schema/RLS invariant tests | OVE-6 | feat/ove-7-foundation-integration-tests | TBD | not started |
 | 4 | OVE-8 | Supabase auth: login, sign-out, proxy & DAL | OVE-7 | feat/ove-8-foundation-auth | TBD | not started |
 | 5 | OVE-9 | Protected app shell, nav, states, E2E & deploy config | OVE-8 | feat/ove-9-foundation-shell | TBD | not started |
+
+**Status summary (after first ticket PR):** OVE-5 implemented and pushed as PR #2 into `feat/01-foundation`. Styling system (Tailwind v4 + shadcn/ui + theme tokens), Jest unit runner, Prettier, and verification scripts are in place and green. Proceeding through the remaining tickets without waiting for acknowledgement.
 
 Branch stacking: OVE-5 branches from the feature branch `feat/01-foundation`; each subsequent ticket branches from the previous ticket's branch.
 
