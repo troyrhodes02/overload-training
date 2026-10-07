@@ -7,6 +7,7 @@ import { FavoriteButton } from "@/components/exercises/favorite-button";
 import { LibraryControls } from "@/components/exercises/library-controls";
 import { EmptyState } from "@/components/feedback/empty-state";
 import {
+  LIBRARY_MAX_LIMIT,
   LIBRARY_PAGE_SIZE,
   libraryQueryString,
   parseLibraryParams,
@@ -127,11 +128,18 @@ function Results({
               </li>
             ))}
           </ul>
-          {list.total > list.items.length && (
+          {list.total > list.items.length &&
+            list.limit >= LIBRARY_MAX_LIMIT && (
+              <p className="text-center text-xs text-muted-foreground tabular-nums">
+                Showing the first {LIBRARY_MAX_LIMIT}. Search or pick a muscle
+                to narrow the list.
+              </p>
+            )}
+          {list.total > list.items.length && list.limit < LIBRARY_MAX_LIMIT && (
             <div className="flex justify-center">
               <Button asChild variant="outline" className="h-11">
                 <Link
-                  href={`/exercises${libraryQueryString({ ...filters, limit: list.limit + LIBRARY_PAGE_SIZE })}`}
+                  href={`/exercises${libraryQueryString({ ...filters, limit: Math.min(list.limit + LIBRARY_PAGE_SIZE, LIBRARY_MAX_LIMIT) })}`}
                   scroll={false}
                 >
                   Show{" "}

@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState, type FormEvent } from "react";
+import {
+  startTransition,
+  useActionState,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { createGymAction, type GymFormState } from "@/app/(app)/gyms/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -36,28 +42,26 @@ export function GymForm() {
   const failedUnexpectedly =
     state.result && !state.result.ok && !state.result.error.details;
 
+  // Submitted manually (not via `<form action>`) so React 19 does not reset
+  // the form after a failed save: the entries stay exactly as typed.
   function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const data = new FormData(event.currentTarget);
     const parsed = parseGymInput({
       name: data.get("name"),
       address: data.get("address"),
     });
     if (!parsed.ok && parsed.details.name) {
-      event.preventDefault();
       setNameError(parsed.details.name);
       nameRef.current?.focus();
       return;
     }
     setNameError(null);
+    startTransition(() => formAction(data));
   }
 
   return (
-    <form
-      action={formAction}
-      onSubmit={onSubmit}
-      noValidate
-      className="space-y-6"
-    >
+    <form onSubmit={onSubmit} noValidate className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="gym-name">Name</Label>
         <Input

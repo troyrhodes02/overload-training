@@ -70,18 +70,15 @@ export async function setExerciseFavorite(
   if (typeof input.isFavorite !== "boolean") {
     throw new DomainError("validation_error", "Choose favorite or not.");
   }
-  const existing = await requireExists(input.exerciseId, tx);
-  if (existing.deletedAt !== null) {
-    throw new DomainError(
-      "invalid_state_transition",
-      "Archived exercises can't be favorited.",
-    );
-  }
-  const { count } = await db(tx).exercise.updateMany({
-    where: { id: input.exerciseId, deletedAt: null },
-    data: { isFavorite: input.isFavorite },
-  });
+  const { count } = isUuid(input.exerciseId)
+    ? await db(tx).exercise.updateMany({
+        where: { id: input.exerciseId, deletedAt: null },
+        data: { isFavorite: input.isFavorite },
+      })
+    : { count: 0 };
   if (count === 0) {
+    // Nothing active matched: say whether it's missing or archived.
+    await requireExists(input.exerciseId, tx);
     throw new DomainError(
       "invalid_state_transition",
       "Archived exercises can't be favorited.",

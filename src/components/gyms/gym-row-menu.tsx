@@ -16,7 +16,9 @@ export function GymRowMenu({ gymId, name }: { gymId: string; name: string }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   return (
     <>
-      <DropdownMenu>
+      {/* Non-modal: opening a modal Dialog from a modal menu item can leave
+          the page with pointer-events disabled (known Radix interaction). */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"

@@ -70,12 +70,12 @@ export async function archiveExerciseAction(
   exerciseId: string,
 ): Promise<ActionResult<{ id: string }>> {
   await requireUser();
-  const result = await toActionResult(
+  // No refresh(): archiving happens on the detail page, and the client
+  // navigates back to the library, which renders fresh.
+  return toActionResult(
     () => archiveExercise({ exerciseId }),
     "Couldn't archive. Nothing changed.",
   );
-  if (result.ok) refresh();
-  return result;
 }
 
 export async function restoreExerciseAction(

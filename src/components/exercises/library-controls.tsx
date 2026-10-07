@@ -1,6 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,22 +55,41 @@ export function LibraryControls({
   const [renderedSearch, setRenderedSearch] = useState(filters.search);
   const inputRef = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The latest URL filters and typed text, for the debounced navigation (a
+  // timer must never act on the filters that were current when it was set).
+  const latest = useRef({ filters, search });
+  useEffect(() => {
+    latest.current = { filters, search };
+  });
 
   // Sync the box when the URL changes from ELSEWHERE (back/forward, Clear, an
   // empty-state link) — but never clobber what the lifter is still typing when
   // our own debounced navigation lands.
   if (filters.search !== renderedSearch) {
     setRenderedSearch(filters.search);
-    if (filters.search !== lastNavigated) setSearch(filters.search);
+    if (filters.search !== lastNavigated) {
+      setSearch(filters.search);
+      setLastNavigated(filters.search);
+    }
   }
 
   function navigate(
     next: Partial<Pick<LibraryFilters, "view" | "muscle" | "search">>,
     mode: "push" | "replace",
   ) {
-    const merged = { ...filters, search, ...next };
+    // Any navigation supersedes a pending debounced search.
+    if (timer.current) clearTimeout(timer.current);
+    const current = latest.current;
+    // Only scope, muscle, and search carry over; a new combination starts
+    // again at the first page (the expanded "Show more" limit does not stick).
+    const merged = {
+      view: current.filters.view,
+      muscle: current.filters.muscle,
+      search: current.search,
+      ...next,
+    };
     // The URL carries the trimmed search; compare like with like.
-    setLastNavigated((merged.search ?? "").trim());
+    setLastNavigated(merged.search.trim());
     const href = `/exercises${libraryQueryString(merged)}`;
     startTransition(() => {
       if (mode === "push") router.push(href);
@@ -75,14 +100,14 @@ export function LibraryControls({
   function onSearchChange(value: string) {
     setSearch(value);
     if (timer.current) clearTimeout(timer.current);
+    // Reads the latest filters and text when it fires (see `latest`).
     timer.current = setTimeout(
-      () => navigate({ search: value }, "replace"),
+      () => navigate({}, "replace"),
       SEARCH_DEBOUNCE_MS,
     );
   }
 
   function applySearchNow(value: string) {
-    if (timer.current) clearTimeout(timer.current);
     navigate({ search: value }, "replace");
   }
 

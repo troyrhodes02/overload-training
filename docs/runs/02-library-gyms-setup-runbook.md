@@ -164,6 +164,11 @@ npx tsx prisma/seed.ts
   `prisma.config.ts` loading your local `.env` into the process.
 - The import **refuses** a non-local host unless `OVERLOAD_IMPORT_CONFIRM_HOST`
   matches it exactly — that is the "are you sure" step.
+- It also **refuses mixed targets**: the database and Storage must both be local,
+  or both belong to the **same** Supabase project (the project ref in
+  `NEXT_PUBLIC_SUPABASE_URL` must match the pooler user `postgres.<ref>` or the
+  direct host `db.<ref>.supabase.co`), so rows and images can never land in
+  different projects.
 - Expected first-run output: `876 inserted`, `873 uploaded … 873 linked, 3 have no
   source image`.
 - **Safe rerun:** if it was interrupted or images failed, run the identical

@@ -34,11 +34,13 @@ function requireEnv(name: string): string {
 
 async function main() {
   const databaseUrl = requireEnv("DATABASE_URL");
+  const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  // Database AND Storage must be the same environment; remote needs confirmation.
   const { host, remote } = assertImportTargetAllowed(
     databaseUrl,
+    supabaseUrl,
     process.env.OVERLOAD_IMPORT_CONFIRM_HOST,
   );
-  const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
   console.log(

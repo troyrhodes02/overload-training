@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState, type FormEvent } from "react";
+import {
+  startTransition,
+  useActionState,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   createCustomExerciseAction,
   type CustomExerciseFormState,
@@ -90,7 +96,12 @@ export function CustomExerciseForm({ defaultName }: { defaultName: string }) {
     );
   }
 
+  // Submitted manually (not via `<form action>`): React 19 auto-resets a form
+  // after an action submission, and Radix Select answers that reset by clearing
+  // its value — which would wipe Primary muscle and Equipment after a failed
+  // save even though the message says the entries are still here.
   function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const parsed = parseCustomExerciseInput({
       name,
       primaryMuscle: primary,
@@ -98,25 +109,21 @@ export function CustomExerciseForm({ defaultName }: { defaultName: string }) {
       secondaryMuscles: secondaries,
     });
     if (!parsed.ok) {
-      event.preventDefault();
       setClientErrors(parsed.details);
       const first = FIELD_ORDER.find((f) => parsed.details[f]);
       if (first) refs.current[first]?.focus();
       return;
     }
     setClientErrors({});
+    const formData = new FormData(event.currentTarget);
+    startTransition(() => formAction(formData));
   }
 
   const describedBy = (field: Field) =>
     errors[field] ? `${field}-error` : undefined;
 
   return (
-    <form
-      action={formAction}
-      onSubmit={onSubmit}
-      noValidate
-      className="space-y-6"
-    >
+    <form onSubmit={onSubmit} noValidate className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
         <Input

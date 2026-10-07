@@ -11,6 +11,14 @@ import { EXERCISE_IMAGE_BUCKET } from "../../src/lib/exercises/images";
 import type { ExerciseImageSource, ExerciseImageStore } from "./catalog-import";
 import { sourceImageUrl } from "./free-exercise-db/source";
 
+/** HTTP status carried by a storage-js error (`status`, or `statusCode` on older shapes). */
+export function storageErrorStatus(error: unknown): number | undefined {
+  const e = error as { status?: unknown; statusCode?: unknown } | null;
+  const raw = e?.status ?? e?.statusCode;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export function supabaseImageStore(
   supabase: SupabaseClient,
   bucket: string = EXERCISE_IMAGE_BUCKET,
@@ -27,7 +35,12 @@ export function supabaseImageStore(
         }
         return;
       }
-      if (error && !/not.?found/i.test(error.message)) {
+      const status = storageErrorStatus(error);
+      const missing =
+        status === 400 ||
+        status === 404 ||
+        /not.?found/i.test(error?.message ?? "");
+      if (error && !missing) {
         throw new Error(
           `Could not read Storage bucket "${bucket}": ${error.message}`,
         );
@@ -45,15 +58,11 @@ export function supabaseImageStore(
     },
 
     async exists(objectPath) {
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .exists(objectPath);
-      if (error) {
-        // storage-js reports a missing object as an error on some versions.
-        if (/not.?found|400|404/i.test(error.message)) return false;
-        throw new Error(`exists(${objectPath}) failed: ${error.message}`);
-      }
-      return Boolean(data);
+      // storage-js resolves { data: true } when the object exists and
+      // { data: false, error } for a 400/404 (missing); any other failure is
+      // thrown, and the import records it as an image failure.
+      const { data } = await supabase.storage.from(bucket).exists(objectPath);
+      return data === true;
     },
 
     async upload(objectPath, bytes, contentType) {
@@ -65,7 +74,10 @@ export function supabaseImageStore(
           cacheControl: "31536000",
         });
       if (!error) return "uploaded";
-      if (/already exists|duplicate|409/i.test(error.message)) {
+      if (
+        storageErrorStatus(error) === 409 ||
+        /already exists|duplicate/i.test(error.message)
+      ) {
         return "already_exists";
       }
       throw new Error(`upload(${objectPath}) failed: ${error.message}`);

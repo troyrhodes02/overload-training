@@ -6,36 +6,82 @@ import { assertImportTargetAllowed } from "../../prisma/seed/target-guard";
 import { importedImageObjectPath } from "../../prisma/seed/catalog-import";
 
 describe("catalog import target guard", () => {
-  it("allows local databases without confirmation", () => {
+  const LOCAL_DB = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+  const LOCAL_API = "http://127.0.0.1:54321";
+  const PROD_POOLER =
+    "postgresql://postgres.abcdref:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres";
+  const PROD_DIRECT =
+    "postgresql://postgres:pw@db.abcdref.supabase.co:5432/postgres";
+  const PROD_API = "https://abcdref.supabase.co";
+  const OTHER_API = "https://otherref.supabase.co";
+
+  it("allows a local database with local Storage, without confirmation", () => {
+    expect(assertImportTargetAllowed(LOCAL_DB, LOCAL_API, undefined)).toEqual({
+      host: "127.0.0.1",
+      remote: false,
+    });
     expect(
       assertImportTargetAllowed(
-        "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+        "postgresql://u:p@localhost:5432/db",
+        "http://localhost:54321",
         undefined,
-      ),
-    ).toEqual({ host: "127.0.0.1", remote: false });
-    expect(
-      assertImportTargetAllowed("postgresql://u:p@localhost:5432/db", undefined)
-        .remote,
+      ).remote,
     ).toBe(false);
   });
 
-  it("refuses a remote database unless the exact host is confirmed", () => {
-    const prod =
-      "postgresql://u:p@aws-0-us-east-1.pooler.supabase.com:6543/postgres";
-    expect(() => assertImportTargetAllowed(prod, undefined)).toThrow(
-      /Refusing/,
-    );
-    expect(() => assertImportTargetAllowed(prod, "some-other-host")).toThrow(
-      /Refusing/,
-    );
-    expect(
-      assertImportTargetAllowed(prod, "aws-0-us-east-1.pooler.supabase.com"),
-    ).toEqual({ host: "aws-0-us-east-1.pooler.supabase.com", remote: true });
+  it("refuses mixed environments (rows and images must go to the same place)", () => {
+    expect(() =>
+      assertImportTargetAllowed(LOCAL_DB, PROD_API, undefined),
+    ).toThrow(/different environments/);
+    expect(() =>
+      assertImportTargetAllowed(
+        PROD_POOLER,
+        LOCAL_API,
+        "aws-0-us-east-1.pooler.supabase.com",
+      ),
+    ).toThrow(/different environments/);
   });
 
-  it("refuses when there is no target", () => {
-    expect(() => assertImportTargetAllowed(undefined, undefined)).toThrow();
-    expect(() => assertImportTargetAllowed("not a url", undefined)).toThrow();
+  it("refuses a remote database from a different Supabase project than Storage", () => {
+    expect(() =>
+      assertImportTargetAllowed(
+        PROD_POOLER,
+        OTHER_API,
+        "aws-0-us-east-1.pooler.supabase.com",
+      ),
+    ).toThrow(/does not belong/);
+  });
+
+  it("refuses a remote target unless the exact database host is confirmed", () => {
+    expect(() =>
+      assertImportTargetAllowed(PROD_POOLER, PROD_API, undefined),
+    ).toThrow(/Refusing/);
+    expect(() =>
+      assertImportTargetAllowed(PROD_POOLER, PROD_API, "some-other-host"),
+    ).toThrow(/Refusing/);
+    expect(
+      assertImportTargetAllowed(
+        PROD_POOLER,
+        PROD_API,
+        "aws-0-us-east-1.pooler.supabase.com",
+      ),
+    ).toEqual({ host: "aws-0-us-east-1.pooler.supabase.com", remote: true });
+    expect(
+      assertImportTargetAllowed(PROD_DIRECT, PROD_API, "db.abcdref.supabase.co")
+        .remote,
+    ).toBe(true);
+  });
+
+  it("refuses when a target is missing or malformed", () => {
+    expect(() =>
+      assertImportTargetAllowed(undefined, LOCAL_API, undefined),
+    ).toThrow();
+    expect(() =>
+      assertImportTargetAllowed(LOCAL_DB, undefined, undefined),
+    ).toThrow();
+    expect(() =>
+      assertImportTargetAllowed("not a url", LOCAL_API, undefined),
+    ).toThrow();
   });
 });
 
