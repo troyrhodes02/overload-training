@@ -6,6 +6,9 @@
 **Policy:** Autonomous Pipeline Policy / stop conditions per `CLAUDE.md` + the Foundation pipeline instruction.
 **Hard rule for this run:** Do **not** merge the Foundation feature branch into `main`. Leave the reviewed, green feature PR open for human verification and merge.
 
+**Feature branch:** `feat/01-foundation`
+**Feature PR:** https://github.com/troyrhodes02/overload-training/pull/1 (base `main`) — DO NOT MERGE this run.
+
 ## Linear
 
 - **Project:** Overload V1 — `d85a1e9b-b2fe-4994-b24f-315f138415ad` (team `OVE`)
