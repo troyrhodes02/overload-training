@@ -1,4 +1,9 @@
 import path from "node:path";
+// Prisma 7 does not auto-load .env for the config file, so load it here before
+// reading process.env. dotenv does NOT override variables already present in
+// the environment, so an explicitly exported DIRECT_URL (e.g. the production
+// value passed on the command line) still takes precedence over .env.
+import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 // Prisma 7 configuration. Connection URLs live here, not in schema.prisma.
