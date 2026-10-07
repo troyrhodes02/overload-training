@@ -28,11 +28,11 @@
 
 | # | ID | Title | blockedBy | Branch | PR | Status |
 |---|----|-------|-----------|--------|----|--------|
-| 1 | OVE-10 | Library & Gyms data model: canonical vocabularies, Exercise classification migration, repo hygiene | — | feat/ove-10-library-data-model | [#8](https://github.com/troyrhodes02/overload-training/pull/8) | PR open, green |
-| 2 | OVE-11 | free-exercise-db catalog import: pinned snapshot, normalization, idempotent exercise + image import | OVE-10 | feat/ove-11-catalog-import | (opening) | implemented, green |
-| 3 | OVE-12 | Exercise Library data layer & server actions | OVE-11 | feat/ove-12-library-data-layer | — | not started |
-| 4 | OVE-13 | Exercise Library UI | OVE-12 | feat/ove-13-library-ui | — | not started |
-| 5 | OVE-14 | Gym Management + deliberate-absence guards | OVE-13 | feat/ove-14-gyms | — | not started |
+| 1 | OVE-10 | Library & Gyms data model: canonical vocabularies, Exercise classification migration, repo hygiene | — | feat/ove-10-library-data-model | [#8](https://github.com/troyrhodes02/overload-training/pull/8) | squash-merged → 7ccd9e4; Done |
+| 2 | OVE-11 | free-exercise-db catalog import: pinned snapshot, normalization, idempotent exercise + image import | OVE-10 | feat/ove-11-catalog-import | [#9](https://github.com/troyrhodes02/overload-training/pull/9) | squash-merged → 82057a9; Done |
+| 3 | OVE-12 | Exercise Library data layer & server actions | OVE-11 | feat/ove-12-library-data-layer | [#10](https://github.com/troyrhodes02/overload-training/pull/10) | squash-merged → 3f22c2d; Done |
+| 4 | OVE-13 | Exercise Library UI | OVE-12 | feat/ove-13-library-ui | [#11](https://github.com/troyrhodes02/overload-training/pull/11) | squash-merged → 5a19139; Done |
+| 5 | OVE-14 | Gym Management + deliberate-absence guards | OVE-13 | feat/ove-14-gyms | [#12](https://github.com/troyrhodes02/overload-training/pull/12) | squash-merged → 9efba00; Done |
 
 Branch stacking: OVE-10 branches from `feat/02-library-gyms-setup`; each next ticket branches from the previous ticket branch. Ticket PRs target the previous branch (OVE-10 targets the feature branch).
 
@@ -68,9 +68,9 @@ Branch stacking: OVE-10 branches from `feat/02-library-gyms-setup`; each next ti
 - [x] 3–4. Spec + Resolved Decisions (+ method note)
 - [x] 5. Milestone + issues OVE-10..OVE-14 + blockedBy chain
 - [x] 6. Feature PR into main — PR #7
-- [ ] 7. Ticket-worker per ticket (stacked PRs) — in progress
-- [ ] 8. Runbook
-- [ ] 9. Squash-merge ticket PRs into feature branch
+- [x] 7. Ticket-worker per ticket (stacked PRs #8–#12, each green)
+- [x] 8. Runbook → `docs/runs/02-library-gyms-setup-runbook.md`
+- [x] 9. Squash-merged #8→#12 into the feature branch via GitHub (each next PR retargeted to the feature branch; #12 needed a merge of the feature branch into its branch — add/add conflicts resolved to the OVE-14 side after verifying the feature tree was identical to OVE-13; no force-push)
 - [ ] 10. Full verification
 - [ ] 11. /review → inline comments on feature PR
 - [ ] 12. /overload-review-audit + dispositions
@@ -78,6 +78,9 @@ Branch stacking: OVE-10 branches from `feat/02-library-gyms-setup`; each next ti
 - [ ] 14. Report
 
 ## Notes / decisions log
+
+- Vercel's GitHub integration builds a Preview deployment per PR (observed on #12). Runbook B3 asks the human to confirm DB env vars are Production-scoped only.
+- **Merging to `main` deploys production.** The new code needs migration `1_library_gyms_setup`; until a human applies it (runbook B1), `/exercises` errors (no data risk). The report flags this as the first external step.
 
 - The overload-* skills are executed directly from their `SKILL.md` definitions (project files read in full).
 - Baseline before any change (main @ 8b8def6, after `npm install`): lint ✅; format ❌ (CRLF, env issue); unit 22/23 (`.env.example` missing).
