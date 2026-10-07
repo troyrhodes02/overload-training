@@ -11,6 +11,8 @@ module.exports = {
   testMatch: ["**/*.test.ts", "**/*.test.tsx"],
   testPathIgnorePatterns: ["/node_modules/", "\\.int\\.test\\.ts$"],
   moduleNameMapper: {
+    // `server-only` throws by design when loaded outside an RSC bundle; stub it.
+    "^server-only$": "<rootDir>/tests/support/empty-module.js",
     "^@/(.*)$": "<rootDir>/src/$1",
   },
   transform: {
