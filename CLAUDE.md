@@ -122,7 +122,7 @@ Exercise images are public-domain assets from free-exercise-db. They are the onl
 
 ### Secrets
 
-`DATABASE_URL`, `DIRECT_URL`, and the Supabase service-role key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Vercel preview deployments and local development point at the Supabase dev project, never at production.
+`DATABASE_URL`, `DIRECT_URL`, and the Supabase service-role key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Local development runs against the Supabase CLI local stack (`npx supabase start`, Docker); the only cloud project is `overload-prod` (production). There is no dev cloud project and no staging tier. Vercel deploys production only — there are no DB-backed preview deployments, so nothing but production ever points at `overload-prod`. (The Architecture Doc's "separate Supabase development project" wording predates this and is a pending upstream amendment.)
 
 ## Business logic
 

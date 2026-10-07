@@ -15,14 +15,21 @@ invariants.
 ## Getting started
 
 ```bash
-cp .env.example .env   # fill in the Supabase dev project values
+npx supabase start     # local Supabase stack (Docker): Postgres + Auth + Studio
+cp .env.example .env    # fill the LOCAL block from `supabase start` output
 npm install
+npx prisma migrate deploy   # apply the schema to the local stack
 npm run dev
 ```
 
-Local development and Vercel previews point at the Supabase **development**
-project. Production uses a separate Supabase **production** project. There is no
-staging tier.
+Create your single local user in local Studio (http://127.0.0.1:54323 →
+Authentication → Add user), then sign in at `/login`.
+
+**Environment model:** local development runs against the **Supabase CLI local
+stack** (`npx supabase start`); the only cloud project is **`overload-prod`**
+(production). There is no dev cloud project and no staging tier. Vercel deploys
+**production only** — there are no DB-backed preview deployments; verify changes
+locally and in production. See `docs/runs/01-foundation-runbook.md`.
 
 ## Scripts
 
@@ -50,7 +57,8 @@ data. Do not add a policy to make a query work.
 
 ## Deployment
 
-Deployment is via Vercel. The build runs `next build` only — it does **not**
-apply migrations. Production database migrations and all external provisioning
-(Supabase projects, environment variables, the single production user) are
-performed by a human following **`docs/runs/01-foundation-runbook.md`**.
+Deployment is via Vercel, **production only** (no DB-backed previews). The build
+runs `next build` only — it does **not** apply migrations. Production database
+migrations and all external provisioning (the `overload-prod` Supabase project,
+environment variables, the single production user) are performed by a human
+following **`docs/runs/01-foundation-runbook.md`**.

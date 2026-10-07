@@ -62,7 +62,8 @@ Each ticket was implemented on a stacked branch with its own green PR, then squa
 
 All are recorded in `docs/specs/01-foundation-spec.md` → **Resolved Decisions**. Summary:
 
-- **D1–D9** — the pre-resolved platform decisions from the run instruction (email/password + no signup; Prisma-only data access; deny-all RLS; full schema, no behavior; Jest + throwaway Postgres; pooled/direct connection split + one client; separate dev/prod, no staging; minimal shell; Tailwind/shadcn, styling-doc discrepancy is upstream). Recorded as approved doc authority.
+- **D1–D9** — the pre-resolved platform decisions from the run instruction (email/password + no signup; Prisma-only data access; deny-all RLS; full schema, no behavior; Jest + throwaway Postgres; pooled/direct connection split + one client; separate environments, no staging; minimal shell; Tailwind/shadcn, styling-doc discrepancy is upstream). Recorded as approved doc authority.
+- **D7 refinement (owner, 2026-10-07):** local dev uses the **Supabase CLI local stack** (`npx supabase start`, Docker) instead of a dev cloud project; the only cloud project is **`overload-prod`**; **production-only deploys** (no DB-backed Vercel previews). Rationale: the owner keeps ≤2 cloud Supabase projects unpaused and reserves them for other work, so a dev cloud project isn't viable; the local stack is a faithful no-cost Postgres+Auth, and production-only deploys keep "previews never touch production" trivially true. Config/docs changed (`supabase/config.toml`, `.env.example`, runbook, README, `CLAUDE.md`, spec D7); **no app code changed** (it reads env vars). Suite re-verified green.
 - **D10** — Next.js 16's middleware is `src/proxy.ts` (installed framework is 16.4.0). Rationale: current framework convention.
 - **D11** — keep `cacheComponents` enabled (committed scaffold convention); the protected segment uses `export const instant = false` to block on the server for the auth check. Rationale: instant-navigation optimization is an explicit Foundation rabbit hole; `instant` is a documented Next 16 route-segment config.
 - **D12** — login/sign-out are server actions using the `@supabase/ssr` server client; `requireUser()` uses `supabase.auth.getUser()` (validates with the Auth server). Rationale: keep auth server-side, re-check in actions.
@@ -107,7 +108,8 @@ None. All Foundation-relevant open questions were resolvable under the authority
 ## Required upstream amendments (for a human to apply; not edited this run)
 
 1. **Styling-system discrepancy (required report item).** `docs/planning/architecture.md` (Tech Stack) says the "Frontend styling/component approach … is intentionally left undecided," while `CLAUDE.md` states **Tailwind CSS with shadcn/ui** is "the single component and styling system." These contradict. Foundation followed `CLAUDE.md` (authoritative for stack). **Amend `architecture.md` to record Tailwind + shadcn/ui as the decided styling system.** (`docs/planning/` was not edited during this run.)
-2. **Pitch-1 PRD traceability exception.** As the pitch itself notes, Foundation has no corresponding PRD feature section; its acceptance criteria derive from the Pitch Roadmap + Architecture Doc. Worth recording explicitly in the planning docs so a downstream agent doesn't fabricate PRD traceability.
+2. **Environment-model amendment (new, from the owner's 2026-10-07 refinement).** `docs/planning/architecture.md` → "Environments & Deployment" says "Local development runs against a separate Supabase development project." The owner has changed this: **local development uses the Supabase CLI local stack (`npx supabase start`); the only cloud project is `overload-prod`; deploys are production-only (no DB-backed previews).** `CLAUDE.md`'s Secrets sentence was updated this session to match; **`architecture.md` (protected `docs/planning/`) still needs the human amendment.**
+3. **Pitch-1 PRD traceability exception.** As the pitch itself notes, Foundation has no corresponding PRD feature section; its acceptance criteria derive from the Pitch Roadmap + Architecture Doc. Worth recording explicitly in the planning docs so a downstream agent doesn't fabricate PRD traceability.
 
 ## Platform / framework notes a human should know
 
@@ -116,7 +118,9 @@ None. All Foundation-relevant open questions were resolvable under the authority
 
 ## Required external / manual steps still pending
 
-All of `docs/runs/01-foundation-runbook.md` — none were performed this run (no Supabase/Vercel/production changes, no production credentials used). In brief: create/confirm dev + prod Supabase projects; disable signups; obtain dev `DATABASE_URL`/`DIRECT_URL` + public auth values; create the Vercel project; set preview envs (→ dev) and production envs (→ prod); apply the reviewed migration to production; create the single production user; verify prod RLS posture; first production login; verify unauthenticated prod access is redirected and the authenticated shell loads; rollback guidance.
+All of `docs/runs/01-foundation-runbook.md` — none were performed this run (no Supabase/Vercel/production changes, no production credentials used). In the refined model:
+- **Local (Part A):** `npx supabase start` (Docker); fill `.env` LOCAL block; `npx prisma migrate deploy` to the local stack; create the single local user in local Studio; run the suites.
+- **Production (Part B):** create/confirm **`overload-prod`**; disable signups; create the Vercel project with **production-only** deploys (no DB-backed previews); set production env vars (→ overload-prod); apply the reviewed migration to production; create the single production user; verify prod RLS posture; first production login; verify unauthenticated prod access is redirected and the authenticated shell loads; rollback guidance.
 
 ## Readiness for Library & Gyms Setup (Pitch 2)
 
