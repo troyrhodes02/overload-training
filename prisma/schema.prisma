@@ -1,0 +1,216 @@
+// Overload — base schema (Pitch 1: Foundation).
+// Shape only: all eleven approved entities with their referential invariants.
+// NO feature behavior, NO stored progression tag / e1RM, NO ownership column.
+// Row-level security (deny-all) is enabled on every table in the migration SQL.
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7 moves connection URLs to prisma.config.ts.
+  // CLI/migrations use the DIRECT_URL (see prisma.config.ts); the runtime
+  // client is constructed with the pooled DATABASE_URL in src/lib/db.ts.
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum MesocycleStatus {
+  active
+  archived
+}
+
+enum GoalStatus {
+  active
+  archived
+}
+
+model Mesocycle {
+  id          String          @id @default(uuid()) @db.Uuid
+  name        String
+  lengthWeeks Int             @map("length_weeks")
+  deloadWeek  Int             @map("deload_week")
+  splitType   String          @map("split_type")
+  status      MesocycleStatus @default(active)
+  startDate   DateTime?       @map("start_date") @db.Timestamptz
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  sessions       Session[]
+  loggedSessions LoggedSession[]
+
+  @@map("mesocycles")
+}
+
+model Session {
+  id          String   @id @default(uuid()) @db.Uuid
+  mesocycleId String   @map("mesocycle_id") @db.Uuid
+  name        String
+  dayOfWeek   Int?     @map("day_of_week")
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  mesocycle        Mesocycle         @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
+  sessionExercises SessionExercise[]
+  loggedSessions   LoggedSession[]
+
+  @@index([mesocycleId])
+  @@map("sessions")
+}
+
+model SessionExercise {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionId    String   @map("session_id") @db.Uuid
+  exerciseId   String   @map("exercise_id") @db.Uuid
+  position     Int      @default(0)
+  plannedSets  Int      @map("planned_sets")
+  targetRepMin Int      @map("target_rep_min")
+  targetRepMax Int      @map("target_rep_max")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Planned template references an Exercise; Restrict so an in-use exercise can't be hard-deleted.
+  session  Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, position])
+  @@index([exerciseId])
+  @@map("session_exercises")
+}
+
+model Exercise {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String
+  muscleGroup   String    @map("muscle_group")
+  equipmentType String    @map("equipment_type")
+  imageRef      String?   @map("image_ref")
+  isCustom      Boolean   @default(false) @map("is_custom")
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  sessionExercises SessionExercise[]
+  loggedExercises  LoggedExercise[]
+  baselines        GymExerciseBaseline[]
+  goals            Goal[]
+
+  @@index([muscleGroup])
+  @@index([deletedAt])
+  @@map("exercises")
+}
+
+model Gym {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  address   String?
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  baselines       GymExerciseBaseline[]
+  loggedExercises LoggedExercise[]
+
+  @@index([deletedAt])
+  @@map("gyms")
+}
+
+model GymExerciseBaseline {
+  id         String   @id @default(uuid()) @db.Uuid
+  gymId      String   @map("gym_id") @db.Uuid
+  exerciseId String   @map("exercise_id") @db.Uuid
+  weightLbs  Decimal  @map("weight_lbs") @db.Decimal(6, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  gym      Gym      @relation(fields: [gymId], references: [id], onDelete: Restrict)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  // One baseline per (gym, exercise).
+  @@unique([gymId, exerciseId])
+  @@index([exerciseId])
+  @@map("gym_exercise_baselines")
+}
+
+model LoggedSession {
+  id          String    @id @default(uuid()) @db.Uuid
+  mesocycleId String?   @map("mesocycle_id") @db.Uuid
+  sessionId   String?   @map("session_id") @db.Uuid
+  performedOn DateTime  @map("performed_on") @db.Timestamptz
+  completedAt DateTime? @map("completed_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  // History is never cascaded away by a plan edit. Restrict on the plan references.
+  mesocycle       Mesocycle?       @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
+  session         Session?         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  loggedExercises LoggedExercise[]
+
+  @@index([performedOn])
+  @@index([mesocycleId])
+  @@map("logged_sessions")
+}
+
+model LoggedExercise {
+  id              String   @id @default(uuid()) @db.Uuid
+  loggedSessionId String   @map("logged_session_id") @db.Uuid
+  exerciseId      String   @map("exercise_id") @db.Uuid
+  gymId           String?  @map("gym_id") @db.Uuid
+  position        Int      @default(0)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // The logged chain is Restrict all the way down; history is never cascaded away.
+  loggedSession LoggedSession @relation(fields: [loggedSessionId], references: [id], onDelete: Restrict)
+  exercise      Exercise      @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  gym           Gym?          @relation(fields: [gymId], references: [id], onDelete: Restrict)
+  sets          LoggedSet[]
+
+  // No progressionTag column and no e1RM column. Both are computed on read in later pitches.
+  @@index([loggedSessionId, position])
+  @@index([exerciseId])
+  @@index([gymId])
+  @@map("logged_exercises")
+}
+
+model LoggedSet {
+  id               String   @id @default(uuid()) @db.Uuid
+  loggedExerciseId String   @map("logged_exercise_id") @db.Uuid
+  setNumber        Int      @map("set_number")
+  weightLbs        Decimal  @map("weight_lbs") @db.Decimal(6, 2)
+  reps             Int
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  loggedExercise LoggedExercise @relation(fields: [loggedExerciseId], references: [id], onDelete: Restrict)
+
+  // A retried set collides here; a deliberate change goes through editLoggedSet (later pitch).
+  @@unique([loggedExerciseId, setNumber])
+  @@map("logged_sets")
+}
+
+model Goal {
+  id              String     @id @default(uuid()) @db.Uuid
+  exerciseId      String     @map("exercise_id") @db.Uuid
+  targetWeightLbs Decimal    @map("target_weight_lbs") @db.Decimal(6, 2)
+  targetReps      Int        @map("target_reps")
+  status          GoalStatus @default(active)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([exerciseId])
+  @@map("goals")
+}
+
+model CardioLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  type        String
+  durationMin Int      @map("duration_min")
+  performedOn DateTime @map("performed_on") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([performedOn])
+  @@map("cardio_logs")
+}
