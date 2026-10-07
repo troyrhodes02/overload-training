@@ -94,20 +94,31 @@ Vercel → Project → **Settings → Environment Variables**, scope = **Product
 | Variable | Value source | Notes |
 | -------- | ------------ | ----- |
 | `DATABASE_URL` | overload-prod pooled (Database settings, port 6543, `?pgbouncer=true`) | server-only; not `NEXT_PUBLIC_` |
-| `DIRECT_URL` | overload-prod direct (port 5432) | server-only |
+| `DIRECT_URL` | overload-prod direct (port 5432) — or the **Session pooler** if direct is unreachable (see B5) | server-only |
 | `NEXT_PUBLIC_SUPABASE_URL` | overload-prod Project URL (API settings) | public |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | overload-prod anon key (API settings) | public |
 
 The service-role key is not used by Foundation; do not add it.
 
 ### B5. Apply the reviewed migration to production (manual, after approval)
-With the overload-prod **direct** connection, from a trusted machine, for this one command only:
+From a trusted machine, for this one command only (an exported `DIRECT_URL`
+overrides `.env`, so this is safe even with a local `.env` present):
 ```bash
-DIRECT_URL="<overload-prod direct connection>" npx prisma migrate deploy
+DIRECT_URL="<overload-prod migration connection>" npx prisma migrate deploy
 ```
 - Creates all 11 tables **and** enables deny-all RLS (including on `_prisma_migrations`).
 - Do **not** run `prisma migrate reset`, `prisma db push`, or any destructive command against production.
 - Do not commit the prod `DIRECT_URL` anywhere.
+
+**Which connection string to use (important):**
+- Supabase's **direct** endpoint (`db.<ref>.supabase.co:5432`, user `postgres`) is **IPv6-only** on most projects (IPv4 direct was deprecated; IPv4 is a paid add-on). From an IPv4-only machine it fails with `P1001: Can't reach database server`.
+- If you hit `P1001`, use the **Session pooler** for `DIRECT_URL` instead — IPv4-friendly and valid for migrations. It differs from the direct string: user is `postgres.<ref>`, host is the pooler, port is still `5432` (session mode):
+  ```
+  postgresql://postgres.<ref>:[url-encoded-password]@aws-0-<region>.pooler.supabase.com:5432/postgres
+  ```
+  Copy it from Supabase → **Connect → Session pooler**. (Keep `DATABASE_URL` as the **Transaction pooler** at port `6543` for runtime.)
+- **URL-encode** special characters in the password (`@`→`%40`, `#`→`%23`, `/`→`%2F`, etc.).
+- If it still can't connect, confirm the project isn't **paused** in the dashboard.
 
 ### B6. Create the single production user
 `overload-prod` → **Authentication → Users → Add user** → one email + password,
