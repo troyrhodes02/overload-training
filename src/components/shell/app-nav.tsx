@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, House } from "lucide-react";
+import { Building2, Dumbbell, House } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * The app's primary navigation. Built as an extensible list so later pitches add
  * destinations (Plan, History, Goals) without restructuring the shell. Library & Gyms
- * Setup adds Exercises (and Gyms). Active state is derived from
+ * Setup adds Exercises and Gyms. Active state is derived from
  * the current path so adding items stays correct (one active item, correct
  * aria-current).
  *
@@ -23,6 +23,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Today", icon: House },
   { href: "/exercises", label: "Exercises", icon: Dumbbell },
+  { href: "/gyms", label: "Gyms", icon: Building2 },
 ];
 
 function isActive(pathname: string, href: string): boolean {

@@ -24,13 +24,18 @@ export const ARCHIVED_MESSAGE = "Archived. Past workouts keep it.";
  */
 export function ArchiveDialog({
   trigger,
+  open: controlledOpen,
+  onOpenChange,
   name,
   body,
   archive,
   restore,
   onArchived,
 }: {
-  trigger: ReactNode;
+  /** Element that opens the dialog; omit when controlling `open` (e.g. from a menu). */
+  trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   name: string;
   body: string;
   archive: () => Promise<ActionResult<unknown>>;
@@ -38,7 +43,12 @@ export function ArchiveDialog({
   /** Called after a successful archive (e.g. navigate away from a detail page). */
   onArchived?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [isPending, startTransition] = useTransition();
 
   function confirm() {
@@ -66,7 +76,7 @@ export function ArchiveDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Archive {name}?</DialogTitle>
