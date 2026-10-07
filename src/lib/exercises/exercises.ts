@@ -31,7 +31,7 @@ async function requireExists(id: string, tx?: Db) {
   const row = isUuid(id)
     ? await db(tx).exercise.findUnique({
         where: { id },
-        select: { id: true, deletedAt: true, isFavorite: true },
+        select: { id: true, deletedAt: true },
       })
     : null;
   if (!row) throw new DomainError("not_found", NOT_FOUND);
