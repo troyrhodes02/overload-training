@@ -52,19 +52,21 @@ Branch stacking: OVE-5 branches from the feature branch `feat/01-foundation`; ea
 - No local Postgres server binary and Docker daemon down → integration tests use `embedded-postgres` (spiked OK: boots PG18, enforces RLS). npm registry reachable.
 - Package manager: npm. gh authenticated as troyrhodes02. Repo remote: github.com/troyrhodes02/overload-training.
 
-## Pipeline step status
+## Pipeline step status — COMPLETE (branch intentionally NOT merged)
 
 - [x] 1. Context + pull pitch
 - [x] 2. Design doc
 - [x] 3–4. Spec + Resolved Decisions
 - [x] 5. Milestone + issues + blockedBy chain (OVE-5..OVE-9)
-- [ ] 6. Feature PR into main
-- [ ] 7. Ticket-worker per ticket (stacked PRs)
-- [ ] 8. Runbook
-- [ ] 9–10. Squash-merge ticket PRs into feature branch + full verification
-- [ ] 11–12. /review + /overload-review-audit (apply findings)
-- [ ] 13. Push audited branch + re-verify (DO NOT MERGE)
-- [ ] 14. Report
+- [x] 6. Feature PR into main — PR #1
+- [x] 7. Ticket-worker per ticket (stacked PRs #2–#6)
+- [x] 8. Runbook
+- [x] 9–10. Squash-merged ticket PRs into feature branch + full verification (green)
+- [x] 11–12. /review (3 inline findings on PR #1) + audit (all 3 IMPLEMENTED)
+- [x] 13. Pushed audited branch + re-verified full suite green — **NOT merged to main** (by instruction)
+- [x] 14. Report → `docs/runs/01-foundation-report.md`
+
+**Final state:** All OVE-5..OVE-9 are **Done**; ticket PRs #2–#6 closed (squash-merged into `feat/01-foundation`). Feature PR #1 is open, green, reviewed, audited. Full suite green on the audited branch (lint, typecheck, format, unit 23, integration 10, build, e2e 3, client-bundle guard). The feature branch was intentionally **not** merged into `main`; the human completes `docs/runs/01-foundation-runbook.md`, verifies, and merges.
 
 ## Notes / decisions log
 
