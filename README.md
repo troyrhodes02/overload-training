@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Overload
 
-## Getting Started
+A single-user strength training tracker. See `docs/planning/` for the product
+brief, PRD, architecture, and pitch roadmap, and `CLAUDE.md` for the engineering
+invariants.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router) + React + TypeScript — server-first.
+- Supabase — Postgres + Auth (the Supabase client is used for auth only).
+- Prisma — schema authority and the only path to application data.
+- Tailwind CSS + shadcn/ui — the single styling/component system.
+- Vercel — hosting.
+
+## Getting started
 
 ```bash
+npx supabase start     # local Supabase stack (Docker): Postgres + Auth + Studio
+cp .env.example .env    # fill the LOCAL block from `supabase start` output
+npm install
+npx prisma migrate deploy   # apply the schema to the local stack
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create your single local user in local Studio (http://127.0.0.1:54323 →
+Authentication → Add user), then sign in at `/login`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Environment model:** local development runs against the **Supabase CLI local
+stack** (`npx supabase start`); the only cloud project is **`overload-prod`**
+(production). There is no dev cloud project and no staging tier. Vercel deploys
+**production only** — there are no DB-backed preview deployments; verify changes
+locally and in production. See `docs/runs/01-foundation-runbook.md`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Script | What it does |
+| ------ | ------------ |
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build (`prisma generate` runs on `postinstall`) |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run format` / `format:check` | Prettier write / check |
+| `npm test` | Jest unit tests |
+| `npm run test:integration` | Jest integration tests against a throwaway Postgres (`TEST_DATABASE_URL`; an embedded Postgres is provisioned automatically) |
+| `npm run test:e2e` | Playwright auth-boundary tests (uses system Chrome via `channel`) |
+| `npm run verify:client-bundle` | Fails if a server DB secret leaked into `.next/static` (run after `build`) |
 
-To learn more about Next.js, take a look at the following resources:
+## Database & migrations
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The Prisma client connects at runtime through the **pooled** `DATABASE_URL`
+(via the pg driver adapter in `src/lib/db.ts`). The migration CLI uses the
+**direct** `DIRECT_URL` (configured in `prisma.config.ts`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Every table has row-level security enabled with **no** policies (deny-all), so
+the Supabase Data API is closed and Prisma is the only door into application
+data. Do not add a policy to make a query work.
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deployment is via Vercel, **production only** (no DB-backed previews). The build
+runs `next build` only — it does **not** apply migrations. Production database
+migrations and all external provisioning (the `overload-prod` Supabase project,
+environment variables, the single production user) are performed by a human
+following **`docs/runs/01-foundation-runbook.md`**.

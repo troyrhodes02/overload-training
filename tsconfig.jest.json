@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "isolatedModules": false,
+    "verbatimModuleSyntax": false,
+    "noEmit": false,
+    "types": ["node", "jest"]
+  },
+  "ts-node": {
+    "transpileOnly": true
+  }
+}

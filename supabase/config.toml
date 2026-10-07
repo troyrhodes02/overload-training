@@ -1,0 +1,40 @@
+# Supabase CLI config for LOCAL development (`npx supabase start`).
+# This drives the local Docker stack (Postgres + Auth + Studio) that stands in
+# for a cloud project during development. The only CLOUD Supabase project is
+# `overload-prod` (production); there is no dev cloud project.
+#
+# If your installed CLI needs a different `[db].major_version` image than below,
+# change it to match (or run `npx supabase init` to regenerate a full config and
+# re-apply the auth settings here).
+
+project_id = "overload"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+# Auth mirrors production: public signups are OFF. The single local user is
+# created by hand in local Studio (http://127.0.0.1:54323 → Authentication →
+# Add user), exactly as the production user is created in overload-prod.
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
