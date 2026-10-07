@@ -34,6 +34,21 @@ describe("row-level security posture", () => {
     expect(Number(rows[0].n)).toBe(0);
   });
 
+  it("does not let the anon role execute the classification helper function (no RPC surface)", async () => {
+    const prisma = getTestPrisma();
+    await prisma.$executeRawUnsafe(
+      `DO $$ BEGIN
+         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+           CREATE ROLE anon NOLOGIN;
+         END IF;
+       END $$;`,
+    );
+    const rows = await prisma.$queryRawUnsafe<{ can_execute: boolean }[]>(
+      `SELECT has_function_privilege('anon', 'overload_array_is_distinct(anyarray)', 'EXECUTE') AS can_execute`,
+    );
+    expect(rows[0].can_execute).toBe(false);
+  });
+
   it("returns no application rows to the anon role even when a row exists (Data API posture)", async () => {
     const prisma = getTestPrisma();
 
@@ -55,8 +70,9 @@ describe("row-level security posture", () => {
     await prisma.exercise.create({
       data: {
         name: "Barbell Bench Press",
-        muscleGroup: "chest",
+        primaryMuscle: "chest",
         equipmentType: "barbell",
+        isCustom: true,
       },
     });
 

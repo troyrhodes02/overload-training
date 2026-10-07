@@ -24,6 +24,47 @@ enum GoalStatus {
   archived
 }
 
+/// Canonical Overload muscle-group vocabulary (Library & Gyms Setup, spec D6).
+/// ONE vocabulary for imported exercises, custom exercises, the library filter,
+/// and (later) Exercise Swap. Mirrors src/lib/exercises/taxonomy.ts; the
+/// free-exercise-db mapping is documented in docs/planning/method-note.md.
+enum MuscleGroup {
+  chest
+  back
+  lower_back
+  traps
+  shoulders
+  biceps
+  triceps
+  forearms
+  core
+  quads
+  hamstrings
+  glutes
+  calves
+  adductors
+  abductors
+  neck
+}
+
+/// Canonical Overload equipment vocabulary (spec D8). Which values are
+/// gym-variable is decided later, in exactly one function (isGymVariable).
+enum Equipment {
+  barbell
+  ez_bar
+  dumbbell
+  kettlebell
+  cable
+  machine
+  plate_loaded
+  bodyweight
+  band
+  medicine_ball
+  exercise_ball
+  foam_roller
+  other
+}
+
 model Mesocycle {
   id          String          @id @default(uuid()) @db.Uuid
   name        String
@@ -78,23 +119,34 @@ model SessionExercise {
   @@map("session_exercises")
 }
 
+// Library & Gyms Setup: exactly one primary muscle, optional distinct
+// secondaries (never the primary), canonical equipment, provenance (sourceId
+// for imported rows, isCustom for the lifter's own), and a manual favorite
+// flag. The CHECK constraints that enforce these live in the migration SQL.
 model Exercise {
-  id            String    @id @default(uuid()) @db.Uuid
-  name          String
-  muscleGroup   String    @map("muscle_group")
-  equipmentType String    @map("equipment_type")
-  imageRef      String?   @map("image_ref")
-  isCustom      Boolean   @default(false) @map("is_custom")
-  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id               String        @id @default(uuid()) @db.Uuid
+  name             String
+  /// Exactly one primary muscle. The column keeps its Foundation name.
+  primaryMuscle    MuscleGroup   @map("muscle_group")
+  /// Zero or more, distinct, never the primary. Descriptive metadata only.
+  secondaryMuscles MuscleGroup[] @default([]) @map("secondary_muscles")
+  equipmentType    Equipment     @map("equipment_type")
+  /// Storage object path in the exercise-images bucket; always null for custom.
+  imageRef         String?       @map("image_ref")
+  isCustom         Boolean       @default(false) @map("is_custom")
+  /// free-exercise-db record id: the import identity key. Null for custom.
+  sourceId         String?       @unique @map("source_id")
+  isFavorite       Boolean       @default(false) @map("is_favorite")
+  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   sessionExercises SessionExercise[]
   loggedExercises  LoggedExercise[]
   baselines        GymExerciseBaseline[]
   goals            Goal[]
 
-  @@index([muscleGroup])
+  @@index([primaryMuscle])
   @@index([deletedAt])
   @@map("exercises")
 }

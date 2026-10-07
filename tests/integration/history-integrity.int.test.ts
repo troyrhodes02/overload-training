@@ -11,8 +11,9 @@ describe("logged-history referential integrity", () => {
     const exercise = await prisma.exercise.create({
       data: {
         name: "Chest Press Machine",
-        muscleGroup: "chest",
+        primaryMuscle: "chest",
         equipmentType: "machine",
+        isCustom: true,
       },
     });
     const gym = await prisma.gym.create({
