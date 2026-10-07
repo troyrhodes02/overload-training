@@ -30,6 +30,27 @@ describe("logged-history write guard", () => {
   });
 });
 
+describe("exercise and gym write guards (Library & Gyms Setup)", () => {
+  const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
+
+  it("never hard-deletes an Exercise or Gym anywhere in application code", () => {
+    const hardDelete = /\.\s*(exercise|gym)\s*\.\s*(delete|deleteMany)\s*\(/;
+    const offenders = walk(SRC).filter((f) =>
+      hardDelete.test(fs.readFileSync(f, "utf8")),
+    );
+    expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it("writes Exercise rows only through src/lib/exercises/exercises.ts", () => {
+    const write =
+      /\.\s*exercise\s*\.\s*(create|createMany|update|updateMany|upsert)\s*\(/;
+    const offenders = walk(SRC)
+      .filter((f) => rel(f) !== "src/lib/exercises/exercises.ts")
+      .filter((f) => write.test(fs.readFileSync(f, "utf8")));
+    expect(offenders.map(rel)).toEqual([]);
+  });
+});
+
 describe("secret hygiene", () => {
   const dbSecretRe =
     /NEXT_PUBLIC_[A-Z0-9_]*(DATABASE_URL|DIRECT_URL|SERVICE_ROLE|SERVICE_KEY)/;

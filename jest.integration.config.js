@@ -18,6 +18,11 @@ module.exports = {
   globalTeardown: "<rootDir>/tests/integration/support/global-teardown.ts",
   setupFilesAfterEnv: ["<rootDir>/tests/integration/support/after-env.ts"],
   moduleNameMapper: {
+    // App modules import the shared client from @/lib/db; in integration tests
+    // that resolves to a client bound to TEST_DATABASE_URL (never DATABASE_URL).
+    "^@/lib/db$": "<rootDir>/tests/integration/support/app-db.ts",
+    // `server-only` throws outside an RSC bundle; stub it for Node tests.
+    "^server-only$": "<rootDir>/tests/support/empty-module.js",
     "^@/(.*)$": "<rootDir>/src/$1",
   },
   transform: {
