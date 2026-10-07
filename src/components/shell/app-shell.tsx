@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AppNav } from "./app-nav";
 import { AccountMenu } from "./account-menu";
+import { Toaster } from "@/components/ui/sonner";
 
 /**
  * The authenticated application shell: a top app bar, a content region, and the
@@ -24,6 +25,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* One toaster for the whole authenticated app (archive/undo, saves). */}
+      <Toaster />
     </div>
   );
 }
