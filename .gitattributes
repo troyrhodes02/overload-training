@@ -1,0 +1,6 @@
+# Normalize line endings to LF in the working tree on every platform, so
+# Prettier (endOfLine: lf) passes on Windows checkouts with core.autocrlf=true.
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.jpg binary

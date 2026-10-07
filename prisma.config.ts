@@ -16,6 +16,10 @@ export default defineConfig({
   schema: path.join("prisma", "schema.prisma"),
   migrations: {
     path: path.join("prisma", "migrations"),
+    // Library & Gyms Setup: the free-exercise-db catalog import. Safe to
+    // re-run; refuses a non-local DATABASE_URL without explicit confirmation.
+    // Run deliberately with `npm run db:seed` (see the Pitch 2 runbook).
+    seed: "tsx prisma/seed.ts",
   },
   datasource: {
     // Read directly from the environment (not prisma's env()) so offline
