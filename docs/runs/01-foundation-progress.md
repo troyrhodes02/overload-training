@@ -20,13 +20,20 @@
 
 | # | ID | Title | blockedBy | Branch | PR | Status |
 |---|----|-------|-----------|--------|----|--------|
-| 1 | OVE-5 | Project tooling, styling system & conventions | — | feat/ove-5-foundation-tooling | [#2](https://github.com/troyrhodes02/overload-training/pull/2) | PR open (green: lint/typecheck/format/unit/build) |
-| 2 | OVE-6 | Prisma schema, shared client, migration & deny-all RLS | OVE-5 | feat/ove-6-foundation-schema-rls | TBD | in progress |
-| 3 | OVE-7 | Integration test harness & schema/RLS invariant tests | OVE-6 | feat/ove-7-foundation-integration-tests | TBD | not started |
-| 4 | OVE-8 | Supabase auth: login, sign-out, proxy & DAL | OVE-7 | feat/ove-8-foundation-auth | TBD | not started |
-| 5 | OVE-9 | Protected app shell, nav, states, E2E & deploy config | OVE-8 | feat/ove-9-foundation-shell | TBD | not started |
+| 1 | OVE-5 | Project tooling, styling system & conventions | — | feat/ove-5-foundation-tooling | [#2](https://github.com/troyrhodes02/overload-training/pull/2) | PR open, green |
+| 2 | OVE-6 | Prisma schema, shared client, migration & deny-all RLS | OVE-5 | feat/ove-6-foundation-schema-rls | [#3](https://github.com/troyrhodes02/overload-training/pull/3) | PR open, green |
+| 3 | OVE-7 | Integration test harness & schema/RLS invariant tests | OVE-6 | feat/ove-7-foundation-integration-tests | [#4](https://github.com/troyrhodes02/overload-training/pull/4) | PR open, green |
+| 4 | OVE-8 | Supabase auth: login, sign-out, proxy & DAL | OVE-7 | feat/ove-8-foundation-auth | [#5](https://github.com/troyrhodes02/overload-training/pull/5) | PR open, green |
+| 5 | OVE-9 | Protected app shell, nav, states, E2E & deploy config | OVE-8 | feat/ove-9-foundation-shell | [#6](https://github.com/troyrhodes02/overload-training/pull/6) | PR open, green |
 
-**Status summary (after first ticket PR):** OVE-5 implemented and pushed as PR #2 into `feat/01-foundation`. Styling system (Tailwind v4 + shadcn/ui + theme tokens), Jest unit runner, Prettier, and verification scripts are in place and green. Proceeding through the remaining tickets without waiting for acknowledgement.
+**Status summary (all tickets implemented):** OVE-5…OVE-9 implemented on stacked branches, each with a green PR (#2→#6) targeting the previous branch. Every ticket's own checks passed (lint/typecheck/format/unit; +integration where relevant; +build/e2e/client-bundle for OVE-9). Branch stacking: `feat/01-foundation` → ove-5 → ove-6 → ove-7 → ove-8 → ove-9.
+
+**Key implementation facts for a resuming session:**
+- Prisma **7.10.0** (pinned; `latest` dist-tag is an 8.0 RC — do not use). Connection URLs live in `prisma.config.ts` (not schema). Runtime client uses `@prisma/adapter-pg` with pooled `DATABASE_URL`; CLI/migrations use `DIRECT_URL`.
+- Integration tests use `embedded-postgres` (real PG18) when `TEST_DATABASE_URL` is unset; guard in `tests/integration/support/assert-test-db.ts`.
+- Playwright uses **system Google Chrome** via `channel` (bundled-browser download is blocked in this env; cache has a mismatched build). `test:e2e` webServer runs `build && start -p 3100` with dummy public Supabase env.
+- `export const instant = false` on `src/app/(app)/layout.tsx` (Cache Components is on).
+- Deviation from OVE-9 wording: `/register` & `/signup` are proven to expose **no sign-up surface** (proxy bounces them to `/login`) rather than returning a bare 404, because the proxy protects all unknown unauthenticated routes. Equivalent or stronger proof.
 
 Branch stacking: OVE-5 branches from the feature branch `feat/01-foundation`; each subsequent ticket branches from the previous ticket's branch.
 
