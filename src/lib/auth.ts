@@ -1,5 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -10,6 +11,12 @@ import { createServerSupabase } from "@/lib/supabase/server";
  * with the Auth server rather than trusting a raw cookie.
  */
 export async function getAuthUser(): Promise<User | null> {
+  // The session check is request-time work: getUser() calls the Auth server and
+  // reads the clock (token expiry). With Cache Components + Partial
+  // Prefetching, cookies() alone can resolve during the App Shell prerender,
+  // where Date.now() is not allowed ("blocking-prerender-current-time"), so
+  // defer explicitly to the request before touching Supabase.
+  await connection();
   const supabase = await createServerSupabase();
   const {
     data: { user },
