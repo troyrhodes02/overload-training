@@ -36,7 +36,11 @@ jwt_expiry = 3600
 enable_signup = false
 
 [auth.email]
-enable_signup = false
+# NOTE: despite its name, this key enables the EMAIL PROVIDER itself (it maps to
+# GoTrue's "external email enabled"). Setting it false disables email/password
+# LOGIN entirely ("Email logins are disabled"). Public sign-ups stay off via
+# `[auth] enable_signup = false` above.
+enable_signup = true
 enable_confirmations = false
 
 # Library & Gyms Setup: the exercise-image bucket. PUBLIC-READ (imported,
