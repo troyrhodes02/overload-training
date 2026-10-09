@@ -23,11 +23,22 @@ Copy is restrained. The only warm touch is a single greeting line on the dashboa
 
 ## Output format
 
-- Code in TypeScript React (TSX) using shadcn/ui components and Tailwind utility classes, in a single code block. shadcn/ui with Tailwind is Overload's only component and styling system — do not introduce Material UI, styled-components, CSS modules, inline style objects for layout, or a second component library.
-- Start with a brief response, then the code, then a brief closing response.
-- Do not mention the implementation format, styling framework, or markup language in the response text.
-- Use `lucide-react` icons at one stroke weight and one size scale. No filled or multicolor icons, and no emoji as icons.
-- Charts (only if needed): Recharts, always inside `ResponsiveContainer`, styled from theme tokens.
+The deliverable is a **single self-contained `.html` file** that opens by dragging it into a browser. No React, no TSX, no build step, no bundler, no dev server.
+
+- **Where:** a pitch's UI preview goes to `docs/previews/NN-pitch-name-preview.html` (same number and slug as the pitch). A one-off mockup goes wherever the user asks, or the session scratchpad. Reply with a short note and the file path, not the code.
+- **Pinned CDN assets only** (match the versions in `package.json`; never `@latest` or a bare major):
+  - Tailwind v4 browser build: `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@<tailwindcss version>/dist/index.global.js`
+  - Inter (400/500/600) from Google Fonts.
+  - Lucide icons: `https://cdn.jsdelivr.net/npm/lucide@<lucide-react version>/dist/umd/lucide.min.js`, used as `<i data-lucide="chevron-right" class="size-4">` and `lucide.createIcons()` after every render.
+- **Theme = the app's theme.** Copy the tokens from `src/app/globals.css` verbatim into a `<style type="text/tailwindcss">` block: `@custom-variant dark`, `:root`, `.dark`, the `prefers-color-scheme` block, `@theme inline` (with `--font-sans` set to Inter), and the base layer. No hex values anywhere else.
+- **Components = shadcn/ui's recipes.** Style elements with Tailwind utilities copied from the repo's own `src/components/ui/*` (Button variants and sizes, Badge, Input, Label, Alert, Dialog, Tabs, Select trigger, DropdownMenu, Skeleton), and tag each one with `data-ui="<shadcn component> variant=<v>"` so the implementation maps 1:1 back to shadcn/ui. Plain HTML has no `tailwind-merge`, so never put conflicting classes on one element (e.g. `border-transparent` with `border-border`); split variant classes instead. Stand-ins: native `<dialog>` (+ `::backdrop`) for Dialog/AlertDialog, a toggled absolutely-positioned panel for DropdownMenu, `role="radio"` cards for RadioGroup, `role="tablist"` buttons for Tabs. Their appearance must match the shadcn component the app will use. shadcn/ui with Tailwind stays Overload's only component and styling system — no Material UI, Bootstrap, styled-components, CSS modules, inline style objects for layout, or another component library, in the preview or later.
+- **Layout:** render screens inside a phone-width frame (`max-w-[390px]`) that reproduces the real app shell (wordmark header, bottom nav with the correct item active). Primary actions sit at the bottom of the frame within thumb reach.
+- **Every state, switchable:** a toolbar `<select>` above the frame lists every screen and state (populated, empty, loading, error, validation errors, read-only variants, confirmation dialogs), synced to `location.hash` (listen for `hashchange`) so each state has a link. A "Theme (preview only)" control — System / Light / Dark — lives in that toolbar, outside the frame; it toggles `.light` / `.dark` on `<html>` and is never part of an app screen.
+- **Interactivity:** small vanilla JS only — screen switching, opening dialogs, menus, toggles, reorder modes. Render screens from template functions so repeated rows stay consistent. Mock data only: no `fetch`, no storage, no network beyond the pinned assets, and nothing that resembles a real backend.
+- **Header comment:** name the source pitch and design doc, state "mock data only", and state what is binding for implementation (hierarchy, visible controls, state presentation, copy, responsive behavior, interaction structure).
+- **Verify before handing off:** open it in headless Chrome (Playwright with `channel: "chrome"` is available in the repo), confirm zero console errors, and screenshot key screens in light and dark. Run Prettier on the file (`format:check` covers `.html`).
+- Use Lucide icons at one stroke weight and one size scale. No filled or multicolor icons, and no emoji as icons.
+- Charts (only if needed): Recharts in the app; in the preview, draw the equivalent with inline SVG styled from theme tokens and mark it `data-ui="Recharts LineChart in ResponsiveContainer"`.
 - Prefer shadcn/ui's built-in transitions and Tailwind hover, focus, and ring states over custom animation code.
 - Mobile-first. The primary context of use is a phone browser in a gym, so design the narrow layout first and let `md:` and up add width, not features.
 
