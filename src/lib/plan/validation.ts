@@ -165,3 +165,15 @@ export function parsePlannedExercise(raw: {
     },
   };
 }
+
+const COPY_SUFFIX = " Copy";
+
+/**
+ * "<name> Copy" for a duplicated session or a cloned mesocycle (spec D27,
+ * D33, D55), trimming the source part so the result stays within the limit.
+ * Names are not identity; the copy is a new record either way.
+ */
+export function copyName(name: string): string {
+  const room = PLAN_NAME_MAX - COPY_SUFFIX.length;
+  return `${name.trim().slice(0, room).trimEnd()}${COPY_SUFFIX}`;
+}

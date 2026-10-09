@@ -6,6 +6,7 @@ import { CircleAlert, EllipsisVertical, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   addSessionAction,
+  duplicateSessionAction,
   moveSessionAction,
   removeSessionAction,
   renameSessionAction,
@@ -144,7 +145,7 @@ export function DayPickerDialog({
       <DialogContent>
         {confirm ? (
           <>
-            <DialogHeader>
+            <DialogHeader className="text-left">
               <DialogTitle>
                 {dayName(confirm.dayOfWeek)} already has {confirm.occupant}.
               </DialogTitle>
@@ -173,7 +174,7 @@ export function DayPickerDialog({
           </>
         ) : (
           <>
-            <DialogHeader>
+            <DialogHeader className="text-left">
               <DialogTitle>
                 {mode === "move" ? "Move" : "Duplicate"} {session.name}
               </DialogTitle>
@@ -271,7 +272,7 @@ function RemoveSessionDialog({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
-        <AlertDialogHeader>
+        <AlertDialogHeader className="text-left">
           <AlertDialogTitle>Remove {session.name}?</AlertDialogTitle>
           <AlertDialogDescription>
             {n === 0
@@ -293,7 +294,8 @@ function RemoveSessionDialog({
 }
 
 /**
- * The session menu on a week row and in the session header: Move, Remove.
+ * The session menu on a week row and in the session header: Move, Duplicate,
+ * Remove.
  */
 export function SessionActionsMenu({
   mesocycleId,
@@ -307,7 +309,9 @@ export function SessionActionsMenu({
   variant: "row" | "header";
 }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"move" | "remove" | null>(null);
+  const [dialog, setDialog] = useState<"move" | "duplicate" | "remove" | null>(
+    null,
+  );
 
   return (
     <>
@@ -325,6 +329,9 @@ export function SessionActionsMenu({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => setDialog("move")}>
             Move to another day
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setDialog("duplicate")}>
+            Duplicate to another day
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setDialog("remove")}>
@@ -350,6 +357,26 @@ export function SessionActionsMenu({
             { duration: 4000 },
           )
         }
+      />
+      <DayPickerDialog
+        open={dialog === "duplicate"}
+        onOpenChange={(o) => setDialog(o ? "duplicate" : null)}
+        mode="duplicate"
+        session={session}
+        occupancy={occupancy}
+        pick={(dayOfWeek, replace) =>
+          duplicateSessionAction({ sessionId: session.id, dayOfWeek, replace })
+        }
+        onPicked={(dayOfWeek, newId) => {
+          toast.success(
+            dayOfWeek === null
+              ? `${session.name} copied`
+              : `${session.name} copied to ${dayName(dayOfWeek)}`,
+            { duration: 4000 },
+          );
+          // Land on the copy: it is a separate session to edit.
+          router.push(`/plan/${mesocycleId}/sessions/${newId}`);
+        }}
       />
       <RemoveSessionDialog
         open={dialog === "remove"}
@@ -441,7 +468,7 @@ export function AddSessionButton({
       <DialogContent>
         {occupant ? (
           <>
-            <DialogHeader>
+            <DialogHeader className="text-left">
               <DialogTitle>
                 {dayName(Number(day))} already has {occupant}.
               </DialogTitle>
@@ -467,7 +494,7 @@ export function AddSessionButton({
           </>
         ) : (
           <form onSubmit={onSubmit} noValidate className="grid gap-4">
-            <DialogHeader>
+            <DialogHeader className="text-left">
               <DialogTitle>Add session</DialogTitle>
             </DialogHeader>
             <div className="space-y-2">
@@ -583,7 +610,7 @@ export function RenameSessionButton({
       </Button>
       <DialogContent>
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
-          <DialogHeader>
+          <DialogHeader className="text-left">
             <DialogTitle>Rename session</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">

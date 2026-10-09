@@ -13,6 +13,7 @@ import {
 import {
   addSession,
   addSessionExercise,
+  duplicateSession,
   moveSession,
   moveSessionExercise,
   removeSession,
@@ -223,6 +224,20 @@ export async function moveSessionExerciseAction(input: {
   const result = await toActionResult(
     () => moveSessionExercise(input),
     "Couldn't reorder. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function duplicateSessionAction(input: {
+  sessionId: string;
+  dayOfWeek: number | null;
+  replace?: boolean;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => duplicateSession(input),
+    "Couldn't duplicate the session. Nothing changed.",
   );
   if (result.ok) refresh();
   return result;
