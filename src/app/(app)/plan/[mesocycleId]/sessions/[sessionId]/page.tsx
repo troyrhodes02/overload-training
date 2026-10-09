@@ -1,6 +1,10 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/feedback/empty-state";
-import { BackLink, MetaLine } from "@/components/plan/plan-bits";
+import { BackLink, MetaLine, StickyActions } from "@/components/plan/plan-bits";
+import { PlannedExerciseList } from "@/components/plan/planned-exercise-list";
 import {
   PlannedExerciseRowContent,
   plannedRowClass,
@@ -30,6 +34,7 @@ export default async function SessionPage({ params }: PageProps) {
       ? "no exercises"
       : `${count} ${count === 1 ? "exercise" : "exercises"}`
   }`;
+  const addHref = `/plan/${s.mesocycle.id}/sessions/${s.id}/add`;
 
   return (
     <section className="space-y-4 pb-24 md:pb-0">
@@ -56,12 +61,22 @@ export default async function SessionPage({ params }: PageProps) {
             </>
           )}
         </div>
-        <MetaLine>{dayLine}</MetaLine>
+        {(readOnly || count === 0) && <MetaLine>{dayLine}</MetaLine>}
       </div>
 
       {count === 0 ? (
-        <EmptyState title="No exercises yet. Add the first one." />
-      ) : (
+        <EmptyState
+          title="No exercises yet. Add the first one."
+          action={
+            readOnly ? undefined : (
+              <Button asChild variant="outline">
+                <Link href={addHref}>Add exercise</Link>
+              </Button>
+            )
+          }
+        />
+      ) : readOnly ? (
+        // Archived block: rows are not buttons.
         <ol className="divide-y divide-border rounded-lg border border-border bg-card">
           {s.exercises.map((e) => (
             <li key={e.id} id={`slot-${e.id}`} className={plannedRowClass(e)}>
@@ -71,6 +86,25 @@ export default async function SessionPage({ params }: PageProps) {
             </li>
           ))}
         </ol>
+      ) : (
+        <PlannedExerciseList
+          mesocycleId={s.mesocycle.id}
+          sessionId={s.id}
+          sessionName={s.name}
+          dayLine={dayLine}
+          exercises={s.exercises}
+        />
+      )}
+
+      {!readOnly && (
+        <StickyActions>
+          <Button asChild className="h-11 w-full">
+            <Link href={addHref}>
+              <Plus aria-hidden />
+              Add exercise
+            </Link>
+          </Button>
+        </StickyActions>
       )}
     </section>
   );
