@@ -7,3 +7,7 @@ prisma/migrations
 *.md
 # Vendored free-exercise-db snapshot: kept byte-identical to the pinned upstream file.
 prisma/seed/free-exercise-db/exercises.json
+# UI previews are hand-authored static design-handoff pages (overload-ui-design
+# skill): compact CSS by design, never part of the app.
+docs/previews/**/*.html
+.claude/skills/**/*.html

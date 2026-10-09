@@ -41,7 +41,7 @@ _(step 6)_
 
 - [x] 1. Context read + pitch pulled → `pitches/03-split-mesocycle-builder.md`
 - [x] 2. Design doc
-- [x] 3. UI preview → `docs/previews/03-split-mesocycle-builder-preview.html` (user-directed 2026-10-08: preview format changed from TSX to self-contained HTML; `overload-ui-design` skill updated to produce HTML previews)
+- [x] 3. UI preview → `docs/previews/03-split-mesocycle-builder-preview.html` (user-directed 2026-10-08: preview is a static offline design-handoff HTML gallery built from `.claude/skills/overload-ui-design/references/preview-template.html`; skill rewritten to match the user-supplied model; regenerated)
 - [ ] 4–5. Spec + Resolved Decisions
 - [ ] 6. Milestone + issues + blockedBy chain
 - [ ] 7. Feature PR into main
