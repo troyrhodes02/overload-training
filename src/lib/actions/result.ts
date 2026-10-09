@@ -7,6 +7,7 @@ export type ErrorCode =
   | "validation_error"
   | "not_found"
   | "invalid_state_transition"
+  | "conflict"
   | "unauthorized"
   | "internal_error";
 
