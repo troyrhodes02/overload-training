@@ -5,6 +5,7 @@ import { DomainError, isUuid } from "@/lib/actions/result";
 import { dayName } from "./calendar";
 import { isUniqueViolation, requireEditableMesocycle } from "./mesocycles";
 import {
+  copyName,
   parseDayOfWeek,
   parseName,
   parsePlannedExercise,
@@ -180,6 +181,66 @@ export async function moveSession(
       );
       await t.session.update({ where: { id: s.id }, data: { dayOfWeek } });
       return { id: s.id, displacedId };
+    }),
+  );
+}
+
+/**
+ * A new, independent session copied from `sessionId`'s plan (spec D26–D29):
+ * named "<name> Copy", with each planned exercise copied field by field —
+ * exercise, position, sets, rep range. An archived exercise is copied as-is,
+ * so the copy shows the same repair slot (never dropped, swapped, or
+ * un-archived). Nothing else is copied: no logged history, gym, weight,
+ * progression, or completion exists on a plan to copy, and none is read.
+ */
+export async function duplicateSession(
+  input: { sessionId: string; dayOfWeek: unknown; replace?: boolean },
+  tx?: Db,
+): Promise<{ id: string }> {
+  const dayOfWeek = parseDay(input.dayOfWeek);
+  return dayRace(() =>
+    inTx(tx, async (t) => {
+      const source = await requireEditableSession(input.sessionId, t);
+      await clearDayFor(
+        {
+          mesocycleId: source.mesocycleId,
+          dayOfWeek,
+          replace: input.replace === true,
+        },
+        t,
+      );
+      const copy = await t.session.create({
+        data: {
+          mesocycleId: source.mesocycleId,
+          name: copyName(source.name),
+          dayOfWeek,
+        },
+        select: { id: true },
+      });
+      const slots = await t.sessionExercise.findMany({
+        where: { sessionId: source.id },
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+        select: {
+          exerciseId: true,
+          position: true,
+          plannedSets: true,
+          targetRepMin: true,
+          targetRepMax: true,
+        },
+      });
+      if (slots.length > 0) {
+        await t.sessionExercise.createMany({
+          data: slots.map((s, i) => ({
+            sessionId: copy.id,
+            exerciseId: s.exerciseId,
+            position: i,
+            plannedSets: s.plannedSets,
+            targetRepMin: s.targetRepMin,
+            targetRepMax: s.targetRepMax,
+          })),
+        });
+      }
+      return { id: copy.id };
     }),
   );
 }

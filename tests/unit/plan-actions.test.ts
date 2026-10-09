@@ -60,6 +60,7 @@ describe("plan server actions re-check auth before doing anything", () => {
         "replaceSessionExerciseAction",
         "removeSessionExerciseAction",
         "moveSessionExerciseAction",
+        "duplicateSessionAction",
       ]),
     );
   });

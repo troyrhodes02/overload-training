@@ -94,7 +94,7 @@ export function ActivateButton({
         Activate
       </Button>
       <AlertDialogContent>
-        <AlertDialogHeader>
+        <AlertDialogHeader className="text-left">
           <AlertDialogTitle>Activate {name}?</AlertDialogTitle>
           <AlertDialogDescription>
             {activeOther
@@ -174,7 +174,7 @@ export function MesocycleMenu({
 
       <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader>
+          <AlertDialogHeader className="text-left">
             <AlertDialogTitle>Archive this draft?</AlertDialogTitle>
             <AlertDialogDescription>
               It moves to Previous. It won&apos;t become active, but you can

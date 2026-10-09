@@ -137,7 +137,7 @@ export function PickerList({
           onOpenChange={(open) => !open && setChosen(null)}
         >
           <AlertDialogContent>
-            <AlertDialogHeader>
+            <AlertDialogHeader className="text-left">
               <AlertDialogTitle>
                 Replace {replace.exerciseName} with {chosen?.name}?
               </AlertDialogTitle>

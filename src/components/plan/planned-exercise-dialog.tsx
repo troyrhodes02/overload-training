@@ -188,7 +188,7 @@ export function PlannedExerciseDialog({
     <Dialog open={open} onOpenChange={reset}>
       <DialogContent>
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
-          <DialogHeader>
+          <DialogHeader className="text-left">
             <DialogTitle className="flex items-center gap-2">
               <span className="truncate">{exercise.name}</span>
               {exercise.isArchived && <Badge variant="outline">Archived</Badge>}
