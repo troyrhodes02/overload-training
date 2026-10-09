@@ -33,9 +33,6 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-/** Clone-forward ships in OVE-19; until then its entry points stay hidden. */
-const CLONE_FORWARD_AVAILABLE = false;
-
 export default async function MesocyclePage({
   params,
   searchParams,
@@ -69,15 +66,15 @@ export default async function MesocyclePage({
     <section className="space-y-6 pb-28 md:pb-0">
       <CreatedToast show={sp.created === "1"} message="Draft created" />
       <CreatedToast show={sp.saved === "1"} message="Details saved" />
+      <CreatedToast
+        show={sp.cloned === "1"}
+        message="Clone created as a draft"
+      />
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <BackLink href="/plan" label="Plan" />
-          <MesocycleMenu
-            mesocycleId={m.id}
-            status={m.status}
-            canClone={CLONE_FORWARD_AVAILABLE}
-          />
+          <MesocycleMenu mesocycleId={m.id} status={m.status} canClone />
         </div>
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-lg font-semibold">
@@ -151,7 +148,7 @@ export default async function MesocyclePage({
           />
         </StickyActions>
       )}
-      {archived && CLONE_FORWARD_AVAILABLE && (
+      {archived && (
         <StickyActions>
           <Button asChild variant="outline" className="h-11 w-full">
             <Link href={`/plan/clone/${m.id}`}>Clone forward</Link>

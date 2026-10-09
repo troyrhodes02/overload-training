@@ -110,6 +110,31 @@ describe("the plan carries no weights, gyms, or performance (Split & Mesocycle B
       expect(m).not.toMatch(/completed|skipped|shifted|progress|tag|e1rm/i);
     }
   });
+
+  it("plan code never chooses exercises for the lifter (no favorites, no generation)", () => {
+    const planCode = files.filter(
+      (f) =>
+        f.rel.startsWith("src/lib/plan/") ||
+        f.rel.startsWith("src/app/(app)/plan/") ||
+        f.rel.startsWith("src/components/plan/"),
+    );
+    expect(planCode.length).toBeGreaterThan(10);
+    const offending = planCode
+      .filter((f) =>
+        /isFavorite|generate(Program|Plan|Mesocycle|Session)|suggest|recommend|defaultSets|defaultReps/i.test(
+          // Code only: comments explain what must never happen.
+          f.src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""),
+        ),
+      )
+      .map((f) => f.rel);
+    expect(offending).toEqual([]);
+  });
+
+  it("no missed-day, completion, or day-shift behavior in the plan", () => {
+    expect(
+      offenders(/\b(missedDay|skipDay|shiftWeek|markComplete|completedAt)\b/),
+    ).toEqual([]);
+  });
 });
 
 describe("no maps, geocoding, or location intelligence", () => {

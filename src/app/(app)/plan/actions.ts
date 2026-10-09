@@ -7,6 +7,7 @@ import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import {
   activateMesocycle,
   archiveDraftMesocycle,
+  cloneMesocycle,
   createMesocycle,
   updateMesocycleDetails,
 } from "@/lib/plan/mesocycles";
@@ -241,4 +242,19 @@ export async function duplicateSessionAction(input: {
   );
   if (result.ok) refresh();
   return result;
+}
+
+export async function cloneMesocycleAction(
+  sourceMesocycleId: string,
+  _prev: MesocycleFormState,
+  formData: FormData,
+): Promise<MesocycleFormState> {
+  await requireUser();
+  const values = formValues(formData);
+  const result = await toActionResult(
+    () => cloneMesocycle({ sourceMesocycleId, ...values }),
+    "Couldn't create the clone. Your entries are still here.",
+  );
+  if (result.ok) redirect(`/plan/${result.data.id}?cloned=1`);
+  return { result, values };
 }
