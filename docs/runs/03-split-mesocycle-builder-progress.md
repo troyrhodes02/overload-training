@@ -8,7 +8,7 @@
 **Mandatory artifact order (UI-bearing):** pitch → design doc → UI preview → spec → tickets → implementation.
 
 **Feature branch:** `feat/03-split-mesocycle-builder` (from `main` @ `c1b811c`)
-**Feature PR:** _(step 7)_
+**Feature PR:** https://github.com/troyrhodes02/overload-training/pull/17 (base `main`)
 
 ## SAFETY — read before running anything
 
@@ -29,7 +29,7 @@
 
 | # | ID | Title | blockedBy | Branch | PR | Status |
 |---|----|-------|-----------|--------|----|--------|
-| 1 | OVE-15 | Mesocycle lifecycle & setup | — | feat/ove-15-mesocycle-lifecycle | — | Todo |
+| 1 | OVE-15 | Mesocycle lifecycle & setup | — | feat/ove-15-mesocycle-lifecycle | [#18](https://github.com/troyrhodes02/overload-training/pull/18) | In Progress (green) |
 | 2 | OVE-16 | Weekly schedule & sessions | OVE-15 | feat/ove-16-weekly-schedule | — | Todo |
 | 3 | OVE-17 | Session exercises & picker | OVE-16 | feat/ove-17-session-exercises | — | Todo |
 | 4 | OVE-18 | Session duplication | OVE-17 | feat/ove-18-session-duplication | — | Todo |
@@ -53,8 +53,8 @@ Branch stacking: OVE-15 branches from `feat/03-split-mesocycle-builder`; each ne
 - [x] 3. UI preview → `docs/previews/03-split-mesocycle-builder-preview.html` (user-directed 2026-10-08: preview is a static offline design-handoff HTML gallery built from `.claude/skills/overload-ui-design/references/preview-template.html`; skill rewritten to match the user-supplied model; regenerated)
 - [x] 4–5. Spec + Resolved Decisions (D1–D37 pre-resolved; D38–D70 autonomous)
 - [x] 6. Milestone + issues OVE-15..OVE-19 + blockedBy chain
-- [ ] 7. Feature PR into main
-- [ ] 8. Ticket-worker per ticket
+- [x] 7. Feature PR into main — #17
+- [ ] 8. Ticket-worker per ticket (OVE-15 PR #18 open, green; next OVE-16 branches from feat/ove-15-mesocycle-lifecycle)
 - [ ] 9. Runbook
 - [ ] 10. Squash-merge ticket PRs into the feature branch
 - [ ] 11. Full verification
@@ -67,3 +67,6 @@ Branch stacking: OVE-15 branches from `feat/03-split-mesocycle-builder`; each ne
 
 - Experiment (throwaway embedded Postgres): `prisma migrate diff --from-config-datasource --to-schema` reports an **empty** diff with an extra partial unique index and an extra CHECK constraint present, so a hand-written partial unique index (one active mesocycle) is compatible with the existing schema-drift guard.
 - `radix-ui` (already installed) ships RadioGroup and AlertDialog, so the shadcn `radio-group` / `alert-dialog` primitives need no new dependency.
+
+- Local dev DB (127.0.0.1:54322) now has migrations 2–3 applied (dev migration step). A local-only verification account `pitch3-verify@overload.local` was created through the local admin API for authenticated browser checks; delete it (and `[verify]` mesocycles) at the end of the run. Never production.
+- OVE-15 verification: unit 142, integration 80, e2e 13, build, bundle guard, lint, typecheck, format — all green.
