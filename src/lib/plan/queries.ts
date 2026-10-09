@@ -181,3 +181,54 @@ export async function getMesocycleWeek(
     activeOther: active && active.id !== row.id ? active : null,
   };
 }
+
+/** Which session (if any) sits on each weekday — for the day pickers. */
+export type DayOccupancyDto = {
+  dayOfWeek: number;
+  sessionId: string | null;
+  sessionName: string | null;
+};
+
+export type SessionDetailDto = {
+  id: string;
+  name: string;
+  dayOfWeek: number | null;
+  mesocycle: { id: string; name: string; status: MesocycleStatusValue };
+  exercises: PlannedExerciseDto[];
+  occupancy: DayOccupancyDto[];
+};
+
+export function occupancyOf(
+  sessions: { id: string; name: string; dayOfWeek: number | null }[],
+): DayOccupancyDto[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const s = sessions.find((x) => x.dayOfWeek === i + 1);
+    return {
+      dayOfWeek: i + 1,
+      sessionId: s?.id ?? null,
+      sessionName: s?.name ?? null,
+    };
+  });
+}
+
+/** A session inside its mesocycle (null when either id is wrong or mismatched). */
+export async function getSessionDetail(
+  mesocycleId: string,
+  sessionId: string,
+): Promise<SessionDetailDto | null> {
+  if (!isUuid(mesocycleId) || !isUuid(sessionId)) return null;
+  const row = await prisma.mesocycle.findUnique({
+    where: { id: mesocycleId },
+    include: planInclude,
+  });
+  const session = row?.sessions.find((s) => s.id === sessionId);
+  if (!row || !session) return null;
+  return {
+    id: session.id,
+    name: session.name,
+    dayOfWeek: session.dayOfWeek,
+    mesocycle: { id: row.id, name: row.name, status: row.status },
+    exercises: session.sessionExercises.map(toPlannedExercise),
+    occupancy: occupancyOf(row.sessions),
+  };
+}

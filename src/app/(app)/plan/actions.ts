@@ -10,6 +10,12 @@ import {
   createMesocycle,
   updateMesocycleDetails,
 } from "@/lib/plan/mesocycles";
+import {
+  addSession,
+  moveSession,
+  removeSession,
+  renameSession,
+} from "@/lib/plan/sessions";
 
 /*
  * Plan server actions (Split & Mesocycle Builder). Each one re-checks the auth
@@ -92,4 +98,58 @@ export async function archiveDraftMesocycleAction(
     () => archiveDraftMesocycle({ mesocycleId }),
     "Couldn't archive. Nothing changed.",
   );
+}
+
+export async function addSessionAction(input: {
+  mesocycleId: string;
+  name: string;
+  dayOfWeek: number | null;
+  replace?: boolean;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => addSession(input),
+    "Couldn't add the session. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function renameSessionAction(input: {
+  sessionId: string;
+  name: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => renameSession(input),
+    "Couldn't rename. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function moveSessionAction(input: {
+  sessionId: string;
+  dayOfWeek: number | null;
+  replace?: boolean;
+}): Promise<ActionResult<{ id: string; displacedId: string | null }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => moveSession(input),
+    "Couldn't move the session. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function removeSessionAction(
+  sessionId: string,
+): Promise<ActionResult<{ id: string; mesocycleId: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => removeSession({ sessionId }),
+    "Couldn't remove the session. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
 }
