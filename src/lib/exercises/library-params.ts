@@ -63,3 +63,17 @@ export function libraryQueryString(filters: Partial<LibraryFilters>): string {
   const s = params.toString();
   return s ? `?${s}` : "";
 }
+
+/**
+ * Appends params that ride along with the filters but are not filters (e.g.
+ * the session picker's `replace`). Takes and returns "" or "?…".
+ */
+export function withExtraParams(
+  query: string,
+  extra?: Record<string, string>,
+): string {
+  if (!extra || Object.keys(extra).length === 0) return query;
+  const params = new URLSearchParams(query.replace(/^\?/, ""));
+  for (const [k, v] of Object.entries(extra)) params.set(k, v);
+  return `?${params.toString()}`;
+}

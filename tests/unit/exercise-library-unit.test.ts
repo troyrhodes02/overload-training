@@ -299,3 +299,18 @@ describe("library URL params", () => {
     ).toBe("?view=favorites&muscle=back&q=row&limit=100");
   });
 });
+
+describe("withExtraParams (the session picker reuses the library URL contract)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { withExtraParams } = require("@/lib/exercises/library-params");
+  it("leaves library URLs unchanged without extras", () => {
+    expect(withExtraParams("?muscle=back", undefined)).toBe("?muscle=back");
+    expect(withExtraParams("", {})).toBe("");
+  });
+  it("adds the extras alongside the filters", () => {
+    expect(withExtraParams("", { replace: "abc" })).toBe("?replace=abc");
+    expect(withExtraParams("?q=row", { replace: "abc" })).toBe(
+      "?q=row&replace=abc",
+    );
+  });
+});

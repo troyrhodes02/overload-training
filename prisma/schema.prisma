@@ -14,9 +14,22 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/// Split & Mesocycle Builder (spec D1): every mesocycle starts as a draft and
+/// becomes active only through explicit activation; at most one is active
+/// (partial unique index mesocycles_single_active in migration 3).
 enum MesocycleStatus {
+  draft
   active
   archived
+}
+
+/// The structure a mesocycle started from (spec D40). A label only: presets
+/// create named empty sessions and never exercises, sets, reps, or weights.
+enum SplitType {
+  ppl
+  arnold
+  bro
+  custom
 }
 
 enum GoalStatus {
@@ -70,15 +83,17 @@ model Mesocycle {
   name        String
   lengthWeeks Int             @map("length_weeks")
   deloadWeek  Int             @map("deload_week")
-  splitType   String          @map("split_type")
-  status      MesocycleStatus @default(active)
-  startDate   DateTime?       @map("start_date") @db.Timestamptz
+  splitType   SplitType       @map("split_type")
+  status      MesocycleStatus @default(draft)
+  /// Calendar date (no time, no zone). Week 1 begins on this date (spec D59).
+  startDate   DateTime?       @map("start_date") @db.Date
   createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
   sessions       Session[]
   loggedSessions LoggedSession[]
 
+  @@index([status])
   @@map("mesocycles")
 }
 
@@ -86,6 +101,7 @@ model Session {
   id          String   @id @default(uuid()) @db.Uuid
   mesocycleId String   @map("mesocycle_id") @db.Uuid
   name        String
+  /// 1 = Monday … 7 = Sunday; null = not on the schedule (spec D41/D42).
   dayOfWeek   Int?     @map("day_of_week")
   position    Int      @default(0)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -95,6 +111,8 @@ model Session {
   sessionExercises SessionExercise[]
   loggedSessions   LoggedSession[]
 
+  // Zero or one session per weekday (NULLs are distinct: any number unscheduled).
+  @@unique([mesocycleId, dayOfWeek])
   @@index([mesocycleId])
   @@map("sessions")
 }
@@ -114,6 +132,8 @@ model SessionExercise {
   session  Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
 
+  // One occurrence of an Exercise per Session (spec D20).
+  @@unique([sessionId, exerciseId])
   @@index([sessionId, position])
   @@index([exerciseId])
   @@map("session_exercises")

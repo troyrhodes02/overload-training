@@ -41,12 +41,34 @@ const schema = fs.readFileSync(
 );
 
 describe("no workout logging, plan building, or progression", () => {
-  it("writes no logged-history, plan, baseline, goal, or cardio rows", () => {
+  it("writes no logged-history, baseline, goal, or cardio rows", () => {
     expect(
       offenders(
-        /\.\s*(loggedSession|loggedExercise|loggedSet|mesocycle|session|sessionExercise|gymExerciseBaseline|goal|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+        /\.\s*(loggedSession|loggedExercise|loggedSet|gymExerciseBaseline|goal|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
       ),
     ).toEqual([]);
+  });
+
+  it("writes plan rows only through the plan write modules (Split & Mesocycle Builder)", () => {
+    const writers = offenders(
+      /\.\s*(mesocycle|session|sessionExercise)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+    );
+    expect(writers.length).toBeGreaterThan(0);
+    for (const file of writers) {
+      expect(file).toMatch(/^src\/lib\/plan\/(mesocycles|sessions)\.ts$/);
+    }
+  });
+
+  it("the plan modules never touch logged history, goals, baselines, or cardio", () => {
+    const touched = files
+      .filter((f) => f.rel.startsWith("src/lib/plan/"))
+      .filter((f) =>
+        /\.\s*(loggedSession|loggedExercise|loggedSet|gymExerciseBaseline|goal|cardioLog)\s*\./.test(
+          f.src,
+        ),
+      )
+      .map((f) => f.rel);
+    expect(touched).toEqual([]);
   });
 
   it("has no baseline correction, gym-variable rule, progression, e1RM, or swap code", () => {
@@ -57,14 +79,61 @@ describe("no workout logging, plan building, or progression", () => {
     ).toEqual([]);
   });
 
-  it("has no logging, history, plan, or goal routes", () => {
+  it("has no logging, history, or goal routes", () => {
     const appDir = path.join(SRC, "app", "(app)");
     const routes = fs
       .readdirSync(appDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name)
       .sort();
-    expect(routes).toEqual(["exercises", "gyms"]);
+    expect(routes).toEqual(["exercises", "gyms", "plan"]);
+  });
+});
+
+describe("the plan carries no weights, gyms, or performance (Split & Mesocycle Builder)", () => {
+  const model = (name: string) => {
+    const start = schema.indexOf(`model ${name} {`);
+    return start < 0 ? "" : schema.slice(start, schema.indexOf("\n}", start));
+  };
+
+  it("a planned exercise has sets and a rep range, and no weight", () => {
+    const se = model("SessionExercise");
+    expect(se).toMatch(/plannedSets/);
+    expect(se).not.toMatch(/weight|load|percent|e1rm|oneRep/i);
+  });
+
+  it("sessions and mesocycles are not tied to a gym and store no outcome", () => {
+    for (const name of ["Session", "Mesocycle"]) {
+      const m = model(name);
+      expect(m).not.toBe("");
+      expect(m).not.toMatch(/\bgym/i);
+      expect(m).not.toMatch(/completed|skipped|shifted|progress|tag|e1rm/i);
+    }
+  });
+
+  it("plan code never chooses exercises for the lifter (no favorites, no generation)", () => {
+    const planCode = files.filter(
+      (f) =>
+        f.rel.startsWith("src/lib/plan/") ||
+        f.rel.startsWith("src/app/(app)/plan/") ||
+        f.rel.startsWith("src/components/plan/"),
+    );
+    expect(planCode.length).toBeGreaterThan(10);
+    const offending = planCode
+      .filter((f) =>
+        /isFavorite|generate(Program|Plan|Mesocycle|Session)|suggest|recommend|defaultSets|defaultReps/i.test(
+          // Code only: comments explain what must never happen.
+          f.src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""),
+        ),
+      )
+      .map((f) => f.rel);
+    expect(offending).toEqual([]);
+  });
+
+  it("no missed-day, completion, or day-shift behavior in the plan", () => {
+    expect(
+      offenders(/\b(missedDay|skipDay|shiftWeek|markComplete|completedAt)\b/),
+    ).toEqual([]);
   });
 });
 

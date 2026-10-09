@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overload · UI preview scaffold</title>
+
+<!--
+  OVERLOAD UI PREVIEW SCAFFOLD
+  ============================
+  Copy this file to docs/previews/NN-pitch-slug-preview.html and replace the
+  example frames with the real screens. Everything above the "EXAMPLE FRAMES"
+  comment is fixed scaffolding: do not restyle it per feature.
+
+  Two token layers, deliberately separate:
+    --pv-*   PREVIEW CHROME. Achromatic greys only. The studio around the mocks
+             must never be mistaken for an Overload surface, and Overload's
+             only colors (accent, progress, deload) carry meaning.
+    --ov-*   PRODUCT TOKENS. Scoped to .ov, flipped by .ov[data-ov="dark"].
+             Copied verbatim from src/app/globals.css (:root and .dark). If the
+             app theme changes, re-copy; never retype or "improve" a hex.
+
+  The .ov-* component classes reproduce the app's shadcn/ui components
+  (src/components/ui/*) at their Tailwind sizes. They exist only here: the app
+  is built with Tailwind + shadcn/ui, and nothing in this file is copied into it.
+
+  The appearance toggle sets data-ov on every .js-ov element at once, so all
+  product surfaces flip together while the chrome follows separately.
+
+  Opens offline. The font is the vendored Inter file in
+  docs/previews/assets/fonts/; icons are inline Lucide SVG produced by
+  `node scripts/lucide-svg.mjs <icon-name>`. No CDN, no network request.
+  Paths are relative to docs/previews/.
+-->
+
+<style>
+/* ============================================================
+   FONT — Inter (variable 100-900), the same latin file next/font
+   serves the app. Vendored for offline previews.
+   ============================================================ */
+@font-face{font-family:'Inter';src:url('assets/fonts/inter-latin-variable.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
+
+/* ============================================================
+   PREVIEW CHROME — achromatic studio scaffolding.
+   Eyebrows, letter-spacing, and pill shapes are permitted HERE
+   and are not a statement about the product.
+   ============================================================ */
+:root{
+  --pv-bg:#EDEEF1; --pv-panel:#FFFFFF; --pv-frame:#E3E4E9;
+  --pv-ink:#16171A; --pv-muted:#5B5D66; --pv-line:#DBDCE1; --pv-accent:#3A3B42;
+  --pv-sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --pv-mono:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--pv-bg:#0E0E10;--pv-panel:#161618;--pv-frame:#111113;--pv-ink:#E9E9EC;--pv-muted:#8B8B93;--pv-line:#242428;--pv-accent:#B4B4BD}
+}
+:root[data-pv="dark"]{--pv-bg:#0E0E10;--pv-panel:#161618;--pv-frame:#111113;--pv-ink:#E9E9EC;--pv-muted:#8B8B93;--pv-line:#242428;--pv-accent:#B4B4BD}
+:root[data-pv="light"]{--pv-bg:#EDEEF1;--pv-panel:#FFFFFF;--pv-frame:#E3E4E9;--pv-ink:#16171A;--pv-muted:#5B5D66;--pv-line:#DBDCE1;--pv-accent:#3A3B42}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--pv-bg);color:var(--pv-ink);font-family:var(--pv-sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--pv-accent);outline-offset:2px;border-radius:4px}
+
+.pv-head{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--pv-bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--pv-line)}
+.pv-head-in{max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.pv-brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+.pv-brand h1{font-size:15px;margin:0;font-weight:600;letter-spacing:-.01em}
+.pv-brand p{font-size:11.5px;margin:0;color:var(--pv-muted)}
+.pv-jump{display:flex;gap:2px;flex-wrap:wrap}
+.pv-jump a{font-size:12px;color:var(--pv-muted);text-decoration:none;padding:5px 9px;border-radius:6px;font-weight:500}
+.pv-jump a:hover{color:var(--pv-ink);background:var(--pv-frame)}
+.pv-toggle{display:flex;align-items:center;gap:9px}
+.pv-toggle .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--pv-muted);font-weight:600}
+.pv-seg{display:inline-flex;background:var(--pv-frame);border:1px solid var(--pv-line);border-radius:999px;padding:3px}
+.pv-seg button{font-family:inherit;border:0;background:transparent;color:var(--pv-muted);font-size:12.5px;font-weight:600;padding:5px 14px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.pv-seg button.on{background:var(--pv-panel);color:var(--pv-ink)}
+.pv-seg svg{width:14px;height:14px}
+
+.pv-wrap{max-width:1240px;margin:0 auto;padding:36px 24px 96px}
+.pv-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--pv-muted)}
+.pv-lead{max-width:780px}
+.pv-lead h2{font-size:26px;letter-spacing:-.02em;font-weight:600;margin:10px 0 8px;text-wrap:balance}
+.pv-lead p{color:var(--pv-muted);font-size:14.5px;margin:0}
+.pv-note{display:inline-flex;align-items:flex-start;gap:8px;margin-top:16px;font-size:12px;color:var(--pv-muted);background:var(--pv-panel);border:1px solid var(--pv-line);padding:7px 13px;border-radius:999px;max-width:700px}
+.pv-note b{color:var(--pv-ink);font-weight:600}
+
+.pv-section{margin-top:56px}
+.pv-sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.pv-sec-head h3{font-size:18px;font-weight:600;letter-spacing:-.01em;margin:0}
+.pv-sec-head .desc{font-size:13px;color:var(--pv-muted);max-width:680px}
+.pv-num{font-family:var(--pv-mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;color:var(--pv-accent);border:1px solid var(--pv-line);border-radius:6px;padding:2px 7px}
+
+.pv-frame{background:var(--pv-frame);border:1px solid var(--pv-line);border-radius:16px;padding:12px;margin-bottom:20px;overflow-x:auto}
+.pv-cap{display:flex;align-items:center;gap:10px;padding:2px 6px 11px;flex-wrap:wrap}
+.pv-cap .name{font-size:12.5px;font-weight:600}
+.pv-cap .route{font-size:11.5px;color:var(--pv-muted);font-family:var(--pv-mono);background:var(--pv-panel);border:1px solid var(--pv-line);padding:2px 8px;border-radius:5px}
+.pv-cap .tag{font-size:11px;color:var(--pv-muted);margin-left:auto}
+.pv-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.pv-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+@media(max-width:1240px){.pv-grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:860px){.pv-grid2,.pv-grid3{grid-template-columns:minmax(0,1fr)}}
+.pv-row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.pv-aside{font-size:12px;color:var(--pv-muted);max-width:280px;line-height:1.55;margin:0}
+.pv-aside b{color:var(--pv-ink);font-weight:600}
+
+.pv-legend{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.pv-legend{grid-template-columns:1fr}}
+.pv-card{background:var(--pv-panel);border:1px solid var(--pv-line);border-radius:14px;padding:18px 20px}
+.pv-card h4{margin:0 0 12px;font-size:13px;font-weight:600}
+.pv-rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.pv-rules li{display:flex;gap:10px;font-size:12.5px;color:var(--pv-muted);line-height:1.5}
+.pv-rules li svg{width:15px;height:15px;flex:none;margin-top:2px;color:var(--pv-accent)}
+.pv-rules b{color:var(--pv-ink);font-weight:600}
+.pv-foot{margin-top:70px;padding-top:22px;border-top:1px solid var(--pv-line);color:var(--pv-muted);font-size:12.5px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+/* ============================================================
+   PRODUCT TOKENS — copied verbatim from src/app/globals.css.
+   Light = :root, dark = .dark. Never retype; re-copy.
+   ============================================================ */
+.ov{
+  --ov-radius:0.5rem;
+  --ov-background:#f7f7f8; --ov-foreground:#0e0e10;
+  --ov-card:#ffffff; --ov-card-foreground:#0e0e10;
+  --ov-popover:#ffffff; --ov-popover-foreground:#0e0e10;
+  --ov-primary:#3f5bd9; --ov-primary-foreground:#ffffff;
+  --ov-secondary:#ececed; --ov-secondary-foreground:#0e0e10;
+  --ov-muted:#ececed; --ov-muted-foreground:#5f5f68;
+  --ov-accent:#ececed; --ov-accent-foreground:#0e0e10;
+  --ov-destructive:#b42318; --ov-destructive-foreground:#ffffff;
+  --ov-border:#e4e4e8; --ov-input:#e4e4e8; --ov-ring:#3f5bd9;
+  --ov-progress:#2f9e6b; --ov-deload:#b7791f;
+  /* Shadows exist only on overlays (dialogs, menus, toasts), as shadcn ships them. */
+  --ov-shadow-lg:0 10px 15px -3px rgb(0 0 0 / .1),0 4px 6px -4px rgb(0 0 0 / .1);
+  --ov-shadow-md:0 4px 6px -1px rgb(0 0 0 / .1),0 2px 4px -2px rgb(0 0 0 / .1);
+  --ov-shadow-xs:0 1px 2px 0 rgb(0 0 0 / .05);
+  font-family:'Inter',ui-sans-serif,system-ui,sans-serif;
+  font-feature-settings:"rlig" 1,"calt" 1;
+  color:var(--ov-foreground);font-size:14px;line-height:20px;
+}
+.ov[data-ov="dark"]{
+  --ov-background:#0b0b0c; --ov-foreground:#f2f2f3;
+  --ov-card:#141416; --ov-card-foreground:#f2f2f3;
+  --ov-popover:#1c1c1f; --ov-popover-foreground:#f2f2f3;
+  --ov-primary:#7b93ff; --ov-primary-foreground:#0b0b0c;
+  --ov-secondary:#1c1c1f; --ov-secondary-foreground:#f2f2f3;
+  --ov-muted:#1c1c1f; --ov-muted-foreground:#a1a1a8;
+  --ov-accent:#1c1c1f; --ov-accent-foreground:#f2f2f3;
+  --ov-destructive:#e5484d; --ov-destructive-foreground:#0b0b0c;
+  --ov-border:#26262a; --ov-input:#26262a; --ov-ring:#7b93ff;
+  --ov-progress:#4cc38a; --ov-deload:#e0a93b;
+}
+.ov *{border-color:var(--ov-border)}
+.ov svg{width:16px;height:16px;flex:none}
+
+/* --- type: Tailwind's scale, regular/medium/semibold only --- */
+.ov .t-title{font-size:18px;line-height:28px;font-weight:600;margin:0}          /* text-lg font-semibold */
+.ov .t-base{font-size:16px;line-height:24px;margin:0}                           /* text-base */
+.ov .t-sm{font-size:14px;line-height:20px;margin:0}                             /* text-sm */
+.ov .t-xs{font-size:12px;line-height:16px;margin:0}                             /* text-xs */
+.ov .medium{font-weight:500} .ov .semibold{font-weight:600}
+.ov .muted{color:var(--ov-muted-foreground)}
+.ov .num{font-variant-numeric:tabular-nums}                                     /* tabular-nums: every number */
+.ov .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ov .day{width:40px;flex:none;font-size:12px;line-height:16px;font-weight:500;letter-spacing:.025em;text-transform:uppercase;color:var(--ov-muted-foreground);font-variant-numeric:tabular-nums}
+.ov .err{font-size:14px;line-height:20px;color:var(--ov-destructive);margin:0}  /* inline validation only */
+
+/* --- layout helpers --- */
+.ov .stack{display:flex;flex-direction:column}
+.ov .row{display:flex;align-items:center;gap:8px}
+.ov .between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ov .gap-1{gap:4px} .ov .gap-2{gap:8px} .ov .gap-3{gap:12px} .ov .gap-4{gap:16px} .ov .gap-6{gap:24px}
+.ov .grow{flex:1;min-width:0}
+
+/* --- mock frames --- */
+.mock{background:var(--ov-background);border:1px solid var(--ov-border);border-radius:10px;overflow:hidden;position:relative}
+.mock--phone{width:375px;min-width:375px;flex:none}         /* the primary context: design here first */
+.mock--desktop{min-width:760px;flex:1}                        /* md+ shell with the left rail */
+.mock--pane{min-width:340px}                                  /* a single panel with no shell */
+
+/* --- app shell (Foundation's AppShell + AppNav) --- */
+.ov-app{display:flex;flex-direction:column;min-height:700px}
+.ov-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--ov-border);flex:none}
+.ov-wordmark{font-size:18px;line-height:28px;font-weight:600}
+.ov-main{flex:1;display:flex;flex-direction:column;padding:24px 16px 0}
+.ov-main > .screen{flex:1;display:flex;flex-direction:column;gap:24px;padding-bottom:24px}
+.ov-bottomnav{display:flex;border-top:1px solid var(--ov-border);background:var(--ov-card);flex:none}
+.ov-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0;font-size:12px;line-height:16px;font-weight:500;color:var(--ov-muted-foreground)}
+.ov-nav-item svg{width:20px;height:20px}
+.ov-nav-item.on{color:var(--ov-primary)}
+/* md+: left rail replaces the bottom bar; content stays in a centered sm column */
+.ov-desk{display:flex;min-height:640px}
+.ov-rail{width:224px;flex:none;border-right:1px solid var(--ov-border);padding:12px;display:flex;flex-direction:column;gap:4px}
+.ov-rail-item{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:var(--ov-muted-foreground)}
+.ov-rail-item svg{width:20px;height:20px}
+.ov-rail-item.on{background:var(--ov-accent);color:var(--ov-accent-foreground)}
+.ov-desk-col{flex:1;display:flex;flex-direction:column}
+.ov-desk-main{width:100%;max-width:640px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px}
+/* thumb-reach action bar (fixed above the bottom nav in the app; static at md+) */
+.ov-actions{margin:auto -16px 0;border-top:1px solid var(--ov-border);background:color-mix(in srgb,var(--ov-background) 95%,transparent);padding:12px 16px}
+.ov-desk-main .ov-actions{margin:0;border:0;padding:0;background:transparent}
+
+/* --- Button (components/ui/button.tsx) --- */
+.ov-btn{font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font-size:14px;line-height:20px;font-weight:500;height:40px;padding:0 16px;border:1px solid transparent;cursor:pointer;background:transparent;color:var(--ov-foreground)}
+.ov-btn--default{background:var(--ov-primary);color:var(--ov-primary-foreground)}
+.ov-btn--outline{border-color:var(--ov-input);background:var(--ov-background)}
+.ov-btn--secondary{background:var(--ov-secondary);color:var(--ov-secondary-foreground)}
+.ov-btn--ghost{background:transparent}
+.ov-btn--link{color:var(--ov-primary);padding:0 4px;height:auto}
+.ov-btn--sm{height:36px;padding:0 12px}
+.ov-btn--h11{height:44px}                                 /* className="h-11": every primary/thumb action */
+.ov-btn--icon{width:40px;height:40px;padding:0}
+.ov-btn--icon11{width:44px;height:44px;padding:0}          /* size-11 row action */
+.ov-btn--full{width:100%}
+.ov-btn--grow{flex:1}
+.ov-btn[disabled]{opacity:.5;cursor:not-allowed}
+.ov-btn--icon svg,.ov-btn--icon11 svg{width:20px;height:20px}
+
+/* --- Badge (components/ui/badge.tsx) --- */
+.ov-badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid transparent;padding:2px 8px;font-size:12px;line-height:16px;font-weight:500;white-space:nowrap;flex:none}
+.ov-badge--default{background:var(--ov-primary);color:var(--ov-primary-foreground)}
+.ov-badge--secondary{background:var(--ov-secondary);color:var(--ov-secondary-foreground)}
+.ov-badge--outline{border-color:var(--ov-border);color:var(--ov-foreground)}
+
+/* --- Input / Label (components/ui/input.tsx, label.tsx) --- */
+.ov-field{display:flex;flex-direction:column;gap:8px}
+.ov-label{font-size:14px;line-height:1;font-weight:500}
+.ov-input{display:flex;align-items:center;width:100%;height:40px;border:1px solid var(--ov-input);border-radius:6px;background:var(--ov-background);padding:0 12px;font-family:inherit;font-size:16px;color:var(--ov-foreground)}
+.ov-input--h11{height:44px}
+.ov-input--num{width:80px;justify-content:center;font-variant-numeric:tabular-nums}
+.ov-input.ph{color:var(--ov-muted-foreground)}
+.ov-input--invalid{border-color:var(--ov-destructive)}
+.ov-input--focus{outline:2px solid var(--ov-ring);outline-offset:2px}
+.ov-help{font-size:14px;line-height:20px;color:var(--ov-muted-foreground);margin:0}
+
+/* --- Select trigger, Tabs (components/ui/select.tsx, tabs.tsx) --- */
+.ov-select{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;height:40px;min-width:160px;padding:0 12px;border:1px solid var(--ov-input);border-radius:6px;font-size:14px;box-shadow:var(--ov-shadow-xs)}
+.ov-select svg{color:var(--ov-muted-foreground);opacity:.5}
+.ov[data-ov="dark"] .ov-select{background:color-mix(in srgb,var(--ov-input) 30%,transparent)}
+.ov-tabs{display:inline-flex;align-items:center;height:40px;padding:3px;border-radius:8px;background:var(--ov-muted);color:var(--ov-muted-foreground)}
+.ov-tab{height:100%;display:inline-flex;align-items:center;padding:0 16px;border-radius:6px;font-size:14px;font-weight:500}
+.ov-tab.on{background:var(--ov-background);color:var(--ov-foreground);box-shadow:var(--ov-shadow-xs)}
+
+/* --- Alert (components/ui/alert.tsx) --- */
+.ov-alert{display:flex;gap:12px;width:100%;border:1px solid var(--ov-border);border-radius:8px;padding:12px 16px;font-size:14px;line-height:20px;background:var(--ov-card);color:var(--ov-card-foreground)}
+.ov-alert > svg{margin-top:2px}
+.ov-alert-title{font-weight:500;line-height:1;margin:0 0 6px;letter-spacing:-.01em}
+.ov-alert--destructive{border-color:color-mix(in srgb,var(--ov-destructive) 50%,transparent);color:var(--ov-destructive)}
+
+/* --- lists and cards: bordered surfaces, never floated --- */
+.ov-list{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;margin:0;padding:0;list-style:none}
+.ov-list > * + *{border-top:1px solid var(--ov-border)}
+.ov-surface{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;padding:16px}
+.ov-empty{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;padding:24px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.ov-empty p{margin:0}
+
+/* --- ExerciseThumb / MonogramTile --- */
+.ov-thumb{width:48px;height:48px;flex:none;border-radius:6px;border:1px solid var(--ov-border);background:var(--ov-muted);display:grid;place-items:center;font-size:12px;font-weight:500;color:var(--ov-muted-foreground)}
+.ov-thumb--attn{border-style:dashed;color:var(--ov-foreground)}
+.ov-thumb--attn svg{width:20px;height:20px}
+
+/* --- overlays: Dialog / AlertDialog, DropdownMenu, Sonner toast --- */
+.ov-stage{position:relative;min-height:420px;display:grid;place-items:center;padding:16px;background:var(--ov-background)}
+.ov-scrim{position:absolute;inset:0;background:rgb(0 0 0 / .5)}
+.ov-dialog{position:relative;width:100%;max-width:512px;background:var(--ov-background);border:1px solid var(--ov-border);border-radius:8px;box-shadow:var(--ov-shadow-lg);padding:24px;display:grid;gap:16px}
+.ov-dialog-title{font-size:18px;line-height:1;font-weight:600;margin:0}
+.ov-dialog-desc{font-size:14px;line-height:20px;color:var(--ov-muted-foreground);margin:0}
+.ov-dialog-head{display:flex;flex-direction:column;gap:8px}
+.ov-dialog-actions{display:flex;flex-direction:column-reverse;gap:8px}   /* stacked full-width at base */
+.ov-menu{position:absolute;z-index:5;min-width:208px;background:var(--ov-popover);color:var(--ov-popover-foreground);border:1px solid var(--ov-border);border-radius:6px;box-shadow:var(--ov-shadow-md);padding:4px}
+.ov-menu-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;font-size:14px}
+.ov-menu-item.hl{background:var(--ov-accent);color:var(--ov-accent-foreground)}
+.ov-menu-sep{height:1px;margin:4px -4px;background:var(--ov-border)}
+.ov-toast{display:flex;align-items:center;gap:12px;width:100%;max-width:356px;background:var(--ov-popover);color:var(--ov-popover-foreground);border:1px solid var(--ov-border);border-radius:8px;box-shadow:var(--ov-shadow-lg);padding:14px 16px;font-size:14px;font-weight:500}
+.ov-toast--error{color:var(--ov-destructive)}
+
+/* --- Skeleton: shaped like the content, pulse only --- */
+.ov-sk{background:var(--ov-muted);border-radius:6px;animation:ov-pulse 2s cubic-bezier(.4,0,.6,1) infinite}
+@keyframes ov-pulse{50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.ov-sk{animation:none}}
+</style>
+</head>
+
+<body>
+
+<!-- ============ STUDIO HEADER — fixed scaffolding ============ -->
+<header class="pv-head">
+  <div class="pv-head-in">
+    <div class="pv-brand">
+      <!-- No logo exists yet: the brand is the wordmark only. Do not draw a mark. -->
+      <div>
+        <h1>Overload · [Pitch name]</h1>
+        <p>UI preview — [one-line scope], both appearance modes</p>
+      </div>
+    </div>
+    <nav class="pv-jump" aria-label="Jump to section">
+      <a href="#s1">[Section]</a><a href="#s2">[Section]</a><a href="#s3">States</a>
+    </nav>
+    <div class="pv-toggle">
+      <span class="lbl">Appearance</span>
+      <div class="pv-seg" role="tablist" aria-label="Product appearance">
+        <button id="pv-light" class="on" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>Light
+        </button>
+        <button id="pv-dark" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>Dark
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="pv-wrap">
+
+  <!-- ============ LEAD ============ -->
+  <div class="pv-lead">
+    <span class="pv-eyebrow">Design handoff · v1.0</span>
+    <h2>[One sentence stating what this surface is for, in the design doc's own north-star language.]</h2>
+    <p>[Two or three sentences: what ships, what deliberately does not, and the one commitment a reviewer should check the screens against. Use the <b>Light / Dark</b> switch to flip every product surface.]</p>
+    <span class="pv-note"><b>Note</b>&nbsp;This preview is a rendering of the design, not product code. The app is built with Tailwind and shadcn/ui against the theme in <code>globals.css</code>; nothing here is copied into it. Mock data only.</span>
+  </div>
+
+  <!-- ============================================================
+       EXAMPLE FRAMES — replace everything below with real screens.
+       The patterns shown here are the ones to reuse.
+       ============================================================ -->
+
+  <section class="pv-section" id="s1">
+    <div class="pv-sec-head">
+      <span class="pv-num">01</span>
+      <h3>[Section name]</h3>
+      <span class="desc">[What this group of screens covers and the rule it demonstrates.]</span>
+    </div>
+
+    <!-- PATTERN A — phone screen in the full shell (the primary context),
+         beside a desktop frame with the left rail. -->
+    <div class="pv-frame">
+      <div class="pv-cap"><span class="name">[Screen name]</span><span class="route">/route</span><span class="tag">375 · 760+ · [condition]</span></div>
+      <div class="pv-row">
+        <div class="mock mock--phone ov js-ov" data-ov="light">
+          <div class="ov-app">
+            <div class="ov-header">
+              <span class="ov-wordmark">Overload</span>
+              <span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><!-- ellipsis-vertical --><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span>
+            </div>
+            <div class="ov-main">
+              <div class="screen">
+                <h1 class="t-title">[Screen title]</h1>
+                <div class="ov-empty">
+                  <p class="t-base medium">[Plain sentence naming what's missing.]</p>
+                  <span class="ov-btn ov-btn--outline">[The one fixing action]</span>
+                </div>
+                <div class="ov-actions"><span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">[Primary action]</span></div>
+              </div>
+            </div>
+            <nav class="ov-bottomnav">
+              <span class="ov-nav-item"><!-- house -->[svg]Today</span>
+              <span class="ov-nav-item on"><!-- calendar-range -->[svg]Plan</span>
+              <span class="ov-nav-item"><!-- dumbbell -->[svg]Exercises</span>
+              <span class="ov-nav-item"><!-- building-2 -->[svg]Gyms</span>
+            </nav>
+          </div>
+        </div>
+
+        <div class="mock mock--desktop ov js-ov" data-ov="light">
+          <div class="ov-desk">
+            <nav class="ov-rail">
+              <span class="ov-rail-item">[svg]Today</span>
+              <span class="ov-rail-item on">[svg]Plan</span>
+              <span class="ov-rail-item">[svg]Exercises</span>
+              <span class="ov-rail-item">[svg]Gyms</span>
+            </nav>
+            <div class="ov-desk-col">
+              <div class="ov-header"><span class="ov-wordmark">Overload</span><span class="ov-btn ov-btn--ghost ov-btn--icon">[svg]</span></div>
+              <div class="ov-desk-main">
+                <h1 class="t-title">[Screen title]</h1>
+                <!-- same content, wider -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pv-section" id="s3">
+    <div class="pv-sec-head">
+      <span class="pv-num">02</span><h3>States</h3>
+      <span class="desc">Loading, empty, error, and confirmation — given the same billing as the populated screens.</span>
+    </div>
+
+    <div class="pv-grid3">
+      <!-- PATTERN B — dialog on a stage (Dialog / AlertDialog) -->
+      <div class="pv-frame">
+        <div class="pv-cap"><span class="name">[Action] — confirm</span><span class="route">dialog</span></div>
+        <div class="mock mock--pane ov js-ov" data-ov="light">
+          <div class="ov-stage">
+            <div class="ov-scrim"></div>
+            <div class="ov-dialog" role="alertdialog">
+              <div class="ov-dialog-head">
+                <h4 class="ov-dialog-title">[Action Push Day 1?]</h4>
+                <p class="ov-dialog-desc">[Copy naming the subject and the consequence. Never "Are you sure?".]</p>
+              </div>
+              <div class="ov-dialog-actions">
+                <span class="ov-btn ov-btn--outline">Cancel</span>
+                <span class="ov-btn ov-btn--default">[Verb]</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PATTERN C — loading skeleton shaped like the content -->
+      <div class="pv-frame">
+        <div class="pv-cap"><span class="name">[Screen] — loading</span><span class="route">/route</span></div>
+        <div class="mock mock--pane ov js-ov" data-ov="light" style="padding:24px 16px">
+          <div class="stack gap-2">
+            <div class="ov-sk" style="height:24px;width:120px"></div>
+            <div class="ov-sk" style="height:56px"></div><div class="ov-sk" style="height:56px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PATTERN D — error alert with retry, and feedback toasts -->
+      <div class="pv-frame">
+        <div class="pv-cap"><span class="name">Error · feedback</span><span class="route">shared</span></div>
+        <div class="mock mock--pane ov js-ov" data-ov="light" style="padding:24px 16px">
+          <div class="stack gap-3">
+            <div class="ov-alert ov-alert--destructive" role="alert">
+              <!-- circle-alert -->[svg]
+              <div class="grow stack gap-2"><span>[What failed, in plain words.]</span><span class="ov-btn ov-btn--outline ov-btn--sm" style="align-self:flex-start">Try again</span></div>
+            </div>
+            <span class="ov-toast">[Completed action, naming its subject]</span>
+            <span class="ov-toast ov-toast--error">[Couldn't save. Nothing changed.]</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CLOSING LEGEND — restate the commitments ============ -->
+  <section class="pv-section">
+    <div class="pv-sec-head">
+      <span class="pv-num">✳</span><h3>What these screens are built to respect</h3>
+      <span class="desc">The design commitments a reviewer should check the frames above against.</span>
+    </div>
+    <div class="pv-legend">
+      <div class="pv-card">
+        <h4>[Commitment group one]</h4>
+        <ul class="pv-rules">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>[Rule.]</b> [How the screens above honour it.]</span></li>
+        </ul>
+      </div>
+      <div class="pv-card">
+        <h4>[Commitment group two]</h4>
+        <ul class="pv-rules">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>[Rule.]</b> [How the screens above honour it.]</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="pv-foot">
+    <span>Overload · [Pitch] — UI preview generated from <b>[design-doc filename]</b> v[x.y]</span>
+    <span>[Three or four design commitments] · light + near-black dark</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var light=document.getElementById('pv-light'), dark=document.getElementById('pv-dark');
+  function set(mode){
+    document.querySelectorAll('.js-ov').forEach(function(el){ el.setAttribute('data-ov',mode); });
+    document.documentElement.setAttribute('data-pv',mode);
+    dark.classList.toggle('on',mode==='dark'); light.classList.toggle('on',mode!=='dark');
+    dark.setAttribute('aria-selected',mode==='dark'); light.setAttribute('aria-selected',mode!=='dark');
+  }
+  light.addEventListener('click',function(){set('light');});
+  dark.addEventListener('click',function(){set('dark');});
+  // Follow the OS on first load: system is Overload's default appearance.
+  if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){set('dark');}
+})();
+</script>
+
+</body>
+</html>

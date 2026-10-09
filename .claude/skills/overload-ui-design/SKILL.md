@@ -6,9 +6,12 @@ description: >
   dashboard and its today's-plan and day-complete states, the exercise logging card,
   session summary, week-at-a-glance history, mesocycle and session builders,
   exercise library, gyms, goals, progression charts, cardio log, settings, the
-  missed-day prompt, login, or any empty, loading, or error state. Produces polished,
-  quiet-and-precise SaaS UI in Overload's brand system. Trigger whenever building,
-  restyling, or mocking up an Overload screen, even for a small component.
+  missed-day prompt, login, or any empty, loading, or error state. Also use when
+  asked for a UI preview, design preview, mockup, screen gallery, or a viewable
+  rendering of a design doc, which ships as a standalone offline HTML file under
+  docs/previews/ (the mandatory UI-design stage of the pitch pipeline). Produces
+  polished, quiet-and-precise SaaS UI in Overload's brand system. Trigger whenever
+  building, restyling, or mocking up an Overload screen, even for a small component.
 ---
 
 # Overload UI Design
@@ -23,7 +26,15 @@ Copy is restrained. The only warm touch is a single greeting line on the dashboa
 
 ## Output format
 
-- Code in TypeScript React (TSX) using shadcn/ui components and Tailwind utility classes, in a single code block. shadcn/ui with Tailwind is Overload's only component and styling system — do not introduce Material UI, styled-components, CSS modules, inline style objects for layout, or a second component library.
+There are two output modes, and the request decides which.
+
+**Product UI** is the default: a screen, a component, a restyle, or a ticket touching appearance. Output is application code as described below.
+
+**A UI preview** is a standalone HTML file that renders a design doc's screens for review. Ask for it with "preview", "UI preview", "design preview", "mockup", "show me the screens", "visual", "gallery", or "render the design doc". It is also the mandatory UI-design stage of the pitch pipeline (pitch → design doc → **UI preview** → spec). A preview is a *picture of the design*, not product code, and it is the one place hand-authored CSS is permitted. Read **UI previews** below before writing one.
+
+For product UI:
+
+- Code in TypeScript React (TSX) using shadcn/ui components and Tailwind utility classes, in a single code block. shadcn/ui with Tailwind is Overload's only component and styling system. Do not introduce Material UI, styled-components, CSS modules, inline style objects for layout, or a second component library.
 - Start with a brief response, then the code, then a brief closing response.
 - Do not mention the implementation format, styling framework, or markup language in the response text.
 - Use `lucide-react` icons at one stroke weight and one size scale. No filled or multicolor icons, and no emoji as icons.
@@ -138,6 +149,107 @@ Use realistic training mock data, and units are always **lbs**:
 ### Goal completion
 
 Reaching 100% on a goal is acknowledged with a calm, full-width card: "Goal reached: Barbell Bench Press 315 × 1", with actions to set a new goal or dismiss. No confetti, no animation beyond a short fade, no sound.
+
+## UI previews
+
+A UI preview is a single self-contained HTML file that renders **every screen and state** of a design doc, in both appearance modes, as a static design-handoff gallery for review before anything is built. It exists because a design doc describes screens in prose and ASCII wireframes, and a reviewer needs to see them. It is also the visual contract the spec and the implementation tickets are held to.
+
+Start from `references/preview-template.html` (in this skill's folder). It carries the scaffolding, Overload's product tokens copied from `src/app/globals.css`, the font, and component recipes that reproduce the app's shadcn/ui components. Copy it and replace the example frames. Do not re-derive the token block or restyle the scaffolding; retyping hex values is how two visual systems start.
+
+### Where it goes
+
+- **Path:** `docs/previews/NN-pitch-slug-preview.html`, matching the pitch and design-doc number and slug (for example `docs/previews/04-guided-workout-logging-preview.html`).
+- **One file per design doc.** A preview covering two features is two files.
+- Never overwrite a pitch, design doc, or spec. If a requested output path is one of those, or names a `.tsx` file, say so and write the `.html` preview to `docs/previews/` instead.
+- The template's asset paths (`assets/fonts/inter-latin-variable.woff2`) are relative to `docs/previews/`. If the preview is written anywhere else, fix them.
+
+### The preview is not product code
+
+This is the rule that keeps the hand-authored CSS from becoming a second styling system:
+
+- The HTML and CSS in a preview are **a rendering of the design and are never copied into the application.** The app is built with Tailwind and shadcn/ui against the theme in `globals.css`.
+- Say so on the page, in the lead's note pill. A reader who finds the file in six months must not mistake it for the implementation.
+- When a preview and the app theme or a shadcn/ui component disagree, **the theme wins** and the preview is wrong. Fix the preview.
+- Previews are review artifacts. They are not linked from the application, are never imported, and never ship inside it.
+
+### Two token layers, kept apart
+
+The template defines both. The separation is the point.
+
+| Layer | Prefix | Rule |
+| ----- | ------ | ---- |
+| Preview chrome | `--pv-*` | The studio around the mocks. **Achromatic, greys only.** Overload's only colors (the accent, progress green, deload amber) carry meaning, so the scaffolding has none and can never be mistaken for a product surface. |
+| Product tokens | `--ov-*`, scoped to `.ov` | `globals.css` values, verbatim: `:root` for light, `.dark` for dark under `.ov[data-ov="dark"]`. If the theme changes, re-copy the block. |
+
+The appearance toggle sets `data-ov` on every `.js-ov` element at once, so all product surfaces flip together. It follows the OS on first load, because system is Overload's default appearance.
+
+**Chrome conventions do not cross into `.ov`.** Uppercase eyebrows, letter-spaced labels, and pill-shaped segments are fine in the chrome. Anything inside a `.mock` obeys the brand system: the `.ov-*` component recipes only, Inter at regular, medium, and semibold weights, tabular numerals on every number, no gradients, shadows only on dialogs, menus, and toasts, and the progress and deload colors only on progress and deload tags.
+
+### Component recipes, not a component library
+
+The `.ov-*` classes in the template (`ov-btn`, `ov-badge`, `ov-input`, `ov-alert`, `ov-select`, `ov-tabs`, `ov-dialog`, `ov-menu`, `ov-toast`, `ov-sk`, `ov-list`, `ov-thumb`, the shell classes) reproduce the repo's own `src/components/ui/*` at their Tailwind sizes: buttons 40px (`h-11` = 44px for primary and thumb actions), inputs 40/44px, 6px control radius, 8px card radius, and the app's `h-11`, `size-11`, `min-h-14`, and `min-h-16` touch targets. Use them as they are. If a screen needs a component the template lacks, add a recipe that matches the shadcn/ui component the implementation will use, and name the mapping in a CSS comment. Never invent a control the app won't have.
+
+### Icons and font
+
+- **Icons are inline Lucide SVG**, using the exact paths of the `lucide-react` version the app ships. Get them with `node scripts/lucide-svg.mjs chevron-right triangle-alert plus` and paste the output. No icon CDN, no icon font, no hand-drawn approximations.
+- **The font is Inter**, the vendored latin variable file in `docs/previews/assets/fonts/` (the same file `next/font` serves the app). No Google Fonts link.
+- **No logo exists.** The studio header and the app header use the wordmark "Overload" in plain text. Do not draw a mark.
+
+### Required structure
+
+In order. The template lays it out.
+
+1. **Studio header** (sticky). `Overload · [Pitch name]`, a one-line scope, jump links to every section, and the Light/Dark appearance toggle.
+2. **Lead.** An eyebrow, a one-sentence thesis in the design doc's north-star language, two or three sentences of scope (what ships, what deliberately does not, and the one commitment to check every frame against), and the note pill stating that this is a rendering rather than product code.
+3. **Numbered sections** (`01`, `02`, …), each with a title and a one-line description of the rule its screens demonstrate. Group by surface or flow, not by component.
+4. **Framed screens.** Every screen sits in a `.pv-frame` whose caption carries its **name**, its **route** in monospace (or `dialog`, `alertdialog`, `toast`), and a right-aligned **tag** for the condition it shows. A screen without its route is not reviewable.
+5. **A states section**: loading, empty, error, read-only, validation, and confirmation, given the same billing as the populated screens.
+6. **A theme specimen**: the tokens this feature uses and the type sizes, with what each is for.
+7. **Closing legend**: two cards restating the design commitments the frames are built to respect, as checkmark lists. This is what makes a preview reviewable rather than merely pretty.
+8. **Footer**: the design doc filename and version it was generated from, plus a one-line summary of the commitments.
+
+The page is static. The only script is the appearance toggle. Show every state as its own frame; do not hide states behind tabs, a screen switcher, or click-to-open dialogs. Dialogs, menus, and toasts are drawn open on a `.ov-stage` with a scrim.
+
+### Frames
+
+- **Phone first.** Every screen appears in a `.mock--phone` (375px) inside the full shell: the `Overload` header, the content, the thumb-reach action bar (`.ov-actions`) where the screen has a primary action, and the bottom nav with the right item active. Phone is the primary context, so this is the frame every screen gets.
+- **Desktop where layout changes.** A screen's main populated state also appears in a `.mock--desktop` beside the phone, showing the md+ left rail and the centered column, so the responsive behavior is reviewed rather than assumed.
+- **Dialogs** render on a phone-width `.ov-stage` with the scrim, with the dialog's real copy and its buttons stacked as they are at the base breakpoint.
+- Use `.pv-grid3` and `.pv-grid2` for families of states and `.pv-row` to pair a phone with a desktop frame or with a short `.pv-aside` note.
+
+### Coverage
+
+A preview is complete when every screen and every state named in the design doc appears. Read its screen specifications and enumerate them. Each screen's empty, loading, error, validation, and read-only states are separate frames, not a note.
+
+Overload-specific coverage that gets skipped and must not be:
+
+- **Both appearance modes**, verified by flipping the toggle rather than assumed.
+- **Hold looks like nothing.** Wherever exercises appear, an ordinary exercise has no tag and no color. Progress and deload tags appear only when the feature computes them; the progress and deload colors never appear anywhere else.
+- **States that are legitimate answers, not failures**: an empty plan, a rest day, nothing planned today, a lift with no history, a scheduled deload week. They carry as much design weight as the populated case.
+- **Archive, don't delete.** Archived exercises and gyms still render where history or an existing plan references them, visibly marked, and the copy says Archive or Remove as the design doc does, never Delete.
+- **Thumb reach.** Every phone frame with a primary action shows it at the bottom, above the nav, at 44px.
+- **Destructive-looking but non-destructive actions** (archive, remove from plan, replace) with their exact confirmation copy.
+
+### Mock data
+
+Use the vocabulary in **Mock data vocabulary** above. Keep numbers and names internally consistent across frames: the same mesocycle has the same dates, the same session has the same exercises and set counts, and the same set shows the same weight × reps everywhere it appears. Dates are real calendar dates whose weekdays are correct. Units are always lbs.
+
+### Verification before handing it over
+
+- [ ] Opens standalone from `docs/previews/` with **no network request**. The font resolves from `assets/fonts/`, and every icon is inline SVG.
+- [ ] The appearance toggle flips every product surface, and both modes are correct on every frame.
+- [ ] Dark surfaces are the theme's near-black. Nothing in dark mode is navy or tinted.
+- [ ] No hex value inside a `.mock` that isn't an `--ov-*` token, and the token block matches `globals.css` exactly.
+- [ ] Every number is tabular. No weight heavier than semibold anywhere in a `.mock`.
+- [ ] No progress or deload color anywhere except a progress or deload tag, and no "Hold" badge.
+- [ ] Shadows only on dialogs, menus, and toasts.
+- [ ] Every frame carries a name and a route.
+- [ ] Every screen from the design doc is present, with its empty, loading, error, validation, and read-only states.
+- [ ] Every screen has a phone frame, and nothing scrolls horizontally inside one.
+- [ ] No illustration, artwork, logo mark, emoji, or confetti anywhere in a `.mock`.
+- [ ] The note pill states that this is a rendering, not product code.
+- [ ] The footer names the design doc and version it came from.
+- [ ] Checked in headless Chrome (Playwright with `channel: "chrome"` is in the repo): zero console errors, zero non-`file:` requests, Inter loaded (`document.fonts.check("16px Inter")`), no `.mock--phone` with `scrollWidth > clientWidth`, and screenshots of key sections in light and dark looked at.
 
 ## Respecting provided input
 

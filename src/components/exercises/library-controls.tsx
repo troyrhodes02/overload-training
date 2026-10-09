@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   libraryQueryString,
+  withExtraParams,
   type LibraryFilters,
   type LibraryView,
 } from "@/lib/exercises/library-params";
@@ -39,13 +40,22 @@ const SEARCH_DEBOUNCE_MS = 250;
  * and PRIMARY muscle — written to the URL so the server renders the list.
  * Changing one never resets the others. The server-rendered results are passed
  * as children so they can dim while a new combination loads.
+ *
+ * Reused by the session builder's exercise picker (Split & Mesocycle Builder,
+ * spec D57) with a different `basePath` and extra params (e.g. `replace`),
+ * so both screens share one set of filter rules.
  */
 export function LibraryControls({
   filters,
   children,
+  basePath = "/exercises",
+  extraParams,
 }: {
   filters: Pick<LibraryFilters, "view" | "muscle" | "search">;
   children: ReactNode;
+  basePath?: string;
+  /** Kept on every navigation (never a filter). */
+  extraParams?: Record<string, string>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -90,7 +100,7 @@ export function LibraryControls({
     };
     // The URL carries the trimmed search; compare like with like.
     setLastNavigated(merged.search.trim());
-    const href = `/exercises${libraryQueryString(merged)}`;
+    const href = `${basePath}${withExtraParams(libraryQueryString(merged), extraParams)}`;
     startTransition(() => {
       if (mode === "push") router.push(href);
       else router.replace(href);
