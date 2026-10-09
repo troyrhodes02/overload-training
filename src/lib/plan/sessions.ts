@@ -1,9 +1,6 @@
 import "server-only";
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import { dayName } from "./calendar";
-import { isUniqueViolation, requireEditableMesocycle } from "./mesocycles";
 import {
   copyName,
   parseDayOfWeek,
@@ -11,6 +8,17 @@ import {
   parsePlannedExercise,
   type PlannedExerciseInput,
 } from "./validation";
+import {
+  inTx,
+  invalid,
+  isForeignKeyViolation,
+  isUniqueViolation,
+  mapDbErrors,
+  plannedExerciseCopies,
+  plannedExerciseSourceSelect,
+  requireEditableMesocycle,
+  type Db,
+} from "./write-support";
 
 /**
  * The Session / SessionExercise write module (Split & Mesocycle Builder).
@@ -30,21 +38,7 @@ import {
  *  - Every function accepts an optional transaction client so callers compose.
  */
 
-type Db = Prisma.TransactionClient;
-
-function inTx<T>(tx: Db | undefined, run: (t: Db) => Promise<T>): Promise<T> {
-  return tx ? run(tx) : prisma.$transaction(run);
-}
-
 const SESSION_NOT_FOUND = "That session doesn't exist.";
-
-function invalid(details: Record<string, string>): DomainError {
-  return new DomainError(
-    "validation_error",
-    "Check the highlighted fields.",
-    details,
-  );
-}
 
 /** Loads a session whose mesocycle is editable (draft or active). */
 export async function requireEditableSession(sessionId: string, tx: Db) {
@@ -104,18 +98,24 @@ export async function clearDayFor(
 }
 
 /** A day taken between the read and the write → the same conflict. */
-async function dayRace<T>(run: () => Promise<T>): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      throw new DomainError(
-        "conflict",
-        "That day already has a session. Review and try again.",
-      );
-    }
-    throw error;
-  }
+function dayRace<T>(tx: Db | undefined, run: () => Promise<T>): Promise<T> {
+  return mapDbErrors(tx, run, (error) =>
+    isUniqueViolation(error)
+      ? new DomainError(
+          "conflict",
+          "That day already has a session. Review and try again.",
+        )
+      : null,
+  );
+}
+
+/** New sessions go after the existing ones (stable order, spec review #6). */
+async function nextSessionPosition(mesocycleId: string, tx: Db) {
+  const last = await tx.session.aggregate({
+    where: { mesocycleId },
+    _max: { position: true },
+  });
+  return (last._max.position ?? -1) + 1;
 }
 
 export async function addSession(
@@ -131,7 +131,7 @@ export async function addSession(
   const name = parseName(input.name, details);
   if (Object.keys(details).length > 0) throw invalid(details);
   const dayOfWeek = parseDay(input.dayOfWeek);
-  return dayRace(() =>
+  return dayRace(tx, () =>
     inTx(tx, async (t) => {
       const m = await requireEditableMesocycle(input.mesocycleId, t);
       await clearDayFor(
@@ -139,7 +139,12 @@ export async function addSession(
         t,
       );
       const session = await t.session.create({
-        data: { mesocycleId: m.id, name, dayOfWeek },
+        data: {
+          mesocycleId: m.id,
+          name,
+          dayOfWeek,
+          position: await nextSessionPosition(m.id, t),
+        },
         select: { id: true },
       });
       return { id: session.id };
@@ -166,7 +171,7 @@ export async function moveSession(
   tx?: Db,
 ): Promise<{ id: string; displacedId: string | null }> {
   const dayOfWeek = parseDay(input.dayOfWeek);
-  return dayRace(() =>
+  return dayRace(tx, () =>
     inTx(tx, async (t) => {
       const s = await requireEditableSession(input.sessionId, t);
       if (s.dayOfWeek === dayOfWeek) return { id: s.id, displacedId: null };
@@ -198,7 +203,7 @@ export async function duplicateSession(
   tx?: Db,
 ): Promise<{ id: string }> {
   const dayOfWeek = parseDay(input.dayOfWeek);
-  return dayRace(() =>
+  return dayRace(tx, () =>
     inTx(tx, async (t) => {
       const source = await requireEditableSession(input.sessionId, t);
       await clearDayFor(
@@ -214,30 +219,18 @@ export async function duplicateSession(
           mesocycleId: source.mesocycleId,
           name: copyName(source.name),
           dayOfWeek,
+          position: await nextSessionPosition(source.mesocycleId, t),
         },
         select: { id: true },
       });
       const slots = await t.sessionExercise.findMany({
         where: { sessionId: source.id },
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-        select: {
-          exerciseId: true,
-          position: true,
-          plannedSets: true,
-          targetRepMin: true,
-          targetRepMax: true,
-        },
+        select: plannedExerciseSourceSelect,
       });
       if (slots.length > 0) {
         await t.sessionExercise.createMany({
-          data: slots.map((s, i) => ({
-            sessionId: copy.id,
-            exerciseId: s.exerciseId,
-            position: i,
-            plannedSets: s.plannedSets,
-            targetRepMin: s.targetRepMin,
-            targetRepMax: s.targetRepMax,
-          })),
+          data: plannedExerciseCopies(copy.id, slots),
         });
       }
       return { id: copy.id };
@@ -250,25 +243,23 @@ export async function removeSession(
   input: { sessionId: string },
   tx?: Db,
 ): Promise<{ id: string; mesocycleId: string }> {
-  try {
-    return await inTx(tx, async (t) => {
-      const s = await requireEditableSession(input.sessionId, t);
-      await t.session.delete({ where: { id: s.id } });
-      return { id: s.id, mesocycleId: s.mesocycleId };
-    });
-  } catch (error) {
+  return mapDbErrors(
+    tx,
+    () =>
+      inTx(tx, async (t) => {
+        const s = await requireEditableSession(input.sessionId, t);
+        await t.session.delete({ where: { id: s.id } });
+        return { id: s.id, mesocycleId: s.mesocycleId };
+      }),
     // Logged history references sessions with onDelete: Restrict.
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2003"
-    ) {
-      throw new DomainError(
-        "invalid_state_transition",
-        "This session has logged workouts and can't be removed.",
-      );
-    }
-    throw error;
-  }
+    (error) =>
+      isForeignKeyViolation(error)
+        ? new DomainError(
+            "invalid_state_transition",
+            "This session has logged workouts and can't be removed.",
+          )
+        : null,
+  );
 }
 
 /* ------------------------------------------------------------------------ */
@@ -341,17 +332,14 @@ async function requireNotInSession(
 }
 
 /** A duplicate inserted between the check and the write → the same error. */
-async function slotRace<T>(run: () => Promise<T>): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      throw new DomainError("validation_error", ALREADY_IN_SESSION, {
-        exerciseId: ALREADY_IN_SESSION,
-      });
-    }
-    throw error;
-  }
+function slotRace<T>(tx: Db | undefined, run: () => Promise<T>): Promise<T> {
+  return mapDbErrors(tx, run, (error) =>
+    isUniqueViolation(error)
+      ? new DomainError("validation_error", ALREADY_IN_SESSION, {
+          exerciseId: ALREADY_IN_SESSION,
+        })
+      : null,
+  );
 }
 
 function parsePlan(raw: {
@@ -376,7 +364,7 @@ export async function addSessionExercise(
   tx?: Db,
 ): Promise<{ id: string }> {
   const plan = parsePlan(input);
-  return slotRace(() =>
+  return slotRace(tx, () =>
     inTx(tx, async (t) => {
       const session = await requireEditableSession(input.sessionId, t);
       const exercise = await requireActiveExercise(input.exerciseId, t);
@@ -424,7 +412,7 @@ export async function replaceSessionExercise(
   input: { sessionExerciseId: string; exerciseId: unknown },
   tx?: Db,
 ): Promise<{ id: string }> {
-  return slotRace(() =>
+  return slotRace(tx, () =>
     inTx(tx, async (t) => {
       const slot = await requireEditableSlot(input.sessionExerciseId, t);
       const exercise = await requireActiveExercise(input.exerciseId, t);

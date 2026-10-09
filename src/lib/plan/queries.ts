@@ -218,19 +218,31 @@ export async function getSessionDetail(
   sessionId: string,
 ): Promise<SessionDetailDto | null> {
   if (!isUuid(mesocycleId) || !isUuid(sessionId)) return null;
-  const row = await prisma.mesocycle.findUnique({
-    where: { id: mesocycleId },
-    include: planInclude,
+  // Just this session's planned exercises, plus a light list of the
+  // mesocycle's sessions for day occupancy — not the whole plan graph.
+  const session = await prisma.session.findFirst({
+    where: { id: sessionId, mesocycleId },
+    include: {
+      sessionExercises: planInclude.sessions.include.sessionExercises,
+      mesocycle: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          sessions: { select: { id: true, name: true, dayOfWeek: true } },
+        },
+      },
+    },
   });
-  const session = row?.sessions.find((s) => s.id === sessionId);
-  if (!row || !session) return null;
+  if (!session) return null;
+  const m = session.mesocycle;
   return {
     id: session.id,
     name: session.name,
     dayOfWeek: session.dayOfWeek,
-    mesocycle: { id: row.id, name: row.name, status: row.status },
+    mesocycle: { id: m.id, name: m.name, status: m.status },
     exercises: session.sessionExercises.map(toPlannedExercise),
-    occupancy: occupancyOf(row.sessions),
+    occupancy: occupancyOf(m.sessions),
   };
 }
 

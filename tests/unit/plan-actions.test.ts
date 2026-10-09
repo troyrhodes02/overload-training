@@ -137,4 +137,20 @@ describe("plan server actions (authenticated)", () => {
       expectedActiveId: null,
     });
   });
+
+  it("a refused activation refreshes the page so a retry isn't stuck on stale data", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { refresh } = require("next/cache") as { refresh: jest.Mock };
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DomainError } = require("@/lib/actions/result");
+    mockWrite("activateMesocycle").mockRejectedValue(
+      new DomainError("conflict", "The active mesocycle changed."),
+    );
+    const result = await actions.activateMesocycleAction({
+      mesocycleId: ID,
+      expectedActiveId: null,
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "conflict" } });
+    expect(refresh).toHaveBeenCalled();
+  });
 });

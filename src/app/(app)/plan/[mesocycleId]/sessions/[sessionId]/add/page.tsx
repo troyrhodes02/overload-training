@@ -44,7 +44,26 @@ export default async function PickerPage({ params, searchParams }: PageProps) {
   const sessionHref = `/plan/${mesocycleId}/sessions/${sessionId}`;
   if (session.mesocycle.status === "archived") redirect(sessionHref);
 
-  const slot = session.exercises.find((e) => e.id === first(sp.replace));
+  const replaceId = first(sp.replace);
+  const slot = session.exercises.find((e) => e.id === replaceId);
+  // A replace link whose slot is gone (removed in another tab, or Back after a
+  // removal) must not quietly turn into "add": say so instead.
+  if (replaceId && !slot) {
+    return (
+      <section className="space-y-4">
+        <BackLink href={sessionHref} label={session.name} />
+        <EmptyState
+          title="That exercise isn't in this session anymore."
+          description="Nothing was changed."
+          action={
+            <Button asChild variant="outline">
+              <Link href={sessionHref}>Back to {session.name}</Link>
+            </Button>
+          }
+        />
+      </section>
+    );
+  }
   const replace: ReplaceTarget | null = slot
     ? {
         id: slot.id,

@@ -92,7 +92,16 @@ export async function activateMesocycleAction(input: {
     () => activateMesocycle(input),
     "Couldn't activate. Nothing changed.",
   );
-  if (result.ok) refresh();
+  // Also refresh when refused for a state reason (the active block changed,
+  // or the plan stopped being ready): the page then re-renders with the
+  // current active block and checklist, so a retry isn't stuck on stale data.
+  if (
+    result.ok ||
+    result.error.code === "conflict" ||
+    result.error.code === "invalid_state_transition"
+  ) {
+    refresh();
+  }
   return result;
 }
 

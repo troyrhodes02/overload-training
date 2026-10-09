@@ -12,7 +12,8 @@ import type { ReadinessInput } from "./readiness";
  */
 export const planInclude = {
   sessions: {
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    // Explicit position first: rows created in one transaction share createdAt.
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     include: {
       sessionExercises: {
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],

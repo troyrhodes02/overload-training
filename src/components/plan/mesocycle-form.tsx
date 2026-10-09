@@ -33,6 +33,7 @@ import {
 } from "@/lib/plan/presets";
 import {
   deloadOutOfRangeMessage,
+  LENGTH_WEEKS_MAX,
   parseMesocycleDetails,
   parseSplitType,
   PLAN_NAME_MAX,
@@ -100,7 +101,11 @@ export function MesocycleForm({
       ? deloadOutOfRangeMessage(deloadNum, lengthNum)
       : null;
   const endLine =
-    startDate && parseIsoDate(startDate) && lengthNum && lengthNum >= 1
+    startDate &&
+    parseIsoDate(startDate) &&
+    lengthNum &&
+    lengthNum >= 1 &&
+    lengthNum <= LENGTH_WEEKS_MAX // out-of-range input gets a field error, not a date
       ? `Ends ${formatPlanDate(plannedEndDate(startDate, lengthNum))}.`
       : null;
 

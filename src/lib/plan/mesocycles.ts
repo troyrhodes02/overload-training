@@ -1,7 +1,5 @@
 import "server-only";
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { DomainError, isUuid } from "@/lib/actions/result";
+import { DomainError } from "@/lib/actions/result";
 import { parseIsoDate } from "./calendar";
 import { PRESET_STRUCTURES } from "./presets";
 import { evaluateReadiness, readinessIssueMessage } from "./readiness";
@@ -11,6 +9,19 @@ import {
   parseSplitType,
   type RawMesocycleDetails,
 } from "./validation";
+import {
+  inTx,
+  invalid,
+  isUniqueViolation,
+  lockMesocycle,
+  mapDbErrors,
+  plannedExerciseCopies,
+  plannedExerciseSourceSelect,
+  READ_ONLY,
+  requireEditableMesocycle,
+  sessionOrder,
+  type Db,
+} from "./write-support";
 
 /**
  * The Mesocycle write module (Split & Mesocycle Builder). Mesocycle rows — and
@@ -23,6 +34,9 @@ import {
  *    archives the previous active block in the same transaction (spec D1–D3).
  *  - At most one active mesocycle: enforced here AND by the partial unique
  *    index `mesocycles_single_active` (spec D49).
+ *  - Status checks happen under a row lock (write-support lockMesocycle), so a
+ *    check and the write it guards can't interleave with another tab's
+ *    activation, archive, or edit of the same block.
  *  - Presets create named, EMPTY sessions only — never a SessionExercise, a
  *    set count, a rep range, or a weight (spec D13).
  *  - Archived mesocycles are read-only. Mesocycles are never deleted.
@@ -30,48 +44,11 @@ import {
  *  - Every function accepts an optional transaction client so callers compose.
  */
 
-type Db = Prisma.TransactionClient;
-
-const READ_ONLY =
-  "Archived mesocycles are read-only. Clone it forward to change it.";
-
-function inTx<T>(tx: Db | undefined, run: (t: Db) => Promise<T>): Promise<T> {
-  return tx ? run(tx) : prisma.$transaction(run);
-}
+// Re-exported for ./sessions.ts and callers that compose plan writes.
+export { isUniqueViolation, requireEditableMesocycle };
 
 function toDbDate(iso: string | null): Date | null {
   return iso ? parseIsoDate(iso) : null;
-}
-
-/** A unique-index race (two activations, a day taken meanwhile) → conflict. */
-export function isUniqueViolation(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  );
-}
-
-/** Loads a mesocycle for writing; archived ones are rejected. */
-export async function requireEditableMesocycle(mesocycleId: string, tx: Db) {
-  const row = isUuid(mesocycleId)
-    ? await tx.mesocycle.findUnique({
-        where: { id: mesocycleId },
-        select: { id: true, status: true },
-      })
-    : null;
-  if (!row) throw new DomainError("not_found", "That mesocycle doesn't exist.");
-  if (row.status === "archived") {
-    throw new DomainError("invalid_state_transition", READ_ONLY);
-  }
-  return row;
-}
-
-function invalid(details: Record<string, string>): DomainError {
-  return new DomainError(
-    "validation_error",
-    "Check the highlighted fields.",
-    details,
-  );
 }
 
 export async function createMesocycle(
@@ -102,10 +79,11 @@ export async function createMesocycle(
     const structure = PRESET_STRUCTURES[split.value];
     if (structure.length > 0) {
       await t.session.createMany({
-        data: structure.map((s) => ({
+        data: structure.map((s, i) => ({
           mesocycleId: mesocycle.id,
           name: s.name,
           dayOfWeek: s.dayOfWeek,
+          position: i,
         })),
       });
     }
@@ -146,82 +124,73 @@ export async function updateMesocycleDetails(
 }
 
 /**
- * Draft → active. One transaction: the target must be a draft, must be ready
- * when re-checked here, and the currently active block must be the one the
- * lifter confirmed replacing (`expectedActiveId`); that block is archived
- * first, then the draft becomes active.
+ * Draft → active. One transaction: the target is locked and must be a draft,
+ * must be ready when re-checked here, and the currently active block must be
+ * the one the lifter confirmed replacing (`expectedActiveId`); that block is
+ * archived first, then the draft becomes active.
  */
 export async function activateMesocycle(
   input: { mesocycleId: string; expectedActiveId: string | null },
   tx?: Db,
 ): Promise<{ id: string; archivedId: string | null }> {
-  try {
-    return await inTx(tx, async (t) => {
-      const plan = isUuid(input.mesocycleId)
-        ? await t.mesocycle.findUnique({
-            where: { id: input.mesocycleId },
-            include: planInclude,
-          })
-        : null;
-      if (!plan) {
-        throw new DomainError("not_found", "That mesocycle doesn't exist.");
-      }
-      if (plan.status !== "draft") {
-        throw new DomainError(
-          "invalid_state_transition",
-          plan.status === "active"
-            ? "This mesocycle is already active."
-            : READ_ONLY,
-        );
-      }
-
-      const readiness = evaluateReadiness(toReadinessInput(plan));
-      if (!readiness.ready) {
-        throw new DomainError(
-          "invalid_state_transition",
-          `This plan isn't ready: ${readinessIssueMessage(readiness.issues[0])}`,
-          { issues: readiness.issues.map((i) => i.code).join(",") },
-        );
-      }
-
-      const current = await t.mesocycle.findFirst({
-        where: { status: "active" },
-        select: { id: true },
-      });
-      if ((current?.id ?? null) !== (input.expectedActiveId ?? null)) {
-        throw new DomainError(
-          "conflict",
-          "The active mesocycle changed. Review and try again.",
-        );
-      }
-
-      if (current) {
-        await t.mesocycle.update({
-          where: { id: current.id },
-          data: { status: "archived" },
+  return mapDbErrors(
+    tx,
+    () =>
+      inTx(tx, async (t) => {
+        const locked = await lockMesocycle(input.mesocycleId, t);
+        if (locked.status !== "draft") {
+          throw new DomainError(
+            "invalid_state_transition",
+            locked.status === "active"
+              ? "This mesocycle is already active."
+              : READ_ONLY,
+          );
+        }
+        const plan = await t.mesocycle.findUniqueOrThrow({
+          where: { id: locked.id },
+          include: planInclude,
         });
-      }
-      const { count } = await t.mesocycle.updateMany({
-        where: { id: plan.id, status: "draft" },
-        data: { status: "active" },
-      });
-      if (count !== 1) {
-        throw new DomainError(
-          "conflict",
-          "This mesocycle changed. Review and try again.",
-        );
-      }
-      return { id: plan.id, archivedId: current?.id ?? null };
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      throw new DomainError(
-        "conflict",
-        "Another mesocycle became active. Review and try again.",
-      );
-    }
-    throw error;
-  }
+
+        const readiness = evaluateReadiness(toReadinessInput(plan));
+        if (!readiness.ready) {
+          throw new DomainError(
+            "invalid_state_transition",
+            `This plan isn't ready: ${readinessIssueMessage(readiness.issues[0])}`,
+            { issues: readiness.issues.map((i) => i.code).join(",") },
+          );
+        }
+
+        const current = await t.mesocycle.findFirst({
+          where: { status: "active" },
+          select: { id: true },
+        });
+        if ((current?.id ?? null) !== (input.expectedActiveId ?? null)) {
+          throw new DomainError(
+            "conflict",
+            "The active mesocycle changed. Review and try again.",
+          );
+        }
+
+        if (current) {
+          await t.mesocycle.update({
+            where: { id: current.id },
+            data: { status: "archived" },
+          });
+        }
+        await t.mesocycle.update({
+          where: { id: plan.id },
+          data: { status: "active" },
+        });
+        return { id: plan.id, archivedId: current?.id ?? null };
+      }),
+    (error) =>
+      isUniqueViolation(error)
+        ? new DomainError(
+            "conflict",
+            "Another mesocycle became active. Review and try again.",
+          )
+        : null,
+  );
 }
 
 /** Draft → archived (an abandoned draft). Never a delete (spec D46). */
@@ -230,14 +199,7 @@ export async function archiveDraftMesocycle(
   tx?: Db,
 ): Promise<{ id: string }> {
   return inTx(tx, async (t) => {
-    const row = isUuid(input.mesocycleId)
-      ? await t.mesocycle.findUnique({
-          where: { id: input.mesocycleId },
-          select: { id: true, status: true },
-        })
-      : null;
-    if (!row)
-      throw new DomainError("not_found", "That mesocycle doesn't exist.");
+    const row = await lockMesocycle(input.mesocycleId, t);
     if (row.status !== "draft") {
       throw new DomainError(
         "invalid_state_transition",
@@ -256,7 +218,7 @@ export async function archiveDraftMesocycle(
  * Clone-forward (spec D30–D36, D47): a NEW draft built from a prior block's
  * plan. The source must be active or archived and is only read. Copied, field
  * by field: split type, the lifter's name/start/length/deload choices (from
- * the clone form), every session's name and day, and every planned
+ * the clone form), every session's name, day, and order, and every planned
  * exercise's exercise, order, sets, and rep range — archived exercises
  * included, so they arrive as repair slots that block activation until
  * replaced or removed (never dropped, substituted, or un-archived).
@@ -272,41 +234,30 @@ export async function cloneMesocycle(
   if (!parsed.ok) throw invalid(parsed.details);
   const v = parsed.value;
   return inTx(tx, async (t) => {
-    const source = isUuid(input.sourceMesocycleId)
-      ? await t.mesocycle.findUnique({
-          where: { id: input.sourceMesocycleId },
-          select: {
-            id: true,
-            status: true,
-            splitType: true,
-            sessions: {
-              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-              select: {
-                name: true,
-                dayOfWeek: true,
-                sessionExercises: {
-                  orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-                  select: {
-                    exerciseId: true,
-                    plannedSets: true,
-                    targetRepMin: true,
-                    targetRepMax: true,
-                  },
-                },
-              },
-            },
-          },
-        })
-      : null;
-    if (!source) {
-      throw new DomainError("not_found", "That mesocycle doesn't exist.");
-    }
-    if (source.status === "draft") {
+    const locked = await lockMesocycle(input.sourceMesocycleId, t);
+    if (locked.status === "draft") {
       throw new DomainError(
         "invalid_state_transition",
         "Only an active or archived mesocycle can be cloned.",
       );
     }
+    const source = await t.mesocycle.findUniqueOrThrow({
+      where: { id: locked.id },
+      select: {
+        splitType: true,
+        sessions: {
+          orderBy: sessionOrder,
+          select: {
+            name: true,
+            dayOfWeek: true,
+            sessionExercises: {
+              orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+              select: plannedExerciseSourceSelect,
+            },
+          },
+        },
+      },
+    });
 
     const clone = await t.mesocycle.create({
       data: {
@@ -319,21 +270,20 @@ export async function cloneMesocycle(
       },
       select: { id: true },
     });
-    for (const s of source.sessions) {
+    for (const [i, s] of source.sessions.entries()) {
       const session = await t.session.create({
-        data: { mesocycleId: clone.id, name: s.name, dayOfWeek: s.dayOfWeek },
+        data: {
+          mesocycleId: clone.id,
+          name: s.name,
+          dayOfWeek: s.dayOfWeek,
+          // Keep the source's order (createdAt is identical within one tx).
+          position: i,
+        },
         select: { id: true },
       });
       if (s.sessionExercises.length > 0) {
         await t.sessionExercise.createMany({
-          data: s.sessionExercises.map((se, i) => ({
-            sessionId: session.id,
-            exerciseId: se.exerciseId,
-            position: i,
-            plannedSets: se.plannedSets,
-            targetRepMin: se.targetRepMin,
-            targetRepMax: se.targetRepMax,
-          })),
+          data: plannedExerciseCopies(session.id, s.sessionExercises),
         });
       }
     }
