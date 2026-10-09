@@ -152,8 +152,14 @@ describe("migration safety (every migration after 0_init)", () => {
         .replace(/^\s*--.*$/gm, ""),
     }));
 
-  it("finds the Library & Gyms Setup migration", () => {
-    expect(later.map((m) => m.name)).toContain("1_library_gyms_setup");
+  it("finds every migration after 0_init", () => {
+    expect(later.map((m) => m.name)).toEqual(
+      expect.arrayContaining([
+        "1_library_gyms_setup",
+        "2_mesocycle_draft_status",
+        "3_split_mesocycle_builder",
+      ]),
+    );
   });
 
   it.each(later.map((m) => [m.name, m.sql]))(

@@ -1,0 +1,183 @@
+import "server-only";
+import { prisma } from "@/lib/db";
+import { isUuid } from "@/lib/actions/result";
+import { exerciseImageUrl } from "@/lib/exercises/images";
+import { equipmentLabel, muscleGroupLabel } from "@/lib/exercises/taxonomy";
+import { plannedEndDate } from "./calendar";
+import { SPLIT_TYPE_LABELS, type SplitTypeValue } from "./presets";
+import { evaluateReadiness, type Readiness } from "./readiness";
+import {
+  planInclude,
+  startDateIso,
+  toReadinessInput,
+  type PlanRow,
+} from "./snapshot";
+
+/**
+ * Plan reads for server components. Readiness, "needs attention", and the
+ * archived state of a slot are all computed here on read (spec D43, D68).
+ * Exercises are read without a `deletedAt` filter so archived ones still
+ * resolve inside an existing plan.
+ */
+
+export type MesocycleStatusValue = "draft" | "active" | "archived";
+
+export type MesocycleSummaryDto = {
+  id: string;
+  name: string;
+  status: MesocycleStatusValue;
+  splitType: SplitTypeValue;
+  splitLabel: string;
+  startDate: string | null;
+  endDate: string | null;
+  lengthWeeks: number;
+  deloadWeek: number;
+  sessionCount: number;
+  issueCount: number;
+};
+
+export type SessionSummaryDto = {
+  id: string;
+  name: string;
+  dayOfWeek: number | null;
+  exerciseCount: number;
+  archivedCount: number;
+};
+
+export type PlannedExerciseDto = {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  primaryMuscleLabel: string;
+  equipmentLabel: string;
+  isCustom: boolean;
+  imageUrl: string | null;
+  isArchived: boolean;
+  plannedSets: number;
+  targetRepMin: number;
+  targetRepMax: number;
+  position: number;
+};
+
+export type MesocycleWeekDto = MesocycleSummaryDto & {
+  /** Index 0 = Monday … 6 = Sunday. */
+  week: (SessionSummaryDto | null)[];
+  unscheduled: SessionSummaryDto[];
+  readiness: Readiness;
+  /** The currently active block, when it is not this one. */
+  activeOther: { id: string; name: string } | null;
+};
+
+export type MesocycleHomeDto = {
+  active: MesocycleSummaryDto | null;
+  drafts: MesocycleSummaryDto[];
+  previous: MesocycleSummaryDto[];
+};
+
+function toSummary(row: PlanRow, readiness: Readiness): MesocycleSummaryDto {
+  const startDate = startDateIso(row);
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    splitType: row.splitType,
+    splitLabel: SPLIT_TYPE_LABELS[row.splitType],
+    startDate,
+    endDate: startDate ? plannedEndDate(startDate, row.lengthWeeks) : null,
+    lengthWeeks: row.lengthWeeks,
+    deloadWeek: row.deloadWeek,
+    sessionCount: row.sessions.length,
+    issueCount: readiness.issues.length,
+  };
+}
+
+function toSessionSummary(s: PlanRow["sessions"][number]): SessionSummaryDto {
+  return {
+    id: s.id,
+    name: s.name,
+    dayOfWeek: s.dayOfWeek,
+    exerciseCount: s.sessionExercises.length,
+    archivedCount: s.sessionExercises.filter(
+      (se) => se.exercise.deletedAt !== null,
+    ).length,
+  };
+}
+
+export function toPlannedExercise(
+  se: PlanRow["sessions"][number]["sessionExercises"][number],
+): PlannedExerciseDto {
+  const e = se.exercise;
+  return {
+    id: se.id,
+    exerciseId: e.id,
+    exerciseName: e.name,
+    primaryMuscleLabel: muscleGroupLabel(e.primaryMuscle),
+    equipmentLabel: equipmentLabel(e.equipmentType),
+    isCustom: e.isCustom,
+    imageUrl: e.isCustom ? null : exerciseImageUrl(e.imageRef),
+    isArchived: e.deletedAt !== null,
+    plannedSets: se.plannedSets,
+    targetRepMin: se.targetRepMin,
+    targetRepMax: se.targetRepMax,
+    position: se.position,
+  };
+}
+
+export async function listMesocyclesForHome(): Promise<MesocycleHomeDto> {
+  const rows = await prisma.mesocycle.findMany({
+    include: planInclude,
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+  });
+  const summaries = rows.map((r) =>
+    toSummary(r, evaluateReadiness(toReadinessInput(r))),
+  );
+  const byStartDesc = (a: MesocycleSummaryDto, b: MesocycleSummaryDto) =>
+    (b.startDate ?? "").localeCompare(a.startDate ?? "");
+  return {
+    active: summaries.find((s) => s.status === "active") ?? null,
+    drafts: summaries.filter((s) => s.status === "draft"),
+    previous: summaries
+      .filter((s) => s.status === "archived")
+      .sort(byStartDesc),
+  };
+}
+
+/** True when an active or archived mesocycle exists to clone forward. */
+export async function hasCloneSource(): Promise<boolean> {
+  const row = await prisma.mesocycle.findFirst({
+    where: { status: { in: ["active", "archived"] } },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
+export async function getMesocycleWeek(
+  id: string,
+): Promise<MesocycleWeekDto | null> {
+  if (!isUuid(id)) return null;
+  const [row, active] = await Promise.all([
+    prisma.mesocycle.findUnique({ where: { id }, include: planInclude }),
+    prisma.mesocycle.findFirst({
+      where: { status: "active" },
+      select: { id: true, name: true },
+    }),
+  ]);
+  if (!row) return null;
+  const readiness = evaluateReadiness(toReadinessInput(row));
+  const week: (SessionSummaryDto | null)[] = Array.from(
+    { length: 7 },
+    () => null,
+  );
+  const unscheduled: SessionSummaryDto[] = [];
+  for (const s of row.sessions) {
+    if (s.dayOfWeek === null) unscheduled.push(toSessionSummary(s));
+    else week[s.dayOfWeek - 1] = toSessionSummary(s);
+  }
+  return {
+    ...toSummary(row, readiness),
+    week,
+    unscheduled,
+    readiness,
+    activeOther: active && active.id !== row.id ? active : null,
+  };
+}
