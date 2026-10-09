@@ -4,7 +4,12 @@ import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import { dayName } from "./calendar";
 import { isUniqueViolation, requireEditableMesocycle } from "./mesocycles";
-import { parseDayOfWeek, parseName } from "./validation";
+import {
+  parseDayOfWeek,
+  parseName,
+  parsePlannedExercise,
+  type PlannedExerciseInput,
+} from "./validation";
 
 /**
  * The Session / SessionExercise write module (Split & Mesocycle Builder).
@@ -203,4 +208,234 @@ export async function removeSession(
     }
     throw error;
   }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Planned exercises (SessionExercise)                                       */
+/* ------------------------------------------------------------------------ */
+
+const SLOT_NOT_FOUND = "That planned exercise doesn't exist.";
+const ALREADY_IN_SESSION = "Already in this session.";
+
+/** Loads a planned exercise whose mesocycle is editable. */
+async function requireEditableSlot(sessionExerciseId: string, tx: Db) {
+  const slot = isUuid(sessionExerciseId)
+    ? await tx.sessionExercise.findUnique({
+        where: { id: sessionExerciseId },
+        select: {
+          id: true,
+          sessionId: true,
+          exerciseId: true,
+          session: { select: { mesocycleId: true } },
+        },
+      })
+    : null;
+  if (!slot) throw new DomainError("not_found", SLOT_NOT_FOUND);
+  await requireEditableMesocycle(slot.session.mesocycleId, tx);
+  return slot;
+}
+
+/**
+ * The library contract (spec D19): only an existing, ACTIVE exercise can be
+ * planned. An archived exercise is never offered or re-planned, and nothing
+ * here ever reactivates one (spec D36).
+ */
+async function requireActiveExercise(exerciseId: unknown, tx: Db) {
+  const row =
+    typeof exerciseId === "string" && isUuid(exerciseId)
+      ? await tx.exercise.findUnique({
+          where: { id: exerciseId },
+          select: { id: true, deletedAt: true },
+        })
+      : null;
+  if (!row) throw new DomainError("not_found", "That exercise doesn't exist.");
+  if (row.deletedAt !== null) {
+    throw new DomainError("validation_error", "That exercise is archived.", {
+      exerciseId: "That exercise is archived.",
+    });
+  }
+  return row;
+}
+
+/** One occurrence of an exercise per session (spec D20). */
+async function requireNotInSession(
+  sessionId: string,
+  exerciseId: string,
+  tx: Db,
+  exceptSlotId?: string,
+) {
+  const existing = await tx.sessionExercise.findFirst({
+    where: {
+      sessionId,
+      exerciseId,
+      ...(exceptSlotId ? { id: { not: exceptSlotId } } : {}),
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new DomainError("validation_error", ALREADY_IN_SESSION, {
+      exerciseId: ALREADY_IN_SESSION,
+    });
+  }
+}
+
+/** A duplicate inserted between the check and the write → the same error. */
+async function slotRace<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new DomainError("validation_error", ALREADY_IN_SESSION, {
+        exerciseId: ALREADY_IN_SESSION,
+      });
+    }
+    throw error;
+  }
+}
+
+function parsePlan(raw: {
+  plannedSets?: unknown;
+  targetRepMin?: unknown;
+  targetRepMax?: unknown;
+}): PlannedExerciseInput {
+  const parsed = parsePlannedExercise(raw);
+  if (!parsed.ok) throw invalid(parsed.details);
+  return parsed.value;
+}
+
+/** Adds an exercise at the end of the session, with the sets and reps typed. */
+export async function addSessionExercise(
+  input: {
+    sessionId: string;
+    exerciseId: unknown;
+    plannedSets: unknown;
+    targetRepMin: unknown;
+    targetRepMax: unknown;
+  },
+  tx?: Db,
+): Promise<{ id: string }> {
+  const plan = parsePlan(input);
+  return slotRace(() =>
+    inTx(tx, async (t) => {
+      const session = await requireEditableSession(input.sessionId, t);
+      const exercise = await requireActiveExercise(input.exerciseId, t);
+      await requireNotInSession(session.id, exercise.id, t);
+      const last = await t.sessionExercise.aggregate({
+        where: { sessionId: session.id },
+        _max: { position: true },
+      });
+      const slot = await t.sessionExercise.create({
+        data: {
+          sessionId: session.id,
+          exerciseId: exercise.id,
+          position: (last._max.position ?? -1) + 1,
+          ...plan,
+        },
+        select: { id: true },
+      });
+      return { id: slot.id };
+    }),
+  );
+}
+
+export async function updateSessionExercise(
+  input: {
+    sessionExerciseId: string;
+    plannedSets: unknown;
+    targetRepMin: unknown;
+    targetRepMax: unknown;
+  },
+  tx?: Db,
+): Promise<{ id: string }> {
+  const plan = parsePlan(input);
+  return inTx(tx, async (t) => {
+    const slot = await requireEditableSlot(input.sessionExerciseId, t);
+    await t.sessionExercise.update({ where: { id: slot.id }, data: plan });
+    return { id: slot.id };
+  });
+}
+
+/**
+ * Points a slot at a different (active) exercise, keeping its sets, rep range,
+ * and position: the repair path for an archived exercise (spec D58).
+ */
+export async function replaceSessionExercise(
+  input: { sessionExerciseId: string; exerciseId: unknown },
+  tx?: Db,
+): Promise<{ id: string }> {
+  return slotRace(() =>
+    inTx(tx, async (t) => {
+      const slot = await requireEditableSlot(input.sessionExerciseId, t);
+      const exercise = await requireActiveExercise(input.exerciseId, t);
+      if (exercise.id === slot.exerciseId) return { id: slot.id };
+      await requireNotInSession(slot.sessionId, exercise.id, t, slot.id);
+      await t.sessionExercise.update({
+        where: { id: slot.id },
+        data: { exerciseId: exercise.id },
+      });
+      return { id: slot.id };
+    }),
+  );
+}
+
+/** Rewrites positions as 0..n-1 in the current order. */
+async function renumber(sessionId: string, tx: Db) {
+  const slots = await tx.sessionExercise.findMany({
+    where: { sessionId },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, position: true },
+  });
+  for (const [i, slot] of slots.entries()) {
+    if (slot.position !== i) {
+      await tx.sessionExercise.update({
+        where: { id: slot.id },
+        data: { position: i },
+      });
+    }
+  }
+}
+
+/** Removes the slot from the plan. The Exercise row is never touched. */
+export async function removeSessionExercise(
+  input: { sessionExerciseId: string },
+  tx?: Db,
+): Promise<{ id: string; sessionId: string }> {
+  return inTx(tx, async (t) => {
+    const slot = await requireEditableSlot(input.sessionExerciseId, t);
+    await t.sessionExercise.delete({ where: { id: slot.id } });
+    await renumber(slot.sessionId, t);
+    return { id: slot.id, sessionId: slot.sessionId };
+  });
+}
+
+/** Swaps a slot with its neighbor; a no-op at either end (spec D52). */
+export async function moveSessionExercise(
+  input: { sessionExerciseId: string; direction: unknown },
+  tx?: Db,
+): Promise<{ id: string }> {
+  if (input.direction !== "up" && input.direction !== "down") {
+    throw invalid({ direction: "Choose up or down." });
+  }
+  const step = input.direction === "up" ? -1 : 1;
+  return inTx(tx, async (t) => {
+    const slot = await requireEditableSlot(input.sessionExerciseId, t);
+    await renumber(slot.sessionId, t);
+    const ordered = await t.sessionExercise.findMany({
+      where: { sessionId: slot.sessionId },
+      orderBy: { position: "asc" },
+      select: { id: true, position: true },
+    });
+    const i = ordered.findIndex((s) => s.id === slot.id);
+    const j = i + step;
+    if (j < 0 || j >= ordered.length) return { id: slot.id };
+    await t.sessionExercise.update({
+      where: { id: ordered[i].id },
+      data: { position: ordered[j].position },
+    });
+    await t.sessionExercise.update({
+      where: { id: ordered[j].id },
+      data: { position: ordered[i].position },
+    });
+    return { id: slot.id };
+  });
 }

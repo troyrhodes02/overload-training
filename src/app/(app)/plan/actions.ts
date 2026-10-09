@@ -12,9 +12,14 @@ import {
 } from "@/lib/plan/mesocycles";
 import {
   addSession,
+  addSessionExercise,
   moveSession,
+  moveSessionExercise,
   removeSession,
+  removeSessionExercise,
   renameSession,
+  replaceSessionExercise,
+  updateSessionExercise,
 } from "@/lib/plan/sessions";
 
 /*
@@ -149,6 +154,75 @@ export async function removeSessionAction(
   const result = await toActionResult(
     () => removeSession({ sessionId }),
     "Couldn't remove the session. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function addSessionExerciseAction(input: {
+  sessionId: string;
+  exerciseId: string;
+  plannedSets: string;
+  targetRepMin: string;
+  targetRepMax: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => addSessionExercise(input),
+    "Couldn't add the exercise. Your numbers are still here.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function updateSessionExerciseAction(input: {
+  sessionExerciseId: string;
+  plannedSets: string;
+  targetRepMin: string;
+  targetRepMax: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => updateSessionExercise(input),
+    "Couldn't save. Your numbers are still here.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function replaceSessionExerciseAction(input: {
+  sessionExerciseId: string;
+  exerciseId: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => replaceSessionExercise(input),
+    "Couldn't replace. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function removeSessionExerciseAction(
+  sessionExerciseId: string,
+): Promise<ActionResult<{ id: string; sessionId: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => removeSessionExercise({ sessionExerciseId }),
+    "Couldn't remove. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function moveSessionExerciseAction(input: {
+  sessionExerciseId: string;
+  direction: "up" | "down";
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => moveSessionExercise(input),
+    "Couldn't reorder. Nothing changed.",
   );
   if (result.ok) refresh();
   return result;
