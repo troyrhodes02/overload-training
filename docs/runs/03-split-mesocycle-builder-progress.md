@@ -29,11 +29,11 @@
 
 | # | ID | Title | blockedBy | Branch | PR | Status |
 |---|----|-------|-----------|--------|----|--------|
-| 1 | OVE-15 | Mesocycle lifecycle & setup | — | feat/ove-15-mesocycle-lifecycle | [#18](https://github.com/troyrhodes02/overload-training/pull/18) | In Progress (green) |
-| 2 | OVE-16 | Weekly schedule & sessions | OVE-15 | feat/ove-16-weekly-schedule | [#19](https://github.com/troyrhodes02/overload-training/pull/19) | In Progress (green) |
-| 3 | OVE-17 | Session exercises & picker | OVE-16 | feat/ove-17-session-exercises | [#20](https://github.com/troyrhodes02/overload-training/pull/20) | In Progress (green) |
-| 4 | OVE-18 | Session duplication | OVE-17 | feat/ove-18-session-duplication | [#21](https://github.com/troyrhodes02/overload-training/pull/21) | In Progress (green) |
-| 5 | OVE-19 | Clone-forward | OVE-18 | feat/ove-19-clone-forward | [#22](https://github.com/troyrhodes02/overload-training/pull/22) | In Progress (green) |
+| 1 | OVE-15 | Mesocycle lifecycle & setup | — | feat/ove-15-mesocycle-lifecycle | [#18](https://github.com/troyrhodes02/overload-training/pull/18) | squash-merged; Done |
+| 2 | OVE-16 | Weekly schedule & sessions | OVE-15 | feat/ove-16-weekly-schedule | [#19](https://github.com/troyrhodes02/overload-training/pull/19) | squash-merged; Done |
+| 3 | OVE-17 | Session exercises & picker | OVE-16 | feat/ove-17-session-exercises | [#20](https://github.com/troyrhodes02/overload-training/pull/20) | squash-merged; Done |
+| 4 | OVE-18 | Session duplication | OVE-17 | feat/ove-18-session-duplication | [#21](https://github.com/troyrhodes02/overload-training/pull/21) | squash-merged; Done |
+| 5 | OVE-19 | Clone-forward | OVE-18 | feat/ove-19-clone-forward | [#22](https://github.com/troyrhodes02/overload-training/pull/22) | squash-merged; Done |
 
 Branch stacking: OVE-15 branches from `feat/03-split-mesocycle-builder`; each next ticket branches from the previous ticket branch; each ticket PR targets the previous branch (OVE-15 targets the feature branch).
 
@@ -56,8 +56,8 @@ Branch stacking: OVE-15 branches from `feat/03-split-mesocycle-builder`; each ne
 - [x] 7. Feature PR into main — #17
 - [x] 8. Ticket-worker per ticket — PRs #18–#22, each green and browser-verified against the local stack
 - [x] 9. Runbook → `docs/runs/03-split-mesocycle-builder-runbook.md`
-- [ ] 10. Squash-merge ticket PRs into the feature branch
-- [ ] 11. Full verification
+- [x] 10. Squash-merged #18→#22 into the feature branch (274b7a2, 9bfb07a, 0fa096e, d9c3988, ca1ac4d). Each later PR needed the feature branch merged into its branch first (add/add conflicts from the squash); resolved to the ticket side after verifying the feature code was byte-identical to the previous ticket and that the merge commit changed no code. No force-push.
+- [x] 11. Full verification on the feature branch — green: lint, format, prisma validate, unit 157, integration 124, build, typecheck, e2e 17, client-bundle guard
 - [ ] 12. `/code-review` → inline comments on the feature PR
 - [ ] 13. Review audit + fixes
 - [ ] 14. Re-verify; merge on green
