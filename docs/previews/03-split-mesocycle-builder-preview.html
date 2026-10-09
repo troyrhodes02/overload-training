@@ -1,0 +1,1334 @@
+<!doctype html>
+<!--
+  Split & Mesocycle Builder — UI design preview (visual contract).
+
+  Source: pitches/03-split-mesocycle-builder.md and
+  docs/design/03-split-mesocycle-builder-design-doc.md.
+
+  Open by dragging this file into a browser (needs an internet connection for
+  the pinned Tailwind, Inter, and Lucide CDN assets). MOCK DATA ONLY: nothing
+  here talks to Prisma, Supabase, server actions, or any persistence.
+
+  Styling = Overload's theme tokens (copied from src/app/globals.css) + the
+  exact class recipes of the project's shadcn/ui components (Button, Badge,
+  Input, Alert, Dialog, Tabs, Select trigger, DropdownMenu, Skeleton). Each
+  element is annotated with the shadcn/ui component the implementation uses
+  (data-ui="..."). The implementation adds shadcn RadioGroup and AlertDialog
+  (from the already-installed radix-ui package) where this file uses plain
+  radio cards and native <dialog>; their appearance must match this preview.
+
+  Binding for implementation: hierarchy, visible controls, state
+  presentation, copy, responsive behavior, interaction structure.
+  The "Theme" switch in the toolbar is PREVIEW CHROME ONLY — the app has no
+  theme toggle on plan screens (appearance lives in Settings).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Split &amp; Mesocycle Builder · Overload preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3/dist/index.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@1.52.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+      @custom-variant dark (&:is(.dark *));
+
+      /* Overload theme tokens — copied from src/app/globals.css. */
+      :root {
+        --radius: 0.5rem;
+        --background: #f7f7f8;
+        --foreground: #0e0e10;
+        --card: #ffffff;
+        --card-foreground: #0e0e10;
+        --popover: #ffffff;
+        --popover-foreground: #0e0e10;
+        --primary: #3f5bd9;
+        --primary-foreground: #ffffff;
+        --secondary: #ececed;
+        --secondary-foreground: #0e0e10;
+        --muted: #ececed;
+        --muted-foreground: #5f5f68;
+        --accent: #ececed;
+        --accent-foreground: #0e0e10;
+        --destructive: #b42318;
+        --destructive-foreground: #ffffff;
+        --border: #e4e4e8;
+        --input: #e4e4e8;
+        --ring: #3f5bd9;
+        --progress: #2f9e6b;
+        --deload: #b7791f;
+      }
+      .dark {
+        --background: #0b0b0c;
+        --foreground: #f2f2f3;
+        --card: #141416;
+        --card-foreground: #f2f2f3;
+        --popover: #1c1c1f;
+        --popover-foreground: #f2f2f3;
+        --primary: #7b93ff;
+        --primary-foreground: #0b0b0c;
+        --secondary: #1c1c1f;
+        --secondary-foreground: #f2f2f3;
+        --muted: #1c1c1f;
+        --muted-foreground: #a1a1a8;
+        --accent: #1c1c1f;
+        --accent-foreground: #f2f2f3;
+        --destructive: #e5484d;
+        --destructive-foreground: #0b0b0c;
+        --border: #26262a;
+        --input: #26262a;
+        --ring: #7b93ff;
+        --progress: #4cc38a;
+        --deload: #e0a93b;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not(.light) {
+          --background: #0b0b0c;
+          --foreground: #f2f2f3;
+          --card: #141416;
+          --card-foreground: #f2f2f3;
+          --popover: #1c1c1f;
+          --popover-foreground: #f2f2f3;
+          --primary: #7b93ff;
+          --primary-foreground: #0b0b0c;
+          --secondary: #1c1c1f;
+          --secondary-foreground: #f2f2f3;
+          --muted: #1c1c1f;
+          --muted-foreground: #a1a1a8;
+          --accent: #1c1c1f;
+          --accent-foreground: #f2f2f3;
+          --destructive: #e5484d;
+          --destructive-foreground: #0b0b0c;
+          --border: #26262a;
+          --input: #26262a;
+          --ring: #7b93ff;
+          --progress: #4cc38a;
+          --deload: #e0a93b;
+        }
+      }
+
+      @theme inline {
+        --color-background: var(--background);
+        --color-foreground: var(--foreground);
+        --color-card: var(--card);
+        --color-card-foreground: var(--card-foreground);
+        --color-popover: var(--popover);
+        --color-popover-foreground: var(--popover-foreground);
+        --color-primary: var(--primary);
+        --color-primary-foreground: var(--primary-foreground);
+        --color-secondary: var(--secondary);
+        --color-secondary-foreground: var(--secondary-foreground);
+        --color-muted: var(--muted);
+        --color-muted-foreground: var(--muted-foreground);
+        --color-accent: var(--accent);
+        --color-accent-foreground: var(--accent-foreground);
+        --color-destructive: var(--destructive);
+        --color-destructive-foreground: var(--destructive-foreground);
+        --color-border: var(--border);
+        --color-input: var(--input);
+        --color-ring: var(--ring);
+        --color-progress: var(--progress);
+        --color-deload: var(--deload);
+        --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
+      }
+
+      @layer base {
+        * {
+          @apply border-border outline-ring/50;
+        }
+        body {
+          @apply bg-background font-sans text-foreground antialiased;
+        }
+        dialog::backdrop {
+          background: rgb(0 0 0 / 0.5);
+        }
+        #main > section,
+        #main > section > form {
+          display: flex;
+          flex: 1 1 auto;
+          flex-direction: column;
+        }
+        abbr {
+          text-decoration: none;
+        }
+      }
+    </style>
+  </head>
+  <body class="min-h-dvh bg-muted/40">
+    <!-- Preview chrome (not part of the app) -->
+    <div class="mx-auto flex max-w-[390px] flex-col gap-2 px-4 pt-4">
+      <label class="text-xs font-medium text-muted-foreground" for="screen">
+        Screen
+      </label>
+      <select
+        id="screen"
+        class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+      ></select>
+      <div class="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>Theme (preview only):</span>
+        <button
+          data-theme="system"
+          class="theme-btn rounded-md border px-2 py-1"
+        >
+          System
+        </button>
+        <button
+          data-theme="light"
+          class="theme-btn rounded-md border px-2 py-1"
+        >
+          Light
+        </button>
+        <button data-theme="dark" class="theme-btn rounded-md border px-2 py-1">
+          Dark
+        </button>
+      </div>
+    </div>
+
+    <!-- Phone frame: shell header, scrolling main, bottom nav -->
+    <div
+      class="mx-auto my-4 flex h-[780px] w-full max-w-[390px] flex-col overflow-hidden rounded-xl border border-border bg-background"
+    >
+      <header
+        class="flex items-center justify-between border-b border-border px-4 py-3"
+      >
+        <span class="text-lg font-semibold">Overload</span>
+        <button
+          class="inline-flex size-10 items-center justify-center rounded-md hover:bg-accent"
+          aria-label="Account menu"
+        >
+          <i data-lucide="ellipsis-vertical" class="size-5"></i>
+        </button>
+      </header>
+      <main
+        id="main"
+        class="relative flex flex-1 flex-col overflow-y-auto px-4 pt-6"
+      ></main>
+      <nav aria-label="Primary" class="border-t border-border bg-card">
+        <ul class="flex">
+          <li class="flex-1">
+            <a
+              href="#"
+              class="flex flex-col items-center gap-1 py-3 text-xs font-medium text-muted-foreground"
+            >
+              <i data-lucide="house" class="size-5"></i>Today
+            </a>
+          </li>
+          <li class="flex-1">
+            <a
+              href="#"
+              aria-current="page"
+              class="flex flex-col items-center gap-1 py-3 text-xs font-medium text-primary"
+            >
+              <i data-lucide="calendar-range" class="size-5"></i>Plan
+            </a>
+          </li>
+          <li class="flex-1">
+            <a
+              href="#"
+              class="flex flex-col items-center gap-1 py-3 text-xs font-medium text-muted-foreground"
+            >
+              <i data-lucide="dumbbell" class="size-5"></i>Exercises
+            </a>
+          </li>
+          <li class="flex-1">
+            <a
+              href="#"
+              class="flex flex-col items-center gap-1 py-3 text-xs font-medium text-muted-foreground"
+            >
+              <i data-lucide="building-2" class="size-5"></i>Gyms
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+
+    <!-- One reusable modal (shadcn Dialog / AlertDialog look) -->
+    <dialog
+      id="dlg"
+      class="m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border border-border bg-background p-6 text-foreground shadow-lg"
+    ></dialog>
+
+    <script>
+      /* ------------------------------------------------------------------ */
+      /* shadcn/ui class recipes (copied from src/components/ui/*)           */
+      /* ------------------------------------------------------------------ */
+      const BTN_BASE =
+        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+      const BTN_VARIANT = {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      };
+      const BTN_SIZE = {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "size-10",
+      };
+      const BADGE_BASE =
+        "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap";
+      const BADGE_VARIANT = {
+        default: "border-transparent bg-primary text-primary-foreground",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        outline: "border-border text-foreground",
+      };
+      const INPUT =
+        "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm aria-invalid:border-destructive";
+      const LABEL = "text-sm font-medium leading-none";
+      const ALERT =
+        "relative w-full rounded-lg border px-4 py-3 text-sm bg-card text-card-foreground";
+      const SELECT_TRIGGER =
+        "flex w-fit items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs dark:bg-input/30";
+      const MENU =
+        "absolute right-0 z-50 mt-1 min-w-[12rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md";
+      const MENU_ITEM =
+        "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground";
+      const SKELETON = "animate-pulse rounded-md bg-muted";
+      const LIST =
+        "divide-y divide-border rounded-lg border border-border bg-card";
+
+      const cx = (...c) => c.filter(Boolean).join(" ");
+      const icon = (name, cls = "size-4") =>
+        `<i data-lucide="${name}" class="${cls}" aria-hidden="true"></i>`;
+      const btn = (
+        label,
+        { variant = "default", size = "default", cls = "", attrs = "" } = {},
+      ) =>
+        `<button type="button" data-ui="Button variant=${variant}" class="${cx(BTN_BASE, BTN_VARIANT[variant], BTN_SIZE[size], cls)}" ${attrs}>${label}</button>`;
+      const badge = (label, variant = "default") =>
+        `<span data-ui="Badge variant=${variant}" class="${cx(BADGE_BASE, BADGE_VARIANT[variant])}">${label}</span>`;
+      const statusBadge = (s) =>
+        s === "active"
+          ? badge("Active")
+          : s === "draft"
+            ? badge("Draft", "secondary")
+            : badge("Archived", "outline");
+      const backLink = (to) =>
+        `<a href="#" class="text-sm text-muted-foreground hover:text-foreground">‹ ${to}</a>`;
+      const sticky = (inner) =>
+        `<div data-ui="StickyActions" class="sticky bottom-0 mt-auto z-10 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur">${inner}</div>`;
+      const field = (id, label, control, { help, error } = {}) => `
+        <div class="space-y-2">
+          <label class="${LABEL}" for="${id}">${label}</label>
+          ${control}
+          ${help ? `<p class="text-sm text-muted-foreground">${help}</p>` : ""}
+          ${error ? `<p role="alert" class="text-sm text-destructive">${error}</p>` : ""}
+        </div>`;
+      const numberInput = (
+        id,
+        value = "",
+        { invalid = false, label = "" } = {},
+      ) =>
+        `<input id="${id}" type="number" inputmode="numeric" pattern="[0-9]*" min="1" value="${value}"
+           ${label ? `aria-label="${label}"` : ""} ${invalid ? 'aria-invalid="true"' : ""}
+           class="${cx(INPUT, "h-11 w-20 text-center text-base tabular-nums")}" />`;
+      const emptyState = (title, action) => `
+        <div data-ui="EmptyState" class="space-y-3 rounded-lg border border-border bg-card p-6">
+          <p class="font-medium">${title}</p>${action}
+        </div>`;
+
+      /* ------------------------------------------------------------------ */
+      /* Mock data                                                           */
+      /* ------------------------------------------------------------------ */
+      const DAYS = [
+        { n: 1, short: "Mon", long: "Monday" },
+        { n: 2, short: "Tue", long: "Tuesday" },
+        { n: 3, short: "Wed", long: "Wednesday" },
+        { n: 4, short: "Thu", long: "Thursday" },
+        { n: 5, short: "Fri", long: "Friday" },
+        { n: 6, short: "Sat", long: "Saturday" },
+        { n: 7, short: "Sun", long: "Sunday" },
+      ];
+      const EX = {
+        bench: {
+          id: "e1",
+          name: "Barbell Bench Press",
+          muscle: "Chest",
+          equipment: "Barbell",
+        },
+        incline: {
+          id: "e2",
+          name: "Incline Dumbbell Press",
+          muscle: "Chest",
+          equipment: "Dumbbell",
+        },
+        fly: {
+          id: "e3",
+          name: "Cable Fly",
+          muscle: "Chest",
+          equipment: "Cable",
+          archived: true,
+        },
+        lateral: {
+          id: "e4",
+          name: "Lateral Raise",
+          muscle: "Shoulders",
+          equipment: "Dumbbell",
+        },
+        pushdown: {
+          id: "e5",
+          name: "Triceps Pushdown",
+          muscle: "Triceps",
+          equipment: "Cable",
+        },
+        pulldown: {
+          id: "e6",
+          name: "Lat Pulldown",
+          muscle: "Back",
+          equipment: "Cable",
+        },
+        row: {
+          id: "e7",
+          name: "Barbell Row",
+          muscle: "Back",
+          equipment: "Barbell",
+          archived: true,
+        },
+        cableRow: {
+          id: "e8",
+          name: "Seated Cable Row",
+          muscle: "Back",
+          equipment: "Cable",
+        },
+        hammer: {
+          id: "e9",
+          name: "Hammer Curl",
+          muscle: "Biceps",
+          equipment: "Dumbbell",
+        },
+        crossover: {
+          id: "e10",
+          name: "Cable Crossover",
+          muscle: "Chest",
+          equipment: "Cable",
+        },
+        pecDeck: {
+          id: "e11",
+          name: "Pec Deck",
+          muscle: "Chest",
+          equipment: "Machine",
+          custom: true,
+        },
+        chestPress: {
+          id: "e12",
+          name: "Chest Press Machine",
+          muscle: "Chest",
+          equipment: "Machine",
+        },
+        hack: {
+          id: "e13",
+          name: "Hack Squat",
+          muscle: "Quads",
+          equipment: "Machine",
+        },
+        legCurl: {
+          id: "e14",
+          name: "Seated Leg Curl",
+          muscle: "Hamstrings",
+          equipment: "Machine",
+        },
+      };
+      const slot = (id, exercise, sets, min, max) => ({
+        id,
+        exercise,
+        sets,
+        min,
+        max,
+      });
+      const PUSH_1 = {
+        id: "s1",
+        name: "Push Day 1",
+        day: 1,
+        slots: [
+          slot("x1", EX.bench, 3, 6, 8),
+          slot("x2", EX.incline, 3, 8, 10),
+          slot("x3", EX.fly, 3, 12, 15),
+          slot("x4", EX.lateral, 4, 12, 15),
+        ],
+      };
+      const SESSIONS = [
+        PUSH_1,
+        {
+          id: "s2",
+          name: "Pull Day 1",
+          day: 2,
+          slots: [
+            slot("y1", EX.pulldown, 3, 8, 10),
+            slot("y2", EX.row, 3, 6, 8),
+            slot("y3", EX.cableRow, 3, 10, 12),
+            slot("y4", EX.hammer, 3, 10, 12),
+          ],
+        },
+        { id: "s3", name: "Leg Day 1", day: 3, slots: [] },
+        {
+          id: "s4",
+          name: "Push Day 2",
+          day: 4,
+          slots: [
+            slot("z1", EX.bench, 4, 5, 5),
+            slot("z2", EX.pushdown, 3, 10, 12),
+          ],
+        },
+        {
+          id: "s5",
+          name: "Pull Day 2",
+          day: 5,
+          slots: [slot("w1", EX.pulldown, 3, 10, 12)],
+        },
+        {
+          id: "s6",
+          name: "Leg Day 2",
+          day: 6,
+          slots: [
+            slot("v1", EX.hack, 3, 8, 10),
+            slot("v2", EX.legCurl, 3, 10, 12),
+          ],
+        },
+        {
+          id: "s7",
+          name: "Upper A",
+          day: null,
+          slots: [slot("u1", EX.incline, 3, 8, 12)],
+        },
+      ];
+      const READY_SESSIONS = SESSIONS.map((s) => ({
+        ...s,
+        slots: s.slots.length
+          ? s.slots.filter((x) => !x.exercise.archived)
+          : [slot("q1", EX.hack, 3, 8, 12)],
+      }));
+      const PRESETS = [
+        {
+          value: "ppl",
+          label: "Push / Pull / Legs",
+          days: [
+            "Push Day 1",
+            "Pull Day 1",
+            "Leg Day 1",
+            "Push Day 2",
+            "Pull Day 2",
+            "Leg Day 2",
+            null,
+          ],
+        },
+        {
+          value: "arnold",
+          label: "Arnold Split",
+          days: [
+            "Chest & Back 1",
+            "Shoulders & Arms 1",
+            "Legs 1",
+            "Chest & Back 2",
+            "Shoulders & Arms 2",
+            "Legs 2",
+            null,
+          ],
+        },
+        {
+          value: "bro",
+          label: "Bro Split",
+          days: ["Chest", "Back", "Shoulders", "Legs", "Arms", null, null],
+        },
+        { value: "custom", label: "Custom", days: null },
+      ];
+
+      const rx = (s) =>
+        `${s.sets} ${s.sets === 1 ? "set" : "sets"} · ${s.min === s.max ? s.min : `${s.min}–${s.max}`} reps`;
+      const initials = (name) => {
+        const w = name.split(/[\s-]+/).filter(Boolean);
+        return w.length > 1
+          ? (w[0][0] + w[1][0]).toUpperCase()
+          : name.slice(0, 2).toUpperCase();
+      };
+      /* ExerciseThumb stand-in: library image → here a monogram tile; archived → attention tile. */
+      const thumb = (e) =>
+        e.archived
+          ? `<div aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-md border border-dashed border-border bg-muted text-foreground">${icon("triangle-alert", "size-5")}</div>`
+          : `<div aria-hidden="true" data-ui="ExerciseThumb" class="flex size-12 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-xs font-medium text-muted-foreground">${initials(e.name)}</div>`;
+      const sessionMeta = (s) => {
+        if (!s.slots.length) return "No exercises yet";
+        const fix = s.slots.filter((x) => x.exercise.archived).length;
+        const base = `${s.slots.length} ${s.slots.length === 1 ? "exercise" : "exercises"}`;
+        return fix ? `${base} · ${fix} to fix` : base;
+      };
+
+      /* ------------------------------------------------------------------ */
+      /* Screen 1 — Plan home                                                */
+      /* ------------------------------------------------------------------ */
+      const mesoRow = (name, status, meta) => `
+        <li><a href="#" class="flex min-h-14 items-center gap-3 px-4 py-3">
+          <div class="min-w-0 flex-1">
+            <p class="flex items-center gap-2 text-sm font-medium ${status === "archived" ? "text-muted-foreground" : ""}">
+              <span class="truncate">${name}</span>${statusBadge(status)}
+            </p>
+            <p class="text-xs text-muted-foreground tabular-nums">${meta}</p>
+          </div>
+          ${icon("chevron-right", "size-4 text-muted-foreground")}
+        </a></li>`;
+
+      function planHome() {
+        return `
+        <section class="space-y-6">
+          <h1 class="text-lg font-semibold">Plan</h1>
+          <a href="#" data-ui="ActiveMesocycleCard" class="block rounded-lg border border-border bg-card p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 space-y-1">
+                <p class="flex items-center gap-2 text-base font-medium"><span class="truncate">Hypertrophy Block 3</span>${statusBadge("active")}</p>
+                <p class="text-sm text-muted-foreground tabular-nums">Mon, Sep 29 – Sun, Nov 2</p>
+                <p class="text-sm text-muted-foreground tabular-nums">5 weeks · deload week 5</p>
+                <p class="text-sm text-muted-foreground tabular-nums">Push / Pull / Legs · 6 sessions</p>
+              </div>
+              ${icon("chevron-right", "mt-1 size-4 text-muted-foreground")}
+            </div>
+          </a>
+          <div class="space-y-2">
+            <h2 class="text-sm font-medium text-muted-foreground">Drafts</h2>
+            <ul class="${LIST}">${mesoRow("Strength Block", "draft", "2 items to finish")}</ul>
+          </div>
+          <div class="space-y-2">
+            <h2 class="text-sm font-medium text-muted-foreground">Previous</h2>
+            <ul class="${LIST}">${mesoRow("Hypertrophy Block 2", "archived", "Mon, Aug 18 – Sun, Sep 21")}</ul>
+          </div>
+          ${sticky(`<div class="flex gap-3">
+            ${btn(`${icon("plus")}New mesocycle`, { cls: "h-11 flex-1" })}
+            ${btn("Clone previous", { variant: "outline", cls: "h-11 flex-1" })}
+          </div>`)}
+        </section>`;
+      }
+
+      const planHomeEmpty = () => `
+        <section class="space-y-6">
+          <h1 class="text-lg font-semibold">Plan</h1>
+          ${emptyState("No mesocycle yet. Create your first one.", btn("New mesocycle", { variant: "outline" }))}
+        </section>`;
+
+      const planHomeLoading = () => `
+        <section class="space-y-6" aria-busy="true">
+          <div class="${SKELETON} h-6 w-16"></div>
+          <div class="${SKELETON} h-28 w-full"></div>
+          <div class="space-y-2">
+            <div class="${SKELETON} h-4 w-14"></div>
+            <div class="${SKELETON} h-14 w-full"></div>
+            <div class="${SKELETON} h-14 w-full"></div>
+          </div>
+        </section>`;
+
+      /* ------------------------------------------------------------------ */
+      /* Screen 2 / 3b / 5 — mesocycle form                                  */
+      /* ------------------------------------------------------------------ */
+      function mesoFields({
+        name = "",
+        start = "",
+        startHelp,
+        length = 5,
+        deload = 5,
+        deloadError,
+      } = {}) {
+        return `
+          ${field("m-name", "Name", `<input id="m-name" maxlength="80" value="${name}" class="${cx(INPUT, "h-11")}" />`)}
+          ${field(
+            "m-start",
+            "Start date",
+            `<input id="m-start" type="date" value="${start}" class="${cx(INPUT, "h-11")}" />`,
+            {
+              help: startHelp ?? "Week 1 begins on this date.",
+            },
+          )}
+          <div class="grid grid-cols-2 gap-4">
+            ${field("m-length", "Length", `<div class="flex items-center gap-2">${numberInput("m-length", length)}<span class="text-sm text-muted-foreground">weeks</span></div>`)}
+            ${field("m-deload", "Deload week", numberInput("m-deload", deload, { invalid: Boolean(deloadError) }))}
+          </div>
+          ${deloadError ? `<p role="alert" class="-mt-3 text-sm text-destructive">${deloadError}</p>` : ""}`;
+      }
+
+      function structureCards() {
+        return `
+        <fieldset class="space-y-3">
+          <legend class="mb-3 text-sm font-medium">Structure</legend>
+          <div role="radiogroup" aria-label="Structure" data-ui="RadioGroup" class="space-y-3">
+            ${PRESETS.map((p, i) => {
+              const checked = i === 0;
+              return `
+              <button type="button" role="radio" aria-checked="${checked}" data-action="radio"
+                class="radio-card w-full rounded-lg border border-border bg-card p-4 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${checked ? "ring-2 ring-primary" : ""}">
+                <span class="flex items-center gap-3">
+                  <span aria-hidden="true" class="radio-dot flex size-4 items-center justify-center rounded-full border ${checked ? "border-primary" : "border-input"}">
+                    <span class="size-2 rounded-full bg-primary ${checked ? "" : "hidden"}"></span>
+                  </span>
+                  <span class="text-sm font-medium">${p.label}</span>
+                </span>
+                <span class="mt-2 block text-xs text-muted-foreground">${
+                  p.days
+                    ? p.days
+                        .map((n, d) => `${DAYS[d].short} ${n ?? "Rest"}`)
+                        .join(" · ")
+                    : "Start with an empty week."
+                }</span>
+              </button>`;
+            }).join("")}
+          </div>
+          <p class="text-sm text-muted-foreground">Structure only. You choose every exercise, set count, and rep range.</p>
+        </fieldset>`;
+      }
+
+      const newMeso = (shortened) => `
+        <section class="space-y-6">
+          <div class="space-y-1">${backLink("Plan")}<h1 class="text-lg font-semibold">New mesocycle</h1></div>
+          <form novalidate class="space-y-6" onsubmit="return false">
+            ${mesoFields({
+              name: "Strength Block",
+              length: shortened ? 4 : 5,
+              deloadError: shortened
+                ? "Week 5 is past the end of a 4-week block. Choose a week from 1 to 4."
+                : undefined,
+            })}
+            ${structureCards()}
+            ${sticky(btn("Create draft", { cls: "h-11 w-full" }))}
+          </form>
+        </section>`;
+
+      const editDetails = () => `
+        <section class="space-y-6">
+          <div class="space-y-1">${backLink("Strength Block")}
+            <h1 class="text-lg font-semibold">Edit details</h1>
+            <p class="text-sm text-muted-foreground">Started from Push / Pull / Legs</p>
+          </div>
+          <form novalidate class="space-y-6" onsubmit="return false">
+            ${mesoFields({ name: "Strength Block", start: "2025-11-03" })}
+            ${sticky(`<div class="flex items-center gap-3">${btn("Cancel", { variant: "ghost", cls: "h-11" })}${btn("Save", { cls: "h-11 flex-1" })}</div>`)}
+          </form>
+        </section>`;
+
+      /* ------------------------------------------------------------------ */
+      /* Screen 3 — Clone                                                    */
+      /* ------------------------------------------------------------------ */
+      const cloneSource = () => `
+        <section class="space-y-4">
+          <div class="space-y-1">${backLink("Plan")}
+            <h1 class="text-lg font-semibold">Clone a mesocycle</h1>
+            <p class="text-sm text-muted-foreground">Copies the plan only. Workout history stays with the original.</p>
+          </div>
+          <ul class="${LIST}">
+            ${mesoRow("Hypertrophy Block 3", "active", "Push / Pull / Legs · 6 sessions")}
+            ${mesoRow("Hypertrophy Block 2", "archived", "Push / Pull / Legs · 6 sessions · Aug 18 – Sep 21")}
+          </ul>
+        </section>`;
+
+      const cloneSetup = () => `
+        <section class="space-y-6">
+          <div class="space-y-1">${backLink("Clone a mesocycle")}<h1 class="text-lg font-semibold">Clone Hypertrophy Block 3</h1></div>
+          <form novalidate class="space-y-6" onsubmit="return false">
+            ${mesoFields({
+              name: "Hypertrophy Block 3 Copy",
+              start: "2025-11-03",
+              startHelp: "The day after Hypertrophy Block 3 ends (Sun, Nov 2).",
+            })}
+            <div class="space-y-2">
+              <h2 class="text-sm font-medium">What comes across</h2>
+              <div class="space-y-1 rounded-lg border border-border bg-card p-4 text-sm">
+                <p class="font-medium">Push / Pull / Legs</p>
+                <p class="tabular-nums">6 sessions · 31 exercises</p>
+                <p class="text-muted-foreground">Days, order, sets, and rep ranges, ready to edit.</p>
+                <p class="text-muted-foreground">Workout history, goals, and gym weights are not copied.</p>
+              </div>
+            </div>
+            <div role="alert" data-ui="Alert" class="${ALERT} flex gap-3">
+              ${icon("triangle-alert", "mt-0.5 size-4 shrink-0")}
+              <div class="space-y-1">
+                <p class="font-medium leading-none tracking-tight">2 exercises are archived</p>
+                <ul class="space-y-0.5"><li>Barbell Row — Pull Day 1</li><li>Cable Fly — Push Day 1</li></ul>
+                <p>They come across marked for repair. Replace or remove them before activating.</p>
+              </div>
+            </div>
+            ${sticky(btn("Create draft", { cls: "h-11 w-full" }))}
+          </form>
+        </section>`;
+
+      /* ------------------------------------------------------------------ */
+      /* Screen 4 — the week                                                 */
+      /* ------------------------------------------------------------------ */
+      const sessionMenu = (s) => `
+        <div class="relative" data-ui="DropdownMenu modal={false}">
+          ${btn(icon("ellipsis-vertical", "size-5"), { variant: "ghost", size: "icon", cls: "size-11 shrink-0", attrs: `data-action="menu" aria-label="${s.name} actions"` })}
+          <div class="menu ${MENU} hidden" role="menu">
+            <button class="${MENU_ITEM}" data-action="dlg-move" data-session="${s.id}">Move to another day</button>
+            <button class="${MENU_ITEM}" data-action="dlg-duplicate" data-session="${s.id}">Duplicate to another day</button>
+            <div class="-mx-1 my-1 h-px bg-border"></div>
+            <button class="${MENU_ITEM}" data-action="dlg-remove" data-session="${s.id}">Remove session</button>
+          </div>
+        </div>`;
+
+      function weekList(sessions, readOnly) {
+        return `<ul data-ui="WeekList" class="${LIST}">${DAYS.map((d) => {
+          const s = sessions.find((x) => x.day === d.n);
+          return `<li class="flex min-h-14 items-center gap-1 pr-1 pl-4">
+            <abbr title="${d.long}" class="w-10 shrink-0 text-xs font-medium tracking-wide text-muted-foreground uppercase tabular-nums">${d.short}</abbr>
+            ${
+              s
+                ? `<a href="#" class="min-w-0 flex-1 py-2">
+                     <p class="truncate text-sm font-medium">${s.name}</p>
+                     <p class="text-xs text-muted-foreground tabular-nums">${sessionMeta(s)}</p>
+                   </a>${readOnly ? "" : sessionMenu(s)}`
+                : `<span class="flex-1 text-sm text-muted-foreground">Rest</span>${
+                    readOnly
+                      ? ""
+                      : btn(`${icon("plus")}Add session`, {
+                          variant: "ghost",
+                          size: "sm",
+                          cls: "h-11",
+                          attrs: `data-action="dlg-add-session" data-day="${d.n}" aria-label="Add a session on ${d.long}"`,
+                        })
+                  }`
+            }
+          </li>`;
+        }).join("")}</ul>`;
+      }
+
+      function readiness(status, issues) {
+        if (status === "archived") return "";
+        if (!issues.length) {
+          return status === "active"
+            ? ""
+            : `<p class="flex items-center gap-2 text-sm">${icon("circle-check", "size-4 text-primary")}Ready to activate.</p>`;
+        }
+        return `<div data-ui="Alert (ReadinessPanel)" class="${ALERT}">
+          <p class="mb-1 font-medium leading-none tracking-tight">${status === "draft" ? "Before you can activate" : "Needs attention"}</p>
+          ${status === "active" ? `<p class="text-sm">This plan stays active.</p>` : ""}
+          <ul class="-mx-1 divide-y divide-border">${issues
+            .map(
+              (
+                t,
+              ) => `<li><a href="#" class="flex min-h-11 items-center gap-2 px-1 text-sm text-foreground">
+                <span class="flex-1">${t}</span>${icon("chevron-right", "size-4 text-muted-foreground")}</a></li>`,
+            )
+            .join("")}</ul>
+        </div>`;
+      }
+
+      function mesoHeader(status, name) {
+        return `
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            ${backLink("Plan")}
+            <div class="relative">
+              ${btn(icon("ellipsis-vertical", "size-5"), { variant: "ghost", size: "icon", attrs: 'data-action="menu" aria-label="Mesocycle actions"' })}
+              <div class="menu ${MENU} hidden" role="menu">
+                ${
+                  status === "draft"
+                    ? `<button class="${MENU_ITEM}" data-action="dlg-archive-draft">Archive draft</button>`
+                    : `<button class="${MENU_ITEM}">Clone forward</button>`
+                }
+              </div>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <h1 class="flex items-center gap-2 text-lg font-semibold">
+              <span class="truncate ${status === "archived" ? "text-muted-foreground" : ""}">${name}</span>${statusBadge(status)}
+            </h1>
+            <p class="text-sm text-muted-foreground tabular-nums">${status === "draft" ? "No start date yet" : "Starts Mon, Sep 29 · ends Sun, Nov 2"}</p>
+            <p class="text-sm text-muted-foreground tabular-nums">5 weeks · deload week 5 · Push / Pull / Legs</p>
+            ${status === "archived" ? `<p class="text-sm text-muted-foreground">Archived. Clone it forward to train it again.</p>` : ""}
+          </div>
+          ${status === "archived" ? "" : btn("Edit details", { variant: "outline", size: "sm" })}
+        </div>`;
+      }
+
+      function week(status, ready) {
+        const sessions = ready ? READY_SESSIONS : SESSIONS;
+        const issues = ready
+          ? []
+          : [
+              ...(status === "draft" ? ["Add a start date."] : []),
+              "Cable Fly in Push Day 1 is archived. Replace or remove it.",
+              "Barbell Row in Pull Day 1 is archived. Replace or remove it.",
+              ...(status === "draft"
+                ? ["Leg Day 1 (Wed) has no exercises."]
+                : []),
+            ];
+        const unscheduled = sessions.filter((s) => s.day === null);
+        const name =
+          status === "draft"
+            ? "Strength Block"
+            : status === "active"
+              ? "Hypertrophy Block 3"
+              : "Hypertrophy Block 2";
+        let actions = "";
+        if (status === "draft") {
+          actions = issues.length
+            ? sticky(`<div class="space-y-1">${btn("Activate", { cls: "h-11 w-full", attrs: "disabled" })}
+                <p class="text-center text-xs text-muted-foreground tabular-nums">Fix ${issues.length} items first.</p></div>`)
+            : sticky(
+                btn("Activate", {
+                  cls: "h-11 w-full",
+                  attrs: 'data-action="dlg-activate"',
+                }),
+              );
+        } else if (status === "archived") {
+          actions = sticky(
+            btn("Clone forward", { variant: "outline", cls: "h-11 w-full" }),
+          );
+        }
+        return `
+        <section class="space-y-6 pb-4">
+          ${mesoHeader(status, name)}
+          ${readiness(status, issues)}
+          <div class="space-y-2">
+            <h2 class="text-sm font-medium text-muted-foreground">Week</h2>
+            ${weekList(sessions, status === "archived")}
+          </div>
+          ${
+            unscheduled.length
+              ? `<div class="space-y-2">
+                  <h2 class="text-sm font-medium text-muted-foreground">Not on the schedule</h2>
+                  <ul class="${LIST}">${unscheduled
+                    .map(
+                      (
+                        s,
+                      ) => `<li class="flex min-h-14 items-center gap-1 pr-1 pl-4">
+                        <a href="#" class="min-w-0 flex-1 py-2"><p class="truncate text-sm font-medium">${s.name}</p>
+                        <p class="text-xs text-muted-foreground">${sessionMeta(s)}</p></a>
+                        ${status === "archived" ? "" : sessionMenu(s)}</li>`,
+                    )
+                    .join("")}</ul>
+                </div>`
+              : ""
+          }
+          ${actions}
+        </section>`;
+      }
+
+      const weekLoading = () => `
+        <section class="space-y-6" aria-busy="true">
+          <div class="space-y-2"><div class="${SKELETON} h-4 w-12"></div><div class="${SKELETON} h-6 w-48"></div><div class="${SKELETON} h-4 w-56"></div></div>
+          <div class="${SKELETON} h-20 w-full"></div>
+          <div class="space-y-1">${DAYS.map(() => `<div class="${SKELETON} h-14 w-full"></div>`).join("")}</div>
+        </section>`;
+
+      /* ------------------------------------------------------------------ */
+      /* Screen 6 — Session builder                                          */
+      /* ------------------------------------------------------------------ */
+      function sessionBuilder(s, reorder) {
+        const dayName =
+          DAYS.find((d) => d.n === s.day)?.long ?? "Not on the schedule";
+        const count = s.slots.length
+          ? `${s.slots.length} exercises`
+          : "no exercises";
+        let body;
+        if (!s.slots.length) {
+          body = emptyState(
+            "No exercises yet. Add the first one.",
+            btn("Add exercise", { variant: "outline" }),
+          );
+        } else if (reorder) {
+          body = `<ol class="${LIST}">${s.slots
+            .map(
+              (x, i) => `<li class="flex min-h-14 items-center gap-2 pr-1 pl-4">
+                <span class="w-5 text-xs text-muted-foreground tabular-nums">${i + 1}</span>
+                <span class="min-w-0 flex-1 truncate text-sm font-medium">${x.exercise.name}</span>
+                ${btn(icon("arrow-up", "size-5"), { variant: "ghost", size: "icon", cls: "size-11", attrs: `${i === 0 ? "disabled" : ""} aria-label="Move ${x.exercise.name} up"` })}
+                ${btn(icon("arrow-down", "size-5"), { variant: "ghost", size: "icon", cls: "size-11", attrs: `${i === s.slots.length - 1 ? "disabled" : ""} aria-label="Move ${x.exercise.name} down"` })}
+              </li>`,
+            )
+            .join("")}</ol>`;
+        } else {
+          body = `<ol data-ui="PlannedExerciseRow list" class="${LIST}">${s.slots
+            .map(
+              (
+                x,
+              ) => `<li id="slot-${x.id}" class="${x.exercise.archived ? "border-y border-dashed border-border" : ""}">
+                <button type="button" data-action="dlg-edit-slot" data-slot="${x.id}"
+                  class="flex min-h-16 w-full items-center gap-3 px-3 py-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  ${thumb(x.exercise)}
+                  <span class="min-w-0 flex-1">
+                    <span class="flex items-center gap-2 text-sm font-medium"><span class="truncate">${x.exercise.name}</span>
+                      ${x.exercise.archived ? badge("Archived", "outline") : ""}${x.exercise.custom ? badge("Custom", "outline") : ""}</span>
+                    <span class="block text-sm tabular-nums">${rx(x)}</span>
+                    ${x.exercise.archived ? `<span class="block text-xs text-muted-foreground">Replace or remove it</span>` : ""}
+                  </span>
+                  ${icon("chevron-right", "size-4 text-muted-foreground")}
+                </button>
+              </li>`,
+            )
+            .join("")}</ol>`;
+        }
+        return `
+        <section class="space-y-4">
+          ${backLink("Strength Block")}
+          <div class="space-y-1">
+            <div class="flex items-center gap-1">
+              <h1 class="flex-1 truncate text-lg font-semibold">${s.name}</h1>
+              ${reorder ? "" : btn(icon("pencil"), { variant: "ghost", size: "icon", attrs: 'data-action="dlg-rename" aria-label="Rename session"' }) + sessionMenu(s)}
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm text-muted-foreground tabular-nums">${dayName} · ${count}</p>
+              ${s.slots.length > 1 ? btn(reorder ? "Done" : "Reorder", { variant: "outline", size: "sm", attrs: `data-action="goto" data-to="${reorder ? "session" : "session-reorder"}"` }) : ""}
+            </div>
+          </div>
+          ${body}
+          ${reorder ? "" : sticky(btn(`${icon("plus")}Add exercise`, { cls: "h-11 w-full", attrs: 'data-action="goto" data-to="picker"' }))}
+        </section>`;
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Screen 7 — Exercise picker                                          */
+      /* ------------------------------------------------------------------ */
+      function picker(replace) {
+        const inSession = new Set(PUSH_1.slots.map((x) => x.exercise.id));
+        const results = [
+          EX.bench,
+          EX.crossover,
+          EX.chestPress,
+          EX.pecDeck,
+          EX.incline,
+        ];
+        return `
+        <section class="space-y-4">
+          <div class="space-y-1">${backLink("Push Day 1")}
+            <h1 class="text-lg font-semibold">${replace ? "Replace Cable Fly" : "Add to Push Day 1"}</h1>
+            ${replace ? `<p class="text-sm text-muted-foreground tabular-nums">Sets and reps stay 3 × 12–15.</p>` : ""}
+          </div>
+          <!-- The library's own LibraryControls, pointed at the picker URL. -->
+          <div class="space-y-3" data-ui="LibraryControls">
+            <div class="relative">
+              ${icon("search", "pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground")}
+              <input type="search" aria-label="Search exercises" placeholder="Search exercises" value="cable" class="${cx(INPUT, "h-11 pr-11 pl-9")}" />
+              ${btn(icon("x"), { variant: "ghost", size: "icon", cls: "absolute top-1/2 right-0.5 size-10 -translate-y-1/2", attrs: 'aria-label="Clear search"' })}
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <div role="tablist" aria-label="Library scope" data-ui="Tabs" class="inline-flex h-10 items-center rounded-lg bg-muted p-[3px] text-muted-foreground">
+                <button role="tab" aria-selected="true" class="h-full rounded-md bg-background px-4 text-sm font-medium text-foreground shadow-sm">All</button>
+                <button role="tab" aria-selected="false" class="h-full rounded-md px-4 text-sm font-medium">Favorites</button>
+              </div>
+              <button data-ui="Select" aria-label="Primary muscle" class="${SELECT_TRIGGER} h-10 min-w-40">
+                <span class="text-muted-foreground">Muscle:</span><span>Chest</span>${icon("chevron-down", "size-4 opacity-50")}
+              </button>
+            </div>
+            <p class="text-xs text-muted-foreground tabular-nums">5 exercises · Chest · “cable”</p>
+          </div>
+          <ul class="${LIST}">${results
+            .map((e) => {
+              const taken = inSession.has(e.id);
+              return `<li><button type="button" ${taken ? 'aria-disabled="true"' : `data-action="${replace ? "dlg-replace" : "dlg-add-slot"}" data-ex="${e.id}"`}
+                class="flex min-h-14 w-full items-center gap-3 px-3 py-1 text-left ${taken ? "cursor-default opacity-60" : ""}">
+                ${thumb(e)}
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm font-medium"><span class="truncate">${e.name}</span>${e.custom ? badge("Custom", "outline") : ""}</span>
+                  <span class="block text-xs text-muted-foreground">${e.muscle} · ${e.equipment}</span>
+                </span>
+                ${taken ? badge("In session", "secondary") : icon("chevron-right", "size-4 text-muted-foreground")}
+              </button></li>`;
+            })
+            .join("")}</ul>
+        </section>`;
+      }
+
+      const pickerEmpty = () => `
+        <section class="space-y-4">
+          ${backLink("Push Day 1")}
+          <h1 class="text-lg font-semibold">Add to Push Day 1</h1>
+          ${emptyState("No exercise matches “zottman”.", btn("Add “zottman” as a custom exercise", { variant: "outline", cls: "h-auto min-h-10 whitespace-normal" }))}
+        </section>`;
+
+      /* ------------------------------------------------------------------ */
+      /* Dialogs                                                             */
+      /* ------------------------------------------------------------------ */
+      const dlgHeader = (title, desc) => `
+        <div class="mb-4 flex flex-col gap-2 text-left">
+          <h2 class="text-lg leading-none font-semibold">${title}</h2>
+          ${desc ? `<p class="text-sm text-muted-foreground">${desc}</p>` : ""}
+        </div>`;
+      const dlgFooter = (inner) =>
+        `<div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">${inner}</div>`;
+      const closeBtn = (label = "Cancel", variant = "outline") =>
+        btn(label, { variant, attrs: 'data-action="close" autofocus' });
+
+      function plannedExerciseDialog(e, s, showError) {
+        const editing = Boolean(s);
+        return `
+          <div data-ui="Dialog (PlannedExerciseDialog)">
+          ${dlgHeader(`<span class="flex items-center gap-2">${e.name}${e.archived ? badge("Archived", "outline") : ""}</span>`, `${e.muscle} · ${e.equipment}`)}
+          ${e.archived ? `<p class="mb-4 text-sm">This exercise is archived. Replace it or remove it.</p>` : ""}
+          <form novalidate class="space-y-4" onsubmit="return false">
+            <div class="flex items-end gap-6">
+              <div class="space-y-2"><label class="${LABEL}" for="pe-sets">Sets</label>${numberInput("pe-sets", s?.sets ?? "")}</div>
+              <div class="space-y-2">
+                <span class="${LABEL}">Reps</span>
+                <div class="flex items-center gap-2">
+                  ${numberInput("pe-min", showError ? 10 : (s?.min ?? ""), { label: "Minimum reps" })}
+                  <span aria-hidden="true" class="text-muted-foreground">–</span>
+                  ${numberInput("pe-max", showError ? 8 : (s?.max ?? ""), { label: "Maximum reps", invalid: showError })}
+                </div>
+              </div>
+            </div>
+            ${showError ? `<p role="alert" class="text-sm text-destructive">The top of the range can't be below the bottom.</p>` : ""}
+            ${
+              editing
+                ? `<div class="space-y-2 border-t border-border pt-4">
+                    ${btn("Replace exercise", { variant: e.archived ? "default" : "outline", cls: "h-11 w-full", attrs: 'data-action="goto" data-to="picker-replace"' })}
+                    ${btn("Remove from session", { variant: "ghost", cls: "h-11 w-full", attrs: 'data-action="close"' })}
+                    <p class="text-center text-xs text-muted-foreground">Removing it from this session leaves it in your library.</p>
+                  </div>`
+                : ""
+            }
+            ${dlgFooter(closeBtn() + btn(editing ? "Save" : "Add to session", { attrs: 'data-action="close"' }))}
+          </form></div>`;
+      }
+
+      function dayPickerDialog(mode, s) {
+        const sessions = SESSIONS;
+        return `
+          <div data-ui="Dialog (DayPickerDialog)">
+          ${dlgHeader(
+            mode === "move" ? `Move ${s.name}` : `Duplicate ${s.name}`,
+            mode === "duplicate"
+              ? `Creates a separate copy named “${s.name} Copy”. Editing one won't change the other.`
+              : "",
+          )}
+          <ul class="divide-y divide-border rounded-lg border border-border">
+            ${DAYS.map((d) => {
+              const there = sessions.find((x) => x.day === d.n);
+              const current = mode === "move" && there?.id === s.id;
+              return `<li><button type="button" ${current ? "disabled" : ""}
+                ${there && !current ? `data-action="dlg-occupied" data-day="${d.long}" data-name="${there.name}"` : 'data-action="close"'}
+                class="flex min-h-11 w-full items-center gap-3 px-3 text-left text-sm disabled:opacity-50">
+                <span class="w-10 text-xs font-medium text-muted-foreground uppercase">${d.short}</span>
+                <span class="flex-1 ${there ? "" : "text-muted-foreground"}">${there ? there.name : "Rest"}</span>
+                ${current ? badge("Current", "outline") : ""}
+              </button></li>`;
+            }).join("")}
+            <li><button type="button" data-action="close" class="flex min-h-11 w-full items-center px-3 text-left text-sm">Not on the schedule</button></li>
+          </ul></div>`;
+      }
+
+      const occupiedDialog = (day, name) => `
+        <div data-ui="Dialog (Replace occupied day)">
+        ${dlgHeader(`${day} already has ${name}.`, `Replace it? ${name} stays in this mesocycle under Not on the schedule. Nothing is deleted.`)}
+        ${dlgFooter(closeBtn() + btn("Replace", { attrs: 'data-action="close"' }))}</div>`;
+
+      const removeSessionDialog = (s) => `
+        <div data-ui="AlertDialog (Remove session)">
+        ${dlgHeader(`Remove ${s.name}?`, `Its ${s.slots.length} planned exercises go with it. Your exercise library, gyms, and other mesocycles are not affected.`)}
+        ${dlgFooter(closeBtn() + btn("Remove session", { variant: "outline", attrs: 'data-action="close"' }))}</div>`;
+
+      const activateDialog = () => `
+        <div data-ui="AlertDialog (Activate)">
+        ${dlgHeader("Activate Strength Block?", "Hypertrophy Block 3 is active now. It will be archived. It stays readable and you can clone it later.")}
+        ${dlgFooter(closeBtn() + btn("Activate", { attrs: 'data-action="close"' }))}</div>`;
+
+      const archiveDraftDialog = () => `
+        <div data-ui="AlertDialog (Archive draft)">
+        ${dlgHeader("Archive this draft?", "It moves to Previous. It won't become active, but you can still open it and clone it.")}
+        ${dlgFooter(closeBtn() + btn("Archive draft", { attrs: 'data-action="close"' }))}</div>`;
+
+      const replaceDialog = (e) => `
+        <div data-ui="Dialog (Replace exercise)">
+        ${dlgHeader(`Replace Cable Fly with ${e.name}?`, "Sets and reps stay 3 × 12–15.")}
+        ${dlgFooter(closeBtn() + btn("Replace", { attrs: 'data-action="close"' }))}</div>`;
+
+      const renameDialog = () => `
+        <div data-ui="Dialog (Rename session)">
+        ${dlgHeader("Rename session")}
+        ${field("rn-name", "Name", `<input id="rn-name" maxlength="80" value="Push Day 1" class="${cx(INPUT, "h-11")}" />`)}
+        ${dlgFooter(closeBtn() + btn("Save", { attrs: 'data-action="close"' }))}</div>`;
+
+      const addSessionDialog = (dayN) => `
+        <div data-ui="Dialog (Add session)">
+        ${dlgHeader("Add session")}
+        <div class="space-y-4">
+          ${field("as-name", "Name", `<input id="as-name" placeholder="e.g. Upper A" maxlength="80" class="${cx(INPUT, "h-11")}" />`)}
+          ${field(
+            "as-day",
+            "Day",
+            `<select id="as-day" data-ui="Select" class="${cx(SELECT_TRIGGER, "h-11 w-full")}">
+            ${DAYS.map((d) => `<option value="${d.n}" ${d.n === dayN ? "selected" : ""}>${d.long}</option>`).join("")}
+            <option value="none">Not on the schedule</option></select>`,
+          )}
+        </div>
+        ${dlgFooter(closeBtn() + btn("Add session", { attrs: 'data-action="close"' }))}</div>`;
+
+      const dialogGallery = () => `
+        <section class="space-y-4">
+          <h1 class="text-lg font-semibold">Dialogs</h1>
+          <p class="text-sm text-muted-foreground">Open each to see its exact copy and states.</p>
+          <div class="grid gap-3">
+            ${btn("Plan exercise (add, empty)", { variant: "outline", attrs: 'data-action="dlg-add-slot" data-ex="e10"' })}
+            ${btn("Plan exercise (rep range error)", { variant: "outline", attrs: 'data-action="dlg-add-slot-error"' })}
+            ${btn("Edit archived slot (repair)", { variant: "outline", attrs: 'data-action="dlg-edit-slot" data-slot="x3"' })}
+            ${btn("Duplicate → day picker → replace", { variant: "outline", attrs: 'data-action="dlg-duplicate" data-session="s1"' })}
+            ${btn("Move → day picker", { variant: "outline", attrs: 'data-action="dlg-move" data-session="s1"' })}
+            ${btn("Remove session", { variant: "outline", attrs: 'data-action="dlg-remove" data-session="s3"' })}
+            ${btn("Activate (replacing active)", { variant: "outline", attrs: 'data-action="dlg-activate"' })}
+            ${btn("Archive draft", { variant: "outline", attrs: 'data-action="dlg-archive-draft"' })}
+            ${btn("Rename session", { variant: "outline", attrs: 'data-action="dlg-rename"' })}
+            ${btn("Add session (Sunday)", { variant: "outline", attrs: 'data-action="dlg-add-session" data-day="7"' })}
+          </div>
+        </section>`;
+
+      /* ------------------------------------------------------------------ */
+      /* Preview shell                                                       */
+      /* ------------------------------------------------------------------ */
+      const SCREENS = [
+        ["home", "1 · Plan home", planHome],
+        ["home-empty", "1 · Plan home — empty", planHomeEmpty],
+        ["home-loading", "1 · Plan home — loading", planHomeLoading],
+        ["new", "2 · New mesocycle", () => newMeso(false)],
+        [
+          "new-deload",
+          "2 · New mesocycle — deload past end",
+          () => newMeso(true),
+        ],
+        ["clone-source", "3a · Clone — choose source", cloneSource],
+        ["clone-setup", "3b · Clone — setup", cloneSetup],
+        [
+          "week-draft",
+          "4 · Week — draft, not ready",
+          () => week("draft", false),
+        ],
+        ["week-ready", "4 · Week — draft, ready", () => week("draft", true)],
+        [
+          "week-active",
+          "4 · Week — active, needs attention",
+          () => week("active", false),
+        ],
+        [
+          "week-archived",
+          "4 · Week — archived (read-only)",
+          () => week("archived", true),
+        ],
+        ["week-loading", "4 · Week — loading", weekLoading],
+        ["details", "5 · Edit details", editDetails],
+        ["session", "6 · Session builder", () => sessionBuilder(PUSH_1, false)],
+        [
+          "session-reorder",
+          "6 · Session builder — reorder",
+          () => sessionBuilder(PUSH_1, true),
+        ],
+        [
+          "session-empty",
+          "6 · Session builder — empty",
+          () => sessionBuilder(SESSIONS[2], false),
+        ],
+        ["picker", "7 · Picker — add", () => picker(false)],
+        ["picker-replace", "7 · Picker — replace", () => picker(true)],
+        ["picker-empty", "7 · Picker — no matches", pickerEmpty],
+        ["dialogs", "Dialogs", dialogGallery],
+      ];
+
+      const select = document.getElementById("screen");
+      const main = document.getElementById("main");
+      const dlg = document.getElementById("dlg");
+      select.innerHTML = SCREENS.map(
+        ([id, label]) => `<option value="${id}">${label}</option>`,
+      ).join("");
+
+      function render(id) {
+        const entry = SCREENS.find(([sid]) => sid === id) ?? SCREENS[0];
+        select.value = entry[0];
+        main.innerHTML = entry[2]();
+        main.scrollTop = 0;
+        lucide.createIcons();
+        location.hash = entry[0];
+      }
+      function openDialog(html) {
+        dlg.innerHTML = html;
+        lucide.createIcons();
+        if (!dlg.open) dlg.showModal();
+      }
+
+      const findSession = (id) => SESSIONS.find((s) => s.id === id);
+      const findSlot = (id) =>
+        SESSIONS.flatMap((s) => s.slots).find((x) => x.id === id);
+      const findEx = (id) => Object.values(EX).find((e) => e.id === id);
+
+      document.addEventListener("click", (ev) => {
+        const el = ev.target.closest("[data-action]");
+        document.querySelectorAll(".menu").forEach((m) => {
+          if (
+            !el ||
+            el.dataset.action !== "menu" ||
+            m !== el.nextElementSibling
+          )
+            m.classList.add("hidden");
+        });
+        if (!el) return;
+        const a = el.dataset.action;
+        if (a === "menu") el.nextElementSibling.classList.toggle("hidden");
+        else if (a === "close") dlg.close();
+        else if (a === "goto") {
+          dlg.open && dlg.close();
+          render(el.dataset.to);
+        } else if (a === "radio") {
+          el.parentElement.querySelectorAll(".radio-card").forEach((c) => {
+            const on = c === el;
+            c.setAttribute("aria-checked", String(on));
+            c.classList.toggle("ring-2", on);
+            c.classList.toggle("ring-primary", on);
+            const dot = c.querySelector(".radio-dot");
+            dot.classList.toggle("border-primary", on);
+            dot.classList.toggle("border-input", !on);
+            dot.firstElementChild.classList.toggle("hidden", !on);
+          });
+        } else if (a === "dlg-move")
+          openDialog(dayPickerDialog("move", findSession(el.dataset.session)));
+        else if (a === "dlg-duplicate")
+          openDialog(
+            dayPickerDialog("duplicate", findSession(el.dataset.session)),
+          );
+        else if (a === "dlg-occupied")
+          openDialog(occupiedDialog(el.dataset.day, el.dataset.name));
+        else if (a === "dlg-remove")
+          openDialog(removeSessionDialog(findSession(el.dataset.session)));
+        else if (a === "dlg-activate") openDialog(activateDialog());
+        else if (a === "dlg-archive-draft") openDialog(archiveDraftDialog());
+        else if (a === "dlg-rename") openDialog(renameDialog());
+        else if (a === "dlg-add-session")
+          openDialog(addSessionDialog(Number(el.dataset.day)));
+        else if (a === "dlg-add-slot")
+          openDialog(plannedExerciseDialog(findEx(el.dataset.ex)));
+        else if (a === "dlg-add-slot-error")
+          openDialog(plannedExerciseDialog(EX.crossover, undefined, true));
+        else if (a === "dlg-edit-slot") {
+          const s = findSlot(el.dataset.slot);
+          openDialog(plannedExerciseDialog(s.exercise, s));
+        } else if (a === "dlg-replace")
+          openDialog(replaceDialog(findEx(el.dataset.ex)));
+      });
+      dlg.addEventListener("click", (ev) => {
+        if (ev.target === dlg) dlg.close(); // click on backdrop
+      });
+      select.addEventListener("change", () => render(select.value));
+      window.addEventListener("hashchange", () => {
+        const id = location.hash.slice(1);
+        if (id && id !== select.value) render(id);
+      });
+
+      function setTheme(t) {
+        const root = document.documentElement;
+        root.classList.toggle("dark", t === "dark");
+        root.classList.toggle("light", t === "light");
+        document.querySelectorAll(".theme-btn").forEach((b) => {
+          b.classList.toggle("bg-accent", b.dataset.theme === t);
+        });
+      }
+      document
+        .querySelectorAll(".theme-btn")
+        .forEach((b) =>
+          b.addEventListener("click", () => setTheme(b.dataset.theme)),
+        );
+      setTheme("system");
+      render(location.hash.slice(1) || "home");
+    </script>
+  </body>
+</html>
