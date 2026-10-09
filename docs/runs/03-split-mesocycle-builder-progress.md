@@ -44,7 +44,7 @@ Branch stacking: OVE-15 branches from `feat/03-split-mesocycle-builder`; each ne
 - `docs/previews/03-split-mesocycle-builder-preview.html` — UI preview (visual contract; self-contained HTML, open by drag-and-drop)
 - `docs/specs/03-split-mesocycle-builder-spec.md` — spec incl. `## Resolved Decisions`
 - `docs/runs/03-split-mesocycle-builder-runbook.md` — runbook
-- `docs/runs/03-split-mesocycle-builder-report.md` — (step 15)
+- `docs/runs/03-split-mesocycle-builder-report.md` — run report
 
 ## Pipeline step status
 
@@ -58,10 +58,10 @@ Branch stacking: OVE-15 branches from `feat/03-split-mesocycle-builder`; each ne
 - [x] 9. Runbook → `docs/runs/03-split-mesocycle-builder-runbook.md`
 - [x] 10. Squash-merged #18→#22 into the feature branch (274b7a2, 9bfb07a, 0fa096e, d9c3988, ca1ac4d). Each later PR needed the feature branch merged into its branch first (add/add conflicts from the squash); resolved to the ticket side after verifying the feature code was byte-identical to the previous ticket and that the merge commit changed no code. No force-push.
 - [x] 11. Full verification on the feature branch — green: lint, format, prisma validate, unit 157, integration 124, build, typecheck, e2e 17, client-bundle guard
-- [ ] 12. `/code-review` → inline comments on the feature PR
-- [ ] 13. Review audit + fixes
-- [ ] 14. Re-verify; merge on green
-- [ ] 15. Report
+- [x] 12. `/code-review high 17 --comment` → 9 inline findings on PR #17
+- [x] 13. Audit: 8 IMPLEMENT (1 partial + SKIP), 1 DEFER → OVE-20; replies posted on every comment; fixes in 13361a8
+- [ ] 14. Re-verified green (lint, format, validate, unit 158, integration 128, build, typecheck, e2e 17, bundle guard, browser smoke). Squash-merge #17 → main: IN PROGRESS (if this box is unchecked and #17 is open, re-run the full suite and merge only if green)
+- [x] 15. Report → `docs/runs/03-split-mesocycle-builder-report.md` (written before the merge; states the merge outcome)
 
 ## Notes / decisions log
 
