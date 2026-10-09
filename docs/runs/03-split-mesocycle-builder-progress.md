@@ -22,11 +22,20 @@
 
 - **Project:** Overload V1 — `d85a1e9b-b2fe-4994-b24f-315f138415ad` (team `OVE`)
 - **Pitch doc (Linear):** https://linear.app/overload-training/document/overload-pitch-3-split-and-mesocycle-builder-7972e1ce76ef
-- **Milestone:** _(step 6)_
+- **Milestone:** Split & Mesocycle Builder — `ae401c89-53ef-4861-a927-383dc8fec443`
+- Statuses: Backlog, Todo, In Progress, Done (no "In Review"; In Progress while a PR is open, Done when squash-merged into the feature branch).
 
 ### Tickets (build order; stacked branches; blockedBy chain)
 
-_(step 6)_
+| # | ID | Title | blockedBy | Branch | PR | Status |
+|---|----|-------|-----------|--------|----|--------|
+| 1 | OVE-15 | Mesocycle lifecycle & setup | — | feat/ove-15-mesocycle-lifecycle | — | Todo |
+| 2 | OVE-16 | Weekly schedule & sessions | OVE-15 | feat/ove-16-weekly-schedule | — | Todo |
+| 3 | OVE-17 | Session exercises & picker | OVE-16 | feat/ove-17-session-exercises | — | Todo |
+| 4 | OVE-18 | Session duplication | OVE-17 | feat/ove-18-session-duplication | — | Todo |
+| 5 | OVE-19 | Clone-forward | OVE-18 | feat/ove-19-clone-forward | — | Todo |
+
+Branch stacking: OVE-15 branches from `feat/03-split-mesocycle-builder`; each next ticket branches from the previous ticket branch; each ticket PR targets the previous branch (OVE-15 targets the feature branch).
 
 ## Artifacts
 
@@ -42,8 +51,8 @@ _(step 6)_
 - [x] 1. Context read + pitch pulled → `pitches/03-split-mesocycle-builder.md`
 - [x] 2. Design doc
 - [x] 3. UI preview → `docs/previews/03-split-mesocycle-builder-preview.html` (user-directed 2026-10-08: preview is a static offline design-handoff HTML gallery built from `.claude/skills/overload-ui-design/references/preview-template.html`; skill rewritten to match the user-supplied model; regenerated)
-- [ ] 4–5. Spec + Resolved Decisions
-- [ ] 6. Milestone + issues + blockedBy chain
+- [x] 4–5. Spec + Resolved Decisions (D1–D37 pre-resolved; D38–D70 autonomous)
+- [x] 6. Milestone + issues OVE-15..OVE-19 + blockedBy chain
 - [ ] 7. Feature PR into main
 - [ ] 8. Ticket-worker per ticket
 - [ ] 9. Runbook
