@@ -14,9 +14,17 @@ import {
   SectionHeading,
   StickyActions,
 } from "@/components/plan/plan-bits";
+import {
+  AddSessionButton,
+  SessionActionsMenu,
+} from "@/components/plan/session-controls";
 import { UnscheduledList, WeekList } from "@/components/plan/week-list";
 import { formatPlanDate } from "@/lib/plan/calendar";
-import { getMesocycleWeek } from "@/lib/plan/queries";
+import {
+  getMesocycleWeek,
+  occupancyOf,
+  type SessionSummaryDto,
+} from "@/lib/plan/queries";
 
 export const metadata = { title: "Mesocycle · Overload" };
 
@@ -37,6 +45,19 @@ export default async function MesocyclePage({
   if (!m) notFound();
 
   const archived = m.status === "archived";
+  const occupancy = occupancyOf(
+    m.week.filter((s): s is SessionSummaryDto => s !== null),
+  );
+  const sessionActions = archived
+    ? undefined
+    : (s: SessionSummaryDto) => (
+        <SessionActionsMenu
+          mesocycleId={m.id}
+          session={s}
+          occupancy={occupancy}
+          variant="row"
+        />
+      );
   const dates =
     m.startDate && m.endDate
       ? archived
@@ -95,13 +116,26 @@ export default async function MesocyclePage({
 
       <div>
         <SectionHeading>Week</SectionHeading>
-        <WeekList mesocycleId={m.id} week={m.week} />
+        <WeekList
+          mesocycleId={m.id}
+          week={m.week}
+          renderSessionActions={sessionActions}
+          renderRestAction={
+            archived
+              ? undefined
+              : (d) => <AddSessionButton mesocycleId={m.id} dayOfWeek={d.day} />
+          }
+        />
       </div>
 
       {m.unscheduled.length > 0 && (
         <div>
           <SectionHeading>Not on the schedule</SectionHeading>
-          <UnscheduledList mesocycleId={m.id} sessions={m.unscheduled} />
+          <UnscheduledList
+            mesocycleId={m.id}
+            sessions={m.unscheduled}
+            renderSessionActions={sessionActions}
+          />
         </div>
       )}
 
