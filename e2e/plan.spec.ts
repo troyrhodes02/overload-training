@@ -11,6 +11,8 @@ test.describe("plan routes require authentication", () => {
     `/plan/${ID}/details`,
     `/plan/${ID}/sessions/${ID}`,
     `/plan/${ID}/sessions/${ID}/add`,
+    "/plan/clone",
+    `/plan/clone/${ID}`,
   ]) {
     test(`unauthenticated ${route} redirects to /login`, async ({ page }) => {
       await page.goto(route);

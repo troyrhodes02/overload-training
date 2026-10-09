@@ -161,7 +161,7 @@ export default async function PlanHomePage() {
               New mesocycle
             </Link>
           </Button>
-          {canClone && CLONE_FORWARD_AVAILABLE && (
+          {canClone && (
             <Button asChild variant="outline" className="h-11 flex-1">
               <Link href="/plan/clone">Clone previous</Link>
             </Button>
@@ -171,6 +171,3 @@ export default async function PlanHomePage() {
     </section>
   );
 }
-
-/** Clone-forward ships in OVE-19; until then the entry point stays hidden. */
-const CLONE_FORWARD_AVAILABLE = false;

@@ -251,3 +251,92 @@ export async function archiveDraftMesocycle(
     return { id: row.id };
   });
 }
+
+/**
+ * Clone-forward (spec D30–D36, D47): a NEW draft built from a prior block's
+ * plan. The source must be active or archived and is only read. Copied, field
+ * by field: split type, the lifter's name/start/length/deload choices (from
+ * the clone form), every session's name and day, and every planned
+ * exercise's exercise, order, sets, and rep range — archived exercises
+ * included, so they arrive as repair slots that block activation until
+ * replaced or removed (never dropped, substituted, or un-archived).
+ *
+ * Plan-forward, never history-forward: no logged session, logged exercise,
+ * logged set, goal, gym baseline, or completion state is read or written.
+ */
+export async function cloneMesocycle(
+  input: RawMesocycleDetails & { sourceMesocycleId: string },
+  tx?: Db,
+): Promise<{ id: string }> {
+  const parsed = parseMesocycleDetails(input);
+  if (!parsed.ok) throw invalid(parsed.details);
+  const v = parsed.value;
+  return inTx(tx, async (t) => {
+    const source = isUuid(input.sourceMesocycleId)
+      ? await t.mesocycle.findUnique({
+          where: { id: input.sourceMesocycleId },
+          select: {
+            id: true,
+            status: true,
+            splitType: true,
+            sessions: {
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                name: true,
+                dayOfWeek: true,
+                sessionExercises: {
+                  orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+                  select: {
+                    exerciseId: true,
+                    plannedSets: true,
+                    targetRepMin: true,
+                    targetRepMax: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : null;
+    if (!source) {
+      throw new DomainError("not_found", "That mesocycle doesn't exist.");
+    }
+    if (source.status === "draft") {
+      throw new DomainError(
+        "invalid_state_transition",
+        "Only an active or archived mesocycle can be cloned.",
+      );
+    }
+
+    const clone = await t.mesocycle.create({
+      data: {
+        name: v.name,
+        startDate: toDbDate(v.startDate),
+        lengthWeeks: v.lengthWeeks,
+        deloadWeek: v.deloadWeek,
+        splitType: source.splitType,
+        status: "draft",
+      },
+      select: { id: true },
+    });
+    for (const s of source.sessions) {
+      const session = await t.session.create({
+        data: { mesocycleId: clone.id, name: s.name, dayOfWeek: s.dayOfWeek },
+        select: { id: true },
+      });
+      if (s.sessionExercises.length > 0) {
+        await t.sessionExercise.createMany({
+          data: s.sessionExercises.map((se, i) => ({
+            sessionId: session.id,
+            exerciseId: se.exerciseId,
+            position: i,
+            plannedSets: se.plannedSets,
+            targetRepMin: se.targetRepMin,
+            targetRepMax: se.targetRepMax,
+          })),
+        });
+      }
+    }
+    return { id: clone.id };
+  });
+}

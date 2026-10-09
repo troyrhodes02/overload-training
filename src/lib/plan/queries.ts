@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { isUuid } from "@/lib/actions/result";
 import { exerciseImageUrl } from "@/lib/exercises/images";
 import { equipmentLabel, muscleGroupLabel } from "@/lib/exercises/taxonomy";
-import { plannedEndDate } from "./calendar";
+import { cloneDefaultStartDate, plannedEndDate } from "./calendar";
+import { copyName } from "./validation";
 import { SPLIT_TYPE_LABELS, type SplitTypeValue } from "./presets";
 import { evaluateReadiness, type Readiness } from "./readiness";
 import {
@@ -230,5 +231,71 @@ export async function getSessionDetail(
     mesocycle: { id: row.id, name: row.name, status: row.status },
     exercises: session.sessionExercises.map(toPlannedExercise),
     occupancy: occupancyOf(row.sessions),
+  };
+}
+
+/** Prior blocks that can be cloned forward: the active one, then archived (spec D47). */
+export async function listCloneSources(): Promise<MesocycleSummaryDto[]> {
+  const rows = await prisma.mesocycle.findMany({
+    where: { status: { in: ["active", "archived"] } },
+    include: planInclude,
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+  });
+  const summaries = rows.map((r) =>
+    toSummary(r, evaluateReadiness(toReadinessInput(r))),
+  );
+  const rank = (s: MesocycleSummaryDto) => (s.status === "active" ? 0 : 1);
+  return summaries.sort(
+    (a, b) =>
+      rank(a) - rank(b) || (b.startDate ?? "").localeCompare(a.startDate ?? ""),
+  );
+}
+
+export type CloneSetupDto = {
+  source: MesocycleSummaryDto;
+  defaults: {
+    name: string;
+    startDate: string | null;
+    lengthWeeks: number;
+    deloadWeek: number;
+  };
+  exerciseCount: number;
+  archivedReferences: { exerciseName: string; sessionName: string }[];
+};
+
+/**
+ * What a clone of `sourceId` would start from (spec D33–D35): "<name> Copy",
+ * the day after the source's planned end, the same length and deload week —
+ * all editable — plus the archived exercises that will arrive for repair.
+ * Null when the source doesn't exist or is a draft.
+ */
+export async function getCloneSetup(
+  sourceId: string,
+): Promise<CloneSetupDto | null> {
+  if (!isUuid(sourceId)) return null;
+  const row = await prisma.mesocycle.findUnique({
+    where: { id: sourceId },
+    include: planInclude,
+  });
+  if (!row || row.status === "draft") return null;
+  const readiness = evaluateReadiness(toReadinessInput(row));
+  const startDate = startDateIso(row);
+  return {
+    source: toSummary(row, readiness),
+    defaults: {
+      name: copyName(row.name),
+      startDate: cloneDefaultStartDate(startDate, row.lengthWeeks),
+      lengthWeeks: row.lengthWeeks,
+      deloadWeek: row.deloadWeek,
+    },
+    exerciseCount: row.sessions.reduce(
+      (n, s) => n + s.sessionExercises.length,
+      0,
+    ),
+    archivedReferences: readiness.issues.flatMap((i) =>
+      i.code === "exercise_archived"
+        ? [{ exerciseName: i.exerciseName, sessionName: i.sessionName }]
+        : [],
+    ),
   };
 }
