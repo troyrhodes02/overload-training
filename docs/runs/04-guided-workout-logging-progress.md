@@ -20,9 +20,13 @@ service-role key.
 | 8. Ticket implementation | OVE-21…OVE-25, all green | ✅ |
 | 9. Runbook | `docs/runs/04-guided-workout-logging-runbook.md` | ✅ |
 | 10. Merge tickets → feature branch | ff-integrated; ticket PRs merged | ✅ |
-| 11. Full verification | | ⏳ in progress |
-| 12–13. /review + audit | | ⬜ |
-| 14–15. Final verify + report (STOP) | `docs/runs/04-guided-workout-logging-report.md` | ⬜ |
+| 11. Full verification | typecheck/lint/format/unit 178/integration 163/build/client-bundle/e2e 17 — all green | ✅ |
+| 12. /review | posted to PR #24 (2 findings) | ✅ |
+| 13. /overload-review-audit | F1 implemented, F2 deferred/documented | ✅ |
+| 14. Final verify (STOP, no merge) | all green at `127752a` | ✅ |
+| 15. Run report | `docs/runs/04-guided-workout-logging-report.md` | ✅ |
+
+**RUN COMPLETE — feature PR #24 OPEN and NOT merged into `main`, per run constraint.**
 
 ## Linear issues (milestone Guided Workout Logging, Overload V1)
 
