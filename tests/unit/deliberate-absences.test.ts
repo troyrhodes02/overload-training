@@ -106,9 +106,9 @@ describe("no workout logging, plan building, or progression", () => {
       .filter((d) => d.isDirectory())
       .map((d) => d.name)
       .sort();
-    // Guided Workout Logging adds `log` (and `history` in a later ticket).
+    // Guided Workout Logging adds `log` and `history`.
     expect(routes).not.toContain("goals");
-    expect(routes).toEqual(["exercises", "gyms", "log", "plan"]);
+    expect(routes).toEqual(["exercises", "gyms", "history", "log", "plan"]);
   });
 });
 

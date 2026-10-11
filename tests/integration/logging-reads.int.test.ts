@@ -8,6 +8,7 @@ import {
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
 import { logSet } from "@/lib/logging/logged-sets";
 import {
+  getLoggedWorkoutDetail,
   getSwapContext,
   getTodayDashboard,
   getWorkout,
@@ -138,5 +139,58 @@ describe("getSwapContext", () => {
     });
     const locked = await getSwapContext(le.id);
     expect(locked!.swapLocked).toBe(true);
+  });
+});
+
+describe("getLoggedWorkoutDetail", () => {
+  it("renders archived exercise and gym by name (never Unknown)", async () => {
+    const meso = await createTestMesocycle();
+    const exercise = await createTestExercise({
+      name: "Chest Press Machine",
+      equipmentType: "machine",
+      primaryMuscle: "chest",
+    });
+    const session = await createTestSession(meso.id, { dayOfWeek: 1 });
+    await createTestSessionExercise(session.id, exercise.id, {
+      plannedSets: 1,
+    });
+    const gym = await db().gym.create({ data: { name: "Downtown Gym" } });
+
+    const { loggedSessionId } = await startOrResumeWorkout({
+      sessionId: session.id,
+      scheduledFor: "2026-11-02",
+      gymId: gym.id,
+    });
+    const le = await db().loggedExercise.findFirstOrThrow({
+      where: { loggedSessionId },
+    });
+    await logSet({
+      loggedExerciseId: le.id,
+      setNumber: 1,
+      weightLbs: 90,
+      reps: 10,
+    });
+
+    // Archive both the exercise and the gym after logging.
+    await db().exercise.update({
+      where: { id: exercise.id },
+      data: { deletedAt: new Date() },
+    });
+    await db().gym.update({
+      where: { id: gym.id },
+      data: { deletedAt: new Date() },
+    });
+
+    const detail = await getLoggedWorkoutDetail(loggedSessionId);
+    expect(detail!.gymName).toBe("Downtown Gym");
+    expect(detail!.exercises[0].performedName).toBe("Chest Press Machine");
+    expect(detail!.exercises[0].archived).toBe(true);
+    expect(detail!.exercises[0].swapped).toBe(false);
+    expect(detail!.exercises[0].sets[0]).toMatchObject({
+      setNumber: 1,
+      weightLbs: 90,
+      reps: 10,
+    });
+    expect(detail!.exercises[0].sets[0].loggedSetId).toBeTruthy();
   });
 });

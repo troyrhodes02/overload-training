@@ -1,13 +1,20 @@
 import "server-only";
 import type { LoggedSessionStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { toIsoDate } from "@/lib/plan/calendar";
+import {
+  addDays,
+  formatPlanDate,
+  formatPlanRange,
+  toIsoDate,
+} from "@/lib/plan/calendar";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
 import {
+  effectiveWeekSchedule,
   occurrenceOnDate,
   oldestUnresolvedMissedDay,
   mesocycleWeek,
+  type EffectiveOccurrence,
   type ScheduleContext,
 } from "./schedule";
 
@@ -416,5 +423,142 @@ export async function getSwapContext(
     primaryMuscleLabel: muscleGroupLabel(le.plannedExercise.primaryMuscle),
     swapLocked: le.sets.length > 0,
     candidates,
+  };
+}
+
+export type WeekDayState =
+  "upcoming" | "in_progress" | "complete" | "skipped" | "shifted";
+
+export type WeekDayDto = {
+  dateIso: string;
+  dayLabel: string;
+  sessionName: string;
+  state: WeekDayState;
+  loggedSessionId: string | null;
+};
+
+export type WeekScheduleDto = {
+  weekNumber: number;
+  lengthWeeks: number;
+  rangeLabel: string;
+  days: WeekDayDto[];
+};
+
+function weekDayState(o: EffectiveOccurrence): WeekDayState {
+  if (o.resolution === "skipped") return "skipped";
+  if (o.resolution === "shifted" || o.dropped) return "shifted";
+  if (o.loggedStatus === "complete") return "complete";
+  if (o.loggedStatus === "in_progress") return "in_progress";
+  return "upcoming";
+}
+
+/**
+ * Week-at-a-glance (design Screen 7): the active mesocycle's training days for a
+ * given week, with their effective-schedule state. Record navigation, not stats.
+ */
+export async function getWeekSchedule(
+  weekNumber?: number,
+): Promise<WeekScheduleDto | null> {
+  const active = await activeContext();
+  if (!active) return null;
+  const current = mesocycleWeek(active.startDate, todayIso());
+  const week = Math.min(Math.max(weekNumber ?? current, 1), active.lengthWeeks);
+
+  const occ = effectiveWeekSchedule(active.ctx, week);
+  const logged = await prisma.loggedSession.findMany({
+    where: { mesocycleId: active.mesocycleId },
+    select: { id: true, sessionId: true, scheduledFor: true },
+  });
+  const idByOccurrence = new Map(
+    logged
+      .filter((l) => l.sessionId !== null)
+      .map((l) => [`${l.sessionId}|${toIsoDate(l.scheduledFor)}`, l.id]),
+  );
+
+  const weekStart = addDays(active.startDate, (week - 1) * 7);
+  const weekEnd = addDays(weekStart, 6);
+
+  const days: WeekDayDto[] = occ.map((o) => {
+    const dateIso = o.effectiveIso ?? o.authoredIso;
+    return {
+      dateIso,
+      dayLabel: formatPlanDate(dateIso),
+      sessionName: o.sessionName,
+      state: weekDayState(o),
+      loggedSessionId:
+        idByOccurrence.get(`${o.sessionId}|${o.authoredIso}`) ?? null,
+    };
+  });
+
+  return {
+    weekNumber: week,
+    lengthWeeks: active.lengthWeeks,
+    rangeLabel: formatPlanRange(weekStart, weekEnd),
+    days,
+  };
+}
+
+export type LoggedWorkoutDetailDto = {
+  loggedSessionId: string;
+  sessionName: string;
+  dateIso: string;
+  dateLabel: string;
+  gymName: string | null;
+  exercises: {
+    performedName: string;
+    plannedName: string;
+    swapped: boolean;
+    archived: boolean;
+    sets: {
+      loggedSetId: string;
+      setNumber: number;
+      weightLbs: number;
+      reps: number;
+    }[];
+  }[];
+};
+
+/**
+ * Logged workout detail (design Screen 8). Read-only factual history; archived
+ * exercises and gyms still render by name (never "Unknown"). No derived values.
+ */
+export async function getLoggedWorkoutDetail(
+  loggedSessionId: string,
+): Promise<LoggedWorkoutDetailDto | null> {
+  const ls = await prisma.loggedSession.findUnique({
+    where: { id: loggedSessionId },
+    include: {
+      session: { select: { name: true } },
+      loggedExercises: {
+        orderBy: { position: "asc" },
+        include: {
+          exercise: { select: { name: true, deletedAt: true } },
+          plannedExercise: { select: { name: true } },
+          gym: { select: { name: true } },
+          sets: { orderBy: { setNumber: "asc" } },
+        },
+      },
+    },
+  });
+  if (!ls) return null;
+
+  return {
+    loggedSessionId: ls.id,
+    sessionName: ls.session?.name ?? "Workout",
+    dateIso: toIsoDate(ls.scheduledFor),
+    dateLabel: formatPlanDate(toIsoDate(ls.scheduledFor)),
+    gymName: ls.loggedExercises[0]?.gym?.name ?? null,
+    exercises: ls.loggedExercises.map((le) => ({
+      performedName: le.exercise.name,
+      plannedName: le.plannedExercise.name,
+      swapped: le.exerciseId !== le.plannedExerciseId,
+      archived: le.exercise.deletedAt !== null,
+      sets: le.sets.map((s) => ({
+        loggedSetId: s.id,
+        setNumber: s.setNumber,
+        weightLbs: Number(s.weightLbs),
+        reps: s.reps,
+      })),
+    })),
   };
 }
