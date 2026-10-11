@@ -99,6 +99,9 @@ function scheme(sets: number, min: number, max: number): string {
 }
 
 function todayIso(): string {
+  // "Today" is the UTC calendar date, matching the app's all-UTC calendar
+  // convention (src/lib/plan/calendar.ts). A single timezone source for the
+  // lifter is a deliberate cross-cutting decision deferred beyond Pitch 4.
   return toIsoDate(new Date());
 }
 

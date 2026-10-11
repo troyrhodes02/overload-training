@@ -95,6 +95,9 @@ export function WorkoutRunner({
 
       {current ? (
         <ExerciseCard
+          // Key by occurrence so draft state (typed weights/reps) never leaks
+          // across exercises when stepping Next/Previous.
+          key={current.loggedExerciseId}
           exercise={current}
           gymLocked={workout.gymLocked}
           swapSlot={
