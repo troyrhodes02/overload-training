@@ -27,7 +27,7 @@ const ready = (over: Partial<ReadinessInput> = {}): ReadinessInput => ({
   name: "Strength Block",
   startDate: "2026-11-02",
   lengthWeeks: 5,
-  deloadWeek: 5,
+  deloadEveryWeeks: 5,
   sessions: [session("s1", "Push Day 1", 1)],
   ...over,
 });
@@ -42,14 +42,16 @@ describe("mesocycle readiness (spec D3)", () => {
     expect(r.issues.map((i) => i.code)).toEqual(["start_date_missing"]);
   });
 
-  it("needs a deload week inside the block, and a valid length", () => {
+  it("needs the deload cadence to fit the block, and a valid length", () => {
     expect(
-      evaluateReadiness(ready({ lengthWeeks: 4, deloadWeek: 5 })).issues,
-    ).toEqual([{ code: "deload_out_of_range", deloadWeek: 5, lengthWeeks: 4 }]);
+      evaluateReadiness(ready({ lengthWeeks: 4, deloadEveryWeeks: 5 })).issues,
+    ).toEqual([
+      { code: "deload_exceeds_length", deloadEveryWeeks: 5, lengthWeeks: 4 },
+    ]);
     expect(
       evaluateReadiness(ready({ lengthWeeks: 0 })).issues.map((i) => i.code),
     ).toEqual(["length_invalid"]);
-    expect(evaluateReadiness(ready({ deloadWeek: 1 })).ready).toBe(true);
+    expect(evaluateReadiness(ready({ deloadEveryWeeks: 1 })).ready).toBe(true);
   });
 
   it("needs at least one scheduled session", () => {

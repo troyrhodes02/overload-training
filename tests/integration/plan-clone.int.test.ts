@@ -46,7 +46,7 @@ async function hypertrophyBlock3(status: "active" | "archived" = "archived") {
     splitType: "ppl",
     startDate: new Date("2026-09-28T00:00:00Z"),
     lengthWeeks: 5,
-    deloadWeek: 4,
+    deloadEveryWeeks: 4,
   });
   const push = await createTestSession(m.id, {
     name: "Push Day 1",
@@ -99,7 +99,7 @@ async function planShape(mesocycleId: string) {
   return {
     splitType: m.splitType,
     lengthWeeks: m.lengthWeeks,
-    deloadWeek: m.deloadWeek,
+    deloadEveryWeeks: m.deloadEveryWeeks,
     sessions: m.sessions.map((s) => ({
       name: s.name,
       dayOfWeek: s.dayOfWeek,
@@ -119,7 +119,7 @@ const cloneInput = (sourceMesocycleId: string, over = {}) => ({
   name: "Hypertrophy Block 3 Copy",
   startDate: "2026-11-02",
   lengthWeeks: "5",
-  deloadWeek: "4",
+  deloadEveryWeeks: "4",
   ...over,
 });
 
@@ -178,27 +178,27 @@ describe("clone defaults (spec D33–D35)", () => {
       name: "Hypertrophy Block 3 Copy",
       startDate: "2026-11-02", // 2026-09-28 + 5 weeks; the source ends Sun 2026-11-01
       lengthWeeks: 5,
-      deloadWeek: 4,
+      deloadEveryWeeks: 4,
     });
     expect(setup?.source.endDate).toBe("2026-11-01");
     expect(setup?.exerciseCount).toBe(4);
   });
 
-  it("every default is editable (a gap, a new length, a new deload week)", async () => {
+  it("every default is editable (a gap, a new length, a new deload cadence)", async () => {
     const { m } = await hypertrophyBlock3();
     const { id } = await cloneMesocycle(
       cloneInput(m.id, {
         name: "Strength Block",
         startDate: "2026-11-16",
         lengthWeeks: "6",
-        deloadWeek: "6",
+        deloadEveryWeeks: "6",
       }),
     );
     const clone = await prisma().mesocycle.findUniqueOrThrow({ where: { id } });
     expect(clone).toMatchObject({
       name: "Strength Block",
       lengthWeeks: 6,
-      deloadWeek: 6,
+      deloadEveryWeeks: 6,
     });
     expect(clone.startDate?.toISOString().slice(0, 10)).toBe("2026-11-16");
   });
@@ -348,7 +348,7 @@ describe("a clone of a cloned plan", () => {
       name: "A",
       startDate: "2026-11-02",
       lengthWeeks: "5",
-      deloadWeek: "5",
+      deloadEveryWeeks: "5",
       splitType: "bro",
     }).then(async ({ id }) => ({
       m: await prisma().mesocycle.update({
@@ -357,14 +357,14 @@ describe("a clone of a cloned plan", () => {
       }),
     }));
     const b = await cloneMesocycle(
-      cloneInput(m.id, { name: "B", deloadWeek: "5" }),
+      cloneInput(m.id, { name: "B", deloadEveryWeeks: "5" }),
     );
     await prisma().mesocycle.update({
       where: { id: b.id },
       data: { status: "archived" },
     });
     const c = await cloneMesocycle(
-      cloneInput(b.id, { name: "C", deloadWeek: "5" }),
+      cloneInput(b.id, { name: "C", deloadEveryWeeks: "5" }),
     );
     expect(await planShape(c.id)).toEqual(await planShape(m.id));
     const columns = await prisma().$queryRawUnsafe<{ column_name: string }[]>(

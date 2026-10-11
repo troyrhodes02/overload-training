@@ -15,9 +15,9 @@ export const LENGTH_WEEKS_MAX = 52;
 export const PLANNED_SETS_MAX = 20;
 export const REPS_MAX = 100;
 
-/** The 5-week / deload-week-5 pre-fill (spec D6, D7). A default, never a rule. */
+/** The 5-week / deload-every-5 pre-fill (spec D6, D7). A default, never a rule. */
 export const DEFAULT_LENGTH_WEEKS = 5;
-export const DEFAULT_DELOAD_WEEK = 5;
+export const DEFAULT_DELOAD_EVERY_WEEKS = 5;
 
 type Details = Record<string, string>;
 export type Parsed<T> =
@@ -46,20 +46,21 @@ export type MesocycleDetailsInput = {
   name: string;
   startDate: string | null;
   lengthWeeks: number;
-  deloadWeek: number;
+  deloadEveryWeeks: number;
 };
 
 export type RawMesocycleDetails = {
   name?: unknown;
   startDate?: unknown;
   lengthWeeks?: unknown;
-  deloadWeek?: unknown;
+  deloadEveryWeeks?: unknown;
 };
 
 /**
- * Name, start date, length, deload week. A deload week past the end of the
- * block is NOT an error here: a draft may hold it (it is a readiness issue),
- * and the active-block rule is enforced by the write module (spec D61).
+ * Name, start date, length, deload cadence. A cadence longer than the block
+ * (so no deload ever triggers) is NOT an error here: a draft may hold it (it
+ * is a readiness issue), and the active-block rule is enforced by the write
+ * module (spec D61).
  */
 export function parseMesocycleDetails(
   raw: RawMesocycleDetails,
@@ -83,11 +84,11 @@ export function parseMesocycleDetails(
   else if (lengthWeeks > LENGTH_WEEKS_MAX)
     details.lengthWeeks = `Keep it to ${LENGTH_WEEKS_MAX} weeks or fewer.`;
 
-  const deloadWeek = parseWholeNumber(raw.deloadWeek);
-  if (deloadWeek === null || deloadWeek < 1)
-    details.deloadWeek = "Enter a whole number, 1 or more.";
-  else if (deloadWeek > LENGTH_WEEKS_MAX)
-    details.deloadWeek = `Keep it to week ${LENGTH_WEEKS_MAX} or earlier.`;
+  const deloadEveryWeeks = parseWholeNumber(raw.deloadEveryWeeks);
+  if (deloadEveryWeeks === null || deloadEveryWeeks < 1)
+    details.deloadEveryWeeks = "Enter a whole number, 1 or more.";
+  else if (deloadEveryWeeks > LENGTH_WEEKS_MAX)
+    details.deloadEveryWeeks = `Keep it to ${LENGTH_WEEKS_MAX} weeks or fewer.`;
 
   if (Object.keys(details).length > 0) return { ok: false, details };
   return {
@@ -96,18 +97,18 @@ export function parseMesocycleDetails(
       name,
       startDate,
       lengthWeeks: lengthWeeks as number,
-      deloadWeek: deloadWeek as number,
+      deloadEveryWeeks: deloadEveryWeeks as number,
     },
   };
 }
 
 /** The non-blocking deload warning both forms show (spec D7). */
-export function deloadOutOfRangeMessage(
-  deloadWeek: number,
+export function deloadCadenceMessage(
+  deloadEveryWeeks: number,
   lengthWeeks: number,
 ): string | null {
-  if (deloadWeek <= lengthWeeks) return null;
-  return `Week ${deloadWeek} is past the end of a ${lengthWeeks}-week block. Choose a week from 1 to ${lengthWeeks}.`;
+  if (deloadEveryWeeks <= lengthWeeks) return null;
+  return `A deload every ${deloadEveryWeeks} weeks never happens in a ${lengthWeeks}-week block. Use ${lengthWeeks} or fewer.`;
 }
 
 export function parseSplitType(raw: unknown): Parsed<SplitTypeValue> {

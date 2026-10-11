@@ -16,7 +16,7 @@ Frontend styling/component approach (Tailwind, a component library, or otherwise
 
 ## Data Model
 
-**Mesocycle** — name, length in weeks, deload week number, split type (preset identifier or custom), status (active/archived), start date. Has many Sessions.
+**Mesocycle** — name, length in weeks, deload cadence (a planned deload falls on every Nth week — weeks N, 2N, 3N…; the DB column keeps its Foundation name `deload_week`, mapped to `deloadEveryWeeks`), split type (preset identifier or custom), status (active/archived), start date. Has many Sessions.
 
 **Session** — a named workout template (e.g., "Push Day 1") belonging to a Mesocycle, assigned to a day of the week. Has many SessionExercises (join to Exercise, carrying planned set count and target rep range, ordered).
 
@@ -97,7 +97,7 @@ Tuning the gym-baseline auto-correction threshold — the logic that decides whe
 Details the approved docs do not settle. Each must be decided in the controlling pitch and recorded as a named constant or documented decision, not guessed by an implementing agent.
 
 - Progression thresholds: how many consecutive sessions at the top of the rep range trigger a progress call, and how many misses trigger a deload call. Also the weight increment applied on a progress call.
-- The load reduction applied during the scheduled deload week.
+- The load reduction applied during a scheduled deload week.
 - What counts as a "noticeable margin" for gym baseline auto-correction.
 - Which equipment types count as gym-variable (machine-based) versus consistent everywhere.
 - Where the current working weight for an exercise lives. Sessions store planned sets and rep ranges, not weights.

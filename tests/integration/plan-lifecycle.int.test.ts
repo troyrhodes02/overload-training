@@ -34,7 +34,7 @@ const base = {
   name: "Strength Block",
   startDate: "",
   lengthWeeks: "5",
-  deloadWeek: "5",
+  deloadEveryWeeks: "5",
 };
 
 describe("creating a mesocycle", () => {
@@ -44,22 +44,22 @@ describe("creating a mesocycle", () => {
     expect(row).toMatchObject({
       status: "draft",
       lengthWeeks: 5,
-      deloadWeek: 5,
+      deloadEveryWeeks: 5,
       startDate: null,
       splitType: "custom",
     });
   });
 
-  it("accepts any valid length and deload week (the default is not a rule)", async () => {
+  it("accepts any valid length and deload cadence (the default is not a rule)", async () => {
     const { id } = await createMesocycle({
       name: "Short Block",
       startDate: "2026-11-02",
       lengthWeeks: "3",
-      deloadWeek: "2",
+      deloadEveryWeeks: "2",
       splitType: "custom",
     });
     const row = await prisma().mesocycle.findUniqueOrThrow({ where: { id } });
-    expect([row.lengthWeeks, row.deloadWeek]).toEqual([3, 2]);
+    expect([row.lengthWeeks, row.deloadEveryWeeks]).toEqual([3, 2]);
     expect(row.startDate?.toISOString()).toBe("2026-11-02T00:00:00.000Z");
   });
 
@@ -74,7 +74,7 @@ describe("creating a mesocycle", () => {
       createMesocycle({
         name: " ",
         lengthWeeks: "0",
-        deloadWeek: "5",
+        deloadEveryWeeks: "5",
         splitType: "nope",
       }),
     );
@@ -87,18 +87,18 @@ describe("creating a mesocycle", () => {
     expect(await prisma().mesocycle.count()).toBe(0);
   });
 
-  it("can save a deload week past the end in a draft (surfaced, not moved)", async () => {
+  it("can save a cadence longer than the block in a draft (surfaced, not moved)", async () => {
     const { id } = await createMesocycle({
       ...base,
       lengthWeeks: "4",
-      deloadWeek: "5",
+      deloadEveryWeeks: "5",
       splitType: "custom",
     });
     const week = await getMesocycleWeek(id);
-    expect(week?.deloadWeek).toBe(5);
+    expect(week?.deloadEveryWeeks).toBe(5);
     expect(week?.readiness.issues).toContainEqual({
-      code: "deload_out_of_range",
-      deloadWeek: 5,
+      code: "deload_exceeds_length",
+      deloadEveryWeeks: 5,
       lengthWeeks: 4,
     });
   });
@@ -276,7 +276,11 @@ describe("readiness and activation", () => {
       createTestMesocycle({ status: "active", startDate: null }),
     ).rejects.toThrow();
     await expect(
-      createTestMesocycle({ status: "active", lengthWeeks: 4, deloadWeek: 5 }),
+      createTestMesocycle({
+        status: "active",
+        lengthWeeks: 4,
+        deloadEveryWeeks: 5,
+      }),
     ).rejects.toThrow();
   });
 
@@ -297,19 +301,19 @@ describe("editing details", () => {
       name: "Strength Block",
       startDate: "",
       lengthWeeks: "4",
-      deloadWeek: "5",
+      deloadEveryWeeks: "5",
     });
     const row = await prisma().mesocycle.findUniqueOrThrow({
       where: { id: mesocycle.id },
     });
     expect(row).toMatchObject({
       lengthWeeks: 4,
-      deloadWeek: 5,
+      deloadEveryWeeks: 5,
       startDate: null,
     });
   });
 
-  it("an active block must keep a start date and an in-range deload week", async () => {
+  it("an active block must keep a start date and a cadence that fits", async () => {
     const { mesocycle } = await createReadyDraft();
     await activateMesocycle({
       mesocycleId: mesocycle.id,
@@ -321,20 +325,21 @@ describe("editing details", () => {
         name: "Strength Block",
         startDate: "",
         lengthWeeks: "4",
-        deloadWeek: "5",
+        deloadEveryWeeks: "5",
       }),
     );
     expect(err.code).toBe("validation_error");
     expect(err.details).toEqual({
       startDate: "An active block needs a start date.",
-      deloadWeek: "An active block needs a deload week inside it.",
+      deloadEveryWeeks:
+        "An active block needs its deload to happen at least once.",
     });
     await updateMesocycleDetails({
       mesocycleId: mesocycle.id,
       name: "Strength Block II",
       startDate: "2026-11-09",
       lengthWeeks: "6",
-      deloadWeek: "6",
+      deloadEveryWeeks: "6",
     });
     const row = await prisma().mesocycle.findUniqueOrThrow({
       where: { id: mesocycle.id },
@@ -350,7 +355,7 @@ describe("editing details", () => {
         name: "Changed",
         startDate: "2026-11-02",
         lengthWeeks: "5",
-        deloadWeek: "5",
+        deloadEveryWeeks: "5",
       }),
     );
     expect(err.code).toBe("invalid_state_transition");

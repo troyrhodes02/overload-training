@@ -29,7 +29,7 @@ export async function createTestMesocycle(
     data: {
       name: "Strength Block",
       lengthWeeks: 5,
-      deloadWeek: 5,
+      deloadEveryWeeks: 5,
       splitType: "custom",
       status: "draft",
       startDate: new Date("2026-11-02T00:00:00Z"),

@@ -34,7 +34,7 @@ export default async function EditDetailsPage({ params }: PageProps) {
           name: m.name,
           startDate: m.startDate ?? "",
           lengthWeeks: String(m.lengthWeeks),
-          deloadWeek: String(m.deloadWeek),
+          deloadEveryWeeks: String(m.deloadEveryWeeks),
           splitType: m.splitType,
         }}
       />

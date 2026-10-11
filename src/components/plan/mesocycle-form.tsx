@@ -32,7 +32,7 @@ import {
   SPLIT_TYPE_LABELS,
 } from "@/lib/plan/presets";
 import {
-  deloadOutOfRangeMessage,
+  deloadCadenceMessage,
   LENGTH_WEEKS_MAX,
   parseMesocycleDetails,
   parseSplitType,
@@ -49,10 +49,10 @@ function without(errors: Record<string, string>, key: string) {
 }
 
 /**
- * Name, start date, length, deload week (+ structure when creating). Used by
- * New mesocycle, Clone setup, and Edit details. Defaults arrive as editable
+ * Name, start date, length, deload cadence (+ structure when creating). Used
+ * by New mesocycle, Clone setup, and Edit details. Defaults arrive as editable
  * values; nothing is inferred (a new block has no start date until he picks
- * one). A deload week past the end is shown, never silently moved.
+ * one). A cadence longer than the block is shown, never silently moved.
  */
 export function MesocycleForm({
   action,
@@ -83,7 +83,9 @@ export function MesocycleForm({
   });
   const [startDate, setStartDate] = useState(state.values.startDate);
   const [lengthWeeks, setLengthWeeks] = useState(state.values.lengthWeeks);
-  const [deloadWeek, setDeloadWeek] = useState(state.values.deloadWeek);
+  const [deloadEveryWeeks, setDeloadEveryWeeks] = useState(
+    state.values.deloadEveryWeeks,
+  );
   const [splitType, setSplitType] = useState(state.values.splitType);
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
   const formRef = useRef<HTMLFormElement>(null);
@@ -95,10 +97,12 @@ export function MesocycleForm({
     state.result && !state.result.ok && !state.result.error.details;
 
   const lengthNum = /^\d+$/.test(lengthWeeks) ? Number(lengthWeeks) : null;
-  const deloadNum = /^\d+$/.test(deloadWeek) ? Number(deloadWeek) : null;
+  const deloadNum = /^\d+$/.test(deloadEveryWeeks)
+    ? Number(deloadEveryWeeks)
+    : null;
   const deloadWarning =
     lengthNum && deloadNum && lengthNum >= 1
-      ? deloadOutOfRangeMessage(deloadNum, lengthNum)
+      ? deloadCadenceMessage(deloadNum, lengthNum)
       : null;
   const endLine =
     startDate &&
@@ -118,7 +122,7 @@ export function MesocycleForm({
       name: data.get("name"),
       startDate: data.get("startDate"),
       lengthWeeks: data.get("lengthWeeks"),
-      deloadWeek: data.get("deloadWeek"),
+      deloadEveryWeeks: data.get("deloadEveryWeeks"),
     });
     const next: Record<string, string> = parsed.ok ? {} : parsed.details;
     if (variant === "create") {
@@ -207,25 +211,28 @@ export function MesocycleForm({
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="m-deload">Deload week</Label>
-          <Input
-            id="m-deload"
-            name="deloadWeek"
-            data-field="deloadWeek"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={deloadWeek}
-            onChange={(e) => setDeloadWeek(e.target.value)}
-            className="h-11 w-20 text-center text-base tabular-nums"
-            aria-invalid={Boolean(errors.deloadWeek || deloadWarning)}
-            aria-describedby={deloadWarning ? "deload-warning" : undefined}
-          />
+          <Label htmlFor="m-deload">Deload every</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="m-deload"
+              name="deloadEveryWeeks"
+              data-field="deloadEveryWeeks"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={deloadEveryWeeks}
+              onChange={(e) => setDeloadEveryWeeks(e.target.value)}
+              className="h-11 w-20 text-center text-base tabular-nums"
+              aria-invalid={Boolean(errors.deloadEveryWeeks || deloadWarning)}
+              aria-describedby={deloadWarning ? "deload-warning" : undefined}
+            />
+            <span className="text-sm text-muted-foreground">weeks</span>
+          </div>
         </div>
       </div>
       {fieldError("lengthWeeks")}
-      {errors.deloadWeek
-        ? fieldError("deloadWeek")
+      {errors.deloadEveryWeeks
+        ? fieldError("deloadEveryWeeks")
         : deloadWarning && (
             <p
               id="deload-warning"

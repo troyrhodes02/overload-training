@@ -100,8 +100,8 @@ export default async function PlanHomePage() {
               )}
               <p className="text-sm text-muted-foreground tabular-nums">
                 {active.lengthWeeks}{" "}
-                {active.lengthWeeks === 1 ? "week" : "weeks"} · deload week{" "}
-                {active.deloadWeek}
+                {active.lengthWeeks === 1 ? "week" : "weeks"} · deload every{" "}
+                {active.deloadEveryWeeks} weeks
               </p>
               <p className="text-sm text-muted-foreground tabular-nums">
                 {active.splitLabel} · {active.sessionCount}{" "}

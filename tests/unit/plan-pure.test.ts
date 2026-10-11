@@ -13,9 +13,9 @@ import {
   plannedEndDate,
 } from "@/lib/plan/calendar";
 import {
-  DEFAULT_DELOAD_WEEK,
+  DEFAULT_DELOAD_EVERY_WEEKS,
   DEFAULT_LENGTH_WEEKS,
-  deloadOutOfRangeMessage,
+  deloadCadenceMessage,
   parseDayOfWeek,
   parseMesocycleDetails,
   parsePlannedExercise,
@@ -141,11 +141,11 @@ describe("calendar semantics (spec D59)", () => {
 
 describe("plan validation (spec Validation Rules)", () => {
   it("the 5 / 5 pre-fill is a default, not a rule", () => {
-    expect([DEFAULT_LENGTH_WEEKS, DEFAULT_DELOAD_WEEK]).toEqual([5, 5]);
+    expect([DEFAULT_LENGTH_WEEKS, DEFAULT_DELOAD_EVERY_WEEKS]).toEqual([5, 5]);
     const other = parseMesocycleDetails({
       name: "Strength Block",
       lengthWeeks: "6",
-      deloadWeek: "3",
+      deloadEveryWeeks: "3",
     });
     expect(other).toEqual({
       ok: true,
@@ -153,7 +153,7 @@ describe("plan validation (spec Validation Rules)", () => {
         name: "Strength Block",
         startDate: null,
         lengthWeeks: 6,
-        deloadWeek: 3,
+        deloadEveryWeeks: 3,
       },
     });
   });
@@ -170,29 +170,29 @@ describe("plan validation (spec Validation Rules)", () => {
       name: "  ",
       startDate: "2026-13-01",
       lengthWeeks: "0",
-      deloadWeek: "x",
+      deloadEveryWeeks: "x",
     });
     expect(r.ok).toBe(false);
     if (!r.ok)
       expect(Object.keys(r.details).sort()).toEqual([
-        "deloadWeek",
+        "deloadEveryWeeks",
         "lengthWeeks",
         "name",
         "startDate",
       ]);
   });
 
-  it("does not reject a deload week past the end — a draft may hold it", () => {
+  it("does not reject a cadence longer than the block — a draft may hold it", () => {
     const r = parseMesocycleDetails({
       name: "Strength Block",
       lengthWeeks: "4",
-      deloadWeek: "5",
+      deloadEveryWeeks: "5",
     });
     expect(r.ok).toBe(true);
-    expect(deloadOutOfRangeMessage(5, 4)).toBe(
-      "Week 5 is past the end of a 4-week block. Choose a week from 1 to 4.",
+    expect(deloadCadenceMessage(5, 4)).toBe(
+      "A deload every 5 weeks never happens in a 4-week block. Use 4 or fewer.",
     );
-    expect(deloadOutOfRangeMessage(4, 4)).toBeNull();
+    expect(deloadCadenceMessage(4, 4)).toBeNull();
   });
 
   it("sets ≥ 1; reps ≥ 1; min ≤ max; equal valid; never swapped", () => {
