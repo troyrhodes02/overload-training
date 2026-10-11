@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // UI previews are hand-authored static design-handoff artifacts
+    // (overload-ui-design skill); they are never imported into the app.
+    "docs/previews/**",
   ]),
 ]);
 

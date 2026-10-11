@@ -70,3 +70,26 @@ Guided Workout Logging owns `isGymVariable(exercise)` and must decide it from `e
 4. An unmapped source value aborts the import before any write.
 
 Pinned source: `yuhonas/free-exercise-db` commit `f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5`, 876 records.
+
+---
+
+## Gym-variable classification and baselines (established by Guided Workout Logging)
+
+Source: `docs/specs/04-guided-workout-logging-spec.md` (Resolved Decisions 40–48). Code: `src/lib/exercises/gym-variable.ts` (`isGymVariable`), `src/lib/gyms/baselines.ts` (median + threshold + establish/correct).
+
+- **`isGymVariable(exercise)`** is the single authority. It returns `true` **iff** `equipmentType ∈ { machine, cable }`, decided from `equipmentType` alone — never by name. Both values are verified canonical members of the `Equipment` enum / `EQUIPMENT_TYPES`.
+- `plate_loaded` is **gym-consistent** (not gym-variable): a plate-loaded machine's resistance is the plates, so it does not vary by gym. Only custom exercises carry `plate_loaded`; imported `machine` records that are physically plate-loaded cannot be told apart from the source and are treated as gym-variable (a known, accepted imprecision the lifter can avoid by creating `plate_loaded` custom exercises).
+- Only gym-variable exercises get a `GymExerciseBaseline` row; free-weight/plate-consistent exercises get **none** (no zero placeholders).
+- **Representative session weight** = the **median** of a completed `LoggedExercise`'s planned-working-set weights (`100,100,110,110 → 105`). Not first/max/mean/latest.
+- **Baseline establish/correct** happens at exercise completion, in the same transaction as the completing set write, scoped to `(gymId, exerciseId)` only, never rewriting any `LoggedSet`. First completed collection **establishes** (not a correction).
+- **Correction threshold:** `BASELINE_CORRECTION_THRESHOLD_PERCENT = 15` — correct iff `|median − baseline| × 100 ≥ baseline × 15` (float-safe Decimal math). This is a **tunable Bucket C default**, not PRD-derived; expected to be re-tuned from lived data (the Architecture Doc's identified top technical risk).
+- Historical set edits do **not** replay baselines; the stored baseline remains the latest value established/corrected by live logging.
+
+## New data objects (established by Guided Workout Logging)
+
+Source: `docs/specs/04-guided-workout-logging-spec.md` §8. These extend the Architecture Data Model (which predates them); recorded here per the run's amendment 9/10.
+
+- **`LoggedSessionStatus { in_progress, complete }`** — explicit completion state on `LoggedSession`; never inferred. `completedAt` is its timestamp.
+- **`LoggedSession.scheduledFor` (DATE)** — the authored calendar date of the planned occurrence; the idempotency key `(sessionId, scheduledFor)` so opening/resuming never duplicates a session.
+- **`LoggedExercise` plan-context snapshot** — `plannedExerciseId`, `sessionExerciseId` (SetNull), `plannedSets`, `targetRepMin`, `targetRepMax`: durable plan provenance so later plan edits can't make old history unintelligible. `exerciseId` is the **performed** exercise (changes on swap); `plannedExerciseId` is immutable.
+- **`MissedDayResolution { mesocycleId, sessionId?, missedOn (DATE), outcome }`**, `outcome ∈ MissedDayOutcome { logged_late, shifted, skipped }`, unique `(mesocycleId, missedOn)`, immutable in Pitch 4, RLS deny-all. The effective training schedule is derived from the authored `Mesocycle` plus these records; the template is never mutated. Shifts are computed **per mesocycle week independently** (current-week scope; a shifted occurrence beyond the week is dropped, never carried forward).
