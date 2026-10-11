@@ -10,6 +10,7 @@ import {
   swapExercise,
 } from "@/lib/logging/sessions";
 import { logSet, type LogSetInput } from "@/lib/logging/logged-sets";
+import { resolveMissedDay } from "@/lib/logging/missed-days";
 
 /*
  * Guided Workout Logging server actions. Each re-checks the auth session FIRST,
@@ -77,6 +78,26 @@ export async function completeWorkoutAction(input: {
     await completeWorkout(input);
     return { ok: true as const };
   }, "Couldn't finish the workout.");
+  if (result.ok) refresh();
+  return result;
+}
+
+/**
+ * Resolve a missed planned day as shifted or skipped (Resolved Decisions 31–39).
+ * "Log it late" is not routed here — it starts the LoggedSession for the missed
+ * occurrence (via startWorkoutAction with scheduledFor = missedOn), which is the
+ * real training record and resolves the missed-day detection on its own.
+ */
+export async function resolveMissedDayAction(input: {
+  mesocycleId: string;
+  missedOn: string;
+  outcome: "shifted" | "skipped";
+}): Promise<ActionResult<{ ok: true }>> {
+  await requireUser();
+  const result = await toActionResult(async () => {
+    await resolveMissedDay(input);
+    return { ok: true as const };
+  }, "Couldn't resolve the missed day.");
   if (result.ok) refresh();
   return result;
 }

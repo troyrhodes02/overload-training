@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatPlanDate } from "@/lib/plan/calendar";
+import { MissedDayPrompt } from "@/components/logging/missed-day-prompt";
 import {
   getTodayDashboard,
   type DashboardTodayDto,
@@ -111,20 +112,24 @@ export default async function TodayPage() {
     );
   }
 
-  // Missed-day prompt UI arrives in OVE-24; until then surface today's state.
-  const state = dash.kind === "missed_day" ? dash.below : dash;
+  if (dash.kind === "missed_day") {
+    return (
+      <section className="space-y-6">
+        <p className="text-sm text-muted-foreground">Today · {today}</p>
+        <MissedDayPrompt missed={dash.missed} />
+        {dash.below ? (
+          <div className="pointer-events-none opacity-50" aria-hidden>
+            <TodayBlock state={dash.below} />
+          </div>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">
       <p className="text-sm text-muted-foreground">Today · {today}</p>
-      {state ? (
-        <TodayBlock state={state} />
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-6">
-          <p className="font-medium">No lifting planned today.</p>
-          <p className="mt-1 text-sm text-muted-foreground">Rest up.</p>
-        </div>
-      )}
+      <TodayBlock state={dash} />
     </section>
   );
 }

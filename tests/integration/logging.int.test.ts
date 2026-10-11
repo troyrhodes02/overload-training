@@ -525,4 +525,20 @@ describe("missed-day resolution is immutable (Decision 33)", () => {
       }),
     ).rejects.toMatchObject({ code: "conflict" });
   });
+
+  it("links the resolution to the planned session for that weekday", async () => {
+    const meso = await createTestMesocycle();
+    const session = await createTestSession(meso.id, { dayOfWeek: 1 }); // Monday
+    // 2026-11-02 is a Monday.
+    await resolveMissedDay({
+      mesocycleId: meso.id,
+      missedOn: "2026-11-02",
+      outcome: "skipped",
+    });
+    const row = await db().missedDayResolution.findFirstOrThrow({
+      where: { mesocycleId: meso.id },
+    });
+    expect(row.sessionId).toBe(session.id);
+    expect(row.outcome).toBe("skipped");
+  });
 });
