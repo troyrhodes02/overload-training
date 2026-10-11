@@ -4,6 +4,11 @@ import {
   parseIsoDate,
 } from "@/lib/plan/calendar";
 
+/** Mesocycle week for a date, defaulting to week 1 before the start. */
+export function mesocycleWeek(startDate: string, dateIso: string): number {
+  return mesocycleWeekForDate(startDate, dateIso) ?? 1;
+}
+
 /**
  * Effective-schedule derivation for Guided Workout Logging (Resolved Decisions
  * 2, 30, 36–38, A1, A4). Pure module — the single place the authored plan plus

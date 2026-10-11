@@ -99,14 +99,16 @@ describe("no workout logging, plan building, or progression", () => {
     expect(codeOffenders).toEqual([]);
   });
 
-  it("has no logging, history, or goal routes", () => {
+  it("adds the logging route but still no goals route (Goals is Pitch 6)", () => {
     const appDir = path.join(SRC, "app", "(app)");
     const routes = fs
       .readdirSync(appDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name)
       .sort();
-    expect(routes).toEqual(["exercises", "gyms", "plan"]);
+    // Guided Workout Logging adds `log` (and `history` in a later ticket).
+    expect(routes).not.toContain("goals");
+    expect(routes).toEqual(["exercises", "gyms", "log", "plan"]);
   });
 });
 

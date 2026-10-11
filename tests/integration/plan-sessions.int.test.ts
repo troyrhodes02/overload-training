@@ -225,13 +225,16 @@ describe("archived mesocycles are read-only", () => {
     const { mesocycle, session } = await createReadyDraft({
       status: "archived",
     });
-    for (const op of [
-      addSession({ mesocycleId: mesocycle.id, name: "X", dayOfWeek: 2 }),
-      renameSession({ sessionId: session.id, name: "X" }),
-      moveSession({ sessionId: session.id, dayOfWeek: 2 }),
-      removeSession({ sessionId: session.id }),
-    ]) {
-      expect((await fails(op)).code).toBe("invalid_state_transition");
+    // Thunks so each op runs only when awaited — sequential, not four concurrent
+    // transactions racing on the same row (which was intermittently flaky).
+    const ops = [
+      () => addSession({ mesocycleId: mesocycle.id, name: "X", dayOfWeek: 2 }),
+      () => renameSession({ sessionId: session.id, name: "X" }),
+      () => moveSession({ sessionId: session.id, dayOfWeek: 2 }),
+      () => removeSession({ sessionId: session.id }),
+    ];
+    for (const op of ops) {
+      expect((await fails(op())).code).toBe("invalid_state_transition");
     }
   });
 
