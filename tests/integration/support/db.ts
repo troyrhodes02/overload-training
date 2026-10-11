@@ -19,6 +19,7 @@ export const APP_TABLES = [
   "logged_sets",
   "goals",
   "cardio_logs",
+  "missed_day_resolutions",
 ] as const;
 
 let client: PrismaClient | undefined;

@@ -41,12 +41,23 @@ const schema = fs.readFileSync(
 );
 
 describe("no workout logging, plan building, or progression", () => {
-  it("writes no logged-history, baseline, goal, or cardio rows", () => {
+  it("writes no goal or cardio rows (still deferred); logged-history/baseline writes stay in the logging modules", () => {
+    // Goals (Pitch 6) and Cardio (Pitch 7) remain unwritten.
     expect(
       offenders(
-        /\.\s*(loggedSession|loggedExercise|loggedSet|gymExerciseBaseline|goal|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+        /\.\s*(goal|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
       ),
     ).toEqual([]);
+    // Guided Workout Logging (Pitch 4) introduces logged-history/baseline writes,
+    // but only inside the controlled logging modules.
+    const loggedWriters = offenders(
+      /\.\s*(loggedSession|loggedExercise|loggedSet|gymExerciseBaseline)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+    );
+    for (const file of loggedWriters) {
+      expect(file).toMatch(
+        /^src\/lib\/(logging\/(logged-sets|sessions)|gyms\/baselines)\.ts$/,
+      );
+    }
   });
 
   it("writes plan rows only through the plan write modules (Split & Mesocycle Builder)", () => {
@@ -71,12 +82,21 @@ describe("no workout logging, plan building, or progression", () => {
     expect(touched).toEqual([]);
   });
 
-  it("has no baseline correction, gym-variable rule, progression, e1RM, or swap code", () => {
-    expect(
-      offenders(
-        /\b(isGymVariable|applyBaselineCorrection|estimateOneRepMax|progressionTag|e1rm|swapExercise|resolveMissedDay|logSet)\b/i,
-      ),
-    ).toEqual([]);
+  it("has no progression, e1RM, tag, or reactive-deload code (deferred to Pitch 5)", () => {
+    // Pitch 4 records facts only. isGymVariable, logSet, swapExercise,
+    // resolveMissedDay, and baseline correction are now legitimately present;
+    // progression interpretation is not. Code only — comments may say "e1RM" to
+    // explain what must never be computed.
+    const re =
+      /\b(estimateOneRepMax|progressionTag|progressTag|e1rm|oneRepMax|reactiveDeload)\b/i;
+    const codeOffenders = files
+      .filter((f) =>
+        re.test(
+          f.src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""),
+        ),
+      )
+      .map((f) => f.rel);
+    expect(codeOffenders).toEqual([]);
   });
 
   it("has no logging, history, or goal routes", () => {
@@ -130,10 +150,23 @@ describe("the plan carries no weights, gyms, or performance (Split & Mesocycle B
     expect(offending).toEqual([]);
   });
 
-  it("no missed-day, completion, or day-shift behavior in the plan", () => {
-    expect(
-      offenders(/\b(missedDay|skipDay|shiftWeek|markComplete|completedAt)\b/),
-    ).toEqual([]);
+  it("no missed-day, completion, or day-shift behavior in the PLAN modules", () => {
+    // Guided Workout Logging owns this behavior in src/lib/logging/*; the plan
+    // authoring modules must stay clear of it.
+    const planOffenders = files
+      .filter(
+        (f) =>
+          f.rel.startsWith("src/lib/plan/") ||
+          f.rel.startsWith("src/app/(app)/plan/") ||
+          f.rel.startsWith("src/components/plan/"),
+      )
+      .filter((f) =>
+        /\b(missedDay|skipDay|shiftWeek|markComplete|completedAt)\b/.test(
+          f.src,
+        ),
+      )
+      .map((f) => f.rel);
+    expect(planOffenders).toEqual([]);
   });
 });
 
