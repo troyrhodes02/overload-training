@@ -90,7 +90,7 @@ export default async function MesocyclePage({
           <MetaLine>{dates}</MetaLine>
           <MetaLine>
             {m.lengthWeeks} {m.lengthWeeks === 1 ? "week" : "weeks"} · deload
-            week {m.deloadWeek} · {m.splitLabel}
+            every {m.deloadEveryWeeks} weeks · {m.splitLabel}
           </MetaLine>
           {archived && (
             <p className="text-sm text-muted-foreground">

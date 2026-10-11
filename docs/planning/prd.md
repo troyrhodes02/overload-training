@@ -8,7 +8,7 @@ Overload is a single-user strength training tracker whose core job is to tell th
 
 ### Journey: Setting up a mesocycle and split
 
-The lifter starts a new mesocycle by either picking a preset structure (push/pull/legs, Arnold, bro split) or building a custom one. Building custom means creating individual exercise sessions (e.g., "Push Day 1"), populating each with exercises, planned sets, and target rep ranges, then assigning each session to a day of the week. A session can be duplicated and assigned to a second day (e.g., copying "Push Day 1" from Monday onto Thursday) or edited independently after copying. When starting a new mesocycle, the lifter can clone a prior one and edit it forward rather than building from scratch. At creation, the lifter sets the mesocycle's length in weeks and which week is the scheduled deload, pre-filled with a default of a 5-week block with week 5 as the deload, editable per mesocycle.
+The lifter starts a new mesocycle by either picking a preset structure (push/pull/legs, Arnold, bro split) or building a custom one. Building custom means creating individual exercise sessions (e.g., "Push Day 1"), populating each with exercises, planned sets, and target rep ranges, then assigning each session to a day of the week. A session can be duplicated and assigned to a second day (e.g., copying "Push Day 1" from Monday onto Thursday) or edited independently after copying. When starting a new mesocycle, the lifter can clone a prior one and edit it forward rather than building from scratch. At creation, the lifter sets the mesocycle's length in weeks and a deload cadence — a planned deload falls on every Nth week (weeks N, 2N, 3N…) — pre-filled with a default of a 5-week block deloading every 5 weeks, editable per mesocycle.
 
 ### Journey: Logging a workout
 
@@ -20,7 +20,7 @@ As the lifter logs sets against an exercise's planned rep range, the rule-based 
 
 ### Journey: Scheduled deload week
 
-Independently of the reactive engine above, the mesocycle's designated deload week automatically reduces load/intensity across the entire split for that week — this is planned recovery, not a reaction to any single lift stalling. While a scheduled deload week is active, the reactive per-exercise progress/deload check is suppressed entirely, since every lift is already intentionally reduced and a stall flag on top of an intentional deload would be meaningless. The reactive engine resumes normal operation the moment the deload week ends.
+Independently of the reactive engine above, the mesocycle's deload cadence automatically reduces load/intensity across the entire split on every Nth week — this is planned recovery, not a reaction to any single lift stalling. While a scheduled deload week is active, the reactive per-exercise progress/deload check is suppressed entirely, since every lift is already intentionally reduced and a stall flag on top of an intentional deload would be meaningless. The reactive engine resumes normal operation the moment the deload week ends.
 
 ### Journey: Handling a missed training day
 
@@ -60,7 +60,7 @@ The lifter can set one or more concurrent goals, each tied to a specific lift as
 - **Acceptance criteria:**
   - A lifter can select a preset split type or build a fully custom one from scratch.
   - A session can be assigned to a day, duplicated onto another day, and edited independently after duplication.
-  - Mesocycle length and deload week are set at creation with pre-filled defaults, and both are editable.
+  - Mesocycle length and deload cadence (every N weeks) are set at creation with pre-filled defaults, and both are editable.
   - A new mesocycle can be created by cloning and editing a prior one.
 - **Edge cases / failure states:**
   - Starting a mesocycle with no exercises assigned to any day is either blocked or clearly flagged as incomplete before it can go live.
@@ -90,10 +90,10 @@ The lifter can set one or more concurrent goals, each tied to a specific lift as
   - Editing a past log retroactively re-runs the check for that lift and can change a previously assigned tag.
 
 #### Scheduled Deload
-- **What it does:** Automatically reduces load/intensity across the entire split during the mesocycle's designated deload week.
+- **What it does:** Automatically reduces load/intensity across the entire split on every Nth week of the mesocycle, per its deload cadence.
 - **Why:** Matches established periodization practice and gives systemic recovery independent of any single lift's performance.
 - **Acceptance criteria:**
-  - The designated deload week applies reduced load/intensity across all exercises in the split without per-exercise configuration required.
+  - Each scheduled deload week (every Nth week) applies reduced load/intensity across all exercises in the split without per-exercise configuration required.
   - The reactive progress/deload engine is suppressed for the duration of the scheduled deload week.
 - **Edge cases / failure states:**
   - A missed day that gets shifted into or out of the deload week correctly picks up or drops the deload behavior based on where it actually lands.
@@ -168,7 +168,7 @@ Subjective effort logging per set to feed a more precise, autoregulated version 
 
 ## Data Objects (Product Level)
 
-**Split / Mesocycle** — the lifter can create, clone, and edit a mesocycle, including its length and deload week placement. A mesocycle contains a set of Sessions assigned to days.
+**Split / Mesocycle** — the lifter can create, clone, and edit a mesocycle, including its length and deload cadence (every N weeks). A mesocycle contains a set of Sessions assigned to days.
 
 **Session** — a named workout template (e.g., "Push Day 1") the lifter can create, edit, duplicate across days, and reassign. Contains an ordered list of exercises with planned sets and target rep ranges.
 

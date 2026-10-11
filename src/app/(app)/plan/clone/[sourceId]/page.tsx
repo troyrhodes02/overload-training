@@ -17,7 +17,7 @@ const MAX_LISTED = 5;
 /**
  * Confirm the new block's name and dates and see what comes across before the
  * clone is created as a draft (spec D30–D36). Defaults: "<name> Copy", the day
- * after the source ends, the same length and deload week — all editable.
+ * after the source ends, the same length and deload cadence — all editable.
  */
 export default async function CloneSetupPage({ params }: PageProps) {
   const { sourceId } = await params;
@@ -60,7 +60,7 @@ export default async function CloneSetupPage({ params }: PageProps) {
           name: defaults.name,
           startDate: defaults.startDate ?? "",
           lengthWeeks: String(defaults.lengthWeeks),
-          deloadWeek: String(defaults.deloadWeek),
+          deloadEveryWeeks: String(defaults.deloadEveryWeeks),
           splitType: source.splitType,
         }}
       >

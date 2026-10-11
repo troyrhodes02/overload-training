@@ -79,16 +79,18 @@ enum Equipment {
 }
 
 model Mesocycle {
-  id          String          @id @default(uuid()) @db.Uuid
-  name        String
-  lengthWeeks Int             @map("length_weeks")
-  deloadWeek  Int             @map("deload_week")
-  splitType   SplitType       @map("split_type")
-  status      MesocycleStatus @default(draft)
+  id               String          @id @default(uuid()) @db.Uuid
+  name             String
+  lengthWeeks      Int             @map("length_weeks")
+  /// Deload cadence: a planned deload falls on every Nth week (weeks N, 2N, 3N…).
+  /// The column keeps its Foundation name (no destructive rename migration).
+  deloadEveryWeeks Int             @map("deload_week")
+  splitType        SplitType       @map("split_type")
+  status           MesocycleStatus @default(draft)
   /// Calendar date (no time, no zone). Week 1 begins on this date (spec D59).
-  startDate   DateTime?       @map("start_date") @db.Date
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+  startDate        DateTime?       @map("start_date") @db.Date
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
   sessions       Session[]
   loggedSessions LoggedSession[]

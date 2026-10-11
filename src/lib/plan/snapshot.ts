@@ -48,7 +48,7 @@ export function toReadinessInput(row: PlanRow): ReadinessInput {
     name: row.name,
     startDate: startDateIso(row),
     lengthWeeks: row.lengthWeeks,
-    deloadWeek: row.deloadWeek,
+    deloadEveryWeeks: row.deloadEveryWeeks,
     sessions: row.sessions.map((s) => ({
       id: s.id,
       name: s.name,

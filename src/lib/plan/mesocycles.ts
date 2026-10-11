@@ -69,7 +69,7 @@ export async function createMesocycle(
         name: details.value.name,
         startDate: toDbDate(details.value.startDate),
         lengthWeeks: details.value.lengthWeeks,
-        deloadWeek: details.value.deloadWeek,
+        deloadEveryWeeks: details.value.deloadEveryWeeks,
         splitType: split.value,
         status: "draft",
       },
@@ -106,8 +106,9 @@ export async function updateMesocycleDetails(
       const details: Record<string, string> = {};
       if (!v.startDate)
         details.startDate = "An active block needs a start date.";
-      if (v.deloadWeek > v.lengthWeeks)
-        details.deloadWeek = "An active block needs a deload week inside it.";
+      if (v.deloadEveryWeeks > v.lengthWeeks)
+        details.deloadEveryWeeks =
+          "An active block needs its deload to happen at least once.";
       if (Object.keys(details).length > 0) throw invalid(details);
     }
     await t.mesocycle.update({
@@ -116,7 +117,7 @@ export async function updateMesocycleDetails(
         name: v.name,
         startDate: toDbDate(v.startDate),
         lengthWeeks: v.lengthWeeks,
-        deloadWeek: v.deloadWeek,
+        deloadEveryWeeks: v.deloadEveryWeeks,
       },
     });
     return { id: row.id };
@@ -264,7 +265,7 @@ export async function cloneMesocycle(
         name: v.name,
         startDate: toDbDate(v.startDate),
         lengthWeeks: v.lengthWeeks,
-        deloadWeek: v.deloadWeek,
+        deloadEveryWeeks: v.deloadEveryWeeks,
         splitType: source.splitType,
         status: "draft",
       },

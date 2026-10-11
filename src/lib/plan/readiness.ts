@@ -29,7 +29,7 @@ export type ReadinessInput = {
   name: string;
   startDate: string | null;
   lengthWeeks: number;
-  deloadWeek: number;
+  deloadEveryWeeks: number;
   sessions: ReadinessSession[];
 };
 
@@ -37,7 +37,11 @@ export type ReadinessIssue =
   | { code: "name_missing" }
   | { code: "start_date_missing" }
   | { code: "length_invalid" }
-  | { code: "deload_out_of_range"; deloadWeek: number; lengthWeeks: number }
+  | {
+      code: "deload_exceeds_length";
+      deloadEveryWeeks: number;
+      lengthWeeks: number;
+    }
   | { code: "nothing_scheduled" }
   | {
       code: "session_empty";
@@ -88,13 +92,13 @@ export function evaluateReadiness(plan: ReadinessInput): Readiness {
     plan.lengthWeeks <= LENGTH_WEEKS_MAX;
   if (!lengthOk) issues.push({ code: "length_invalid" });
   else if (
-    !Number.isInteger(plan.deloadWeek) ||
-    plan.deloadWeek < 1 ||
-    plan.deloadWeek > plan.lengthWeeks
+    !Number.isInteger(plan.deloadEveryWeeks) ||
+    plan.deloadEveryWeeks < 1 ||
+    plan.deloadEveryWeeks > plan.lengthWeeks
   ) {
     issues.push({
-      code: "deload_out_of_range",
-      deloadWeek: plan.deloadWeek,
+      code: "deload_exceeds_length",
+      deloadEveryWeeks: plan.deloadEveryWeeks,
       lengthWeeks: plan.lengthWeeks,
     });
   }
@@ -155,8 +159,8 @@ export function readinessIssueMessage(issue: ReadinessIssue): string {
       return "Add a start date.";
     case "length_invalid":
       return "Set a length of at least 1 week.";
-    case "deload_out_of_range":
-      return `Deload week ${issue.deloadWeek} is past the end of a ${issue.lengthWeeks}-week block.`;
+    case "deload_exceeds_length":
+      return `A deload every ${issue.deloadEveryWeeks} weeks never happens in a ${issue.lengthWeeks}-week block.`;
     case "nothing_scheduled":
       return "Put at least one session on the schedule.";
     case "session_empty":
@@ -177,7 +181,7 @@ export function readinessIssueHref(
     case "name_missing":
     case "start_date_missing":
     case "length_invalid":
-    case "deload_out_of_range":
+    case "deload_exceeds_length":
       return `/plan/${mesocycleId}/details`;
     case "nothing_scheduled":
       return `/plan/${mesocycleId}#week`;

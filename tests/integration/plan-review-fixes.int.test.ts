@@ -97,7 +97,7 @@ describe("session order is explicit (review #6)", () => {
       name: "Clone",
       startDate: "",
       lengthWeeks: "5",
-      deloadWeek: "5",
+      deloadEveryWeeks: "5",
     });
     expect(
       (await getMesocycleWeek(id))?.unscheduled.map((s) => s.name),

@@ -137,7 +137,7 @@ The rule is the same regardless of training phase: hit the top of the **planned 
 
 ### Two deload systems that must stay separate
 
-The **scheduled deload** is planned recovery: the mesocycle's designated week reduces load across the whole split, regardless of how any lift is doing. The **reactive deload** is a per-exercise call from the progression rule. They are independent. A valid state proving it: a lift can be tagged deload by the rule during week 2, while week 5 is a scheduled deload for everything, including lifts that never stalled.
+The **scheduled deload** is planned recovery: the mesocycle's deload cadence (`deloadEveryWeeks`) places a deload on every Nth week — weeks N, 2N, 3N… — reducing load across the whole split, regardless of how any lift is doing. The **reactive deload** is a per-exercise call from the progression rule. They are independent. A valid state proving it: a lift can be tagged deload by the rule during week 2, while week 5 (a scheduled deload week when the cadence is every 5) is a scheduled deload for everything, including lifts that never stalled.
 
 During a scheduled deload week the reactive check is **suppressed entirely**. It resumes the moment the week ends. Editing a past log never retroactively applies the reactive check to a week that was a scheduled deload.
 

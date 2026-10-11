@@ -95,7 +95,7 @@ describe("plan server actions (authenticated)", () => {
     fd.set("name", "Strength Block");
     fd.set("startDate", "");
     fd.set("lengthWeeks", "5");
-    fd.set("deloadWeek", "5");
+    fd.set("deloadEveryWeeks", "5");
     fd.set("splitType", "ppl");
     fd.set("status", "active"); // smuggled; must be ignored
     await expect(
@@ -106,7 +106,7 @@ describe("plan server actions (authenticated)", () => {
             name: "",
             startDate: "",
             lengthWeeks: "",
-            deloadWeek: "",
+            deloadEveryWeeks: "",
             splitType: "",
           },
         },
@@ -117,7 +117,7 @@ describe("plan server actions (authenticated)", () => {
       name: "Strength Block",
       startDate: "",
       lengthWeeks: "5",
-      deloadWeek: "5",
+      deloadEveryWeeks: "5",
       splitType: "ppl",
     });
   });

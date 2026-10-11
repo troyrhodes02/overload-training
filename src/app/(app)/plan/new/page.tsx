@@ -1,7 +1,7 @@
 import { BackLink } from "@/components/plan/plan-bits";
 import { MesocycleForm } from "@/components/plan/mesocycle-form";
 import {
-  DEFAULT_DELOAD_WEEK,
+  DEFAULT_DELOAD_EVERY_WEEKS,
   DEFAULT_LENGTH_WEEKS,
 } from "@/lib/plan/validation";
 import { createMesocycleAction } from "../actions";
@@ -20,13 +20,13 @@ export default function NewMesocyclePage() {
         variant="create"
         submitLabel="Create draft"
         pendingLabel="Creating…"
-        // 5 weeks / deload week 5 are editable pre-fills (spec D6, D7). The
-        // start date is never inferred (spec D60); no structure is pre-chosen.
+        // 5 weeks / deload every 5 weeks are editable pre-fills (spec D6, D7).
+        // The start date is never inferred (spec D60); no structure is pre-chosen.
         initial={{
           name: "",
           startDate: "",
           lengthWeeks: String(DEFAULT_LENGTH_WEEKS),
-          deloadWeek: String(DEFAULT_DELOAD_WEEK),
+          deloadEveryWeeks: String(DEFAULT_DELOAD_EVERY_WEEKS),
           splitType: "",
         }}
       />

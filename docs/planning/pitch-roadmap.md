@@ -35,11 +35,11 @@ Risk is not front-loaded. The architecture doc's biggest technical risk — tuni
 ### Pitch 3: Split & Mesocycle Builder
 - **Type:** Feature
 - **Value delivered:** The lifter can design a full training plan — this is the first pitch that produces something they'd actually use.
-- **Includes:** Mesocycle creation (length in weeks, deload week placement, default of 5 weeks / week 5), preset split types (PPL, Arnold, bro split) and custom split building, session creation with exercises/planned sets/target rep ranges, assigning sessions to days, duplicating a session across days, cloning a prior mesocycle forward into a new one.
+- **Includes:** Mesocycle creation (length in weeks, deload cadence — a deload every N weeks — default of 5 weeks / deload every 5 weeks), preset split types (PPL, Arnold, bro split) and custom split building, session creation with exercises/planned sets/target rep ranges, assigning sessions to days, duplicating a session across days, cloning a prior mesocycle forward into a new one.
 - **Defers:** Nothing is logged against the plan yet — this pitch is pure plan authoring.
 - **Depends on:** Pitch 2 (sessions reference exercises).
 - **Definition of done:**
-  - A mesocycle can be created via a preset or fully custom split, with length and deload week set (defaulted, editable).
+  - A mesocycle can be created via a preset or fully custom split, with length and deload cadence (every N weeks) set (defaulted, editable).
   - A session can be built with exercises, planned sets, and target rep ranges, then assigned to a day.
   - A session can be duplicated onto another day and edited independently afterward.
   - A new mesocycle can be created by cloning and editing a prior one forward.
@@ -61,13 +61,13 @@ Risk is not front-loaded. The architecture doc's biggest technical risk — tuni
 ### Pitch 5: Progressive Overload Engine
 - **Type:** Feature
 - **Value delivered:** The product's core differentiator goes live — the lifter is told whether to progress, hold, or deload, instead of having to judge it themselves.
-- **Includes:** Rule-based threshold detection against each exercise's planned rep range (progress/hold/deload tagging), e1RM rolling trend calculation and charting, scheduled deload week behavior (automatic reduced load across the split during the mesocycle's designated deload week), suppression of the reactive check during a scheduled deload week, retroactive re-evaluation of a lift's tag when a past log is edited.
+- **Includes:** Rule-based threshold detection against each exercise's planned rep range (progress/hold/deload tagging), e1RM rolling trend calculation and charting, scheduled deload week behavior (automatic reduced load across the split on every Nth week, per the mesocycle's deload cadence), suppression of the reactive check during a scheduled deload week, retroactive re-evaluation of a lift's tag when a past log is edited.
 - **Defers:** Nothing further — this completes the core progression loop described in the Brief's core job.
 - **Depends on:** Pitch 4 (requires logged set data to evaluate against).
 - **Definition of done:**
   - An exercise is correctly tagged progress, deload, or left untagged based on logged performance against its planned rep range.
   - The e1RM trend is calculated and viewable per exercise.
-  - The scheduled deload week applies reduced load across the split automatically, and the reactive check does not fire during it.
+  - Each scheduled deload week (every Nth week) applies reduced load across the split automatically, and the reactive check does not fire during it.
   - Editing a past log correctly re-runs and, where warranted, changes that lift's tag.
 
 ### Pitch 6: Goals

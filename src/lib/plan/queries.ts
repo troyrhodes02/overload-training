@@ -32,7 +32,7 @@ export type MesocycleSummaryDto = {
   startDate: string | null;
   endDate: string | null;
   lengthWeeks: number;
-  deloadWeek: number;
+  deloadEveryWeeks: number;
   sessionCount: number;
   issueCount: number;
 };
@@ -86,7 +86,7 @@ function toSummary(row: PlanRow, readiness: Readiness): MesocycleSummaryDto {
     startDate,
     endDate: startDate ? plannedEndDate(startDate, row.lengthWeeks) : null,
     lengthWeeks: row.lengthWeeks,
-    deloadWeek: row.deloadWeek,
+    deloadEveryWeeks: row.deloadEveryWeeks,
     sessionCount: row.sessions.length,
     issueCount: readiness.issues.length,
   };
@@ -269,7 +269,7 @@ export type CloneSetupDto = {
     name: string;
     startDate: string | null;
     lengthWeeks: number;
-    deloadWeek: number;
+    deloadEveryWeeks: number;
   };
   exerciseCount: number;
   archivedReferences: { exerciseName: string; sessionName: string }[];
@@ -277,7 +277,7 @@ export type CloneSetupDto = {
 
 /**
  * What a clone of `sourceId` would start from (spec D33–D35): "<name> Copy",
- * the day after the source's planned end, the same length and deload week —
+ * the day after the source's planned end, the same length and deload cadence —
  * all editable — plus the archived exercises that will arrive for repair.
  * Null when the source doesn't exist or is a draft.
  */
@@ -298,7 +298,7 @@ export async function getCloneSetup(
       name: copyName(row.name),
       startDate: cloneDefaultStartDate(startDate, row.lengthWeeks),
       lengthWeeks: row.lengthWeeks,
-      deloadWeek: row.deloadWeek,
+      deloadEveryWeeks: row.deloadEveryWeeks,
     },
     exerciseCount: row.sessions.reduce(
       (n, s) => n + s.sessionExercises.length,

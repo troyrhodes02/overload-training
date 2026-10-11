@@ -34,7 +34,7 @@ export type MesocycleFormValues = {
   name: string;
   startDate: string;
   lengthWeeks: string;
-  deloadWeek: string;
+  deloadEveryWeeks: string;
   splitType: string;
 };
 
@@ -49,7 +49,7 @@ function formValues(formData: FormData): MesocycleFormValues {
     name: get("name"),
     startDate: get("startDate"),
     lengthWeeks: get("lengthWeeks"),
-    deloadWeek: get("deloadWeek"),
+    deloadEveryWeeks: get("deloadEveryWeeks"),
     splitType: get("splitType"),
   };
 }
