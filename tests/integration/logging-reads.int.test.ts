@@ -7,7 +7,11 @@ import {
 } from "./support/plan-factories";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
 import { logSet } from "@/lib/logging/logged-sets";
-import { getTodayDashboard, getWorkout } from "@/lib/logging/queries";
+import {
+  getSwapContext,
+  getTodayDashboard,
+  getWorkout,
+} from "@/lib/logging/queries";
 
 /**
  * Read layer for the dashboard and runner (OVE-22). Dashboard "today" logic is
@@ -77,5 +81,62 @@ describe("getWorkout", () => {
 
   it("returns null for an unknown workout", async () => {
     expect(await getWorkout("00000000-0000-0000-0000-000000000000")).toBeNull();
+  });
+});
+
+describe("getSwapContext", () => {
+  it("offers only active same-primary-muscle candidates (favorites first), excluding the performed one", async () => {
+    const meso = await createTestMesocycle();
+    const planned = await createTestExercise({
+      name: "Chest Press Machine",
+      primaryMuscle: "chest",
+      equipmentType: "machine",
+    });
+    const session = await createTestSession(meso.id, { dayOfWeek: 1 });
+    await createTestSessionExercise(session.id, planned.id, { plannedSets: 3 });
+    const gym = await db().gym.create({ data: { name: "Downtown Gym" } });
+
+    await createTestExercise({
+      name: "Incline DB Press",
+      primaryMuscle: "chest",
+    });
+    await createTestExercise({
+      name: "Cable Fly",
+      primaryMuscle: "chest",
+      isFavorite: true,
+    });
+    await createTestExercise({ name: "Barbell Row", primaryMuscle: "back" });
+    await createTestExercise({
+      name: "Old Chest",
+      primaryMuscle: "chest",
+      deletedAt: new Date(),
+    });
+
+    const { loggedSessionId } = await startOrResumeWorkout({
+      sessionId: session.id,
+      scheduledFor: "2026-11-02",
+      gymId: gym.id,
+    });
+    const le = await db().loggedExercise.findFirstOrThrow({
+      where: { loggedSessionId },
+    });
+
+    const ctx = await getSwapContext(le.id);
+    // Favorite first, then alpha; excludes the performed (Chest Press Machine),
+    // the back exercise, and the archived one.
+    expect(ctx!.candidates.map((c) => c.name)).toEqual([
+      "Cable Fly",
+      "Incline DB Press",
+    ]);
+    expect(ctx!.swapLocked).toBe(false);
+
+    await logSet({
+      loggedExerciseId: le.id,
+      setNumber: 1,
+      weightLbs: 100,
+      reps: 8,
+    });
+    const locked = await getSwapContext(le.id);
+    expect(locked!.swapLocked).toBe(true);
   });
 });

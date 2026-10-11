@@ -7,6 +7,7 @@ import {
   changeGym,
   completeWorkout,
   startOrResumeWorkout,
+  swapExercise,
 } from "@/lib/logging/sessions";
 import { logSet, type LogSetInput } from "@/lib/logging/logged-sets";
 
@@ -51,6 +52,19 @@ export async function logSetAction(
     async () => ({ setId: (await logSet(input)).id }),
     "Couldn't save. Your numbers are still here.",
   );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function swapExerciseAction(input: {
+  loggedExerciseId: string;
+  newExerciseId: string;
+}): Promise<ActionResult<{ ok: true }>> {
+  await requireUser();
+  const result = await toActionResult(async () => {
+    await swapExercise(input);
+    return { ok: true as const };
+  }, "Couldn't swap the exercise.");
   if (result.ok) refresh();
   return result;
 }

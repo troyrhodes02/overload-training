@@ -3,6 +3,7 @@ import type { LoggedSessionStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { toIsoDate } from "@/lib/plan/calendar";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
 import {
   occurrenceOnDate,
   oldestUnresolvedMissedDay,
@@ -368,5 +369,52 @@ export async function getWorkout(
     isHistoricalDate: toIsoDate(ls.scheduledFor) !== todayIso(),
     exercises,
     complete: allComplete && ls.status === "complete",
+  };
+}
+
+export type SwapCandidate = { id: string; name: string; isFavorite: boolean };
+
+export type SwapContextDto = {
+  loggedExerciseId: string;
+  plannedExerciseName: string;
+  primaryMuscleLabel: string;
+  swapLocked: boolean;
+  candidates: SwapCandidate[];
+};
+
+/**
+ * Swap eligibility (Resolved Decisions 25–29): active exercises sharing the
+ * PLANNED exercise's primary muscle, excluding the one already performed.
+ * Favorites sort first but never gate eligibility. Secondary muscles never
+ * qualify. Swap is locked once a set exists on the occurrence.
+ */
+export async function getSwapContext(
+  loggedExerciseId: string,
+): Promise<SwapContextDto | null> {
+  const le = await prisma.loggedExercise.findUnique({
+    where: { id: loggedExerciseId },
+    include: {
+      plannedExercise: { select: { name: true, primaryMuscle: true } },
+      sets: { select: { id: true }, take: 1 },
+    },
+  });
+  if (!le) return null;
+
+  const candidates = await prisma.exercise.findMany({
+    where: {
+      deletedAt: null,
+      primaryMuscle: le.plannedExercise.primaryMuscle,
+      id: { not: le.exerciseId },
+    },
+    select: { id: true, name: true, isFavorite: true },
+    orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
+  });
+
+  return {
+    loggedExerciseId: le.id,
+    plannedExerciseName: le.plannedExercise.name,
+    primaryMuscleLabel: muscleGroupLabel(le.plannedExercise.primaryMuscle),
+    swapLocked: le.sets.length > 0,
+    candidates,
   };
 }

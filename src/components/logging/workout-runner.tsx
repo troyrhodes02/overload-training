@@ -94,7 +94,25 @@ export function WorkoutRunner({
       ) : null}
 
       {current ? (
-        <ExerciseCard exercise={current} gymLocked={workout.gymLocked} />
+        <ExerciseCard
+          exercise={current}
+          gymLocked={workout.gymLocked}
+          swapSlot={
+            current.sets.some((s) => s.saved) ? (
+              <Button variant="secondary" className="w-full" disabled>
+                Swap exercise · locked (sets logged)
+              </Button>
+            ) : (
+              <Button asChild variant="secondary" className="w-full">
+                <Link
+                  href={`/log/${workout.loggedSessionId}/${current.loggedExerciseId}/swap`}
+                >
+                  Swap exercise
+                </Link>
+              </Button>
+            )
+          }
+        />
       ) : null}
 
       {error ? (
