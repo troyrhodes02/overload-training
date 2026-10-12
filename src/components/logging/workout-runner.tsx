@@ -6,7 +6,10 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ExerciseCard } from "@/components/logging/exercise-card";
+import {
+  ExerciseCard,
+  type CardProgression,
+} from "@/components/logging/exercise-card";
 import { GymPicker, type GymOption } from "@/components/logging/gym-picker";
 import { completeWorkoutAction } from "@/app/(app)/log/actions";
 import type { WorkoutDto } from "@/lib/logging/queries";
@@ -19,9 +22,12 @@ import type { WorkoutDto } from "@/lib/logging/queries";
 export function WorkoutRunner({
   workout,
   activeGyms,
+  progression,
 }: {
   workout: WorkoutDto;
   activeGyms: GymOption[];
+  /** Derived per-occurrence progression, keyed by loggedExerciseId (OVE-28). */
+  progression: Record<string, CardProgression>;
 }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
@@ -100,6 +106,7 @@ export function WorkoutRunner({
           key={current.loggedExerciseId}
           exercise={current}
           gymLocked={workout.gymLocked}
+          progression={progression[current.loggedExerciseId]}
           swapSlot={
             current.sets.some((s) => s.saved) ? (
               <Button variant="secondary" className="w-full" disabled>
