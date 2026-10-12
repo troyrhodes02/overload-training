@@ -10,4 +10,7 @@ prisma/seed/free-exercise-db/exercises.json
 # UI previews are hand-authored static design-handoff pages (overload-ui-design
 # skill): compact CSS by design, never part of the app.
 docs/previews/**/*.html
+# The Guided Workout Logging preview is a .tsx implementation contract (per the
+# pitch-4 run prompt), still a design-handoff artifact and not part of the app.
+docs/previews/**/*.tsx
 .claude/skills/**/*.html

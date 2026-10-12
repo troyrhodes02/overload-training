@@ -440,13 +440,17 @@ describe("exercise archival never destroys or detaches history", () => {
     const s = await seedLibrary();
     const gym = await prisma.gym.create({ data: { name: "Downtown Gym" } });
     const loggedSession = await prisma.loggedSession.create({
-      data: { performedOn: new Date() },
+      data: { performedOn: new Date(), scheduledFor: new Date() },
     });
     const loggedExercise = await prisma.loggedExercise.create({
       data: {
         loggedSessionId: loggedSession.id,
         exerciseId: s.pulldown.id,
+        plannedExerciseId: s.pulldown.id,
         gymId: gym.id,
+        plannedSets: 3,
+        targetRepMin: 6,
+        targetRepMax: 8,
       },
     });
 

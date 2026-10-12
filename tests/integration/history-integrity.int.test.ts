@@ -20,14 +20,18 @@ describe("logged-history referential integrity", () => {
       data: { name: "Downtown Gym", address: "Downtown, near the river" },
     });
     const loggedSession = await prisma.loggedSession.create({
-      data: { performedOn: new Date() },
+      data: { performedOn: new Date(), scheduledFor: new Date() },
     });
     const loggedExercise = await prisma.loggedExercise.create({
       data: {
         loggedSessionId: loggedSession.id,
         exerciseId: exercise.id,
+        plannedExerciseId: exercise.id,
         gymId: gym.id,
         position: 0,
+        plannedSets: 3,
+        targetRepMin: 6,
+        targetRepMax: 8,
       },
     });
     return { exercise, gym, loggedExercise };

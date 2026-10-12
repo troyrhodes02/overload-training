@@ -92,13 +92,17 @@ describe("gym management", () => {
       },
     });
     const loggedSession = await prisma.loggedSession.create({
-      data: { performedOn: new Date() },
+      data: { performedOn: new Date(), scheduledFor: new Date() },
     });
     const loggedExercise = await prisma.loggedExercise.create({
       data: {
         loggedSessionId: loggedSession.id,
         exerciseId: exercise.id,
+        plannedExerciseId: exercise.id,
         gymId: gym.id,
+        plannedSets: 3,
+        targetRepMin: 6,
+        targetRepMax: 8,
       },
     });
 

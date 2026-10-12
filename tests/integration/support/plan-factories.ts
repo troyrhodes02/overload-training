@@ -88,10 +88,18 @@ export async function seedLoggedHistory(input: {
       mesocycleId: input.mesocycleId,
       sessionId: input.sessionId,
       performedOn: new Date("2026-10-05T12:00:00Z"),
+      scheduledFor: new Date("2026-10-05T00:00:00Z"),
     },
   });
   const loggedExercise = await p.loggedExercise.create({
-    data: { loggedSessionId: loggedSession.id, exerciseId: input.exerciseId },
+    data: {
+      loggedSessionId: loggedSession.id,
+      exerciseId: input.exerciseId,
+      plannedExerciseId: input.exerciseId,
+      plannedSets: 3,
+      targetRepMin: 6,
+      targetRepMax: 8,
+    },
   });
   await p.loggedSet.create({
     data: {
