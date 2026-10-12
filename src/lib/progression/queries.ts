@@ -16,6 +16,7 @@ import {
   type ReactiveState,
 } from "./engine";
 import { sessionE1rm } from "./e1rm";
+import type { ProgressionTag, SuggestedLoadDto } from "./types";
 
 /**
  * Server-side read layer for the Progressive Overload Engine (spec §11, §11a,
@@ -28,12 +29,7 @@ import { sessionE1rm } from "./e1rm";
  * machine pounds are never compared across gyms.
  */
 
-export type ProgressionTag = "progress" | "deload" | "stalled";
-
-export type SuggestedLoadDto = {
-  lbs: number;
-  kind: "progress_increment" | "scheduled_deload";
-} | null;
+export type { ProgressionTag, SuggestedLoadDto } from "./types";
 
 export type E1rmPointDto = {
   dateIso: string;
@@ -297,6 +293,48 @@ export async function getExerciseProgression(
     currentE1rm: currentE1rm(scopeRows),
     qualifyingCount: qualifyingSequence(scopeRows.map((r) => r.perf)).length,
     points: toPoints(scopeRows, selectedGymName),
+  };
+}
+
+export type PlannedProgressionDto = {
+  tag: ProgressionTag | null;
+  gymVariable: boolean;
+  suggestion: SuggestedLoadDto;
+  hasTrend: boolean;
+};
+
+/**
+ * Progression for a planned exercise on the dashboard, BEFORE the workout gym is
+ * selected (spec §7; design Screen 1). Gym-variable exercises defer their call
+ * until a gym is chosen (R14, R15): no tag, no fabricated number. Gym-consistent
+ * exercises show their global call now; during a scheduled-deload week the
+ * reactive tag is suppressed and the 90% load is shown instead (R37).
+ */
+export async function getPlannedProgression(
+  exerciseId: string,
+  opts: { scheduledDeloadWeek: boolean },
+): Promise<PlannedProgressionDto> {
+  const base = await getExerciseProgression(exerciseId);
+  if (!base) {
+    return { tag: null, gymVariable: false, suggestion: null, hasTrend: false };
+  }
+  const hasTrend = base.points.length > 0;
+  if (base.isGymVariable) {
+    return { tag: null, gymVariable: true, suggestion: null, hasTrend };
+  }
+  if (opts.scheduledDeloadWeek) {
+    return {
+      tag: null,
+      gymVariable: false,
+      suggestion: await scheduledDeloadSuggestion(exerciseId, null, false),
+      hasTrend,
+    };
+  }
+  return {
+    tag: base.tag,
+    gymVariable: false,
+    suggestion: base.suggestion,
+    hasTrend,
   };
 }
 
