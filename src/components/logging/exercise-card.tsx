@@ -2,11 +2,28 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Check, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { logSetAction } from "@/app/(app)/log/actions";
 import type { ExerciseCardDto } from "@/lib/logging/queries";
+import type { ProgressionTag, SuggestedLoadDto } from "@/lib/progression/types";
+import { ProgressTag } from "@/components/progression/progress-tag";
+import { SuggestedLoad } from "@/components/progression/suggested-load";
+
+/**
+ * Derived progression shown beside the bar (OVE-28). Display-only: the tag never
+ * becomes a control and the suggestion never pre-fills set entry. During a
+ * scheduled-deload week the reactive tag is suppressed and only the 90% load
+ * shows (R37).
+ */
+export type CardProgression = {
+  tag: ProgressionTag | null;
+  suggestion: SuggestedLoadDto;
+  scheduledDeloadWeek: boolean;
+  hasTrend: boolean;
+};
 
 /**
  * Guided per-exercise logging card (design Screen 4). All planned working-set
@@ -20,11 +37,14 @@ export function ExerciseCard({
   exercise,
   gymLocked,
   swapSlot,
+  progression,
 }: {
   exercise: ExerciseCardDto;
   gymLocked: boolean;
   /** Swap control is provided by a later ticket (OVE-23); slot in if present. */
   swapSlot?: React.ReactNode;
+  /** Derived progression for this occurrence (OVE-28); omitted → no tag/suggestion. */
+  progression?: CardProgression;
 }) {
   const router = useRouter();
   const [drafts, setDrafts] = useState<Record<number, Draft>>(() =>
@@ -109,13 +129,30 @@ export function ExerciseCard({
               Swapped from {exercise.plannedExerciseName}
             </p>
           ) : null}
+          {progression?.scheduledDeloadWeek ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Deload week — recovery, not a verdict.
+            </p>
+          ) : progression?.tag === "stalled" ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Rep target met, but e1RM flat across recent sessions — holding.
+            </p>
+          ) : null}
+          {progression?.suggestion ? (
+            <p className="mt-1">
+              <SuggestedLoad suggestion={progression.suggestion} />
+            </p>
+          ) : null}
         </div>
-        {exercise.isGymVariable && exercise.gymName ? (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            {exercise.gymName}
-            {gymLocked ? <Lock className="size-3" /> : null}
-          </span>
-        ) : null}
+        <div className="flex flex-col items-end gap-1">
+          {progression?.tag ? <ProgressTag state={progression.tag} /> : null}
+          {exercise.isGymVariable && exercise.gymName ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              {exercise.gymName}
+              {gymLocked ? <Lock className="size-3" /> : null}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-4 space-y-3 tabular-nums">
@@ -172,6 +209,17 @@ export function ExerciseCard({
           );
         })}
       </div>
+
+      {progression?.hasTrend ? (
+        <div className="mt-3">
+          <Link
+            href={`/exercises/${exercise.performedExerciseId}`}
+            className="text-sm text-primary"
+          >
+            View trend ›
+          </Link>
+        </div>
+      ) : null}
 
       {swapSlot ? <div className="mt-4">{swapSlot}</div> : null}
     </div>

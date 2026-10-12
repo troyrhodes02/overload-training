@@ -6,33 +6,78 @@ import {
   getTodayDashboard,
   type DashboardTodayDto,
 } from "@/lib/logging/queries";
+import {
+  getPlannedProgression,
+  getSessionProgressionSummary,
+} from "@/lib/progression/queries";
+import { ProgressTag } from "@/components/progression/progress-tag";
+import { SuggestedLoad } from "@/components/progression/suggested-load";
+import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload-banner";
 
 export const metadata = { title: "Today · Overload" };
 
-function TodayBlock({ state }: { state: DashboardTodayDto }) {
-  if (state.kind === "complete") {
-    return (
-      <div className="rounded-lg border border-border bg-card p-6">
-        <p className="font-medium">✓ {state.sessionName} complete</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {state.gymName ? `${state.gymName} · ` : ""}
-          {state.exercises.length} exercises · {state.setsLogged} working sets
-          logged
+/** Post-session progression summary on the day-complete state (OVE-28; R52). */
+async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
+  const summary = state.loggedSessionId
+    ? await getSessionProgressionSummary(state.loggedSessionId)
+    : null;
+  return (
+    <div className="rounded-lg border border-border bg-card p-6">
+      <p className="font-medium">✓ {state.sessionName} complete</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {state.gymName ? `${state.gymName} · ` : ""}
+        {state.exercises.length} exercises · {state.setsLogged} working sets
+        logged
+      </p>
+      {summary?.scheduledDeloadWeek ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Deload week — recovery, not a verdict.
         </p>
-        <div className="mt-4 flex items-center gap-4 text-sm">
-          {state.loggedSessionId ? (
-            <Button asChild variant="secondary" size="sm">
-              <Link href={`/history/${state.loggedSessionId}`}>
-                View workout
-              </Link>
-            </Button>
-          ) : null}
-          <Link href="/history" className="text-muted-foreground">
-            History →
-          </Link>
-        </div>
+      ) : summary && summary.exercises.length > 0 ? (
+        <ul className="mt-4 space-y-2">
+          {summary.exercises.map((e) => (
+            <li
+              key={e.performedExerciseId}
+              className="flex items-center justify-between gap-2 text-sm"
+            >
+              <span className="flex items-center gap-2">
+                {e.performedExerciseName}
+                <ProgressTag state={e.tag} />
+              </span>
+              <span className="flex items-center gap-3">
+                {e.tag === "progress" && e.suggestion ? (
+                  <SuggestedLoad suggestion={e.suggestion} />
+                ) : null}
+                {e.hasTrend ? (
+                  <Link
+                    href={`/exercises/${e.performedExerciseId}`}
+                    className="text-primary"
+                  >
+                    trend ›
+                  </Link>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="mt-4 flex items-center gap-4 text-sm">
+        {state.loggedSessionId ? (
+          <Button asChild variant="secondary" size="sm">
+            <Link href={`/history/${state.loggedSessionId}`}>View workout</Link>
+          </Button>
+        ) : null}
+        <Link href="/history" className="text-muted-foreground">
+          History →
+        </Link>
       </div>
-    );
+    </div>
+  );
+}
+
+async function TodayBlock({ state }: { state: DashboardTodayDto }) {
+  if (state.kind === "complete") {
+    return <CompleteBlock state={state} />;
   }
 
   const resuming = state.kind === "in_progress";
@@ -40,8 +85,21 @@ function TodayBlock({ state }: { state: DashboardTodayDto }) {
     ? `/log/${state.loggedSessionId}`
     : `/log/start?sessionId=${state.sessionId}&scheduledFor=${state.scheduledFor}`;
 
+  // Derived tags for the planned list (OVE-28). Free-weight exercises show their
+  // global call now; gym-variable exercises defer until the workout gym is chosen
+  // (R14/R15). During a scheduled-deload week reactive tags are suppressed and
+  // the 90% load is shown instead (R37).
+  const progression = await Promise.all(
+    state.exercises.map((e) =>
+      getPlannedProgression(e.exerciseId, {
+        scheduledDeloadWeek: state.scheduledDeloadWeek,
+      }),
+    ),
+  );
+
   return (
     <div className="space-y-4">
+      {state.scheduledDeloadWeek ? <ScheduledDeloadBanner /> : null}
       <div className="rounded-lg border border-border bg-card p-6">
         <p className="font-medium">
           {state.sessionName}
@@ -56,15 +114,29 @@ function TodayBlock({ state }: { state: DashboardTodayDto }) {
             : `${state.exercises.length} exercises`}
         </p>
         <ul className="mt-3 space-y-1.5 tabular-nums">
-          {state.exercises.map((e, i) => (
-            <li key={i} className="flex items-center justify-between text-sm">
-              <span className={e.done ? "text-muted-foreground" : ""}>
-                {e.done ? "✓ " : ""}
-                {e.name}
-              </span>
-              <span className="text-muted-foreground">{e.scheme}</span>
-            </li>
-          ))}
+          {state.exercises.map((e, i) => {
+            const p = progression[i];
+            return (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
+                <span className={e.done ? "text-muted-foreground" : ""}>
+                  {e.done ? "✓ " : ""}
+                  {e.name}
+                </span>
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  {p.gymVariable ? (
+                    <span className="text-xs">once gym is set</span>
+                  ) : p.suggestion ? (
+                    <SuggestedLoad suggestion={p.suggestion} />
+                  ) : null}
+                  <ProgressTag state={p.tag} />
+                  {!p.tag && !p.gymVariable ? e.scheme : null}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </div>
       <Button asChild size="lg" className="w-full">

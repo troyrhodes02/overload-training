@@ -82,22 +82,10 @@ describe("no workout logging, plan building, or progression", () => {
     expect(touched).toEqual([]);
   });
 
-  it("has no progression, e1RM, tag, or reactive-deload code (deferred to Pitch 5)", () => {
-    // Pitch 4 records facts only. isGymVariable, logSet, swapExercise,
-    // resolveMissedDay, and baseline correction are now legitimately present;
-    // progression interpretation is not. Code only — comments may say "e1RM" to
-    // explain what must never be computed.
-    const re =
-      /\b(estimateOneRepMax|progressionTag|progressTag|e1rm|oneRepMax|reactiveDeload)\b/i;
-    const codeOffenders = files
-      .filter((f) =>
-        re.test(
-          f.src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""),
-        ),
-      )
-      .map((f) => f.rel);
-    expect(codeOffenders).toEqual([]);
-  });
+  // (Progression/e1RM code is now legitimately present — this is Pitch 5. The
+  // durable invariant that progression is DERIVED, NEVER STORED is enforced in
+  // tests/unit/invariant-guards.test.ts: no progression/e1RM column, a single
+  // e1RM formula, and read-only progression modules.)
 
   it("adds the logging route but still no goals route (Goals is Pitch 6)", () => {
     const appDir = path.join(SRC, "app", "(app)");

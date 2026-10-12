@@ -8,6 +8,7 @@ import {
   toIsoDate,
 } from "@/lib/plan/calendar";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { isScheduledDeloadWeek } from "@/lib/progression/deload";
 import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
 import {
   effectiveWeekSchedule,
@@ -28,6 +29,9 @@ export type DashboardExercisePreview = {
   name: string;
   scheme: string;
   done: boolean;
+  /** Performed/planned exercise identity, so the dashboard can derive its tag (OVE-28). */
+  exerciseId: string;
+  isGymVariable: boolean;
 };
 
 export type MissedDayInfo = {
@@ -45,6 +49,8 @@ export type DashboardTodayDto = {
   sessionName: string;
   scheduledFor: string;
   week: number;
+  /** This occurrence's week is a scheduled-deload week (OVE-28; R41). */
+  scheduledDeloadWeek: boolean;
   gymName: string | null;
   exercises: DashboardExercisePreview[];
   setsLogged: number;
@@ -109,6 +115,7 @@ function todayIso(): string {
 async function activeContext(): Promise<{
   mesocycleId: string;
   lengthWeeks: number;
+  deloadEveryWeeks: number;
   startDate: string;
   ctx: ScheduleContext;
 } | null> {
@@ -149,6 +156,7 @@ async function activeContext(): Promise<{
   return {
     mesocycleId: meso.id,
     lengthWeeks: meso.lengthWeeks,
+    deloadEveryWeeks: meso.deloadEveryWeeks,
     startDate,
     ctx,
   };
@@ -160,12 +168,16 @@ async function plannedPreview(
   const slots = await prisma.sessionExercise.findMany({
     where: { sessionId },
     orderBy: { position: "asc" },
-    include: { exercise: { select: { name: true } } },
+    include: {
+      exercise: { select: { id: true, name: true, equipmentType: true } },
+    },
   });
   return slots.map((s) => ({
     name: s.exercise.name,
     scheme: scheme(s.plannedSets, s.targetRepMin, s.targetRepMax),
     done: false,
+    exerciseId: s.exercise.id,
+    isGymVariable: isGymVariable(s.exercise),
   }));
 }
 
@@ -178,7 +190,7 @@ async function loggedPreview(loggedSessionId: string): Promise<{
     where: { loggedSessionId },
     orderBy: { position: "asc" },
     include: {
-      exercise: { select: { name: true } },
+      exercise: { select: { id: true, name: true, equipmentType: true } },
       gym: { select: { name: true } },
       sets: { select: { setNumber: true } },
     },
@@ -193,6 +205,8 @@ async function loggedPreview(loggedSessionId: string): Promise<{
       name: le.exercise.name,
       scheme: scheme(le.plannedSets, le.targetRepMin, le.targetRepMax),
       done: valid >= le.plannedSets,
+      exerciseId: le.exercise.id,
+      isGymVariable: isGymVariable(le.exercise),
     };
   });
   return { exercises, setsLogged, gymName: les[0]?.gym?.name ?? null };
@@ -237,7 +251,7 @@ export async function getTodayDashboard(): Promise<DashboardDto> {
 }
 
 async function buildTodayState(
-  active: { ctx: ScheduleContext },
+  active: { ctx: ScheduleContext; deloadEveryWeeks: number },
   occ: {
     sessionId: string;
     sessionName: string;
@@ -247,6 +261,10 @@ async function buildTodayState(
   today: string,
 ): Promise<DashboardTodayDto> {
   const week = mesocycleWeek(active.ctx.startDate, today);
+  const scheduledDeloadWeek = isScheduledDeloadWeek(
+    week,
+    active.deloadEveryWeeks,
+  );
   const logged = await prisma.loggedSession.findUnique({
     where: {
       sessionId_scheduledFor: {
@@ -265,6 +283,7 @@ async function buildTodayState(
       sessionName: occ.sessionName,
       scheduledFor: occ.authoredIso,
       week,
+      scheduledDeloadWeek,
       gymName: null,
       exercises: await plannedPreview(occ.sessionId),
       setsLogged: 0,
@@ -279,6 +298,7 @@ async function buildTodayState(
     sessionName: occ.sessionName,
     scheduledFor: occ.authoredIso,
     week,
+    scheduledDeloadWeek,
     gymName,
     exercises,
     setsLogged,
@@ -302,6 +322,21 @@ async function suggestedWeight(
     select: { weightLbs: true },
   });
   return recent ? Number(recent.weightLbs) : null;
+}
+
+/**
+ * The current working-weight context for an exercise — the SINGLE Pitch 4 weight
+ * source (gym baseline for gym-variable at a gym; otherwise the latest logged
+ * weight). The Progressive Overload Engine reuses this for its +5 Progress and
+ * ×0.90 scheduled-deload suggestions, so there is never a second weight authority
+ * (Resolved Decisions R29, R34). Returns null when no context exists (R31, R36).
+ */
+export async function currentWorkingWeightLbs(
+  performedExerciseId: string,
+  gymId: string | null,
+  gymVariable: boolean,
+): Promise<number | null> {
+  return suggestedWeight(performedExerciseId, gymId, gymVariable);
 }
 
 export async function getWorkout(

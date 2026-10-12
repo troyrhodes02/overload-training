@@ -30,6 +30,77 @@ describe("logged-history write guard", () => {
   });
 });
 
+describe("progression is derived, never stored (Progressive Overload Engine)", () => {
+  const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
+  const read = (f: string) => fs.readFileSync(f, "utf8");
+  const PROGRESSION = path.join(SRC, "lib", "progression");
+
+  it("schema.prisma declares no progression-tag / e1RM / recommendation column", () => {
+    // Strip comment lines first — the schema legitimately *mentions* these names
+    // in comments ("No progressionTag column and no e1RM column").
+    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"))
+      .split("\n")
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join("\n");
+    expect(schema).not.toMatch(
+      /progressionTag|needsDeload|isStalled|latestE1rm|nextWeight|suggestedWeight/i,
+    );
+    expect(schema).not.toMatch(/\be1rm\b|one_rep_max|estimated_one_rep_max/i);
+    // No new progression/trend table.
+    expect(schema).not.toMatch(
+      /model\s+(Progression|Trend|E1rm|ReactiveTag)\b/i,
+    );
+  });
+
+  it("defines estimateOneRepMax exactly once (no second e1RM formula)", () => {
+    const defs = walk(SRC).filter((f) =>
+      /export function estimateOneRepMax/.test(read(f)),
+    );
+    expect(defs.map(rel)).toEqual(["src/lib/progression/e1rm.ts"]);
+    // No Epley arithmetic (`reps / 30`) anywhere else.
+    const epley = walk(SRC)
+      .filter((f) => rel(f) !== "src/lib/progression/e1rm.ts")
+      .filter((f) => /\breps\s*\/\s*30\b/.test(read(f)));
+    expect(epley.map(rel)).toEqual([]);
+  });
+
+  it("the e1RM module has no Prisma/React/chart/server-only import (Goals reuse)", () => {
+    const src = read(path.join(PROGRESSION, "e1rm.ts"));
+    expect(src).not.toMatch(
+      /from\s+["'](@prisma\/client|react|recharts|@\/lib\/db|server-only)/,
+    );
+  });
+
+  it("progression modules never write the database (engine is read-only)", () => {
+    if (!fs.existsSync(PROGRESSION)) return;
+    const writeRe =
+      /\b(prisma|tx|t)\s*\.\s*\w+\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/;
+    const baselineWrite =
+      /gymExerciseBaseline\s*\.\s*(create|update|upsert|delete)/;
+    const offenders = walk(PROGRESSION).filter((f) => {
+      const src = read(f);
+      return writeRe.test(src) || baselineWrite.test(src);
+    });
+    expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it("introduces no cron / scheduler / queue dependency", () => {
+    const pkg = JSON.parse(read(path.join(REPO_ROOT, "package.json")));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const banned = [
+      "cron",
+      "node-cron",
+      "node-schedule",
+      "bullmq",
+      "bull",
+      "bee-queue",
+      "agenda",
+      "@vercel/cron",
+    ];
+    expect(banned.filter((b) => b in deps)).toEqual([]);
+  });
+});
+
 describe("exercise and gym write guards (Library & Gyms Setup)", () => {
   const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
 
