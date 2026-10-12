@@ -26,18 +26,18 @@ transition and ticket boundary.
   else latest LoggedSet weight). Pitch 5 adds +5 / ×0.90 on top of this source.
 - No e1RM / progression code anywhere yet (clean slate).
 
-## Pipeline status
+## Pipeline status — COMPLETE ✅ (merged to main on green)
 
-- [x] 1. Design doc — `docs/design/05-progressive-overload-engine-design-doc.md` ✅
-- [x] 2. UI preview — `docs/previews/05-progressive-overload-engine-preview.tsx` ✅ (.tsx per run prompt + Pitch 4 precedent; skill's default .html overridden by governing run prompt)
-- [x] 3. Spec — `docs/specs/05-progressive-overload-engine-spec.md` ✅ (55 Resolved Decisions R1–R55)
-- [x] 4. Linear milestone + issues ✅
-- [ ] 5. Feature PR into `main` (in progress)
-- [ ] 6. Implement tickets
-- [ ] 7. Runbook + merge tickets to feature
-- [ ] 8. Full verification
-- [ ] 9. Review + audit
-- [ ] 10. Merge on green + run report
+- [x] 1. Design doc — `docs/design/05-progressive-overload-engine-design-doc.md`
+- [x] 2. UI preview — `docs/previews/05-progressive-overload-engine-preview.tsx` (.tsx per run prompt + Pitch 4 precedent)
+- [x] 3. Spec — `docs/specs/05-progressive-overload-engine-spec.md` (55 Resolved Decisions R1–R55)
+- [x] 4. Linear milestone + issues (OVE-26…29)
+- [x] 5. Feature PR into `main` (#31)
+- [x] 6. Implement tickets (PRs #32–#35)
+- [x] 7. Runbook + merge tickets to feature
+- [x] 8. Full verification (lint, typecheck, format, unit 213, integration 173, build, e2e 17)
+- [x] 9. Review + audit (#31: 0 implement / 4 skip; no blocking findings)
+- [x] 10. Merge on green + run report — **merged to `main` (`3b2e0ea`)**; report at `docs/runs/05-progressive-overload-engine-report.md`
 
 ## Linear
 
