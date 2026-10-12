@@ -64,8 +64,11 @@ export function AppNav() {
                 className={cn(
                   "flex flex-col items-center gap-1 py-3 text-xs font-medium",
                   "md:flex-row md:gap-3 md:rounded-md md:px-3 md:py-2 md:text-sm",
+                  // Active uses the electric-blue accent — a subtle tinted fill
+                  // on the md+ rail — plus semibold weight so the selected state
+                  // never relies on color alone (also carries aria-current).
                   active
-                    ? "text-primary md:bg-accent md:text-accent-foreground"
+                    ? "font-semibold text-primary md:bg-primary/10"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >

@@ -151,10 +151,7 @@ export function ExerciseCard({
                 />
                 <span className="text-sm text-muted-foreground">reps</span>
                 {s.saved ? (
-                  <Check
-                    className="size-4 text-muted-foreground"
-                    aria-label="Saved"
-                  />
+                  <Check className="size-4 text-primary" aria-label="Saved" />
                 ) : (
                   <Button
                     size="sm"

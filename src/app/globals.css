@@ -4,12 +4,17 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  Overload theme tokens — "a quiet, precise instrument".
-  Palette from the overload-ui-design skill. Light is the :root default;
-  dark applies via the .dark class (future explicit selection) and, with no
-  toggle in Foundation, via the OS preference. The progress/deload status
-  tokens are defined here for later pitches and are NOT used on any Foundation
-  surface.
+  Overload theme tokens — industrial, technical, minimal; a serious strength
+  instrument. Charcoal/steel/white base with a single electric-blue accent used
+  intentionally for CTAs, selected/active states, progress cues, data emphasis,
+  and focus — never as a large bright surface.
+
+  Brand electric blue (sampled from the Overload mark): #0159fd. The primary
+  token is tuned per theme so white labels on it and the accent on near-black
+  both stay legible. Light is the :root default; dark applies via the .dark
+  class (explicit selection) and, with no toggle yet, via the OS preference.
+  Semantic green/amber/red (progress/deload/destructive) are preserved — blue
+  never replaces them.
 */
 
 :root {
@@ -21,7 +26,8 @@
   --card-foreground: #0e0e10;
   --popover: #ffffff;
   --popover-foreground: #0e0e10;
-  --primary: #3f5bd9;
+  /* Electric blue — brand accent (white label ≈ 6.5:1; blue-on-white ≈ 6.5:1). */
+  --primary: #0159fd;
   --primary-foreground: #ffffff;
   --secondary: #ececed;
   --secondary-foreground: #0e0e10;
@@ -33,9 +39,9 @@
   --destructive-foreground: #ffffff;
   --border: #e4e4e8;
   --input: #e4e4e8;
-  --ring: #3f5bd9;
+  --ring: #0159fd;
 
-  /* Functional status tokens (defined, unused in Foundation). */
+  /* Functional status tokens (semantic; not replaced by the brand blue). */
   --progress: #2f9e6b;
   --deload: #b7791f;
 }
@@ -47,8 +53,9 @@
   --card-foreground: #f2f2f3;
   --popover: #1c1c1f;
   --popover-foreground: #f2f2f3;
-  --primary: #7b93ff;
-  --primary-foreground: #0b0b0c;
+  /* Electric blue lifted for near-black (white label ≈ 4.8:1; accent ≈ 3.9:1). */
+  --primary: #1a66ff;
+  --primary-foreground: #ffffff;
   --secondary: #1c1c1f;
   --secondary-foreground: #f2f2f3;
   --muted: #1c1c1f;
@@ -59,7 +66,8 @@
   --destructive-foreground: #0b0b0c;
   --border: #26262a;
   --input: #26262a;
-  --ring: #7b93ff;
+  /* Brighter electric blue so focus rings stay clearly visible on near-black. */
+  --ring: #2f7bff;
 
   --progress: #4cc38a;
   --deload: #e0a93b;
@@ -74,8 +82,8 @@
     --card-foreground: #f2f2f3;
     --popover: #1c1c1f;
     --popover-foreground: #f2f2f3;
-    --primary: #7b93ff;
-    --primary-foreground: #0b0b0c;
+    --primary: #1a66ff;
+    --primary-foreground: #ffffff;
     --secondary: #1c1c1f;
     --secondary-foreground: #f2f2f3;
     --muted: #1c1c1f;
@@ -86,7 +94,7 @@
     --destructive-foreground: #0b0b0c;
     --border: #26262a;
     --input: #26262a;
-    --ring: #7b93ff;
+    --ring: #2f7bff;
 
     --progress: #4cc38a;
     --deload: #e0a93b;
