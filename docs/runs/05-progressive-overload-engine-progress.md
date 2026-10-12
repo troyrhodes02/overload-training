@@ -47,7 +47,12 @@ transition and ticket boundary.
   - **OVE-27** — Progression read layer & gym-scoped derivation (blockedBy OVE-26)
   - **OVE-28** — Progression tags & suggestions on dashboard/card/summary (blockedBy OVE-27)
   - **OVE-29** — e1RM chart & exercise progression detail (blockedBy OVE-28)
-- Feature branch: `feat/05-progressive-overload-engine`
+- Feature branch: `feat/05-progressive-overload-engine` → feature PR **#31**
+
+### Ticket PRs
+- OVE-26 → `feat/ove-26-progression-engine` → **PR #32** (base = feature branch) · In Review · 56 unit tests green
+- OVE-27 → `feat/ove-27-progression-reads` → **PR #33** (base = OVE-26 branch) · In Review · 10 integration tests green
+- OVE-28 → `feat/ove-28-progression-ui` → **PR #34** (base = OVE-27 branch) · In Review · 213 unit + build green
 
 ## Notes / decisions log
 
