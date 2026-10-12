@@ -16,7 +16,7 @@ import {
   type ReactiveState,
 } from "./engine";
 import { sessionE1rm } from "./e1rm";
-import type { ProgressionTag, SuggestedLoadDto } from "./types";
+import type { E1rmPointDto, ProgressionTag, SuggestedLoadDto } from "./types";
 
 /**
  * Server-side read layer for the Progressive Overload Engine (spec §11, §11a,
@@ -29,15 +29,7 @@ import type { ProgressionTag, SuggestedLoadDto } from "./types";
  * machine pounds are never compared across gyms.
  */
 
-export type { ProgressionTag, SuggestedLoadDto } from "./types";
-
-export type E1rmPointDto = {
-  dateIso: string;
-  dateLabel: string;
-  e1rm: number;
-  scheduledDeload: boolean;
-  gymName: string | null;
-};
+export type { ProgressionTag, SuggestedLoadDto, E1rmPointDto } from "./types";
 
 export type ExerciseProgressionDto = {
   exerciseId: string;
