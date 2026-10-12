@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AppNav } from "./app-nav";
 import { AccountMenu } from "./account-menu";
+import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { Toaster } from "@/components/ui/sonner";
 
 /**
@@ -16,7 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-dvh flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-lg font-semibold">Overload</span>
+          <OverloadLockup size="sm" />
           <AccountMenu />
         </header>
 
