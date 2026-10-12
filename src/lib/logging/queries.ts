@@ -304,6 +304,21 @@ async function suggestedWeight(
   return recent ? Number(recent.weightLbs) : null;
 }
 
+/**
+ * The current working-weight context for an exercise — the SINGLE Pitch 4 weight
+ * source (gym baseline for gym-variable at a gym; otherwise the latest logged
+ * weight). The Progressive Overload Engine reuses this for its +5 Progress and
+ * ×0.90 scheduled-deload suggestions, so there is never a second weight authority
+ * (Resolved Decisions R29, R34). Returns null when no context exists (R31, R36).
+ */
+export async function currentWorkingWeightLbs(
+  performedExerciseId: string,
+  gymId: string | null,
+  gymVariable: boolean,
+): Promise<number | null> {
+  return suggestedWeight(performedExerciseId, gymId, gymVariable);
+}
+
 export async function getWorkout(
   loggedSessionId: string,
 ): Promise<WorkoutDto | null> {
