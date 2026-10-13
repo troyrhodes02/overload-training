@@ -25,7 +25,7 @@ transition and ticket boundary.
 - [x] 3. UI preview — `docs/previews/07-cardio-logging-preview.tsx`
 - [x] 4. Spec — `docs/specs/07-cardio-logging-spec.md`
 - [x] 5. Linear milestone + issues (OVE-33…35)
-- [ ] 6. Feature PR into `main`
+- [x] 6. Feature PR into `main` (#40)
 - [ ] 7. Implement tickets
 - [ ] 8. Runbook
 - [ ] 9. Merge ticket PRs into feature branch
@@ -43,7 +43,7 @@ transition and ticket boundary.
 - Feature branch: `feat/07-cardio-logging`
 
 ### Ticket PRs
-- OVE-33 → (pending)
+- OVE-33 → **PR #41** (branch `feat/ove-33-planned-cardio`, base feature branch)
 - OVE-34 → (pending)
 - OVE-35 → (pending)
 
