@@ -399,3 +399,55 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
     ).toEqual([]);
   });
 });
+
+describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () => {
+  const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
+  const read = (f: string) => fs.readFileSync(f, "utf8");
+  const schemaModel = (name: string) => {
+    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"))
+      .split("\n")
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join("\n");
+    const start = schema.indexOf(`model ${name} {`);
+    return start < 0 ? "" : schema.slice(start, schema.indexOf("\n}", start));
+  };
+
+  it("never deletes a cardio log anywhere (correction only, R33)", () => {
+    const del = /\.\s*cardioLog\s*\.\s*(delete|deleteMany)\s*\(/;
+    expect(
+      walk(SRC)
+        .filter((f) => del.test(read(f)))
+        .map(rel),
+    ).toEqual([]);
+  });
+
+  it("cardio models hold type + minutes only — no metric, gym, tag, or e1RM column", () => {
+    for (const name of ["PlannedCardio", "CardioLog"]) {
+      const m = schemaModel(name);
+      expect(m).not.toBe("");
+      expect(m).toMatch(/\btype\b/);
+      expect(m).toMatch(/durationMin/);
+      expect(m).not.toMatch(
+        /distance|pace|speed|incline|resistance|watt|calor|heart|\bhr\b|zone|cadence|step|elevation|gps|route|latitude|longitude|rpe|rir|note|gym|exercise|session|tag|progress|deload|e1rm|trend|goal|streak/i,
+      );
+    }
+  });
+
+  it("planned cardio belongs to the day, never to a Session or SessionExercise", () => {
+    expect(schemaModel("PlannedCardio")).not.toMatch(/sessionId|\bSession\b/);
+    expect(schemaModel("SessionExercise")).not.toMatch(/cardio/i);
+    expect(schemaModel("Session")).not.toMatch(/cardio/i);
+  });
+
+  it("adds no timer, health, wearable, or GPS dependency", () => {
+    const pkg = JSON.parse(read(path.join(REPO_ROOT, "package.json")));
+    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+    expect(
+      deps.filter((d) =>
+        /healthkit|apple-?health|strava|garmin|fitbit|wearable|stopwatch|timer|geolocation|gps/i.test(
+          d,
+        ),
+      ),
+    ).toEqual([]);
+  });
+});

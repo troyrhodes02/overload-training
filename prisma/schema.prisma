@@ -119,6 +119,8 @@ model Mesocycle {
   sessions             Session[]
   loggedSessions       LoggedSession[]
   missedDayResolutions MissedDayResolution[]
+  plannedCardio        PlannedCardio[]
+  cardioLogs           CardioLog[]
 
   @@index([status])
   @@map("mesocycles")
@@ -371,14 +373,51 @@ model Goal {
   @@map("goals")
 }
 
-model CardioLog {
+/// Cardio Logging (Pitch 7): the cardio planned for one weekday of a mesocycle.
+/// It belongs to the DAY, never to a Session — a day may have lifting, cardio,
+/// both, or neither. Zero or one per weekday (unique below). Type + whole
+/// minutes only: no metric, gym, or progression column ever lives here.
+/// Written only by src/lib/plan/cardio.ts (and clone-forward in mesocycles.ts).
+/// CHECKs (day 1–7, minutes 1–600, trimmed type 1–40) live in migration 6.
+model PlannedCardio {
   id          String   @id @default(uuid()) @db.Uuid
+  mesocycleId String   @map("mesocycle_id") @db.Uuid
+  /// 1 = Monday … 7 = Sunday. Planned cardio is always on a day.
+  dayOfWeek   Int      @map("day_of_week")
   type        String
   durationMin Int      @map("duration_min")
-  performedOn DateTime @map("performed_on") @db.Timestamptz
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
+
+  @@unique([mesocycleId, dayOfWeek])
+  @@map("planned_cardio")
+}
+
+/// Cardio Logging (Pitch 7): what was actually done for ONE planned cardio
+/// occurrence. Identity is (mesocycleId, scheduledFor) — the authored date of
+/// the occurrence — so a retry can never record it twice. There is no FK to
+/// PlannedCardio: editing or removing the plan can never touch this record.
+/// The planned* columns are an immutable snapshot; type/durationMin are the
+/// correctable facts. No tag, trend, e1RM, gym, or metric column ever lives here.
+/// Written only by src/lib/cardio/cardio-logs.ts. Never deleted.
+model CardioLog {
+  id                 String   @id @default(uuid()) @db.Uuid
+  mesocycleId        String   @map("mesocycle_id") @db.Uuid
+  /// The authored calendar date of the planned occurrence (DATE, no zone).
+  scheduledFor       DateTime @map("scheduled_for") @db.Date
+  plannedType        String   @map("planned_type")
+  plannedDurationMin Int      @map("planned_duration_min")
+  type               String
+  durationMin        Int      @map("duration_min")
+  performedOn        DateTime @map("performed_on") @db.Timestamptz
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
+
+  @@unique([mesocycleId, scheduledFor])
   @@index([performedOn])
   @@map("cardio_logs")
 }

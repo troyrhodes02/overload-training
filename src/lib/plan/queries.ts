@@ -60,9 +60,19 @@ export type PlannedExerciseDto = {
   position: number;
 };
 
+/** One planned cardio item on a weekday (Cardio Logging). */
+export type PlannedCardioDto = {
+  id: string;
+  dayOfWeek: number;
+  type: string;
+  durationMin: number;
+};
+
 export type MesocycleWeekDto = MesocycleSummaryDto & {
   /** Index 0 = Monday … 6 = Sunday. */
   week: (SessionSummaryDto | null)[];
+  /** The day's planned cardio, same indexing as `week` (zero or one per day). */
+  cardio: (PlannedCardioDto | null)[];
   unscheduled: SessionSummaryDto[];
   readiness: Readiness;
   /** The currently active block, when it is not this one. */
@@ -174,9 +184,22 @@ export async function getMesocycleWeek(
     if (s.dayOfWeek === null) unscheduled.push(toSessionSummary(s));
     else week[s.dayOfWeek - 1] = toSessionSummary(s);
   }
+  const cardio: (PlannedCardioDto | null)[] = Array.from(
+    { length: 7 },
+    () => null,
+  );
+  for (const c of row.plannedCardio) {
+    cardio[c.dayOfWeek - 1] = {
+      id: c.id,
+      dayOfWeek: c.dayOfWeek,
+      type: c.type,
+      durationMin: c.durationMin,
+    };
+  }
   return {
     ...toSummary(row, readiness),
     week,
+    cardio,
     unscheduled,
     readiness,
     activeOther: active && active.id !== row.id ? active : null,
@@ -272,6 +295,8 @@ export type CloneSetupDto = {
     deloadEveryWeeks: number;
   };
   exerciseCount: number;
+  /** Days with planned cardio that the clone will carry (Cardio Logging R12). */
+  cardioDayCount: number;
   archivedReferences: { exerciseName: string; sessionName: string }[];
 };
 
@@ -304,6 +329,7 @@ export async function getCloneSetup(
       (n, s) => n + s.sessionExercises.length,
       0,
     ),
+    cardioDayCount: row.plannedCardio.length,
     archivedReferences: readiness.issues.flatMap((i) =>
       i.code === "exercise_archived"
         ? [{ exerciseName: i.exerciseName, sessionName: i.sessionName }]

@@ -561,7 +561,7 @@ function EditCardioDialog() {
         </Field>
         <div className="flex flex-col gap-2 pt-1">
           <PrimaryButton>Save</PrimaryButton>
-          <GhostButton destructive>Remove from plan</GhostButton>
+          <GhostButton>Remove from plan</GhostButton>
           <OutlineButton>Cancel</OutlineButton>
         </div>
       </DialogBox>
@@ -578,9 +578,8 @@ function RemoveConfirm() {
           It comes off the plan from now on. Cardio you've already logged stays in your history.
         </p>
         <div className="flex flex-col gap-2">
-          <button className="inline-flex h-11 w-full items-center justify-center rounded-md bg-destructive text-sm font-medium text-white">
-            Remove
-          </button>
+          {/* Authoring, not destruction (Pitch 3 convention): outline, never red. */}
+          <OutlineButton>Remove</OutlineButton>
           <OutlineButton>Keep it</OutlineButton>
         </div>
       </div>

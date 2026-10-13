@@ -49,7 +49,7 @@ Cardio has no status color. Complete is a check and the minutes; pending is a pl
 | `muted-foreground` | the "Cardio" label, "Planned …" comparison line, "Missed", "Upcoming", dates | |
 | `primary` / `primary-foreground` | **Log cardio** only when cardio is the day's focal action (cardio-only day) | |
 | `secondary` | **Log cardio** when lifting is the focal action (combined day) | keeps lifting's Start button the only primary |
-| `destructive` | inline validation text and the remove-confirmation action | always with text |
+| `destructive` | inline validation text only | removing planned cardio is authoring: outline button, never red (Pitch 3 convention) |
 
 No new tokens. **Progress and deload tokens are not used anywhere in this feature.**
 
@@ -268,7 +268,7 @@ Tapping a cardio line in the week.
 │ Minutes   [ 20 ] min               │
 │                                    │
 │ [          Save            ]       │
-│ [ Remove from plan ]  (ghost, text-destructive)
+│ [ Remove from plan ]  (ghost)
 │ [         Cancel           ]       │
 └────────────────────────────────────┘
 
@@ -277,7 +277,7 @@ Tapping a cardio line in the week.
 │ It comes off the plan from now on. │
 │ Cardio you've already logged stays │
 │ in your history.                   │
-│ [  Remove  ]   [ Keep it ]         │
+│ [  Remove  ]   [ Keep it ]         │  (outline — authoring, not destruction)
 └────────────────────────────────────┘
 ```
 
