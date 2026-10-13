@@ -44,7 +44,7 @@ transition and ticket boundary.
 
 ### Ticket PRs
 - OVE-33 → **PR #41** (branch `feat/ove-33-planned-cardio`, base feature branch)
-- OVE-34 → (pending)
+- OVE-34 → **PR #42** (branch `feat/ove-34-cardio-logging`, stacked on OVE-33)
 - OVE-35 → (pending)
 
 ## Notes / decisions log
