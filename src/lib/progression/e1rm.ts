@@ -21,6 +21,28 @@ export function estimateOneRepMax(weightLbs: number, reps: number): number {
 }
 
 /**
+ * The working set with the highest canonical e1RM estimate — the set that
+ * defines a performance's session-level e1RM (R18). Ties keep the earlier set.
+ * Returns null for an empty list. Goals (Pitch 6) use it to show which set
+ * produced a best performance; it is the same "best set" interpretation as
+ * sessionE1rm, not a second one.
+ */
+export function bestWorkingSet<T extends { weightLbs: number; reps: number }>(
+  workingSets: T[],
+): T | null {
+  let best: T | null = null;
+  let bestE1rm = 0;
+  for (const s of workingSets) {
+    const e = estimateOneRepMax(s.weightLbs, s.reps);
+    if (best === null || e > bestE1rm) {
+      best = s;
+      bestE1rm = e;
+    }
+  }
+  return best;
+}
+
+/**
  * Session-level e1RM point for one completed performance: the MAXIMUM Epley
  * estimate among its valid working sets (R18). The best working set represents
  * demonstrated strength capacity, so averaging fatigue sets is deliberately
@@ -30,10 +52,6 @@ export function estimateOneRepMax(weightLbs: number, reps: number): number {
 export function sessionE1rm(
   workingSets: { weightLbs: number; reps: number }[],
 ): number {
-  let max = 0;
-  for (const s of workingSets) {
-    const e = estimateOneRepMax(s.weightLbs, s.reps);
-    if (e > max) max = e;
-  }
-  return max;
+  const best = bestWorkingSet(workingSets);
+  return best ? Math.max(0, estimateOneRepMax(best.weightLbs, best.reps)) : 0;
 }

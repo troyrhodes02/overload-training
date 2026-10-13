@@ -264,3 +264,138 @@ describe("migration safety (every migration after 0_init)", () => {
     },
   );
 });
+
+describe("goals measure, never program (Goals, Pitch 6)", () => {
+  const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
+  const read = (f: string) => fs.readFileSync(f, "utf8");
+  const GOALS = path.join(SRC, "lib", "goals");
+  const goalModel = () => {
+    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"))
+      .split("\n")
+      .filter((l) => !/^\s*\/\//.test(l) && !/^\s*\/\/\//.test(l))
+      .join("\n");
+    const start = schema.indexOf("model Goal {");
+    return schema.slice(start, schema.indexOf("\n}", start));
+  };
+
+  it("writes Goal rows only in src/lib/goals/goals.ts", () => {
+    const write =
+      /\.\s*goal\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/;
+    const offenders = walk(SRC)
+      .filter((f) => rel(f) !== "src/lib/goals/goals.ts")
+      .filter((f) => write.test(read(f)));
+    expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it("never deletes a goal anywhere (archive only)", () => {
+    const del = /\.\s*goal\s*\.\s*(delete|deleteMany)\s*\(/;
+    expect(
+      walk(SRC)
+        .filter((f) => del.test(read(f)))
+        .map(rel),
+    ).toEqual([]);
+  });
+
+  it("goal modules never write logged history, baselines, the plan, exercises, or gyms", () => {
+    const write =
+      /\.\s*(loggedSet|loggedExercise|loggedSession|gymExerciseBaseline|session|sessionExercise|mesocycle|exercise|gym|missedDayResolution|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/;
+    const goalCode = [
+      ...walk(GOALS),
+      ...walk(path.join(SRC, "app", "(app)", "goals")),
+      ...walk(path.join(SRC, "components", "goals")),
+    ];
+    expect(goalCode.length).toBeGreaterThan(0);
+    expect(goalCode.filter((f) => write.test(read(f))).map(rel)).toEqual([]);
+  });
+
+  it("goal progress never reads gym baselines (a baseline is not demonstrated strength)", () => {
+    const offenders = walk(GOALS).filter((f) =>
+      /gymExerciseBaseline|lib\/gyms\/baselines|currentWorkingWeight/.test(
+        read(f),
+      ),
+    );
+    expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it("goal math reuses the canonical estimator and defines no formula of its own", () => {
+    const progress = read(path.join(GOALS, "progress.ts"));
+    expect(progress).toMatch(
+      /import\s*\{[^}]*estimateOneRepMax[^}]*\}\s*from\s*["']@\/lib\/progression\/e1rm["']/,
+    );
+    for (const f of walk(GOALS)) {
+      expect(read(f)).not.toMatch(
+        /\breps\s*\/\s*30\b|\/\s*30\s*\)|1\s*\+\s*\w+\s*\/\s*30/,
+      );
+      expect(read(f)).not.toMatch(/function\s+estimateOneRepMax/);
+    }
+  });
+
+  it("the Goal model stores target, context, and lifecycle only — no progress, e1RM, or date target", () => {
+    const m = goalModel();
+    expect(m).not.toBe("");
+    expect(m).not.toMatch(
+      /progress|percent|e1rm|oneRep|bestE1rm|currentE1rm|targetE1rm|targetDate|deadline|dueDate|dueOn|targetOn|pace/i,
+    );
+    expect(m).toMatch(/targetWeightLbs/);
+    expect(m).toMatch(/targetReps/);
+    expect(m).toMatch(/gymId/);
+    expect(m).toMatch(/archiveReason/);
+  });
+
+  it("goal UI computes no goal math (DTOs arrive derived)", () => {
+    const ui = [
+      ...walk(path.join(SRC, "components", "goals")),
+      ...walk(path.join(SRC, "app", "(app)", "goals")),
+    ];
+    const offenders = ui.filter((f) =>
+      /estimateOneRepMax|sessionE1rm|computeGoalProgress|goalTargetE1rm/.test(
+        read(f),
+      ),
+    );
+    expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it("goal code carries no dates, pacing, feasibility, gamification, or cardio", () => {
+    const goalCode = [
+      ...walk(GOALS),
+      ...walk(path.join(SRC, "app", "(app)", "goals")),
+      ...walk(path.join(SRC, "components", "goals")),
+    ];
+    const forbidden =
+      /deadline|due\s?date|target\s?date|targetOn|on track|behind pace|pacing|feasib|projected|confetti|streak|\bXP\b|achievement|level.?up|cardio/i;
+    // Code and copy only — doc comments legitimately name what is excluded.
+    const code = (f: string) =>
+      read(f)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+    expect(goalCode.filter((f) => forbidden.test(code(f))).map(rel)).toEqual(
+      [],
+    );
+  });
+
+  it("no goal is ever created except by the lifter's create action", () => {
+    // The only goal.create call is inside createGoal, which only the
+    // createGoalAction server action calls — completion never spawns a goal.
+    const creators = walk(SRC).filter((f) =>
+      /\.\s*goal\s*\.\s*(create|createMany|upsert)\s*\(/.test(read(f)),
+    );
+    expect(creators.map(rel)).toEqual(["src/lib/goals/goals.ts"]);
+    const callers = walk(SRC).filter(
+      (f) =>
+        rel(f) !== "src/lib/goals/goals.ts" && /\bcreateGoal\(/.test(read(f)),
+    );
+    expect(callers.map(rel)).toEqual(["src/app/(app)/goals/actions.ts"]);
+  });
+
+  it("adds no gamification, notification, or scheduling dependency", () => {
+    const pkg = JSON.parse(read(path.join(REPO_ROOT, "package.json")));
+    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+    expect(
+      deps.filter((d) =>
+        /confetti|canvas-confetti|party|fireworks|howler|use-sound|web-push|novu|onesignal|cron|schedule/i.test(
+          d,
+        ),
+      ),
+    ).toEqual([]);
+  });
+});

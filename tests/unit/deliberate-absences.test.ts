@@ -41,13 +41,19 @@ const schema = fs.readFileSync(
 );
 
 describe("no workout logging, plan building, or progression", () => {
-  it("writes no goal or cardio rows (still deferred); logged-history/baseline writes stay in the logging modules", () => {
-    // Goals (Pitch 6) and Cardio (Pitch 7) remain unwritten.
+  it("writes no cardio rows (still deferred), goal rows only in the Goal write module, and logged-history/baseline rows only in the logging modules", () => {
+    // Cardio (Pitch 7) remains unwritten.
     expect(
       offenders(
-        /\.\s*(goal|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+        /\.\s*cardioLog\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
       ),
     ).toEqual([]);
+    // Goals (Pitch 6) are written only through src/lib/goals/goals.ts.
+    for (const file of offenders(
+      /\.\s*goal\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+    )) {
+      expect(file).toBe("src/lib/goals/goals.ts");
+    }
     // Guided Workout Logging (Pitch 4) introduces logged-history/baseline writes,
     // but only inside the controlled logging modules.
     const loggedWriters = offenders(
@@ -87,16 +93,22 @@ describe("no workout logging, plan building, or progression", () => {
   // tests/unit/invariant-guards.test.ts: no progression/e1RM column, a single
   // e1RM formula, and read-only progression modules.)
 
-  it("adds the logging route but still no goals route (Goals is Pitch 6)", () => {
+  it("has exactly the app routes shipped so far (Goals adds `goals`, Pitch 6)", () => {
     const appDir = path.join(SRC, "app", "(app)");
     const routes = fs
       .readdirSync(appDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name)
       .sort();
-    // Guided Workout Logging adds `log` and `history`.
-    expect(routes).not.toContain("goals");
-    expect(routes).toEqual(["exercises", "gyms", "history", "log", "plan"]);
+    // Guided Workout Logging adds `log` and `history`; Goals adds `goals`.
+    expect(routes).toEqual([
+      "exercises",
+      "goals",
+      "gyms",
+      "history",
+      "log",
+      "plan",
+    ]);
   });
 });
 

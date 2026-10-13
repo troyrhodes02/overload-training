@@ -11,11 +11,16 @@ import {
 } from "@/lib/logging/sessions";
 import { logSet, type LogSetInput } from "@/lib/logging/logged-sets";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
+import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 
 /*
  * Guided Workout Logging server actions. Each re-checks the auth session FIRST,
  * then calls a write module. LoggedSet writes flow only through
  * src/lib/logging/logged-sets.ts; no action writes the plan template.
+ *
+ * Goals (Pitch 6, spec §11b): after a set or a workout has COMMITTED, goal
+ * completion is reconciled best-effort — outside the logging transaction, so a
+ * goal problem can never fail or roll back a logged set (R30).
  */
 
 export async function startWorkoutAction(input: {
@@ -53,7 +58,10 @@ export async function logSetAction(
     async () => ({ setId: (await logSet(input)).id }),
     "Couldn't save. Your numbers are still here.",
   );
-  if (result.ok) refresh();
+  if (result.ok) {
+    await reconcileGoalCompletionsSafely();
+    refresh();
+  }
   return result;
 }
 
@@ -78,7 +86,10 @@ export async function completeWorkoutAction(input: {
     await completeWorkout(input);
     return { ok: true as const };
   }, "Couldn't finish the workout.");
-  if (result.ok) refresh();
+  if (result.ok) {
+    await reconcileGoalCompletionsSafely();
+    refresh();
+  }
   return result;
 }
 
