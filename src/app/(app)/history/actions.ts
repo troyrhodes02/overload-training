@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { editLoggedSet } from "@/lib/logging/logged-sets";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
+import { editCardioLog } from "@/lib/cardio/cardio-logs";
 
 /*
  * History server actions. Past-log correction edits weight/reps only (Resolved
@@ -27,5 +28,24 @@ export async function editLoggedSetAction(input: {
     await reconcileGoalCompletionsSafely();
     refresh();
   }
+  return result;
+}
+
+/**
+ * Correct a cardio entry's activity and minutes (Cardio Logging R32). No
+ * delete exists. Nothing downstream reads cardio, so there is nothing to
+ * reconcile (R34).
+ */
+export async function editCardioLogAction(input: {
+  cardioLogId: string;
+  type: string;
+  durationMin: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => editCardioLog(input),
+    "Couldn't save. Your entries are still here.",
+  );
+  if (result.ok) refresh();
   return result;
 }

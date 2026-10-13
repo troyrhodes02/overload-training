@@ -10,6 +10,8 @@ import {
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
 import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
+import { getCardioWeek, type CardioOccurrenceDto } from "@/lib/cardio/queries";
+import { loadScheduleContext } from "./schedule-context";
 import {
   effectiveWeekSchedule,
   occurrenceOnDate,
@@ -54,16 +56,24 @@ export type DashboardTodayDto = {
   gymName: string | null;
   exercises: DashboardExercisePreview[];
   setsLogged: number;
+  /** Today's cardio (Cardio Logging): independent of the lifting state. */
+  cardio: CardioOccurrenceDto[];
 };
 
+/**
+ * The dashboard state. Cardio never changes the kind (Cardio Logging R66): a
+ * cardio-only day is still `rest` for lifting, with its cardio alongside, so
+ * the lifting state machine and the Goals rules keyed on `kind` are unchanged.
+ */
 export type DashboardDto =
   | { kind: "no_plan" }
-  | { kind: "rest" }
+  | { kind: "rest"; week: number; cardio: CardioOccurrenceDto[] }
   | {
       kind: "missed_day";
       today: string;
       missed: MissedDayInfo;
       below: DashboardTodayDto | null;
+      cardio: CardioOccurrenceDto[];
     }
   | DashboardTodayDto;
 
@@ -125,34 +135,12 @@ async function activeContext(): Promise<{
   });
   if (!meso || !meso.startDate) return null;
   const startDate = toIsoDate(meso.startDate);
-
-  const [resolutions, loggedSessions] = await Promise.all([
-    prisma.missedDayResolution.findMany({ where: { mesocycleId: meso.id } }),
-    prisma.loggedSession.findMany({ where: { mesocycleId: meso.id } }),
-  ]);
-
-  const ctx: ScheduleContext = {
-    startDate,
+  const ctx = await loadScheduleContext(prisma, {
+    id: meso.id,
+    startDate: meso.startDate,
     lengthWeeks: meso.lengthWeeks,
-    sessions: meso.sessions
-      .filter((s) => s.dayOfWeek !== null)
-      .map((s) => ({
-        id: s.id,
-        name: s.name,
-        dayOfWeek: s.dayOfWeek as number,
-      })),
-    resolutions: resolutions.map((r) => ({
-      missedOn: toIsoDate(r.missedOn),
-      outcome: r.outcome,
-    })),
-    loggedSessions: loggedSessions
-      .filter((l) => l.sessionId !== null)
-      .map((l) => ({
-        sessionId: l.sessionId as string,
-        scheduledFor: toIsoDate(l.scheduledFor),
-        status: l.status,
-      })),
-  };
+    sessions: meso.sessions,
+  });
   return {
     mesocycleId: meso.id,
     lengthWeeks: meso.lengthWeeks,
@@ -220,7 +208,16 @@ export async function getTodayDashboard(): Promise<DashboardDto> {
   const missed = oldestUnresolvedMissedDay(active.ctx, today);
   const occ = occurrenceOnDate(active.ctx, today);
 
-  const todayState = occ ? await buildTodayState(active, occ, today) : null;
+  // Today's cardio: the current week's entries that land on today. Cardio
+  // never feeds the missed-day prompt or the lifting state (R35–R39).
+  const week = mesocycleWeek(active.startDate, today);
+  const cardio = (await getCardioWeek(active, week, today)).filter(
+    (c) => c.dateIso === today,
+  );
+
+  const todayState = occ
+    ? await buildTodayState(active, occ, today, cardio)
+    : null;
 
   if (missed) {
     const session = active.ctx.sessions.find((s) => s.id === missed.sessionId);
@@ -243,10 +240,11 @@ export async function getTodayDashboard(): Promise<DashboardDto> {
         daysAgo,
       },
       below: todayState,
+      cardio,
     };
   }
 
-  if (!occ || !todayState) return { kind: "rest" };
+  if (!occ || !todayState) return { kind: "rest", week, cardio };
   return todayState;
 }
 
@@ -259,6 +257,7 @@ async function buildTodayState(
     loggedStatus: LoggedSessionStatus | null;
   },
   today: string,
+  cardio: CardioOccurrenceDto[],
 ): Promise<DashboardTodayDto> {
   const week = mesocycleWeek(active.ctx.startDate, today);
   const scheduledDeloadWeek = isScheduledDeloadWeek(
@@ -287,6 +286,7 @@ async function buildTodayState(
       gymName: null,
       exercises: await plannedPreview(occ.sessionId),
       setsLogged: 0,
+      cardio,
     };
   }
 
@@ -302,6 +302,7 @@ async function buildTodayState(
     gymName,
     exercises,
     setsLogged,
+    cardio,
   };
 }
 

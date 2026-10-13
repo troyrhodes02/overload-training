@@ -12,6 +12,7 @@ import {
 import { logSet, type LogSetInput } from "@/lib/logging/logged-sets";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
+import { logCardio } from "@/lib/cardio/cardio-logs";
 
 /*
  * Guided Workout Logging server actions. Each re-checks the auth session FIRST,
@@ -109,6 +110,27 @@ export async function resolveMissedDayAction(input: {
     await resolveMissedDay(input);
     return { ok: true as const };
   }, "Couldn't resolve the missed day.");
+  if (result.ok) refresh();
+  return result;
+}
+
+/**
+ * Record the cardio actually done for one planned occurrence (Cardio
+ * Logging). Idempotent: a retry returns the existing record with
+ * `alreadyLogged`. Cardio is a record only — no goal reconciliation, no
+ * progression, no baseline (R34, R71).
+ */
+export async function logCardioAction(input: {
+  mesocycleId: string;
+  scheduledFor: string;
+  type: string;
+  durationMin: string;
+}): Promise<ActionResult<{ cardioLogId: string; alreadyLogged: boolean }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => logCardio(input),
+    "Couldn't save. Your entries are still here.",
+  );
   if (result.ok) refresh();
   return result;
 }

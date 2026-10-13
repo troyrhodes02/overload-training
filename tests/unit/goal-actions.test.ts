@@ -24,6 +24,10 @@ jest.mock("@/lib/logging/logged-sets", () => ({
   editLoggedSet: jest.fn(),
 }));
 jest.mock("@/lib/logging/missed-days", () => ({ resolveMissedDay: jest.fn() }));
+jest.mock("@/lib/cardio/cardio-logs", () => ({
+  logCardio: jest.fn(),
+  editCardioLog: jest.fn(),
+}));
 jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
