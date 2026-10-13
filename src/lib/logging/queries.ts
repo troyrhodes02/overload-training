@@ -481,6 +481,8 @@ export type WeekScheduleDto = {
   lengthWeeks: number;
   rangeLabel: string;
   days: WeekDayDto[];
+  /** The week's cardio, placed on effective dates (Cardio Logging). */
+  cardio: CardioOccurrenceDto[];
 };
 
 function weekDayState(o: EffectiveOccurrence): WeekDayState {
@@ -500,7 +502,8 @@ export async function getWeekSchedule(
 ): Promise<WeekScheduleDto | null> {
   const active = await activeContext();
   if (!active) return null;
-  const current = mesocycleWeek(active.startDate, todayIso());
+  const today = todayIso();
+  const current = mesocycleWeek(active.startDate, today);
   const week = Math.min(Math.max(weekNumber ?? current, 1), active.lengthWeeks);
 
   const occ = effectiveWeekSchedule(active.ctx, week);
@@ -534,6 +537,7 @@ export async function getWeekSchedule(
     lengthWeeks: active.lengthWeeks,
     rangeLabel: formatPlanRange(weekStart, weekEnd),
     days,
+    cardio: await getCardioWeek(active, week, today),
   };
 }
 
