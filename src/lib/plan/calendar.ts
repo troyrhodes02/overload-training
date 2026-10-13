@@ -55,6 +55,22 @@ export function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** ISO weekday of a calendar date: 1 = Monday … 7 = Sunday. */
+export function isoWeekday(iso: string): number {
+  const date = parseIsoDate(iso);
+  if (!date) throw new Error(`Not a calendar date: ${iso}`);
+  return ((date.getUTCDay() + 6) % 7) + 1;
+}
+
+/**
+ * "Today" as the UTC calendar date — the app's all-UTC calendar convention
+ * (a single lifter timezone is a deliberate decision deferred beyond Pitch 4).
+ * The one place it is defined, so every surface agrees on what today is.
+ */
+export function todayIso(): string {
+  return toIsoDate(new Date());
+}
+
 export function addDays(iso: string, days: number): string {
   const date = parseIsoDate(iso);
   if (!date) throw new Error(`Not a calendar date: ${iso}`);

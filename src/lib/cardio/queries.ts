@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { formatPlanDate, toIsoDate } from "@/lib/plan/calendar";
+import {
+  addDays,
+  formatPlanDate,
+  parseIsoDate,
+  toIsoDate,
+} from "@/lib/plan/calendar";
 import type { ScheduleContext } from "@/lib/logging/schedule";
 import { cardioWeekEntries, type CardioEntry } from "./schedule";
 
@@ -22,12 +27,20 @@ export async function getCardioWeek(
   week: number,
   todayIso: string,
 ): Promise<CardioOccurrenceDto[]> {
+  const weekStart = addDays(active.ctx.startDate, (week - 1) * 7);
   const [planned, logs] = await Promise.all([
     prisma.plannedCardio.findMany({
       where: { mesocycleId: active.mesocycleId },
     }),
+    // Only this week's records (by occurrence date).
     prisma.cardioLog.findMany({
-      where: { mesocycleId: active.mesocycleId },
+      where: {
+        mesocycleId: active.mesocycleId,
+        scheduledFor: {
+          gte: parseIsoDate(weekStart) as Date,
+          lte: parseIsoDate(addDays(weekStart, 6)) as Date,
+        },
+      },
     }),
   ]);
   return cardioWeekEntries(
@@ -46,6 +59,7 @@ export async function getCardioWeek(
       durationMin: l.durationMin,
       plannedType: l.plannedType,
       plannedDurationMin: l.plannedDurationMin,
+      performedIso: toIsoDate(l.performedOn),
     })),
     week,
     todayIso,

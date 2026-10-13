@@ -168,4 +168,26 @@ describe("cardio in the week at a glance", () => {
       addDays(TODAY, 2),
     ]);
   });
+
+  it("a later lifting shift never moves cardio that was already logged (review fix)", async () => {
+    const { m } = await block(-14);
+    const missedOn = addDays(TODAY, -7);
+    // Cardio done and logged on its day; the lifting was missed …
+    await logCardio({
+      mesocycleId: m.id,
+      scheduledFor: missedOn,
+      type: "Incline Walk",
+      durationMin: 20,
+    });
+    // … and only later is the lifting day shifted.
+    await resolveMissedDay({ mesocycleId: m.id, missedOn, outcome: "shifted" });
+    const week = await getWeekSchedule(2);
+    expect(week!.days.map((d) => d.dateIso)).toEqual([addDays(missedOn, 1)]);
+    expect(cardioLines(week)[0]).toEqual([
+      missedOn,
+      "Incline Walk",
+      "20",
+      "complete",
+    ]);
+  });
 });

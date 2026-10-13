@@ -6,6 +6,7 @@ import {
   formatPlanDate,
   formatPlanRange,
   toIsoDate,
+  todayIso,
 } from "@/lib/plan/calendar";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
@@ -114,13 +115,6 @@ function scheme(sets: number, min: number, max: number): string {
   return `${sets} × ${min}–${max}`;
 }
 
-function todayIso(): string {
-  // "Today" is the UTC calendar date, matching the app's all-UTC calendar
-  // convention (src/lib/plan/calendar.ts). A single timezone source for the
-  // lifter is a deliberate cross-cutting decision deferred beyond Pitch 4.
-  return toIsoDate(new Date());
-}
-
 /** The active mesocycle and its effective-schedule context, or null if none. */
 async function activeContext(): Promise<{
   mesocycleId: string;
@@ -211,12 +205,13 @@ export async function getTodayDashboard(): Promise<DashboardDto> {
   // Today's cardio: the current week's entries that land on today. Cardio
   // never feeds the missed-day prompt or the lifting state (R35–R39).
   const week = mesocycleWeek(active.startDate, today);
-  const cardio = (await getCardioWeek(active, week, today)).filter(
-    (c) => c.dateIso === today,
-  );
-
-  const todayState = occ
-    ? await buildTodayState(active, occ, today, cardio)
+  const [lifting, cardioWeek] = await Promise.all([
+    occ ? buildTodayState(active, occ, today) : null,
+    getCardioWeek(active, week, today),
+  ]);
+  const cardio = cardioWeek.filter((c) => c.dateIso === today);
+  const todayState: DashboardTodayDto | null = lifting
+    ? { ...lifting, cardio }
     : null;
 
   if (missed) {
@@ -257,8 +252,7 @@ async function buildTodayState(
     loggedStatus: LoggedSessionStatus | null;
   },
   today: string,
-  cardio: CardioOccurrenceDto[],
-): Promise<DashboardTodayDto> {
+): Promise<Omit<DashboardTodayDto, "cardio">> {
   const week = mesocycleWeek(active.ctx.startDate, today);
   const scheduledDeloadWeek = isScheduledDeloadWeek(
     week,
@@ -286,7 +280,6 @@ async function buildTodayState(
       gymName: null,
       exercises: await plannedPreview(occ.sessionId),
       setsLogged: 0,
-      cardio,
     };
   }
 
@@ -302,7 +295,6 @@ async function buildTodayState(
     gymName,
     exercises,
     setsLogged,
-    cardio,
   };
 }
 

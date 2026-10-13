@@ -1,11 +1,8 @@
-import {
-  addDays,
-  mesocycleWeekForDate,
-  parseIsoDate,
-} from "@/lib/plan/calendar";
+import { addDays } from "@/lib/plan/calendar";
 import {
   authoredDate,
   effectiveWeekSchedule,
+  type EffectiveOccurrence,
   type ScheduleContext,
 } from "@/lib/logging/schedule";
 
@@ -21,8 +18,10 @@ import {
  *    it, and it never moves anything — the missed-day engine never sees cardio.
  *  - An occurrence exists only from its plan row's creation date onward (the
  *    occurrence floor), so cardio added mid-block never invents past misses.
- *  - A CardioLog is placed by the same rule from its own authored date, even
- *    if its plan row was later moved or removed (history stays visible).
+ *  - A CardioLog shows on the day it was performed (its stored performedOn:
+ *    the occurrence's effective date when it was logged), so a LATER lifting
+ *    shift never moves cardio that was already done; and it stays visible
+ *    even if its plan row was later moved or removed.
  *
  * Nothing here knows about progression, e1RM, goals, gyms, or deload: a
  * scheduled-deload week leaves cardio exactly as authored.
@@ -46,6 +45,8 @@ export type CardioLogInput = {
   durationMin: number;
   plannedType: string;
   plannedDurationMin: number;
+  /** The day it was performed (UTC calendar date of performedOn). */
+  performedIso: string;
 };
 
 export type CardioOccurrence = {
@@ -73,26 +74,22 @@ export type CardioEntry = {
   differsFromPlan: boolean;
 };
 
-function isoWeekday(iso: string): number {
-  const d = parseIsoDate(iso);
-  if (!d) throw new Error(`Not a calendar date: ${iso}`);
-  return ((d.getUTCDay() + 6) % 7) + 1;
-}
-
-/** The effective date of whatever is planned on `dayOfWeek` in `week`. */
+/**
+ * Where whatever is planned on `dayOfWeek` lands this week, given the week's
+ * lifting occurrences (computed ONCE per week by the caller).
+ */
 function placement(
   ctx: ScheduleContext,
+  lifting: EffectiveOccurrence[],
   week: number,
   dayOfWeek: number,
 ): { authoredIso: string; effectiveIso: string | null; bound: boolean } {
   const authoredIso = authoredDate(ctx.startDate, week, dayOfWeek);
-  const lifting = effectiveWeekSchedule(ctx, week).find(
-    (o) => o.dayOfWeek === dayOfWeek,
-  );
-  if (!lifting) return { authoredIso, effectiveIso: authoredIso, bound: false };
+  const bound = lifting.find((o) => o.dayOfWeek === dayOfWeek);
+  if (!bound) return { authoredIso, effectiveIso: authoredIso, bound: false };
   return {
     authoredIso,
-    effectiveIso: lifting.dropped ? null : lifting.effectiveIso,
+    effectiveIso: bound.dropped ? null : bound.effectiveIso,
     bound: true,
   };
 }
@@ -104,9 +101,10 @@ export function cardioWeekOccurrences(
   week: number,
 ): CardioOccurrence[] {
   if (week < 1 || week > ctx.lengthWeeks) return [];
+  const lifting = effectiveWeekSchedule(ctx, week);
   return planned
     .flatMap((p) => {
-      const at = placement(ctx, week, p.dayOfWeek);
+      const at = placement(ctx, lifting, week, p.dayOfWeek);
       if (at.authoredIso < p.createdIso) return [];
       return [
         {
@@ -132,24 +130,13 @@ export function cardioState(
   return effectiveIso > todayIso ? "upcoming" : "missed";
 }
 
-/** Where a logged occurrence shows: the same binding rule from its own date. */
-export function placeLoggedCardio(
-  ctx: ScheduleContext,
-  scheduledFor: string,
-): string {
-  const week = mesocycleWeekForDate(ctx.startDate, scheduledFor);
-  if (week === null || week < 1 || week > ctx.lengthWeeks) return scheduledFor;
-  return (
-    placement(ctx, week, isoWeekday(scheduledFor)).effectiveIso ?? scheduledFor
-  );
-}
-
 /**
  * The cardio entries of one mesocycle week: planned occurrences (with their
  * state) merged with that week's CardioLogs by authored date. A log always
- * wins over the plan (its snapshot is what was planned at the time); a logged
- * occurrence whose plan row is gone still appears; an unlogged occurrence a
- * shift dropped does not. Sorted by effective date, then authored date.
+ * wins over the plan (its snapshot is what was planned when it was logged)
+ * and shows on the day it was performed; a logged occurrence whose plan row is
+ * gone still appears; an unlogged occurrence a shift dropped does not. Sorted
+ * by effective date, then authored date.
  */
 export function cardioWeekEntries(
   ctx: ScheduleContext,
@@ -180,9 +167,7 @@ export function cardioWeekEntries(
     const planned = { type: l.plannedType, durationMin: l.plannedDurationMin };
     byDate.set(l.scheduledFor, {
       scheduledFor: l.scheduledFor,
-      dateIso:
-        byDate.get(l.scheduledFor)?.dateIso ??
-        placeLoggedCardio(ctx, l.scheduledFor),
+      dateIso: l.performedIso,
       planned,
       state: "complete",
       log: { id: l.id, type: l.type, durationMin: l.durationMin },

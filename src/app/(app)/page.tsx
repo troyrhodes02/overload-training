@@ -224,13 +224,13 @@ export default async function TodayPage() {
         <p className="text-sm text-muted-foreground">Today · {today}</p>
         <MissedDayPrompt missed={dash.missed} />
         {dash.below ? (
-          <div className="pointer-events-none opacity-50" aria-hidden>
+          <div inert className="opacity-50">
             <TodayBlock state={dash.below} />
           </div>
         ) : dash.cardio.length > 0 ? (
           // Cardio never prompts; it waits, dimmed, until the lifting
           // missed day is resolved (Cardio R35, R67).
-          <div className="pointer-events-none opacity-50" aria-hidden>
+          <div inert className="opacity-50">
             <CardioCards entries={dash.cardio} />
           </div>
         ) : null}

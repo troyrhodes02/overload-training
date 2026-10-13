@@ -1,12 +1,14 @@
 import "server-only";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import {
   mesocycleWeekForDate,
   parseIsoDate,
   toIsoDate,
+  todayIso,
 } from "@/lib/plan/calendar";
+import { isUniqueViolation } from "@/lib/plan/write-support";
 import { loadScheduleContext } from "@/lib/logging/schedule-context";
 import { cardioWeekOccurrences } from "./schedule";
 import { parseCardioEntry } from "./validation";
@@ -44,11 +46,6 @@ export type LogCardioInput = {
 type LogCardioResult = { cardioLogId: string; alreadyLogged: boolean };
 
 const NO_PLAN = "There's no planned cardio for that day.";
-
-function todayIso(): string {
-  // The app's all-UTC calendar convention (Guided Workout Logging).
-  return toIsoDate(new Date());
-}
 
 function parseEntry(raw: { type: unknown; durationMin: unknown }) {
   const entry = parseCardioEntry(raw);
@@ -138,6 +135,11 @@ async function logCardioInTx(
     );
   }
 
+  // The snapshot is the plan as it stands when the occurrence is logged.
+  // Plan rows are edited in place (only a day move starts a new row), so a
+  // late log after a same-day type/minutes edit snapshots the edited plan;
+  // a true plan-at-occurrence record would need plan versioning, which is
+  // out of scope for Pitch 7 (review finding, deferred; spec R51).
   const log = await tx.cardioLog.create({
     data: {
       mesocycleId: meso.id,
@@ -151,13 +153,6 @@ async function logCardioInTx(
     select: { id: true },
   });
   return { cardioLogId: log.id, alreadyLogged: false };
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  );
 }
 
 /**

@@ -42,6 +42,7 @@ import {
 import { DAYS_OF_WEEK, dayName } from "@/lib/plan/calendar";
 import { parseCardioEntry } from "@/lib/cardio/validation";
 import type { PlannedCardioDto } from "@/lib/plan/queries";
+import { CardioLineContent } from "./cardio-line";
 
 /**
  * Planned cardio in the mesocycle builder (Cardio Logging design Screens 1–3).
@@ -223,6 +224,7 @@ function PlannedCardioDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={isPending}
               onClick={() => close(false)}
             >
               Cancel
@@ -231,6 +233,7 @@ function PlannedCardioDialog({
               <Button
                 type="button"
                 variant="ghost"
+                disabled={isPending}
                 onClick={() => {
                   close(false);
                   onRemove();
@@ -371,20 +374,6 @@ export function PlannedCardioLine({
         onOpenChange={(o) => setDialog(o ? "remove" : null)}
         cardio={cardio}
       />
-    </>
-  );
-}
-
-/** Label + "Activity · N min" (shared with the read-only archived line). */
-export function CardioLineContent({ cardio }: { cardio: PlannedCardioDto }) {
-  return (
-    <>
-      <span className="text-xs tracking-wide text-muted-foreground uppercase">
-        Cardio
-      </span>
-      <span className="min-w-0 flex-1 truncate tabular-nums">
-        {cardio.type} · {cardio.durationMin} min
-      </span>
     </>
   );
 }

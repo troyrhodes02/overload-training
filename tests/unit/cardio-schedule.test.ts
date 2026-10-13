@@ -2,7 +2,6 @@ import {
   cardioState,
   cardioWeekEntries,
   cardioWeekOccurrences,
-  placeLoggedCardio,
   type CardioLogInput,
   type PlannedCardioInput,
 } from "@/lib/cardio/schedule";
@@ -169,6 +168,7 @@ describe("week entries (dashboard and history)", () => {
     durationMin: 25,
     plannedType: "Incline Walk",
     plannedDurationMin: 20,
+    performedIso: "2026-10-13",
   };
 
   it("merges logs over the plan, keeps the snapshot, and flags a difference", () => {
@@ -228,20 +228,31 @@ describe("week entries (dashboard and history)", () => {
     ]);
   });
 
-  it("places a logged occurrence with its shifted lifting day", () => {
+  it("a later lifting shift never moves cardio that was already done", () => {
+    // Logged on Tue Oct 13; on Wed the missed Pull is shifted to Wed.
     const shifted = ctx({
       resolutions: [{ missedOn: "2026-10-13", outcome: "shifted" }],
     });
-    expect(placeLoggedCardio(shifted, "2026-10-13")).toBe("2026-10-14");
-    expect(placeLoggedCardio(shifted, "2026-10-17")).toBe("2026-10-17");
+    const entries = cardioWeekEntries(
+      shifted,
+      [WALK],
+      [bikeInsteadOfWalk],
+      4,
+      "2026-10-15",
+    );
+    expect(entries.map((e) => [e.scheduledFor, e.dateIso, e.state])).toEqual([
+      ["2026-10-13", "2026-10-13", "complete"],
+    ]);
+  });
+
+  it("a log made on the shifted day shows on that day", () => {
+    const shifted = ctx({
+      resolutions: [{ missedOn: "2026-10-13", outcome: "shifted" }],
+    });
+    const onWednesday = { ...bikeInsteadOfWalk, performedIso: "2026-10-14" };
     expect(
-      cardioWeekEntries(
-        shifted,
-        [WALK],
-        [bikeInsteadOfWalk],
-        4,
-        "2026-10-15",
-      )[0].dateIso,
+      cardioWeekEntries(shifted, [WALK], [onWednesday], 4, "2026-10-15")[0]
+        .dateIso,
     ).toBe("2026-10-14");
   });
 
@@ -254,7 +265,11 @@ describe("week entries (dashboard and history)", () => {
     expect(
       cardioWeekEntries(shifted, [sundayWalk], [], 4, "2026-10-19"),
     ).toEqual([]);
-    const logged = { ...bikeInsteadOfWalk, scheduledFor: "2026-10-18" };
+    const logged = {
+      ...bikeInsteadOfWalk,
+      scheduledFor: "2026-10-18",
+      performedIso: "2026-10-18",
+    };
     expect(
       cardioWeekEntries(shifted, [sundayWalk], [logged], 4, "2026-10-19").map(
         (e) => [e.dateIso, e.state],

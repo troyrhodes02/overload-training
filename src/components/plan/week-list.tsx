@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { DAYS_OF_WEEK } from "@/lib/plan/calendar";
 import type { PlannedCardioDto, SessionSummaryDto } from "@/lib/plan/queries";
+import { CardioLineContent } from "./cardio-line";
 
 /** "6 exercises", "No exercises yet", "4 exercises · 1 to fix". */
 export function sessionMeta(s: SessionSummaryDto): string {
@@ -14,12 +15,7 @@ export function sessionMeta(s: SessionSummaryDto): string {
 function CardioLineStatic({ cardio }: { cardio: PlannedCardioDto }) {
   return (
     <p className="ml-10 flex min-h-11 items-center gap-2 pr-3 text-sm">
-      <span className="text-xs tracking-wide text-muted-foreground uppercase">
-        Cardio
-      </span>
-      <span className="min-w-0 flex-1 truncate tabular-nums">
-        {cardio.type} · {cardio.durationMin} min
-      </span>
+      <CardioLineContent cardio={cardio} />
     </p>
   );
 }
