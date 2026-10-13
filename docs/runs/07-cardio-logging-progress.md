@@ -26,10 +26,10 @@ transition and ticket boundary.
 - [x] 4. Spec — `docs/specs/07-cardio-logging-spec.md`
 - [x] 5. Linear milestone + issues (OVE-33…35)
 - [x] 6. Feature PR into `main` (#40)
-- [ ] 7. Implement tickets
-- [ ] 8. Runbook
-- [ ] 9. Merge ticket PRs into feature branch
-- [ ] 10. Full verification
+- [x] 7. Implement tickets (PRs #41–#43)
+- [x] 8. Runbook — `docs/runs/07-cardio-logging-runbook.md`
+- [x] 9. Merge ticket PRs into feature branch (squash, dependency order)
+- [x] 10. Full verification (lint, typecheck, format, unit 343, integration 270, build, e2e 22, client-bundle)
 - [ ] 11. Review + audit
 - [ ] 12. Merge on green + run report
 
@@ -42,13 +42,20 @@ transition and ticket boundary.
   - **OVE-35** — Cardio in History: day-grouped week, missed, log-late, correction (blockedBy OVE-34)
 - Feature branch: `feat/07-cardio-logging`
 
-### Ticket PRs
-- OVE-33 → **PR #41** (branch `feat/ove-33-planned-cardio`, base feature branch)
-- OVE-34 → **PR #42** (branch `feat/ove-34-cardio-logging`, stacked on OVE-33)
-- OVE-35 → (pending)
+### Ticket PRs (all squash-merged into `feat/07-cardio-logging`)
+- OVE-33 → **PR #41** · merged (`1e61aea`)
+- OVE-34 → **PR #42** · merged (`87160c2`)
+- OVE-35 → **PR #43** · merged (`918dba5`)
 
 ## Notes / decisions log
 
 - Preview path: the run prompt gates the spec on `docs/previews/07-cardio-logging-preview.tsx`;
   written as `.tsx` following the Pitch 4/5/6 precedent (the ui-design skill and a stored
   preference default to `.html`; flagged again in the report).
+- Local visual verification: production build against local Supabase auth with a
+  throwaway database `overload_verify_p7` on the local Postgres and a temporary
+  local-only user; both removed afterward. The existing local dev data was not
+  touched; migration 6 was applied to the local dev DB (additive).
+- Stacked ticket PRs: after squash-merging a parent, the child branch was brought
+  up to date with a merge commit (conflicts were superset files; child kept), then
+  retargeted to the feature branch — no force-push / history rewrite.
