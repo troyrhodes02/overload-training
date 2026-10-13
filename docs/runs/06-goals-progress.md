@@ -27,7 +27,7 @@ transition and ticket boundary.
 - [x] 2. Design doc — `docs/design/06-goals-design-doc.md`
 - [x] 3. UI preview — `docs/previews/06-goals-preview.tsx`
 - [x] 4. Spec — `docs/specs/06-goals-spec.md`
-- [ ] 5. Linear milestone + issues
+- [x] 5. Linear milestone + issues (OVE-30…32)
 - [ ] 6. Feature PR into `main`
 - [ ] 7. Implement tickets
 - [ ] 8. Runbook
@@ -35,6 +35,18 @@ transition and ticket boundary.
 - [ ] 10. Full verification
 - [ ] 11. Review + audit
 - [ ] 12. Merge on green + run report
+
+## Linear
+
+- Milestone: **Goals** (`839d13f4-6bd3-4734-8b18-431a4b9b5f46`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-30** — Goal model, derived progress & creation flow
+  - **OVE-31** — Goal completion, acknowledgement, manual archive & history (blockedBy OVE-30)
+  - **OVE-32** — Goals on the dashboard & post-session summary (blockedBy OVE-31)
+- Feature branch: `feat/06-goals`
+
+### Ticket PRs
+- (pending)
 
 ## Notes / decisions log
 
