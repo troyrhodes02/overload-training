@@ -19,6 +19,7 @@ const writeModule = () =>
 
 jest.mock("@/lib/plan/mesocycles", () => writeModule());
 jest.mock("@/lib/plan/sessions", () => writeModule());
+jest.mock("@/lib/plan/cardio", () => writeModule());
 jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
@@ -62,6 +63,9 @@ describe("plan server actions re-check auth before doing anything", () => {
         "moveSessionExerciseAction",
         "duplicateSessionAction",
         "cloneMesocycleAction",
+        "addPlannedCardioAction",
+        "updatePlannedCardioAction",
+        "removePlannedCardioAction",
       ]),
     );
   });

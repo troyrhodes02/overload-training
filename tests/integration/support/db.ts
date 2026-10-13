@@ -19,6 +19,7 @@ export const APP_TABLES = [
   "logged_sets",
   "goals",
   "cardio_logs",
+  "planned_cardio",
   "missed_day_resolutions",
 ] as const;
 

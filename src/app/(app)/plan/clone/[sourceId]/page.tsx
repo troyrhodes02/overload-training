@@ -71,11 +71,18 @@ export default async function CloneSetupPage({ params }: PageProps) {
             <p className="tabular-nums">
               {sessions} · {exercises}
             </p>
+            {setup.cardioDayCount > 0 && (
+              <p className="tabular-nums">
+                Cardio on {setup.cardioDayCount}{" "}
+                {setup.cardioDayCount === 1 ? "day" : "days"}
+              </p>
+            )}
             <p className="text-muted-foreground">
               Days, order, sets, and rep ranges, ready to edit.
             </p>
             <p className="text-muted-foreground">
-              Workout history, goals, and gym weights are not copied.
+              Workout history, cardio logs, goals, and gym weights are not
+              copied.
             </p>
           </div>
         </div>

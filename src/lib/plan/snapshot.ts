@@ -33,6 +33,8 @@ export const planInclude = {
       },
     },
   },
+  // Cardio Logging: the day's planned cardio (never part of readiness).
+  plannedCardio: { orderBy: { dayOfWeek: "asc" } },
 } satisfies Prisma.MesocycleInclude;
 
 export type PlanRow = Prisma.MesocycleGetPayload<{

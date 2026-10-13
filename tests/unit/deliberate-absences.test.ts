@@ -41,13 +41,14 @@ const schema = fs.readFileSync(
 );
 
 describe("no workout logging, plan building, or progression", () => {
-  it("writes no cardio rows (still deferred), goal rows only in the Goal write module, and logged-history/baseline rows only in the logging modules", () => {
-    // Cardio (Pitch 7) remains unwritten.
-    expect(
-      offenders(
-        /\.\s*cardioLog\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
-      ),
-    ).toEqual([]);
+  it("writes cardio logs only in the cardio write module, goal rows only in the Goal write module, and logged-history/baseline rows only in the logging modules", () => {
+    // Cardio Logging (Pitch 7): CardioLog rows are written only through
+    // src/lib/cardio/cardio-logs.ts (and never deleted — see invariant-guards).
+    for (const file of offenders(
+      /\.\s*cardioLog\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+    )) {
+      expect(file).toBe("src/lib/cardio/cardio-logs.ts");
+    }
     // Goals (Pitch 6) are written only through src/lib/goals/goals.ts.
     for (const file of offenders(
       /\.\s*goal\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
@@ -63,6 +64,16 @@ describe("no workout logging, plan building, or progression", () => {
       expect(file).toMatch(
         /^src\/lib\/(logging\/(logged-sets|sessions)|gyms\/baselines)\.ts$/,
       );
+    }
+  });
+
+  it("writes planned cardio only through the plan cardio module and clone-forward (Cardio Logging)", () => {
+    const writers = offenders(
+      /\.\s*plannedCardio\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
+    );
+    expect(writers.length).toBeGreaterThan(0);
+    for (const file of writers) {
+      expect(file).toMatch(/^src\/lib\/plan\/(cardio|mesocycles)\.ts$/);
     }
   });
 

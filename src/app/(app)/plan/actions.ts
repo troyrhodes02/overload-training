@@ -12,6 +12,11 @@ import {
   updateMesocycleDetails,
 } from "@/lib/plan/mesocycles";
 import {
+  addPlannedCardio,
+  removePlannedCardio,
+  updatePlannedCardio,
+} from "@/lib/plan/cardio";
+import {
   addSession,
   addSessionExercise,
   duplicateSession,
@@ -266,4 +271,51 @@ export async function cloneMesocycleAction(
   );
   if (result.ok) redirect(`/plan/${result.data.id}?cloned=1`);
   return { result, values };
+}
+
+/*
+ * Planned cardio (Cardio Logging). Plan authoring only: these never read or
+ * write a CardioLog, so editing or removing the plan can't change history.
+ */
+
+export async function addPlannedCardioAction(input: {
+  mesocycleId: string;
+  dayOfWeek: number;
+  type: string;
+  durationMin: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => addPlannedCardio(input),
+    "Couldn't add cardio. Your entries are still here.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function updatePlannedCardioAction(input: {
+  plannedCardioId: string;
+  dayOfWeek: number;
+  type: string;
+  durationMin: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => updatePlannedCardio(input),
+    "Couldn't save. Your entries are still here.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function removePlannedCardioAction(
+  plannedCardioId: string,
+): Promise<ActionResult<{ id: string; mesocycleId: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => removePlannedCardio({ plannedCardioId }),
+    "Couldn't remove. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
 }

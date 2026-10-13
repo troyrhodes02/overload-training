@@ -19,6 +19,11 @@ import {
   SessionActionsMenu,
 } from "@/components/plan/session-controls";
 import { UnscheduledList, WeekList } from "@/components/plan/week-list";
+import {
+  AddCardioButton,
+  PlannedCardioLine,
+  type CardioDayDto,
+} from "@/components/plan/cardio-controls";
 import { formatPlanDate } from "@/lib/plan/calendar";
 import {
   getMesocycleWeek,
@@ -55,6 +60,11 @@ export default async function MesocyclePage({
           variant="row"
         />
       );
+  const cardioDays: CardioDayDto[] = m.week.map((s, i) => ({
+    dayOfWeek: i + 1,
+    sessionName: s?.name ?? null,
+    cardioId: m.cardio[i]?.id ?? null,
+  }));
   const dates =
     m.startDate && m.endDate
       ? archived
@@ -116,13 +126,27 @@ export default async function MesocyclePage({
         <WeekList
           mesocycleId={m.id}
           week={m.week}
+          cardio={m.cardio}
           renderSessionActions={sessionActions}
           renderRestAction={
             archived
               ? undefined
               : (d) => <AddSessionButton mesocycleId={m.id} dayOfWeek={d.day} />
           }
+          renderCardio={
+            archived
+              ? undefined
+              : (c) => (
+                  <PlannedCardioLine
+                    key={`${c.id}-${c.type}-${c.durationMin}`}
+                    mesocycleId={m.id}
+                    cardio={c}
+                    days={cardioDays}
+                  />
+                )
+          }
         />
+        {!archived && <AddCardioButton mesocycleId={m.id} days={cardioDays} />}
       </div>
 
       {m.unscheduled.length > 0 && (
