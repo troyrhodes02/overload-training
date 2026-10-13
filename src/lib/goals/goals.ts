@@ -40,7 +40,6 @@ export async function reconcileGoalCompletions(
   opts: { goalIds?: string[]; now?: Date } = {},
   tx?: Db,
 ): Promise<string[]> {
-  const now = opts.now ?? new Date();
   const goals = await db(tx).goal.findMany({
     where: {
       status: "active",
@@ -49,6 +48,7 @@ export async function reconcileGoalCompletions(
     include: { exercise: { select: { equipmentType: true } } },
   });
 
+  const now = opts.now ?? new Date();
   const completed: string[] = [];
   for (const goal of goals) {
     const scopeGymId = isGymVariable(goal.exercise) ? goal.gymId : null;

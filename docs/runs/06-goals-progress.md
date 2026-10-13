@@ -28,7 +28,7 @@ transition and ticket boundary.
 - [x] 3. UI preview — `docs/previews/06-goals-preview.tsx`
 - [x] 4. Spec — `docs/specs/06-goals-spec.md`
 - [x] 5. Linear milestone + issues (OVE-30…32)
-- [ ] 6. Feature PR into `main`
+- [x] 6. Feature PR into `main` (#36)
 - [ ] 7. Implement tickets
 - [ ] 8. Runbook
 - [ ] 9. Merge ticket PRs into feature branch
@@ -46,7 +46,8 @@ transition and ticket boundary.
 - Feature branch: `feat/06-goals`
 
 ### Ticket PRs
-- (pending)
+- OVE-30 → `feat/ove-30-goal-model` → **PR #37** (base = feature branch) · In Review · unit 255 / integration 211 / e2e 22 / build green
+- OVE-31 → `feat/ove-31-goal-lifecycle` (base = OVE-30 branch) · in progress
 
 ## Notes / decisions log
 

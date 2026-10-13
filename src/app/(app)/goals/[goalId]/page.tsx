@@ -1,11 +1,17 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Archive, CircleCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CreatedToast } from "@/components/feedback/created-toast";
+import { ArchiveGoalButton } from "@/components/goals/archive-goal-button";
 import { GoalProgressBar } from "@/components/goals/goal-progress-bar";
+import { GoalReachedCard } from "@/components/goals/goal-reached-card";
 import { BackLink } from "@/components/plan/plan-bits";
+import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { getGoalDetail, type GoalDetailDto } from "@/lib/goals/queries";
 
 export const metadata = { title: "Goal · Overload" };
@@ -17,14 +23,20 @@ type PageProps = {
 
 /**
  * Goal detail (design Screen 4): the target, one floored percentage, and the
- * best qualifying session behind it — all derived on this read. An archived
- * goal shows its lifecycle outcome and NO re-derived percentage (R60).
+ * best qualifying session behind it — all derived on this read. Completion is
+ * reconciled first (R54), so a met target shows its "Goal reached" card rather
+ * than an active 100%. An archived goal shows its lifecycle outcome and NO
+ * re-derived percentage (R60).
  */
 export default async function GoalDetailPage({
   params,
   searchParams,
 }: PageProps) {
   const [{ goalId }, sp] = await Promise.all([params, searchParams]);
+  // Request-time only: reconciliation may write a completion, which must
+  // never happen during a build-time prerender (and reads the clock).
+  await connection();
+  await reconcileGoalCompletionsSafely();
   const goal = await getGoalDetail(goalId);
   if (!goal) notFound();
 
@@ -150,7 +162,24 @@ function ActiveGoal({
           e1RM trend ›
         </Link>
       </div>
+
+      <ThumbAction>
+        <ArchiveGoalButton
+          goalId={goal.goalId}
+          exerciseName={goal.exerciseName}
+          targetLabel={goal.targetLabel}
+        />
+      </ThumbAction>
     </>
+  );
+}
+
+/** Thumb-reach action bar on phones (above the bottom nav); inline at md+. */
+function ThumbAction({ children }: { children: ReactNode }) {
+  return (
+    <div className="fixed inset-x-0 bottom-16 z-10 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:static md:border-0 md:bg-transparent md:p-0">
+      {children}
+    </div>
   );
 }
 
@@ -161,7 +190,17 @@ function ArchivedGoal({
 }) {
   return (
     <>
-      <BackLink href="/goals" label="Goals" />
+      <BackLink href="/goals/history" label="Goal history" />
+      {goal.unacknowledged ? (
+        <GoalReachedCard
+          goalId={goal.goalId}
+          exerciseName={goal.exerciseName}
+          gymName={goal.gymName}
+          targetLabel={goal.targetLabel}
+          alreadyReached={goal.alreadyReached}
+          newGoalHref={goal.newGoalHref ?? "/goals/new"}
+        />
+      ) : null}
       <div className="space-y-1">
         <h1 className="text-lg font-semibold">
           {goal.exerciseName}
@@ -201,6 +240,14 @@ function ArchivedGoal({
           e1RM trend ›
         </Link>
       </div>
+
+      {goal.newGoalHref && !goal.unacknowledged ? (
+        <ThumbAction>
+          <Button asChild className="h-11 w-full md:w-auto">
+            <Link href={goal.newGoalHref}>Set a new goal</Link>
+          </Button>
+        </ThumbAction>
+      ) : null}
     </>
   );
 }
