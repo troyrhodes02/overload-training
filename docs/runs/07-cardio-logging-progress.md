@@ -22,9 +22,9 @@ transition and ticket boundary.
 
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/07-cardio-logging-design-doc.md`
-- [ ] 3. UI preview — `docs/previews/07-cardio-logging-preview.tsx`
-- [ ] 4. Spec — `docs/specs/07-cardio-logging-spec.md`
-- [ ] 5. Linear milestone + issues
+- [x] 3. UI preview — `docs/previews/07-cardio-logging-preview.tsx`
+- [x] 4. Spec — `docs/specs/07-cardio-logging-spec.md`
+- [x] 5. Linear milestone + issues (OVE-33…35)
 - [ ] 6. Feature PR into `main`
 - [ ] 7. Implement tickets
 - [ ] 8. Runbook
@@ -32,6 +32,20 @@ transition and ticket boundary.
 - [ ] 10. Full verification
 - [ ] 11. Review + audit
 - [ ] 12. Merge on green + run report
+
+## Linear
+
+- Milestone: **Cardio Logging** (`eea0888a-1b50-47c8-b075-d4a8460b7c64`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-33** — Planned cardio: model, builder add/edit/remove, clone-forward
+  - **OVE-34** — Cardio occurrences, idempotent CardioLog, and Today's cardio (blockedBy OVE-33)
+  - **OVE-35** — Cardio in History: day-grouped week, missed, log-late, correction (blockedBy OVE-34)
+- Feature branch: `feat/07-cardio-logging`
+
+### Ticket PRs
+- OVE-33 → (pending)
+- OVE-34 → (pending)
+- OVE-35 → (pending)
 
 ## Notes / decisions log
 
