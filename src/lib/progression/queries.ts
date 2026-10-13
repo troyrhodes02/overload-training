@@ -15,7 +15,7 @@ import {
   type Performance,
   type ReactiveState,
 } from "./engine";
-import { sessionE1rm } from "./e1rm";
+import { bestWorkingSet, sessionE1rm } from "./e1rm";
 import type { E1rmPointDto, ProgressionTag, SuggestedLoadDto } from "./types";
 
 /**
@@ -77,6 +77,7 @@ function toTag(state: ReactiveState): ProgressionTag | null {
 /** One gathered performance plus the display context the chart needs. */
 type Row = {
   perf: Performance;
+  loggedSessionId: string;
   gymName: string | null;
   completed: boolean; // session complete AND all planned working sets present
 };
@@ -139,10 +140,57 @@ async function gatherRows(exerciseId: string): Promise<Row[]> {
         repMax: le.targetRepMax,
         workingSets,
       },
+      loggedSessionId: le.loggedSessionId,
       gymName: le.gym?.name ?? null,
       completed,
     };
   });
+}
+
+/** One qualifying performance's session-level e1RM, with the set behind it. */
+export type QualifyingE1rm = {
+  loggedExerciseId: string;
+  loggedSessionId: string;
+  dateIso: string;
+  gymId: string | null;
+  /** Precise (unrounded) session-level e1RM (R18). */
+  e1rm: number;
+  /** The working set that produced `e1rm`. */
+  bestSet: { weightLbs: number; reps: number };
+};
+
+/**
+ * Qualifying session-level e1RMs for one PERFORMED exercise, chronological —
+ * the same qualifying semantics as the reactive engine (complete session, all
+ * planned working sets, not a scheduled-deload week; R9, R38, R44). Scope:
+ * `gymId` null → every gym (gym-consistent); an id → that gym only
+ * (gym-variable; nominal machine pounds never cross gyms, R12). Read-only;
+ * consumed by Goals (Pitch 6) so goal progress shares this module's notion of
+ * demonstrated strength instead of defining a second one.
+ */
+export async function getQualifyingSessionE1rms(
+  exerciseId: string,
+  gymId: string | null,
+): Promise<QualifyingE1rm[]> {
+  const rows = await gatherRows(exerciseId);
+  const scoped = gymId ? rows.filter((r) => r.perf.gymId === gymId) : rows;
+  const sessionOf = new Map(
+    scoped.map((r) => [r.perf.loggedExerciseId, r.loggedSessionId]),
+  );
+  const out: QualifyingE1rm[] = [];
+  for (const p of qualifyingSequence(scoped.map((r) => r.perf))) {
+    const best = bestWorkingSet(p.workingSets);
+    if (!best) continue;
+    out.push({
+      loggedExerciseId: p.loggedExerciseId,
+      loggedSessionId: sessionOf.get(p.loggedExerciseId) as string,
+      dateIso: p.dateIso,
+      gymId: p.gymId,
+      e1rm: sessionE1rm(p.workingSets),
+      bestSet: { weightLbs: best.weightLbs, reps: best.reps },
+    });
+  }
+  return out;
 }
 
 /** Chronological chart points: one per COMPLETED performance (R49), scheduled-

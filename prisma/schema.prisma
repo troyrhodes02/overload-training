@@ -37,6 +37,14 @@ enum GoalStatus {
   archived
 }
 
+/// Goals (Pitch 6, spec R48): why an archived goal left the active list.
+/// `completed` is the one-time completion event; `manual` is the lifter
+/// retiring it. An archived goal never returns to active.
+enum GoalArchiveReason {
+  completed
+  manual
+}
+
 /// Guided Workout Logging (spec §6): a LoggedSession's completion is an explicit
 /// stored state, never inferred from navigation or age.
 enum LoggedSessionStatus {
@@ -207,6 +215,7 @@ model Gym {
 
   baselines       GymExerciseBaseline[]
   loggedExercises LoggedExercise[]
+  goals           Goal[]
 
   @@index([deletedAt])
   @@map("gyms")
@@ -330,18 +339,35 @@ model LoggedSet {
   @@map("logged_sets")
 }
 
+/// Goals (Pitch 6): one lifter-authored, undated target for one Exercise.
+/// Stores the target, its measurement context, and lifecycle ONLY — progress
+/// (target e1RM, best e1RM, percent) is derived on read from LoggedSets.
+/// At most one active goal per exercise, at any gym: partial unique index
+/// goals_one_active_per_exercise (migration 5). Lifecycle consistency and
+/// positive targets are CHECK constraints in the same migration.
 model Goal {
-  id              String     @id @default(uuid()) @db.Uuid
-  exerciseId      String     @map("exercise_id") @db.Uuid
-  targetWeightLbs Decimal    @map("target_weight_lbs") @db.Decimal(6, 2)
-  targetReps      Int        @map("target_reps")
-  status          GoalStatus @default(active)
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  id                       String             @id @default(uuid()) @db.Uuid
+  exerciseId               String             @map("exercise_id") @db.Uuid
+  /// Measurement gym — set iff the Exercise is gym-variable (machine/cable).
+  gymId                    String?            @map("gym_id") @db.Uuid
+  targetWeightLbs          Decimal            @map("target_weight_lbs") @db.Decimal(6, 2)
+  targetReps               Int                @map("target_reps")
+  status                   GoalStatus         @default(active)
+  archiveReason            GoalArchiveReason? @map("archive_reason")
+  /// When the goal left the active list (completion time when reason = completed).
+  archivedAt               DateTime?          @map("archived_at") @db.Timestamptz
+  /// The one-time "Goal reached" card was dismissed. Completed goals only.
+  completionAcknowledgedAt DateTime?          @map("completion_acknowledged_at") @db.Timestamptz
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                DateTime           @updatedAt @map("updated_at") @db.Timestamptz
 
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  gym      Gym?     @relation(fields: [gymId], references: [id], onDelete: Restrict)
 
+  // No progress / percent / e1RM column: goal progress is computed on read.
   @@index([exerciseId])
+  @@index([gymId])
+  @@index([status])
   @@map("goals")
 }
 
