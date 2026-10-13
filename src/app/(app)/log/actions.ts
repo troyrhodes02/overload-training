@@ -6,6 +6,7 @@ import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import {
   changeGym,
   completeWorkout,
+  setExerciseSkipped,
   startOrResumeWorkout,
   swapExercise,
 } from "@/lib/logging/sessions";
@@ -75,6 +76,20 @@ export async function swapExerciseAction(input: {
     await swapExercise(input);
     return { ok: true as const };
   }, "Couldn't swap the exercise.");
+  if (result.ok) refresh();
+  return result;
+}
+
+/** Mark a planned exercise "Didn't do" (no sets yet), or undo that. */
+export async function setExerciseSkippedAction(input: {
+  loggedExerciseId: string;
+  skipped: boolean;
+}): Promise<ActionResult<{ ok: true }>> {
+  await requireUser();
+  const result = await toActionResult(async () => {
+    await setExerciseSkipped(input);
+    return { ok: true as const };
+  }, "Couldn't update the exercise.");
   if (result.ok) refresh();
   return result;
 }

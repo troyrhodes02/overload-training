@@ -91,11 +91,16 @@ export type ExerciseCardDto = {
   plannedSets: number;
   plannedRepRange: { min: number; max: number };
   suggestedWeightLbs: number | null;
+  /** Marked "Didn't do" (or left with no sets when the workout finished). */
+  skipped: boolean;
+  /** Planned rows 1..plannedSets, then any logged extra sets. */
   sets: {
     setNumber: number;
     weightLbs: number | null;
     reps: number | null;
     saved: boolean;
+    /** Beyond the plan: recorded, not used by progression. */
+    extra: boolean;
   }[];
 };
 
@@ -371,8 +376,20 @@ export async function getWorkout(
         weightLbs: s ? Number(s.weightLbs) : null,
         reps: s ? s.reps : null,
         saved: Boolean(s),
+        extra: false,
       };
     });
+    for (const s of le.sets) {
+      if (s.setNumber > le.plannedSets) {
+        rows.push({
+          setNumber: s.setNumber,
+          weightLbs: Number(s.weightLbs),
+          reps: s.reps,
+          saved: true,
+          extra: true,
+        });
+      }
+    }
     const archived = le.exercise.deletedAt !== null;
     const exerciseComplete = !archived && le.sets.length >= le.plannedSets;
     if (!exerciseComplete) allComplete = false;
@@ -388,6 +405,7 @@ export async function getWorkout(
       gymName: variable ? gymName : null,
       plannedSets: le.plannedSets,
       plannedRepRange: { min: le.targetRepMin, max: le.targetRepMax },
+      skipped: le.skippedAt !== null,
       suggestedWeightLbs: await suggestedWeight(
         le.exerciseId,
         le.gymId,
@@ -544,11 +562,16 @@ export type LoggedWorkoutDetailDto = {
     plannedName: string;
     swapped: boolean;
     archived: boolean;
+    /** Didn't do it (no sets). */
+    skipped: boolean;
+    plannedSets: number;
     sets: {
       loggedSetId: string;
       setNumber: number;
       weightLbs: number;
       reps: number;
+      /** Beyond the plan. */
+      extra: boolean;
     }[];
   }[];
 };
@@ -588,11 +611,14 @@ export async function getLoggedWorkoutDetail(
       plannedName: le.plannedExercise.name,
       swapped: le.exerciseId !== le.plannedExerciseId,
       archived: le.exercise.deletedAt !== null,
+      skipped: le.skippedAt !== null || le.sets.length === 0,
+      plannedSets: le.plannedSets,
       sets: le.sets.map((s) => ({
         loggedSetId: s.id,
         setNumber: s.setNumber,
         weightLbs: Number(s.weightLbs),
         reps: s.reps,
+        extra: s.setNumber > le.plannedSets,
       })),
     })),
   };

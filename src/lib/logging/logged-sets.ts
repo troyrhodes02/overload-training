@@ -58,6 +58,32 @@ function validateValues(weightLbs: number, reps: number): void {
   }
 }
 
+/** At most this many sets beyond the plan in one exercise (input sanity). */
+export const MAX_EXTRA_SETS = 10;
+
+/**
+ * Planned working sets are 1..plannedSets, in any order. An EXTRA set (one the
+ * lifter did beyond the plan) is allowed only once every planned set is
+ * logged, and only as the next number in sequence — so extras are always
+ * plannedSets+1, +2, … with no gaps. Extras are recorded facts; the
+ * progression rule, e1RM, goals, and baselines keep evaluating the planned
+ * working sets 1..plannedSets only (the plan's set count stays meaningful).
+ * (Amends Guided Workout Logging Decision 12, which allowed no extra sets.)
+ */
+function isAllowedSetNumber(
+  setNumber: number,
+  le: { plannedSets: number; sets: { setNumber: number }[] },
+): boolean {
+  if (!Number.isInteger(setNumber) || setNumber < 1) return false;
+  if (setNumber <= le.plannedSets) return true;
+  if (setNumber > le.plannedSets + MAX_EXTRA_SETS) return false;
+  const logged = new Set(le.sets.map((s) => s.setNumber));
+  // Retry of an extra already logged → let the idempotency check decide.
+  if (logged.has(setNumber)) return true;
+  for (let n = 1; n < setNumber; n++) if (!logged.has(n)) return false;
+  return true;
+}
+
 export async function logSet(input: LogSetInput, tx?: Db): Promise<LoggedSet> {
   if (!tx) return prisma.$transaction((t) => logSet(input, t));
   return logSetInTx(input, tx);
@@ -68,7 +94,12 @@ async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
 
   const loggedExercise = await tx.loggedExercise.findUnique({
     where: { id: input.loggedExerciseId },
-    select: { id: true, plannedSets: true },
+    select: {
+      id: true,
+      plannedSets: true,
+      skippedAt: true,
+      sets: { select: { setNumber: true } },
+    },
   });
   if (!loggedExercise) {
     throw new DomainError(
@@ -76,12 +107,13 @@ async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
       "That exercise isn't part of this workout.",
     );
   }
-  if (
-    !Number.isInteger(input.setNumber) ||
-    input.setNumber < 1 ||
-    input.setNumber > loggedExercise.plannedSets
-  ) {
-    // Planned working sets only — no ad-hoc extra sets (Decision 12).
+  if (loggedExercise.skippedAt) {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This exercise is marked as not done. Undo that to log a set.",
+    );
+  }
+  if (!isAllowedSetNumber(input.setNumber, loggedExercise)) {
     throw new DomainError(
       "validation_error",
       "That set isn't part of this exercise.",
