@@ -1,9 +1,15 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
-import { createGoal, type CreateGoalResult } from "@/lib/goals/goals";
+import {
+  acknowledgeGoalCompletion,
+  archiveGoal,
+  createGoal,
+  type CreateGoalResult,
+} from "@/lib/goals/goals";
 import { goalInputFromFormData } from "@/lib/goals/validation";
 
 /*
@@ -49,4 +55,29 @@ export async function createGoalAction(
       targetReps: String(raw.targetReps ?? ""),
     },
   };
+}
+
+/** Manually retire an active goal (no undo; R9, R59). */
+export async function archiveGoalAction(
+  goalId: string,
+): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  // No refresh(): the client navigates to /goals, which renders fresh.
+  return toActionResult(
+    () => archiveGoal({ goalId }),
+    "Couldn't archive the goal. Nothing changed.",
+  );
+}
+
+/** Dismiss the one-time "Goal reached" card (idempotent; R34, R58). */
+export async function acknowledgeGoalCompletionAction(
+  goalId: string,
+): Promise<ActionResult<{ id: string }>> {
+  await requireUser();
+  const result = await toActionResult(
+    () => acknowledgeGoalCompletion({ goalId }),
+    "Couldn't update the goal. Try again.",
+  );
+  if (result.ok) refresh();
+  return result;
 }

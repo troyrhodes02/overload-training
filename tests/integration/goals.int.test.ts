@@ -4,7 +4,8 @@ import {
   createTestExercise,
   createTestMesocycle,
 } from "./support/plan-factories";
-import { editLoggedSet } from "@/lib/logging/logged-sets";
+import { editLoggedSet, logSet } from "@/lib/logging/logged-sets";
+import { completeWorkout } from "@/lib/logging/sessions";
 import {
   acknowledgeGoalCompletion,
   archiveGoal,
@@ -947,6 +948,124 @@ describe("the target form context (design Screen 3)", () => {
     }
     expect(await getGoalFormContext(chestPress.id)).toMatchObject({
       kind: "no_gyms",
+    });
+  });
+});
+
+describe("completion through the real logging write path (OVE-31)", () => {
+  it("logSet + completeWorkout, then the post-commit reconcile, completes the goal once", async () => {
+    const { meso, bench } = await setup();
+    const goal = await createGoal({
+      exerciseId: bench.id,
+      targetWeightLbs: 155,
+      targetReps: 8,
+    });
+    const ls = await db().loggedSession.create({
+      data: {
+        mesocycleId: meso.id,
+        performedOn: new Date("2026-11-02T12:00:00Z"),
+        scheduledFor: new Date("2026-11-02T00:00:00Z"),
+      },
+    });
+    const le = await db().loggedExercise.create({
+      data: {
+        loggedSessionId: ls.id,
+        exerciseId: bench.id,
+        plannedExerciseId: bench.id,
+        plannedSets: 2,
+        targetRepMin: 6,
+        targetRepMax: 8,
+      },
+    });
+
+    await logSet({
+      loggedExerciseId: le.id,
+      setNumber: 1,
+      weightLbs: 160,
+      reps: 7,
+    });
+    // In progress: not yet qualifying, so nothing completes.
+    expect(await reconcileGoalCompletions()).toEqual([]);
+    await logSet({
+      loggedExerciseId: le.id,
+      setNumber: 2,
+      weightLbs: 150,
+      reps: 8,
+    });
+    await completeWorkout({ loggedSessionId: ls.id });
+
+    expect(await reconcileGoalCompletions()).toEqual([goal.id]);
+    expect(await reconcileGoalCompletions()).toEqual([]);
+
+    // The record survives in history, the reached card is pending once.
+    expect(await listActiveGoals()).toEqual([]);
+    expect((await listGoalHistory())[0]).toMatchObject({
+      goalId: goal.id,
+      outcome: "completed",
+    });
+    const pending = await listUnacknowledgedCompletions();
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      goalId: goal.id,
+      alreadyReached: false,
+      newGoalHref: `/goals/new/${bench.id}`,
+    });
+    await acknowledgeGoalCompletion({ goalId: goal.id });
+    expect(await listUnacknowledgedCompletions()).toEqual([]);
+
+    // The logged sets are exactly as entered.
+    const sets = await db().loggedSet.findMany({
+      where: { loggedExerciseId: le.id },
+      orderBy: { setNumber: "asc" },
+    });
+    expect(sets.map((x) => [Number(x.weightLbs), x.reps])).toEqual([
+      [160, 7],
+      [150, 8],
+    ]);
+  });
+
+  it("the archived detail offers a new goal only when the exercise is free and active", async () => {
+    const { meso, chestPress, downtown } = await setup();
+    await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: chestPress.id,
+      gymId: downtown.id,
+      scheduledFor: "2026-11-02",
+      reps: [10],
+      weights: [210],
+    });
+    const done = await createGoal({
+      exerciseId: chestPress.id,
+      gymId: downtown.id,
+      targetWeightLbs: 200,
+      targetReps: 10,
+    });
+    expect(done.outcome).toBe("completed");
+    expect(await getGoalDetail(done.id)).toMatchObject({
+      kind: "archived",
+      outcome: "completed",
+      unacknowledged: true,
+      alreadyReached: true,
+      newGoalHref: `/goals/new/${chestPress.id}?gymId=${downtown.id}`,
+    });
+
+    const next = await createGoal({
+      exerciseId: chestPress.id,
+      gymId: downtown.id,
+      targetWeightLbs: 230,
+      targetReps: 10,
+    });
+    expect(next.outcome).toBe("active");
+    expect(await getGoalDetail(done.id)).toMatchObject({ newGoalHref: null });
+
+    await archiveGoal({ goalId: next.id });
+    await db().gym.update({
+      where: { id: downtown.id },
+      data: { deletedAt: new Date() },
+    });
+    // Archived gym: the new-goal link keeps the lift but drops the gym.
+    expect(await getGoalDetail(done.id)).toMatchObject({
+      newGoalHref: `/goals/new/${chestPress.id}`,
     });
   });
 });
