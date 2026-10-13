@@ -997,6 +997,8 @@ describe("completion through the real logging write path (OVE-31)", () => {
 
     expect(await reconcileGoalCompletions()).toEqual([goal.id]);
     expect(await reconcileGoalCompletions()).toEqual([]);
+    // Completion never generates the next goal (R35, R36).
+    expect(await db().goal.count()).toBe(1);
 
     // The record survives in history, the reached card is pending once.
     expect(await listActiveGoals()).toEqual([]);

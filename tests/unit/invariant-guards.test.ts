@@ -355,6 +355,38 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
     expect(offenders.map(rel)).toEqual([]);
   });
 
+  it("goal code carries no dates, pacing, feasibility, gamification, or cardio", () => {
+    const goalCode = [
+      ...walk(GOALS),
+      ...walk(path.join(SRC, "app", "(app)", "goals")),
+      ...walk(path.join(SRC, "components", "goals")),
+    ];
+    const forbidden =
+      /deadline|due\s?date|target\s?date|targetOn|on track|behind pace|pacing|feasib|projected|confetti|streak|\bXP\b|achievement|level.?up|cardio/i;
+    // Code and copy only — doc comments legitimately name what is excluded.
+    const code = (f: string) =>
+      read(f)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+    expect(goalCode.filter((f) => forbidden.test(code(f))).map(rel)).toEqual(
+      [],
+    );
+  });
+
+  it("no goal is ever created except by the lifter's create action", () => {
+    // The only goal.create call is inside createGoal, which only the
+    // createGoalAction server action calls — completion never spawns a goal.
+    const creators = walk(SRC).filter((f) =>
+      /\.\s*goal\s*\.\s*(create|createMany|upsert)\s*\(/.test(read(f)),
+    );
+    expect(creators.map(rel)).toEqual(["src/lib/goals/goals.ts"]);
+    const callers = walk(SRC).filter(
+      (f) =>
+        rel(f) !== "src/lib/goals/goals.ts" && /\bcreateGoal\(/.test(read(f)),
+    );
+    expect(callers.map(rel)).toEqual(["src/app/(app)/goals/actions.ts"]);
+  });
+
   it("adds no gamification, notification, or scheduling dependency", () => {
     const pkg = JSON.parse(read(path.join(REPO_ROOT, "package.json")));
     const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
