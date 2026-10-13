@@ -15,6 +15,7 @@ import {
 import {
   getGoalDetail,
   getGoalFormContext,
+  getSessionGoalSummary,
   listActiveGoals,
   listGoalHistory,
   listUnacknowledgedCompletions,
@@ -1067,5 +1068,209 @@ describe("completion through the real logging write path (OVE-31)", () => {
     expect(await getGoalDetail(done.id)).toMatchObject({
       newGoalHref: `/goals/new/${chestPress.id}`,
     });
+  });
+});
+
+describe("post-session goal rows (OVE-32; design Screen 8)", () => {
+  it("shows only touched goals: before → after for progress, reached for a completion", async () => {
+    const { meso, bench, chestPress, downtown } = await setup();
+    const ohp = await createTestExercise({
+      name: "Overhead Press",
+      equipmentType: "barbell",
+    });
+    const squat = await createTestExercise({
+      name: "Hack Squat",
+      equipmentType: "barbell",
+    });
+    // Prior bench session → 87%.
+    await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-02",
+      reps: [5],
+      weights: [235],
+    });
+    const benchGoal = await createGoal(
+      { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
+      new Date("2026-11-03T00:00:00Z"),
+    );
+    const ohpGoal = await createGoal(
+      { exerciseId: ohp.id, targetWeightLbs: 155, targetReps: 8 },
+      new Date("2026-11-03T00:01:00Z"),
+    );
+    await createGoal(
+      { exerciseId: squat.id, targetWeightLbs: 365, targetReps: 5 },
+      new Date("2026-11-03T00:00:00Z"),
+    );
+    await createGoal(
+      {
+        exerciseId: chestPress.id,
+        gymId: downtown.id,
+        targetWeightLbs: 200,
+        targetReps: 10,
+      },
+      new Date("2026-11-03T00:00:00Z"),
+    );
+
+    // Today's workout: bench 245 × 5 (→ 90%), OHP 160 × 7 (reaches 155 × 8).
+    const today = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-09",
+      reps: [5],
+      weights: [245],
+    });
+    const ohpLe = await db().loggedExercise.create({
+      data: {
+        loggedSessionId: today.loggedSessionId,
+        exerciseId: ohp.id,
+        plannedExerciseId: ohp.id,
+        position: 1,
+        plannedSets: 1,
+        targetRepMin: 6,
+        targetRepMax: 8,
+      },
+    });
+    await db().loggedSet.create({
+      data: {
+        loggedExerciseId: ohpLe.id,
+        setNumber: 1,
+        weightLbs: 160,
+        reps: 7,
+      },
+    });
+    await reconcileGoalCompletions({ now: new Date("2026-11-09T14:00:00Z") });
+
+    const rows = await getSessionGoalSummary(today.loggedSessionId);
+    expect(rows).toEqual([
+      {
+        goalId: benchGoal.id,
+        exerciseName: "Barbell Bench Press",
+        targetLabel: "315 × 1",
+        kind: "progress",
+        percentBefore: 87,
+        percentAfter: 90,
+      },
+      {
+        goalId: ohpGoal.id,
+        exerciseName: "Overhead Press",
+        targetLabel: "155 × 8",
+        kind: "reached",
+        percentBefore: null,
+        percentAfter: null,
+      },
+    ]);
+    // Hack Squat and the machine goal were not trained: absent.
+  });
+
+  it("a first measured session has no 'before'", async () => {
+    const { meso, bench } = await setup();
+    await createGoal(
+      { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
+      new Date("2026-11-01T00:00:00Z"),
+    );
+    const s = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-02",
+      reps: [5],
+      weights: [235],
+    });
+    expect(await getSessionGoalSummary(s.loggedSessionId)).toMatchObject([
+      { kind: "progress", percentBefore: null, percentAfter: 87 },
+    ]);
+  });
+
+  it("a machine goal is touched only at its gym; a swap counts to the performed exercise", async () => {
+    const { meso, bench, chestPress, downtown, campus } = await setup();
+    await createGoal({
+      exerciseId: chestPress.id,
+      gymId: downtown.id,
+      targetWeightLbs: 200,
+      targetReps: 10,
+    });
+    await createGoal({
+      exerciseId: bench.id,
+      targetWeightLbs: 315,
+      targetReps: 1,
+    });
+
+    const atCampus = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: chestPress.id,
+      gymId: campus.id,
+      scheduledFor: "2026-11-02",
+      reps: [10],
+      weights: [180],
+    });
+    expect(await getSessionGoalSummary(atCampus.loggedSessionId)).toEqual([]);
+
+    // Bench was planned but Chest Press Machine was performed (swap) at Downtown.
+    const swapped = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: chestPress.id,
+      plannedExerciseId: bench.id,
+      gymId: downtown.id,
+      scheduledFor: "2026-11-09",
+      reps: [10],
+      weights: [180],
+    });
+    expect(await getSessionGoalSummary(swapped.loggedSessionId)).toMatchObject([
+      {
+        exerciseName: "Chest Press Machine",
+        kind: "progress",
+        percentAfter: 90,
+      },
+    ]);
+  });
+
+  it("an in-progress or scheduled-deload session touches no goal", async () => {
+    const { meso, bench } = await setup();
+    await createGoal({
+      exerciseId: bench.id,
+      targetWeightLbs: 315,
+      targetReps: 1,
+    });
+    const inProgress = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-02",
+      reps: [5],
+      weights: [235],
+      status: "in_progress",
+    });
+    expect(await getSessionGoalSummary(inProgress.loggedSessionId)).toEqual([]);
+    const deloadWeek = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-30",
+      reps: [5],
+      weights: [215],
+    });
+    expect(await getSessionGoalSummary(deloadWeek.loggedSessionId)).toEqual([]);
+  });
+
+  it("a goal completed by an earlier session is not re-announced by a later one", async () => {
+    const { meso, bench } = await setup();
+    await createGoal(
+      { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
+      new Date("2026-11-01T00:00:00Z"),
+    );
+    await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-02",
+      reps: [1],
+      weights: [320],
+    });
+    await reconcileGoalCompletions({ now: new Date("2026-11-02T14:00:00Z") });
+    const later = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-09",
+      reps: [1],
+      weights: [325],
+    });
+    expect(await getSessionGoalSummary(later.loggedSessionId)).toEqual([]);
   });
 });

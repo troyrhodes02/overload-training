@@ -76,12 +76,11 @@ function Heading({ goal }: { goal: GoalDetailDto }) {
                 Gym archived
               </Badge>
             ) : null}
-            <span aria-hidden>·</span>
+            <span>· set {goal.createdLabel}</span>
           </>
         ) : (
-          <span>Goal ·</span>
+          <span>Goal · set {goal.createdLabel}</span>
         )}
-        <span>set {goal.createdLabel}</span>
       </p>
     </div>
   );

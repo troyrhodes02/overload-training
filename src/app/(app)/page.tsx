@@ -13,6 +13,10 @@ import {
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
 import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload-banner";
+import { DashboardGoals } from "@/components/goals/dashboard-goals";
+import { SessionGoalRows } from "@/components/goals/session-goal-rows";
+import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
+import { dashboardShowsGoals } from "@/lib/goals/dashboard";
 
 export const metadata = { title: "Today · Overload" };
 
@@ -60,6 +64,9 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
             </li>
           ))}
         </ul>
+      ) : null}
+      {state.loggedSessionId ? (
+        <SessionGoalRows loggedSessionId={state.loggedSessionId} />
       ) : null}
       <div className="mt-4 flex items-center gap-4 text-sm">
         {state.loggedSessionId ? (
@@ -150,6 +157,12 @@ export default async function TodayPage() {
   const dash = await getTodayDashboard();
   const today = formatPlanDate(new Date().toISOString().slice(0, 10));
 
+  // Goals fill the dashboard ONLY when no training action is pending (Goals
+  // R42, R43). Completion is reconciled first (spec §11b, R54) so a just-met
+  // goal shows its card and the summary can say "Goal reached".
+  const showGoals = dashboardShowsGoals(dash.kind);
+  if (showGoals) await reconcileGoalCompletionsSafely();
+
   if (dash.kind === "no_plan") {
     return (
       <section className="space-y-6">
@@ -163,6 +176,7 @@ export default async function TodayPage() {
             </Link>
           </p>
         </div>
+        <DashboardGoals />
       </section>
     );
   }
@@ -180,6 +194,7 @@ export default async function TodayPage() {
             </Link>
           </p>
         </div>
+        <DashboardGoals />
       </section>
     );
   }
@@ -202,6 +217,7 @@ export default async function TodayPage() {
     <section className="space-y-6">
       <p className="text-sm text-muted-foreground">Today · {today}</p>
       <TodayBlock state={dash} />
+      {showGoals ? <DashboardGoals /> : null}
     </section>
   );
 }

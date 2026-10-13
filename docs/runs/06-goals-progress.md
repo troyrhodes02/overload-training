@@ -47,7 +47,8 @@ transition and ticket boundary.
 
 ### Ticket PRs
 - OVE-30 → `feat/ove-30-goal-model` → **PR #37** (base = feature branch) · In Review · unit 255 / integration 211 / e2e 22 / build green
-- OVE-31 → `feat/ove-31-goal-lifecycle` (base = OVE-30 branch) · in progress
+- OVE-31 → `feat/ove-31-goal-lifecycle` → **PR #38** (base = OVE-30 branch) · In Review · unit 263 / integration 213 / e2e 22 / build green
+- OVE-32 → `feat/ove-32-goals-dashboard` (base = OVE-31 branch) · in progress
 
 ## Notes / decisions log
 
