@@ -1,18 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Dumbbell } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-/** Up to two initials: "Banded Row" → "BR", "Shrug" → "SH". */
-export function monogram(name: string): string {
-  const words = name
-    .trim()
-    .split(/[\s-]+/)
-    .filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
 
 type Size = "sm" | "lg";
 
@@ -21,31 +11,24 @@ const frame: Record<Size, string> = {
   lg: "aspect-square w-full max-w-xs rounded-lg",
 };
 
-/** Quiet initials tile for custom exercises and any missing/broken image. */
-export function MonogramTile({
-  name,
-  size = "sm",
-}: {
-  name: string;
-  size?: Size;
-}) {
+/** Quiet generic exercise tile for custom exercises and any missing/broken image. */
+export function PlaceholderTile({ size = "sm" }: { size?: Size }) {
   return (
     <div
       aria-hidden
       className={cn(
-        "flex shrink-0 items-center justify-center border border-border bg-muted font-medium text-muted-foreground",
+        "flex shrink-0 items-center justify-center border border-border bg-muted text-muted-foreground",
         frame[size],
-        size === "sm" ? "text-xs" : "text-3xl",
       )}
     >
-      {monogram(name)}
+      <Dumbbell className={size === "sm" ? "size-5" : "size-16"} />
     </div>
   );
 }
 
 /**
  * An imported exercise's image from Overload's own Storage. Falls back to the
- * monogram when there is no image (custom exercises) or it fails to load, so
+ * generic exercise icon when there is no image (custom exercises) or it fails to load, so
  * an image problem never makes the exercise unusable.
  */
 export function ExerciseThumb({
@@ -58,7 +41,7 @@ export function ExerciseThumb({
   size?: Size;
 }) {
   const [failed, setFailed] = useState(false);
-  if (!imageUrl || failed) return <MonogramTile name={name} size={size} />;
+  if (!imageUrl || failed) return <PlaceholderTile size={size} />;
   return (
     // Plain <img> on purpose (spec D33): small source JPEGs, lazy-loaded.
     // eslint-disable-next-line @next/next/no-img-element
