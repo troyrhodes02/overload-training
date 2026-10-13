@@ -1165,6 +1165,22 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
     // Hack Squat and the machine goal were not trained: absent.
   });
 
+  it("a goal set after the workout was completed is not shown as moved by it", async () => {
+    const { meso, bench } = await setup();
+    const s = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: bench.id,
+      scheduledFor: "2026-11-02", // completed 2026-11-02T13:00Z
+      reps: [5],
+      weights: [235],
+    });
+    await createGoal(
+      { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
+      new Date("2026-11-02T18:00:00Z"),
+    );
+    expect(await getSessionGoalSummary(s.loggedSessionId)).toEqual([]);
+  });
+
   it("a first measured session has no 'before'", async () => {
     const { meso, bench } = await setup();
     await createGoal(

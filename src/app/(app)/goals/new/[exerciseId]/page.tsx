@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { ExerciseThumb } from "@/components/exercises/exercise-thumb";
 import { GoalTargetForm } from "@/components/goals/goal-target-form";
 import { BackLink } from "@/components/plan/plan-bits";
+import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { getGoalFormContext } from "@/lib/goals/queries";
 
 export const metadata = { title: "New goal · Overload" };
@@ -26,6 +28,10 @@ export default async function NewGoalTargetPage({
   searchParams,
 }: PageProps) {
   const [{ exerciseId }, sp] = await Promise.all([params, searchParams]);
+  // Reconcile first (request time only) so a goal history has already met is
+  // never presented as the "active goal" blocking a new one (R54).
+  await connection();
+  await reconcileGoalCompletionsSafely();
   const gymParam = Array.isArray(sp.gymId) ? sp.gymId[0] : sp.gymId;
   const ctx = await getGoalFormContext(exerciseId, gymParam ?? null);
   if (ctx.kind === "not_found") notFound();

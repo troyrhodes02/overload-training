@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { LibraryControls } from "@/components/exercises/library-controls";
 import { GoalExercisePicker } from "@/components/goals/goal-exercise-picker";
 import { BackLink } from "@/components/plan/plan-bits";
+import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import {
   LIBRARY_MAX_LIMIT,
   LIBRARY_PAGE_SIZE,
@@ -30,6 +32,10 @@ const BASE = "/goals/new";
  */
 export default async function NewGoalPickerPage({ searchParams }: PageProps) {
   const filters = parseLibraryParams(await searchParams);
+  // Reconcile first (request time only) so a goal history has already met is
+  // never presented as the "active goal" blocking a new one (R54).
+  await connection();
+  await reconcileGoalCompletionsSafely();
   const [list, activeGoals] = await Promise.all([
     listExercises(filters),
     activeGoalExerciseMap(),

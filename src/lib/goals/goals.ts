@@ -3,8 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { getQualifyingSessionE1rms } from "@/lib/progression/queries";
 import { computeGoalProgress } from "./progress";
+import { goalPerformances } from "./queries";
 import { parseGoalInput, type RawGoalInput } from "./validation";
 
 /**
@@ -48,20 +48,25 @@ export async function reconcileGoalCompletions(
     include: { exercise: { select: { equipmentType: true } } },
   });
 
+  // Measure every candidate first (independent reads, in parallel — this runs
+  // after each logged set, so it must stay quick), then transition the reached
+  // ones one by one. Scope comes from the shared rule in queries.ts.
+  const measured = await Promise.all(
+    goals.map(async (goal) => ({
+      goal,
+      progress: computeGoalProgress(
+        {
+          targetWeightLbs: Number(goal.targetWeightLbs),
+          targetReps: goal.targetReps,
+        },
+        await goalPerformances(goal, tx),
+      ),
+    })),
+  );
+
   const now = opts.now ?? new Date();
   const completed: string[] = [];
-  for (const goal of goals) {
-    const scopeGymId = isGymVariable(goal.exercise) ? goal.gymId : null;
-    // A gym-variable goal without a gym cannot be measured (never created so).
-    if (isGymVariable(goal.exercise) && !scopeGymId) continue;
-    const perfs = await getQualifyingSessionE1rms(goal.exerciseId, scopeGymId);
-    const progress = computeGoalProgress(
-      {
-        targetWeightLbs: Number(goal.targetWeightLbs),
-        targetReps: goal.targetReps,
-      },
-      perfs,
-    );
+  for (const { goal, progress } of measured) {
     if (!progress.reached) continue;
     const { count } = await db(tx).goal.updateMany({
       where: { id: goal.id, status: "active" },
@@ -183,6 +188,9 @@ export async function createGoal(
         select: { id: true },
       });
 
+      // Same transaction AND same `now`: an already-reached goal lands with
+      // archivedAt === createdAt, which is how the read layer recognizes
+      // "Already reached" (R57). Keep the shared timestamp if this changes.
       const completed = await reconcileGoalCompletions(
         { goalIds: [goal.id], now },
         tx,

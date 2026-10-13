@@ -1,5 +1,5 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
+import type { Equipment, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
@@ -11,11 +11,9 @@ import {
   type QualifyingE1rm,
 } from "@/lib/progression/queries";
 import {
-  GOAL_REACHED_EPSILON,
   computeGoalProgress,
   formatGoalTarget,
   formatGoalTargetCompact,
-  goalTargetE1rm,
   type GoalProgress,
 } from "./progress";
 
@@ -151,17 +149,31 @@ function toContext(g: GoalRow): GoalContextDto {
   };
 }
 
-/** The measurement scope: the goal's gym for a gym-variable exercise, else global. */
-function scopeGymId(g: GoalRow): string | null | undefined {
-  if (!isGymVariable(g.exercise)) return null;
-  return g.gymId ?? undefined; // undefined → unmeasurable (never created so)
+/** The fields that decide which history a goal is measured against. */
+export type GoalScopeInput = {
+  exerciseId: string;
+  gymId: string | null;
+  exercise: { equipmentType: Equipment };
+};
+
+/**
+ * The ONE scope rule for goal measurement (R16, R17, R19, R51), shared by the
+ * completion engine and every read so they can never disagree: a gym-variable
+ * goal is measured at its gym only; a gym-consistent goal across all gyms.
+ */
+export async function goalPerformances(
+  g: GoalScopeInput,
+  db?: Prisma.TransactionClient,
+): Promise<QualifyingE1rm[]> {
+  if (!isGymVariable(g.exercise)) {
+    return getQualifyingSessionE1rms(g.exerciseId, null, db);
+  }
+  // A gym-variable goal without a gym is unmeasurable (never created so).
+  if (!g.gymId) return [];
+  return getQualifyingSessionE1rms(g.exerciseId, g.gymId, db);
 }
 
-async function performancesFor(g: GoalRow): Promise<QualifyingE1rm[]> {
-  const scope = scopeGymId(g);
-  if (scope === undefined) return [];
-  return getQualifyingSessionE1rms(g.exerciseId, scope);
-}
+const performancesFor = (g: GoalRow) => goalPerformances(g);
 
 function progressOf(g: GoalRow, perfs: QualifyingE1rm[]): GoalProgress {
   return computeGoalProgress(
@@ -380,11 +392,13 @@ export async function getSessionGoalSummary(
   const goals = await prisma.goal.findMany({
     where: {
       exerciseId: { in: performed },
+      // Only goals that existed when the workout was completed (R44): a goal
+      // set afterwards was not "moved" by this workout.
+      createdAt: { lte: session.completedAt },
       OR: [
         { status: "active" },
         {
           archiveReason: "completed",
-          createdAt: { lte: session.completedAt },
           archivedAt: { gte: session.completedAt },
         },
       ],
@@ -409,8 +423,8 @@ export async function getSessionGoalSummary(
       ),
     };
     if (g.status === "archived") {
-      const target = goalTargetE1rm(Number(g.targetWeightLbs), g.targetReps);
-      if (fromSession.some((p) => p.e1rm >= target - GOAL_REACHED_EPSILON)) {
+      // Same reached rule as the completion engine (computeGoalProgress).
+      if (progressOf(g, fromSession).reached) {
         rows.push({
           ...base,
           kind: "reached",

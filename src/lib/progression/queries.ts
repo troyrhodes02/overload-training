@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   formatPlanDate,
@@ -88,8 +89,11 @@ type Row = {
  * working sets. A performance is `completed` iff its LoggedSession is complete
  * and all planned working sets are present (R9, R44).
  */
-async function gatherRows(exerciseId: string): Promise<Row[]> {
-  const les = await prisma.loggedExercise.findMany({
+async function gatherRows(
+  exerciseId: string,
+  db: Prisma.TransactionClient = prisma,
+): Promise<Row[]> {
+  const les = await db.loggedExercise.findMany({
     where: { exerciseId },
     include: {
       sets: { orderBy: { setNumber: "asc" } },
@@ -167,12 +171,16 @@ export type QualifyingE1rm = {
  * (gym-variable; nominal machine pounds never cross gyms, R12). Read-only;
  * consumed by Goals (Pitch 6) so goal progress shares this module's notion of
  * demonstrated strength instead of defining a second one.
+ *
+ * `db` lets a caller that is inside a transaction read on that transaction's
+ * connection and snapshot (Goals' createGoal); reads only — never a write.
  */
 export async function getQualifyingSessionE1rms(
   exerciseId: string,
   gymId: string | null,
+  db: Prisma.TransactionClient = prisma,
 ): Promise<QualifyingE1rm[]> {
-  const rows = await gatherRows(exerciseId);
+  const rows = await gatherRows(exerciseId, db);
   const scoped = gymId ? rows.filter((r) => r.perf.gymId === gymId) : rows;
   const sessionOf = new Map(
     scoped.map((r) => [r.perf.loggedExerciseId, r.loggedSessionId]),
