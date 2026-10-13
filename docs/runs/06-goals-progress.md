@@ -21,7 +21,7 @@ transition and ticket boundary.
 - `Goal` table already exists from Foundation (`exerciseId`, `targetWeightLbs`,
   `targetReps`, `status active|archived`, RLS deny-all, Restrict FK) — empty, unused.
 
-## Pipeline status
+## Pipeline status — COMPLETE ✅ (merged to `main` on green, `407c7f4`)
 
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/06-goals-design-doc.md`
@@ -32,9 +32,9 @@ transition and ticket boundary.
 - [x] 7. Implement tickets (PRs #37–#39)
 - [x] 8. Runbook — `docs/runs/06-goals-runbook.md`
 - [x] 9. Merge ticket PRs into feature branch (squash, dependency order)
-- [ ] 10. Full verification
-- [ ] 11. Review + audit
-- [ ] 12. Merge on green + run report
+- [x] 10. Full verification (lint, typecheck, format, unit 271, integration 219, build, e2e 22, client-bundle, Vercel check)
+- [x] 11. Review + audit (#36: 10 findings → implement 6 / defer 1 / skip 2 / discuss 1)
+- [x] 12. Merge on green (`407c7f4`) + run report — `docs/runs/06-goals-report.md`
 
 ## Linear
 
