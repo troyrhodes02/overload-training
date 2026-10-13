@@ -24,8 +24,8 @@ transition and ticket boundary.
 ## Pipeline status
 
 - [x] 1. Pitch pulled + authority read
-- [ ] 2. Design doc — `docs/design/06-goals-design-doc.md`
-- [ ] 3. UI preview — `docs/previews/06-goals-preview.tsx`
+- [x] 2. Design doc — `docs/design/06-goals-design-doc.md`
+- [x] 3. UI preview — `docs/previews/06-goals-preview.tsx`
 - [ ] 4. Spec — `docs/specs/06-goals-spec.md`
 - [ ] 5. Linear milestone + issues
 - [ ] 6. Feature PR into `main`
