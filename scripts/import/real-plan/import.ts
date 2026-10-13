@@ -362,11 +362,11 @@ export async function inspect(db: Db): Promise<Inspection> {
     }
   }
 
-  // Bodyweight lifts need a positive logged weight; machine/cable lifts are per-gym.
+  // Bodyweight lifts are logged reps only (see requiresExternalWeight); machine/cable lifts are per-gym.
   for (const e of exercises) {
     if (e.equipmentType === "bodyweight")
       warnings.push(
-        `"${e.productionName}" is bodyweight: log your bodyweight or added load (sets need a weight above 0).`,
+        `"${e.productionName}" is bodyweight: sets are logged as reps only (no weight). Use a weighted variant to track added load.`,
       );
   }
 

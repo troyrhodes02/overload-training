@@ -333,7 +333,10 @@ model LoggedSet {
   id               String   @id @default(uuid()) @db.Uuid
   loggedExerciseId String   @map("logged_exercise_id") @db.Uuid
   setNumber        Int      @map("set_number")
-  weightLbs        Decimal  @map("weight_lbs") @db.Decimal(6, 2)
+  /// External load. NULL iff the set is pure bodyweight (reps only) — never 0
+  /// or a guessed bodyweight. CHECK weight_lbs IS NULL OR > 0 (migration 8);
+  /// which exercises may store NULL is decided by requiresExternalWeight().
+  weightLbs        Decimal? @map("weight_lbs") @db.Decimal(6, 2)
   reps             Int
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz

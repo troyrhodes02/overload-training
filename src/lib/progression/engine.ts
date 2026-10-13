@@ -19,11 +19,12 @@ import {
   DELOAD_CONSECUTIVE_SESSIONS,
   STALL_WINDOW_SESSIONS,
 } from "./config";
-import { sessionE1rm } from "./e1rm";
+import { loadedSets, sessionE1rm } from "./e1rm";
 
 export type WorkingSet = {
   setNumber: number;
-  weightLbs: number;
+  /** External load; null for a pure bodyweight (reps-only) set. */
+  weightLbs: number | null;
   reps: number;
 };
 
@@ -86,8 +87,16 @@ export function hasBelowMin(p: Performance): boolean {
  * Scheduled-deload SUPPRESSION of a specific occurrence (precedence step 1) is
  * the read layer's responsibility; here scheduled-deload performances are simply
  * excluded from the sequence.
+ *
+ * `e1rmApplicable: false` is the pure-bodyweight branch (requiresExternalWeight
+ * false): the same rep-range rule decides insufficient / deload / progress /
+ * hold, but there is no external load to estimate, so the e1RM stall gate is
+ * skipped rather than fed a missing weight.
  */
-export function evaluateReactive(perfs: Performance[]): ReactiveState {
+export function evaluateReactive(
+  perfs: Performance[],
+  { e1rmApplicable = true }: { e1rmApplicable?: boolean } = {},
+): ReactiveState {
   const seq = qualifyingSequence(perfs);
   if (seq.length < MIN_QUALIFYING_SESSIONS) return "insufficient";
 
@@ -107,12 +116,15 @@ export function evaluateReactive(perfs: Performance[]): ReactiveState {
     progressWindow.every(isAllTop);
   if (!progressCandidate) return "hold";
 
+  // No external load → no e1RM → no stall gate (bodyweight branch).
+  if (!e1rmApplicable) return "progress";
+
   // Stall gate only operates once a full window of qualifying points exists (R24).
   if (seq.length < STALL_WINDOW_SESSIONS) return "progress";
 
   const window = seq.slice(-STALL_WINDOW_SESSIONS);
-  const start = sessionE1rm(window[0].workingSets);
-  const end = sessionE1rm(window[window.length - 1].workingSets);
+  const start = sessionE1rm(loadedSets(window[0].workingSets));
+  const end = sessionE1rm(loadedSets(window[window.length - 1].workingSets));
   // end > start → trend supports Progress; end <= start → withhold, flag stalled (R23).
   return end > start ? "progress" : "stalled";
 }

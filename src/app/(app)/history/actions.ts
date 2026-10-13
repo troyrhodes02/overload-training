@@ -16,7 +16,8 @@ import { editCardioLog } from "@/lib/cardio/cardio-logs";
  */
 export async function editLoggedSetAction(input: {
   loggedSetId: string;
-  weightLbs: number;
+  /** Omit / null for a bodyweight exercise (reps only). */
+  weightLbs?: number | null;
   reps: number;
 }): Promise<ActionResult<{ ok: true }>> {
   await requireUser();

@@ -21,6 +21,19 @@ export function estimateOneRepMax(weightLbs: number, reps: number): number {
 }
 
 /**
+ * The sets that carry an external load. A pure bodyweight set (weight NULL) has
+ * no load, so it never enters the Epley formula — not as 0, not as a guessed
+ * bodyweight. Callers filter through this before any e1RM call.
+ */
+export function loadedSets<T extends { weightLbs: number | null }>(
+  sets: T[],
+): (T & { weightLbs: number })[] {
+  return sets.filter(
+    (s): s is T & { weightLbs: number } => s.weightLbs !== null,
+  );
+}
+
+/**
  * The working set with the highest canonical e1RM estimate — the set that
  * defines a performance's session-level e1RM (R18). Ties keep the earlier set.
  * Returns null for an empty list. Goals (Pitch 6) use it to show which set

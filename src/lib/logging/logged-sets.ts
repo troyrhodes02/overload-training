@@ -3,6 +3,8 @@ import { Prisma, type LoggedSet } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
+import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
+import type { EquipmentValue } from "@/lib/exercises/taxonomy";
 
 /**
  * The ONLY path that writes a LoggedSet (CLAUDE.md Layer 1; Resolved Decision 9).
@@ -17,29 +19,48 @@ import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
 
 type Db = Prisma.TransactionClient;
 
+/**
+ * `weightLbs` is the external load. A bodyweight exercise (requiresExternalWeight
+ * false) logs reps only: omit it or pass null. It is stored as NULL — never 0,
+ * never a fake positive number, never a guessed bodyweight.
+ */
 export type LogSetInput = {
   loggedExerciseId: string;
   setNumber: number;
-  weightLbs: number;
+  weightLbs?: number | null;
   reps: number;
 };
 
 export type EditLoggedSetInput = {
   loggedSetId: string;
-  weightLbs: number;
+  weightLbs?: number | null;
   reps: number;
 };
 
-/** Both must be positive (Decision 11). Zero/empty/negative is rejected, never stored. */
-function validateValues(weightLbs: number, reps: number): void {
+/**
+ * Validates against the PERFORMED exercise's loading mode (Decision 11, extended
+ * for bodyweight). External load: weight > 0 and reps > 0. Bodyweight: reps > 0
+ * and no weight at all — a supplied weight (including 0) is rejected rather
+ * than silently dropped. Returns the weight to store.
+ */
+function validateValues(
+  exercise: { equipmentType: EquipmentValue },
+  weightLbs: number | null | undefined,
+  reps: number,
+): Prisma.Decimal | null {
   const details: Record<string, string> = {};
-  if (
-    typeof weightLbs !== "number" ||
-    !Number.isFinite(weightLbs) ||
-    weightLbs <= 0 ||
-    weightLbs > 9999.99
-  ) {
-    details.weightLbs = "Enter a weight above 0.";
+  const external = requiresExternalWeight(exercise);
+  if (external) {
+    if (
+      typeof weightLbs !== "number" ||
+      !Number.isFinite(weightLbs) ||
+      weightLbs <= 0 ||
+      weightLbs > 9999.99
+    ) {
+      details.weightLbs = "Enter a weight above 0.";
+    }
+  } else if (weightLbs !== null && weightLbs !== undefined) {
+    details.weightLbs = "This is a bodyweight exercise — log reps only.";
   }
   if (
     typeof reps !== "number" ||
@@ -56,6 +77,15 @@ function validateValues(weightLbs: number, reps: number): void {
       details,
     );
   }
+  return external ? new Prisma.Decimal(weightLbs as number) : null;
+}
+
+function sameWeight(
+  stored: Prisma.Decimal | null,
+  next: Prisma.Decimal | null,
+): boolean {
+  if (stored === null || next === null) return stored === next;
+  return stored.equals(next);
 }
 
 /** At most this many sets beyond the plan in one exercise (input sanity). */
@@ -90,23 +120,30 @@ export async function logSet(input: LogSetInput, tx?: Db): Promise<LoggedSet> {
 }
 
 async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
-  validateValues(input.weightLbs, input.reps);
-
-  const loggedExercise = await tx.loggedExercise.findUnique({
-    where: { id: input.loggedExerciseId },
-    select: {
-      id: true,
-      plannedSets: true,
-      skippedAt: true,
-      sets: { select: { setNumber: true } },
-    },
-  });
+  const loggedExercise = isUuid(input.loggedExerciseId)
+    ? await tx.loggedExercise.findUnique({
+        where: { id: input.loggedExerciseId },
+        select: {
+          id: true,
+          plannedSets: true,
+          skippedAt: true,
+          exercise: { select: { equipmentType: true } },
+          sets: { select: { setNumber: true } },
+        },
+      })
+    : null;
   if (!loggedExercise) {
     throw new DomainError(
       "not_found",
       "That exercise isn't part of this workout.",
     );
   }
+  // Mode comes from the PERFORMED exercise (swap is locked once a set exists).
+  const weight = validateValues(
+    loggedExercise.exercise,
+    input.weightLbs,
+    input.reps,
+  );
   if (loggedExercise.skippedAt) {
     throw new DomainError(
       "invalid_state_transition",
@@ -137,7 +174,7 @@ async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
   });
   if (existing) {
     if (
-      existing.weightLbs.equals(new Prisma.Decimal(input.weightLbs)) &&
+      sameWeight(existing.weightLbs, weight) &&
       existing.reps === input.reps
     ) {
       return existing;
@@ -153,14 +190,17 @@ async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
     data: {
       loggedExerciseId: input.loggedExerciseId,
       setNumber: input.setNumber,
-      weightLbs: new Prisma.Decimal(input.weightLbs),
+      weightLbs: weight,
       reps: input.reps,
     },
   });
 
   // Same transaction: establish/correct the gym baseline if this set completes a
   // gym-variable exercise at a gym (Decisions 18, 46, 57). No-op otherwise.
-  await applyBaselineOnCompletion(input.loggedExerciseId, tx);
+  // A bodyweight set has no load to baseline, so it never reaches that path.
+  if (weight !== null) {
+    await applyBaselineOnCompletion(input.loggedExerciseId, tx);
+  }
 
   return created;
 }
@@ -175,19 +215,28 @@ export async function editLoggedSet(
   tx?: Db,
 ): Promise<LoggedSet> {
   if (!tx) return prisma.$transaction((t) => editLoggedSet(input, t));
-  validateValues(input.weightLbs, input.reps);
   if (!isUuid(input.loggedSetId)) {
     throw new DomainError("not_found", "That set doesn't exist.");
   }
   const existing = await tx.loggedSet.findUnique({
     where: { id: input.loggedSetId },
-    select: { id: true },
+    select: {
+      id: true,
+      loggedExercise: {
+        select: { exercise: { select: { equipmentType: true } } },
+      },
+    },
   });
   if (!existing) {
     throw new DomainError("not_found", "That set doesn't exist.");
   }
+  const weight = validateValues(
+    existing.loggedExercise.exercise,
+    input.weightLbs,
+    input.reps,
+  );
   return tx.loggedSet.update({
     where: { id: input.loggedSetId },
-    data: { weightLbs: new Prisma.Decimal(input.weightLbs), reps: input.reps },
+    data: { weightLbs: weight, reps: input.reps },
   });
 }

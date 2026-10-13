@@ -32,7 +32,9 @@ export type CardProgression = {
  * Guided per-exercise logging card (design Screen 4). All planned working-set
  * rows together; weight + reps entry with positive-only validation; a saved set
  * reads as settled, an unsaved row as draft, and a failed save keeps the numbers.
- * A client island calling logSetAction; it never touches the database.
+ * A bodyweight exercise (requiresExternalWeight false) has no weight input at
+ * all — reps only, and no weight is sent. A client island calling logSetAction;
+ * it never touches the database.
  */
 type Draft = { weight: string; reps: string };
 
@@ -50,6 +52,7 @@ export function ExerciseCard({
   progression?: CardProgression;
 }) {
   const router = useRouter();
+  const needsWeight = exercise.requiresExternalWeight;
   const [drafts, setDrafts] = useState<Record<number, Draft>>(() =>
     Object.fromEntries(
       exercise.sets.map((s) => [
@@ -192,7 +195,10 @@ export function ExerciseCard({
     const draft = drafts[n] ?? { weight: "", reps: "" };
     const weight = Number(draft.weight);
     const reps = Number(draft.reps);
-    if (!draft.weight || !Number.isFinite(weight) || weight <= 0) {
+    if (
+      needsWeight &&
+      (!draft.weight || !Number.isFinite(weight) || weight <= 0)
+    ) {
       setErrors((e) => ({ ...e, [n]: "Enter a weight above 0." }));
       return;
     }
@@ -206,7 +212,7 @@ export function ExerciseCard({
       const res = await logSetAction({
         loggedExerciseId: exercise.loggedExerciseId,
         setNumber: n,
-        weightLbs: weight,
+        weightLbs: needsWeight ? weight : null,
         reps,
       });
       setPendingSet(null);
@@ -223,7 +229,8 @@ export function ExerciseCard({
           <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
             {exercise.plannedSets} × {exercise.plannedRepRange.min}–
             {exercise.plannedRepRange.max}
-            {exercise.suggestedWeightLbs
+            {!needsWeight ? " · bodyweight, reps only" : ""}
+            {needsWeight && exercise.suggestedWeightLbs
               ? ` · last: ${exercise.suggestedWeightLbs} lbs`
               : ""}
           </p>
@@ -276,21 +283,25 @@ export function ExerciseCard({
                     </span>
                   ) : null}
                 </span>
-                <Input
-                  aria-label={`Set ${s.setNumber} weight in pounds`}
-                  inputMode="decimal"
-                  className="h-11 flex-1"
-                  value={draft.weight}
-                  disabled={s.saved}
-                  onChange={(e) =>
-                    setDraft(s.setNumber, { weight: e.target.value })
-                  }
-                />
-                <span className="text-sm text-muted-foreground">lbs</span>
+                {needsWeight ? (
+                  <>
+                    <Input
+                      aria-label={`Set ${s.setNumber} weight in pounds`}
+                      inputMode="decimal"
+                      className="h-11 flex-1"
+                      value={draft.weight}
+                      disabled={s.saved}
+                      onChange={(e) =>
+                        setDraft(s.setNumber, { weight: e.target.value })
+                      }
+                    />
+                    <span className="text-sm text-muted-foreground">lbs</span>
+                  </>
+                ) : null}
                 <Input
                   aria-label={`Set ${s.setNumber} reps`}
                   inputMode="numeric"
-                  className="h-11 w-20"
+                  className={needsWeight ? "h-11 w-20" : "h-11 flex-1"}
                   value={draft.reps}
                   disabled={s.saved}
                   onChange={(e) =>

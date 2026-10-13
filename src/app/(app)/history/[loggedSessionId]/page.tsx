@@ -46,7 +46,10 @@ export default async function LoggedWorkoutPage({
                 className="flex items-center justify-between"
               >
                 <span>
-                  Set {s.setNumber} &nbsp; {s.weightLbs} lbs × {s.reps}
+                  Set {s.setNumber} &nbsp;{" "}
+                  {s.weightLbs === null
+                    ? `${s.reps} reps`
+                    : `${s.weightLbs} lbs × ${s.reps}`}
                   {s.extra ? (
                     <span className="text-xs text-muted-foreground">
                       {" "}
@@ -58,6 +61,7 @@ export default async function LoggedWorkoutPage({
                   loggedSetId={s.loggedSetId}
                   setNumber={s.setNumber}
                   exerciseName={ex.performedName}
+                  requiresExternalWeight={ex.requiresExternalWeight}
                   weightLbs={s.weightLbs}
                   reps={s.reps}
                 />
