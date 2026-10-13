@@ -1,6 +1,7 @@
 import "server-only";
 import type { Equipment, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { lifterTimeZone } from "@/lib/time/lifter-time-zone";
 import { isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { getExercise } from "@/lib/exercises/queries";
@@ -111,17 +112,14 @@ export type GoalFormContextDto =
   | { kind: "archived_exercise"; exerciseName: string }
   | { kind: "not_found" };
 
-const TIMESTAMP_FMT = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  // The app's all-UTC calendar convention (src/lib/plan/calendar.ts).
-  timeZone: "UTC",
-});
-
-/** Timestamp → "Oct 12, 2026" (UTC, like every other date in the app). */
-export function formatGoalDate(date: Date): string {
-  return TIMESTAMP_FMT.format(date);
+/** Timestamp → "Oct 12, 2026", on the calendar of the lifter's time zone. */
+export function formatGoalDate(date: Date, timeZone = "UTC"): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  }).format(date);
 }
 
 const goalInclude = {
@@ -131,7 +129,7 @@ const goalInclude = {
 
 type GoalRow = Prisma.GoalGetPayload<{ include: typeof goalInclude }>;
 
-function toContext(g: GoalRow): GoalContextDto {
+function toContext(g: GoalRow, tz: string): GoalContextDto {
   const weight = Number(g.targetWeightLbs);
   return {
     goalId: g.id,
@@ -145,7 +143,7 @@ function toContext(g: GoalRow): GoalContextDto {
     targetReps: g.targetReps,
     targetLabel: formatGoalTarget(weight, g.targetReps),
     createdAtIso: g.createdAt.toISOString(),
-    createdLabel: formatGoalDate(g.createdAt),
+    createdLabel: formatGoalDate(g.createdAt, tz),
   };
 }
 
@@ -182,9 +180,13 @@ function progressOf(g: GoalRow, perfs: QualifyingE1rm[]): GoalProgress {
   );
 }
 
-function toActive(g: GoalRow, progress: GoalProgress): ActiveGoalDto {
+function toActive(
+  g: GoalRow,
+  progress: GoalProgress,
+  tz: string,
+): ActiveGoalDto {
   return {
-    ...toContext(g),
+    ...toContext(g, tz),
     percent: progress.percent,
     targetE1rm: Math.round(progress.targetE1rm),
     best: progress.best
@@ -199,17 +201,17 @@ function toActive(g: GoalRow, progress: GoalProgress): ActiveGoalDto {
   };
 }
 
-async function activeDto(g: GoalRow): Promise<ActiveGoalDto> {
-  return toActive(g, progressOf(g, await performancesFor(g)));
+async function activeDto(g: GoalRow, tz: string): Promise<ActiveGoalDto> {
+  return toActive(g, progressOf(g, await performancesFor(g)), tz);
 }
 
-function toHistory(g: GoalRow): GoalHistoryDto {
+function toHistory(g: GoalRow, tz: string): GoalHistoryDto {
   const archivedAt = g.archivedAt ?? g.updatedAt;
   return {
-    ...toContext(g),
+    ...toContext(g, tz),
     outcome: g.archiveReason === "completed" ? "completed" : "manual",
     archivedAtIso: archivedAt.toISOString(),
-    archivedLabel: formatGoalDate(archivedAt),
+    archivedLabel: formatGoalDate(archivedAt, tz),
   };
 }
 
@@ -239,7 +241,8 @@ export async function listActiveGoals(opts?: {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     ...(opts?.take ? { take: opts.take } : {}),
   });
-  return Promise.all(rows.map(activeDto));
+  const tz = await lifterTimeZone();
+  return Promise.all(rows.map((g) => activeDto(g, tz)));
 }
 
 export async function countActiveGoals(): Promise<number> {
@@ -253,7 +256,8 @@ export async function listGoalHistory(): Promise<GoalHistoryDto[]> {
     include: goalInclude,
     orderBy: [{ archivedAt: "desc" }, { id: "asc" }],
   });
-  return rows.map(toHistory);
+  const tz = await lifterTimeZone();
+  return rows.map((g) => toHistory(g, tz));
 }
 
 export async function countGoalHistory(): Promise<number> {
@@ -269,8 +273,9 @@ export async function listUnacknowledgedCompletions(): Promise<
     include: goalInclude,
     orderBy: [{ archivedAt: "desc" }, { id: "asc" }],
   });
+  const tz = await lifterTimeZone();
   return rows.map((g) => ({
-    ...toContext(g),
+    ...toContext(g, tz),
     alreadyReached: isAlreadyReached(g),
     newGoalHref: newGoalHrefFor(g),
   }));
@@ -294,7 +299,9 @@ export async function getGoalDetail(
     include: goalInclude,
   });
   if (!g) return null;
-  if (g.status === "active") return { kind: "active", ...(await activeDto(g)) };
+  const tz = await lifterTimeZone();
+  if (g.status === "active")
+    return { kind: "active", ...(await activeDto(g, tz)) };
 
   const otherActive = await prisma.goal.findFirst({
     where: { exerciseId: g.exerciseId, status: "active" },
@@ -302,7 +309,7 @@ export async function getGoalDetail(
   });
   return {
     kind: "archived",
-    ...toHistory(g),
+    ...toHistory(g, tz),
     unacknowledged:
       g.archiveReason === "completed" && g.completionAcknowledgedAt === null,
     alreadyReached: isAlreadyReached(g),
@@ -329,7 +336,7 @@ export async function getGoalFormContext(
     return {
       kind: "duplicate",
       exerciseName: exercise.name,
-      existing: await activeDto(existing),
+      existing: await activeDto(existing, await lifterTimeZone()),
     };
   }
 

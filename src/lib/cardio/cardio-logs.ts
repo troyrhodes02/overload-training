@@ -6,8 +6,8 @@ import {
   mesocycleWeekForDate,
   parseIsoDate,
   toIsoDate,
-  todayIso,
 } from "@/lib/plan/calendar";
+import { lifterToday } from "@/lib/time/lifter-time-zone";
 import { isUniqueViolation } from "@/lib/plan/write-support";
 import { loadScheduleContext } from "@/lib/logging/schedule-context";
 import { cardioWeekOccurrences } from "./schedule";
@@ -128,7 +128,7 @@ async function logCardioInTx(
       "That day was shifted out of the week.",
     );
   }
-  if (occurrence.effectiveIso > todayIso()) {
+  if (occurrence.effectiveIso > (await lifterToday())) {
     throw new DomainError(
       "invalid_state_transition",
       "That cardio isn't due yet.",
