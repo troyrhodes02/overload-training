@@ -44,6 +44,7 @@ locally and in production. See `docs/runs/01-foundation-runbook.md`.
 | `npm run test:integration` | Jest integration tests against a throwaway Postgres (`TEST_DATABASE_URL`; an embedded Postgres is provisioned automatically) |
 | `npm run test:e2e` | Playwright auth-boundary tests (uses system Chrome via `channel`) |
 | `npm run verify:client-bundle` | Fails if a server DB secret leaked into `.next/static` (run after `build`) |
+| `npm run seed:scenario -- <name>` | **Local only.** Replace local app data with a dev scenario (`fresh`, `established`, `plateau`, `multi-gym`) — see [docs/dev/scenario-seeding.md](docs/dev/scenario-seeding.md) |
 
 ## Database & migrations
 
