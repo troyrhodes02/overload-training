@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 
 /**
  * Gym-specific weight baselines (Guided Workout Logging, Resolved Decisions
@@ -62,12 +63,16 @@ export async function applyBaselineOnCompletion(
     include: { exercise: true, sets: true },
   });
   if (!le.gymId) return;
+  // Bodyweight exercises carry no external load and are never gym-variable.
+  if (!requiresExternalWeight(le.exercise)) return;
   if (!isGymVariable(le.exercise)) return;
 
   const workingWeights = le.sets
     .filter((s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets)
-    .map((s) => s.weightLbs);
-  // Only act once the exercise is complete (all planned working sets present).
+    .map((s) => s.weightLbs)
+    .filter((w): w is Prisma.Decimal => w !== null);
+  // Only act once the exercise is complete (all planned working sets present,
+  // each with a load — a missing load never feeds a baseline).
   if (workingWeights.length < le.plannedSets) return;
 
   const median = medianWeight(workingWeights);

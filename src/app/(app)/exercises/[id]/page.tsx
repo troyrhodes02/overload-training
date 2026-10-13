@@ -67,34 +67,44 @@ async function ProgressionSection({
         </div>
       )}
 
-      <div className="space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium">
-            e1RM trend
-            {scope ? (
-              <span className="text-muted-foreground"> · {scope}</span>
-            ) : null}
+      {!dto.requiresExternalWeight ? (
+        // Bodyweight: no external load, so no e1RM — never a fabricated point.
+        <div className="space-y-1">
+          <p className="text-sm font-medium">e1RM trend</p>
+          <p className="text-sm text-muted-foreground">
+            e1RM not available for bodyweight-only logging.
           </p>
-          {dto.currentE1rm != null ? (
-            <div className="text-right">
-              <div className="text-[11px] text-muted-foreground">Current</div>
-              <div className="text-lg font-semibold tabular-nums tracking-tight">
-                {dto.currentE1rm} lb
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium">
+              e1RM trend
+              {scope ? (
+                <span className="text-muted-foreground"> · {scope}</span>
+              ) : null}
+            </p>
+            {dto.currentE1rm != null ? (
+              <div className="text-right">
+                <div className="text-[11px] text-muted-foreground">Current</div>
+                <div className="text-lg font-semibold tabular-nums tracking-tight">
+                  {dto.currentE1rm} lb
+                </div>
               </div>
-            </div>
+            ) : null}
+          </div>
+          <E1rmChart points={dto.points} label={chartLabel} />
+          {dto.points.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {dto.points.length} session{dto.points.length === 1 ? "" : "s"}
+              {scope ? ` at ${scope}` : ""} · Epley estimate
+              {dto.points.some((p) => p.scheduledDeload)
+                ? " · ▫ deload week"
+                : ""}
+            </p>
           ) : null}
         </div>
-        <E1rmChart points={dto.points} label={chartLabel} />
-        {dto.points.length > 0 ? (
-          <p className="text-xs text-muted-foreground">
-            {dto.points.length} session{dto.points.length === 1 ? "" : "s"}
-            {scope ? ` at ${scope}` : ""} · Epley estimate
-            {dto.points.some((p) => p.scheduledDeload)
-              ? " · ▫ deload week"
-              : ""}
-          </p>
-        ) : null}
-      </div>
+      )}
     </section>
   );
 }

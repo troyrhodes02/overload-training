@@ -17,24 +17,30 @@ import { editLoggedSetAction } from "@/app/(app)/history/actions";
 
 /**
  * Past-log correction (design Screen 9; Resolved Decisions 51–54). Weight and
- * reps only; positive-only; no delete; no baseline replay. Client island.
+ * reps only; positive-only; no delete; no baseline replay. A bodyweight
+ * exercise (requiresExternalWeight false) corrects reps only — there is no
+ * weight field and none is sent. Client island.
  */
 export function EditSetDialog({
   loggedSetId,
   setNumber,
   exerciseName,
+  requiresExternalWeight,
   weightLbs,
   reps,
 }: {
   loggedSetId: string;
   setNumber: number;
   exerciseName: string;
-  weightLbs: number;
+  requiresExternalWeight: boolean;
+  weightLbs: number | null;
   reps: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [weight, setWeight] = useState(String(weightLbs));
+  const [weight, setWeight] = useState(
+    weightLbs === null ? "" : String(weightLbs),
+  );
   const [repsValue, setRepsValue] = useState(String(reps));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -42,7 +48,7 @@ export function EditSetDialog({
   function save() {
     const w = Number(weight);
     const r = Number(repsValue);
-    if (!weight || !Number.isFinite(w) || w <= 0) {
+    if (requiresExternalWeight && (!weight || !Number.isFinite(w) || w <= 0)) {
       setError("Enter a weight above 0.");
       return;
     }
@@ -54,7 +60,7 @@ export function EditSetDialog({
     startTransition(async () => {
       const res = await editLoggedSetAction({
         loggedSetId,
-        weightLbs: w,
+        weightLbs: requiresExternalWeight ? w : null,
         reps: r,
       });
       if (res.ok) {
@@ -81,16 +87,22 @@ export function EditSetDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3 tabular-nums">
-          <div>
-            <Label htmlFor={`w-${loggedSetId}`}>Weight (lbs)</Label>
-            <Input
-              id={`w-${loggedSetId}`}
-              inputMode="decimal"
-              className="mt-1 h-11"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-            />
-          </div>
+          {requiresExternalWeight ? (
+            <div>
+              <Label htmlFor={`w-${loggedSetId}`}>Weight (lbs)</Label>
+              <Input
+                id={`w-${loggedSetId}`}
+                inputMode="decimal"
+                className="mt-1 h-11"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Bodyweight — reps only.
+            </p>
+          )}
           <div>
             <Label htmlFor={`r-${loggedSetId}`}>Reps</Label>
             <Input

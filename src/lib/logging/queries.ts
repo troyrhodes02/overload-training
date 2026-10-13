@@ -9,6 +9,7 @@ import {
 } from "@/lib/plan/calendar";
 import { lifterToday } from "@/lib/time/lifter-time-zone";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
 import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
 import { getCardioWeek, type CardioOccurrenceDto } from "@/lib/cardio/queries";
@@ -87,6 +88,8 @@ export type ExerciseCardDto = {
   swapped: boolean;
   performedArchived: boolean;
   isGymVariable: boolean;
+  /** False for a pure bodyweight exercise: sets are reps only, no weight input. */
+  requiresExternalWeight: boolean;
   gymName: string | null;
   plannedSets: number;
   plannedRepRange: { min: number; max: number };
@@ -314,18 +317,22 @@ async function suggestedWeight(
     });
     if (b) return Number(b.weightLbs);
   }
+  // Latest REAL load only: a bodyweight (NULL) set is never read back as 0.
   const recent = await prisma.loggedSet.findFirst({
-    where: { loggedExercise: { exerciseId: performedExerciseId } },
+    where: {
+      loggedExercise: { exerciseId: performedExerciseId },
+      weightLbs: { not: null },
+    },
     orderBy: { createdAt: "desc" },
     select: { weightLbs: true },
   });
-  return recent ? Number(recent.weightLbs) : null;
+  return recent?.weightLbs != null ? Number(recent.weightLbs) : null;
 }
 
 /**
  * The current working-weight context for an exercise — the SINGLE Pitch 4 weight
  * source (gym baseline for gym-variable at a gym; otherwise the latest logged
- * weight). The Progressive Overload Engine reuses this for its +5 Progress and
+ * weight; null for a bodyweight exercise's reps-only history). The Progressive Overload Engine reuses this for its +5 Progress and
  * ×0.90 scheduled-deload suggestions, so there is never a second weight authority
  * (Resolved Decisions R29, R34). Returns null when no context exists (R31, R36).
  */
@@ -367,13 +374,14 @@ export async function getWorkout(
   let allComplete = ls.loggedExercises.length > 0;
   for (const le of ls.loggedExercises) {
     const variable = isGymVariable(le.exercise);
+    const externalLoad = requiresExternalWeight(le.exercise);
     const saved = new Map(le.sets.map((s) => [s.setNumber, s]));
     const rows = Array.from({ length: le.plannedSets }, (_, i) => {
       const n = i + 1;
       const s = saved.get(n);
       return {
         setNumber: n,
-        weightLbs: s ? Number(s.weightLbs) : null,
+        weightLbs: s?.weightLbs != null ? Number(s.weightLbs) : null,
         reps: s ? s.reps : null,
         saved: Boolean(s),
         extra: false,
@@ -383,7 +391,7 @@ export async function getWorkout(
       if (s.setNumber > le.plannedSets) {
         rows.push({
           setNumber: s.setNumber,
-          weightLbs: Number(s.weightLbs),
+          weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
           reps: s.reps,
           saved: true,
           extra: true,
@@ -402,15 +410,14 @@ export async function getWorkout(
       swapped: le.exerciseId !== le.plannedExerciseId,
       performedArchived: archived,
       isGymVariable: variable,
+      requiresExternalWeight: externalLoad,
       gymName: variable ? gymName : null,
       plannedSets: le.plannedSets,
       plannedRepRange: { min: le.targetRepMin, max: le.targetRepMax },
       skipped: le.skippedAt !== null,
-      suggestedWeightLbs: await suggestedWeight(
-        le.exerciseId,
-        le.gymId,
-        variable,
-      ),
+      suggestedWeightLbs: externalLoad
+        ? await suggestedWeight(le.exerciseId, le.gymId, variable)
+        : null,
       sets: rows,
     });
   }
@@ -564,11 +571,14 @@ export type LoggedWorkoutDetailDto = {
     archived: boolean;
     /** Didn't do it (no sets). */
     skipped: boolean;
+    /** False for a pure bodyweight exercise: corrections edit reps only. */
+    requiresExternalWeight: boolean;
     plannedSets: number;
     sets: {
       loggedSetId: string;
       setNumber: number;
-      weightLbs: number;
+      /** Null for a bodyweight (reps-only) set — shown as reps, never "0 lbs". */
+      weightLbs: number | null;
       reps: number;
       /** Beyond the plan. */
       extra: boolean;
@@ -590,7 +600,9 @@ export async function getLoggedWorkoutDetail(
       loggedExercises: {
         orderBy: { position: "asc" },
         include: {
-          exercise: { select: { name: true, deletedAt: true } },
+          exercise: {
+            select: { name: true, deletedAt: true, equipmentType: true },
+          },
           plannedExercise: { select: { name: true } },
           gym: { select: { name: true } },
           sets: { orderBy: { setNumber: "asc" } },
@@ -612,11 +624,12 @@ export async function getLoggedWorkoutDetail(
       swapped: le.exerciseId !== le.plannedExerciseId,
       archived: le.exercise.deletedAt !== null,
       skipped: le.skippedAt !== null || le.sets.length === 0,
+      requiresExternalWeight: requiresExternalWeight(le.exercise),
       plannedSets: le.plannedSets,
       sets: le.sets.map((s) => ({
         loggedSetId: s.id,
         setNumber: s.setNumber,
-        weightLbs: Number(s.weightLbs),
+        weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
         reps: s.reps,
         extra: s.setNumber > le.plannedSets,
       })),

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { lifterTimeZone } from "@/lib/time/lifter-time-zone";
 import { isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import { getExercise } from "@/lib/exercises/queries";
 import { listActiveGyms } from "@/lib/gyms/queries";
 import { formatPlanDate } from "@/lib/plan/calendar";
@@ -110,6 +111,8 @@ export type GoalFormContextDto =
   | { kind: "duplicate"; exerciseName: string; existing: ActiveGoalDto }
   | { kind: "no_gyms"; exerciseName: string; exerciseMeta: string }
   | { kind: "archived_exercise"; exerciseName: string }
+  /** A goal is a weight × reps target measured by e1RM; reps-only lifts have neither. */
+  | { kind: "bodyweight_unsupported"; exerciseName: string }
   | { kind: "not_found" };
 
 /** Timestamp → "Oct 12, 2026", on the calendar of the lifter's time zone. */
@@ -326,6 +329,9 @@ export async function getGoalFormContext(
   if (!exercise) return { kind: "not_found" };
   if (exercise.isArchived) {
     return { kind: "archived_exercise", exerciseName: exercise.name };
+  }
+  if (!requiresExternalWeight({ equipmentType: exercise.equipmentType })) {
+    return { kind: "bodyweight_unsupported", exerciseName: exercise.name };
   }
 
   const existing = await prisma.goal.findFirst({

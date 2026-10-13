@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import { computeGoalProgress } from "./progress";
 import { goalPerformances } from "./queries";
 import { parseGoalInput, type RawGoalInput } from "./validation";
@@ -132,6 +133,18 @@ export async function createGoal(
           "validation_error",
           "Check the highlighted fields.",
           { exerciseId: "Pick an active exercise." },
+        );
+      }
+      // Goal progress is e1RM from weight × reps; a bodyweight lift logs no
+      // external weight, so there is nothing valid to measure it against.
+      if (!requiresExternalWeight(exercise)) {
+        throw new DomainError(
+          "validation_error",
+          "Check the highlighted fields.",
+          {
+            exerciseId:
+              "Goals need an external weight. Bodyweight-only lifts can't have one.",
+          },
         );
       }
 

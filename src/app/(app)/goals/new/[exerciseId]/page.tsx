@@ -36,6 +36,23 @@ export default async function NewGoalTargetPage({
   const ctx = await getGoalFormContext(exerciseId, gymParam ?? null);
   if (ctx.kind === "not_found") notFound();
 
+  if (ctx.kind === "bodyweight_unsupported") {
+    return (
+      <section className="space-y-4">
+        <BackLink href="/goals" label="Goals" />
+        <EmptyState
+          title={`${ctx.exerciseName} is logged as bodyweight.`}
+          description="Goals are a weight × reps target, so they need an external weight."
+          action={
+            <Button asChild variant="outline">
+              <Link href="/goals/new">Pick another lift</Link>
+            </Button>
+          }
+        />
+      </section>
+    );
+  }
+
   if (ctx.kind === "archived_exercise") {
     return (
       <section className="space-y-4">

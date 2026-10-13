@@ -7,6 +7,7 @@ import {
   toIsoDate,
 } from "@/lib/plan/calendar";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import { currentWorkingWeightLbs } from "@/lib/logging/queries";
 import { PROGRESS_INCREMENT_LBS } from "./config";
 import { isScheduledDeloadWeek, scheduledDeloadLoad } from "./deload";
@@ -16,7 +17,7 @@ import {
   type Performance,
   type ReactiveState,
 } from "./engine";
-import { bestWorkingSet, sessionE1rm } from "./e1rm";
+import { bestWorkingSet, loadedSets, sessionE1rm } from "./e1rm";
 import type { E1rmPointDto, ProgressionTag, SuggestedLoadDto } from "./types";
 
 /**
@@ -28,6 +29,10 @@ import type { E1rmPointDto, ProgressionTag, SuggestedLoadDto } from "./types";
  * Gym scope (R11–R14, R42): a gym-consistent exercise is evaluated globally; a
  * gym-variable exercise is evaluated within one gym's history only — nominal
  * machine pounds are never compared across gyms.
+ *
+ * Loading mode (requiresExternalWeight): a pure bodyweight exercise runs the
+ * same rep-range rule, but has no e1RM (no points, no current value, no stall
+ * gate) and no load suggestion — never a +5 lb or 90% number on a missing weight.
  */
 
 export type { ProgressionTag, SuggestedLoadDto, E1rmPointDto } from "./types";
@@ -36,6 +41,8 @@ export type ExerciseProgressionDto = {
   exerciseId: string;
   exerciseName: string;
   isGymVariable: boolean;
+  /** False for a pure bodyweight exercise: no e1RM trend and no load suggestion. */
+  requiresExternalWeight: boolean;
   isArchived: boolean;
   gyms: { id: string; name: string }[];
   selectedGymId: string | null;
@@ -125,7 +132,7 @@ async function gatherRows(
       .filter((s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets)
       .map((s) => ({
         setNumber: s.setNumber,
-        weightLbs: Number(s.weightLbs),
+        weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
         reps: s.reps,
       }));
     const completed =
@@ -187,14 +194,16 @@ export async function getQualifyingSessionE1rms(
   );
   const out: QualifyingE1rm[] = [];
   for (const p of qualifyingSequence(scoped.map((r) => r.perf))) {
-    const best = bestWorkingSet(p.workingSets);
+    // Only sets with an external load have an e1RM (bodyweight sets never do).
+    const loaded = loadedSets(p.workingSets);
+    const best = bestWorkingSet(loaded);
     if (!best) continue;
     out.push({
       loggedExerciseId: p.loggedExerciseId,
       loggedSessionId: sessionOf.get(p.loggedExerciseId) as string,
       dateIso: p.dateIso,
       gymId: p.gymId,
-      e1rm: sessionE1rm(p.workingSets),
+      e1rm: sessionE1rm(loaded),
       bestSet: { weightLbs: best.weightLbs, reps: best.reps },
     });
   }
@@ -208,13 +217,13 @@ function toPoints(
   gymNameOverride?: string | null,
 ): E1rmPointDto[] {
   return rows
-    .filter((r) => r.completed && r.perf.workingSets.length > 0)
+    .filter((r) => r.completed && loadedSets(r.perf.workingSets).length > 0)
     .slice()
     .sort((a, b) => (a.perf.dateIso < b.perf.dateIso ? -1 : 1))
     .map((r) => ({
       dateIso: r.perf.dateIso,
       dateLabel: formatPlanDate(r.perf.dateIso),
-      e1rm: Math.round(sessionE1rm(r.perf.workingSets)),
+      e1rm: Math.round(sessionE1rm(loadedSets(r.perf.workingSets))),
       scheduledDeload: r.perf.scheduledDeload,
       gymName: gymNameOverride !== undefined ? gymNameOverride : r.gymName,
     }));
@@ -225,18 +234,25 @@ function currentE1rm(rows: Row[]): number | null {
   const pts = rows
     .filter(
       (r) =>
-        r.completed && !r.perf.scheduledDeload && r.perf.workingSets.length > 0,
+        r.completed &&
+        !r.perf.scheduledDeload &&
+        loadedSets(r.perf.workingSets).length > 0,
     )
     .sort((a, b) => (a.perf.dateIso < b.perf.dateIso ? -1 : 1));
   const last = pts[pts.length - 1];
-  return last ? Math.round(sessionE1rm(last.perf.workingSets)) : null;
+  return last
+    ? Math.round(sessionE1rm(loadedSets(last.perf.workingSets)))
+    : null;
 }
 
 async function progressSuggestion(
   exerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
+  externalLoad: boolean,
 ): Promise<SuggestedLoadDto> {
+  // Bodyweight: the lifter decides how to make it harder — never "+5 lb".
+  if (!externalLoad) return null;
   const base = await currentWorkingWeightLbs(exerciseId, gymId, gymVariable);
   if (base == null) return null; // fail safe — never fabricate (R31)
   return { lbs: base + PROGRESS_INCREMENT_LBS, kind: "progress_increment" };
@@ -246,7 +262,10 @@ async function scheduledDeloadSuggestion(
   exerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
+  externalLoad: boolean,
 ): Promise<SuggestedLoadDto> {
+  // Bodyweight: no load to reduce to 90% of; show the state without a number.
+  if (!externalLoad) return null;
   const base = await currentWorkingWeightLbs(exerciseId, gymId, gymVariable);
   if (base == null) return null; // show state without a number (R36)
   return { lbs: scheduledDeloadLoad(base), kind: "scheduled_deload" };
@@ -268,15 +287,20 @@ export async function getExerciseProgression(
   if (!exercise) return null;
 
   const gymVariable = isGymVariable(exercise);
+  const externalLoad = requiresExternalWeight(exercise);
   const rows = await gatherRows(exerciseId);
 
   if (!gymVariable) {
-    const state = evaluateReactive(rows.map((r) => r.perf));
+    const state = evaluateReactive(
+      rows.map((r) => r.perf),
+      { e1rmApplicable: externalLoad },
+    );
     const tag = toTag(state);
     return {
       exerciseId: exercise.id,
       exerciseName: exercise.name,
       isGymVariable: false,
+      requiresExternalWeight: externalLoad,
       isArchived: exercise.deletedAt !== null,
       gyms: [],
       selectedGymId: null,
@@ -285,11 +309,11 @@ export async function getExerciseProgression(
       tag,
       suggestion:
         tag === "progress"
-          ? await progressSuggestion(exerciseId, null, false)
+          ? await progressSuggestion(exerciseId, null, false, externalLoad)
           : null,
-      currentE1rm: currentE1rm(rows),
+      currentE1rm: externalLoad ? currentE1rm(rows) : null,
       qualifyingCount: qualifyingSequence(rows.map((r) => r.perf)).length,
-      points: toPoints(rows, null),
+      points: externalLoad ? toPoints(rows, null) : [],
     };
   }
 
@@ -328,6 +352,7 @@ export async function getExerciseProgression(
     exerciseId: exercise.id,
     exerciseName: exercise.name,
     isGymVariable: true,
+    requiresExternalWeight: true,
     isArchived: exercise.deletedAt !== null,
     gyms,
     selectedGymId,
@@ -336,7 +361,7 @@ export async function getExerciseProgression(
     tag,
     suggestion:
       tag === "progress"
-        ? await progressSuggestion(exerciseId, selectedGymId, true)
+        ? await progressSuggestion(exerciseId, selectedGymId, true, true)
         : null,
     currentE1rm: currentE1rm(scopeRows),
     qualifyingCount: qualifyingSequence(scopeRows.map((r) => r.perf)).length,
@@ -374,7 +399,12 @@ export async function getPlannedProgression(
     return {
       tag: null,
       gymVariable: false,
-      suggestion: await scheduledDeloadSuggestion(exerciseId, null, false),
+      suggestion: await scheduledDeloadSuggestion(
+        exerciseId,
+        null,
+        false,
+        base.requiresExternalWeight,
+      ),
       hasTrend,
     };
   }
@@ -410,6 +440,7 @@ export async function getOccurrenceProgression(
   if (!le) return null;
 
   const gymVariable = isGymVariable(le.exercise);
+  const externalLoad = requiresExternalWeight(le.exercise);
   const scheduledForIso = toIsoDate(le.loggedSession.scheduledFor);
   const startDate = le.loggedSession.mesocycle?.startDate
     ? toIsoDate(le.loggedSession.mesocycle.startDate)
@@ -426,7 +457,8 @@ export async function getOccurrenceProgression(
   const scopeRows = gymVariable
     ? rows.filter((r) => r.perf.gymId === le.gymId)
     : rows;
-  const hasTrend = scopeRows.some((r) => r.completed);
+  // A bodyweight exercise has no e1RM trend to link to.
+  const hasTrend = externalLoad && scopeRows.some((r) => r.completed);
 
   if (scheduledDeloadWeek) {
     // Reactive evaluation is suppressed entirely during a scheduled-deload week
@@ -439,19 +471,30 @@ export async function getOccurrenceProgression(
         le.exercise.id,
         le.gymId,
         gymVariable,
+        externalLoad,
       ),
       hasTrend,
     };
   }
 
-  const tag = toTag(evaluateReactive(scopeRows.map((r) => r.perf)));
+  const tag = toTag(
+    evaluateReactive(
+      scopeRows.map((r) => r.perf),
+      { e1rmApplicable: externalLoad },
+    ),
+  );
   return {
     loggedExerciseId,
     scheduledDeloadWeek: false,
     tag,
     suggestion:
       tag === "progress"
-        ? await progressSuggestion(le.exercise.id, le.gymId, gymVariable)
+        ? await progressSuggestion(
+            le.exercise.id,
+            le.gymId,
+            gymVariable,
+            externalLoad,
+          )
         : null,
     hasTrend,
   };
