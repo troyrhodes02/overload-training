@@ -124,7 +124,7 @@ describe("set validation (Decision 11)", () => {
     expect(await db().loggedSet.count()).toBe(0);
   });
 
-  it("rejects a set number outside the planned range (no extra sets, Decision 12)", async () => {
+  it("rejects an extra set until every planned set is logged (Decision 12, amended)", async () => {
     const loggedExerciseId = await started();
     await expect(
       logSet({ loggedExerciseId, setNumber: 4, weightLbs: 100, reps: 8 }),
@@ -319,7 +319,7 @@ describe("exercise swap (Decisions 25–27)", () => {
 });
 
 describe("completion (Decisions 16–18)", () => {
-  it("blocks completion while an exercise is incomplete, then allows it", async () => {
+  it("needs at least one logged set, then finishes even if an exercise is incomplete", async () => {
     const { sessionId } = await makePlan({ plannedSets: 3 });
     const gym = await makeGym();
     const { loggedSessionId } = await startOrResumeWorkout({
@@ -327,26 +327,13 @@ describe("completion (Decisions 16–18)", () => {
       scheduledFor: "2026-11-02",
       gymId: gym.id,
     });
+    await expect(completeWorkout({ loggedSessionId })).rejects.toMatchObject({
+      code: "validation_error",
+    });
     const le = await firstLoggedExercise(loggedSessionId);
     await logSet({
       loggedExerciseId: le.id,
       setNumber: 1,
-      weightLbs: 100,
-      reps: 8,
-    });
-    await expect(completeWorkout({ loggedSessionId })).rejects.toMatchObject({
-      code: "validation_error",
-    });
-
-    await logSet({
-      loggedExerciseId: le.id,
-      setNumber: 2,
-      weightLbs: 100,
-      reps: 8,
-    });
-    await logSet({
-      loggedExerciseId: le.id,
-      setNumber: 3,
       weightLbs: 100,
       reps: 8,
     });
@@ -356,23 +343,11 @@ describe("completion (Decisions 16–18)", () => {
     });
     expect(ls.status).toBe("complete");
     expect(ls.completedAt).not.toBeNull();
-  });
-
-  it("blocks completion when a performed exercise is archived", async () => {
-    const { sessionId, exerciseId } = await makePlan({ plannedSets: 1 });
-    const gym = await makeGym();
-    const { loggedSessionId } = await startOrResumeWorkout({
-      sessionId,
-      scheduledFor: "2026-11-02",
-      gymId: gym.id,
-    });
-    await db().exercise.update({
-      where: { id: exerciseId },
-      data: { deletedAt: new Date() },
-    });
-    await expect(completeWorkout({ loggedSessionId })).rejects.toMatchObject({
-      code: "validation_error",
-    });
+    // Partly logged: kept as logged, not marked "not done".
+    expect(
+      (await db().loggedExercise.findUniqueOrThrow({ where: { id: le.id } }))
+        .skippedAt,
+    ).toBeNull();
   });
 
   it("a completed workout's sets remain editable (Decision 19)", async () => {

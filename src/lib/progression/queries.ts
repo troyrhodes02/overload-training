@@ -475,6 +475,7 @@ export async function getSessionProgressionSummary(
         select: {
           id: true,
           exercise: { select: { id: true, name: true } },
+          _count: { select: { sets: true } },
         },
       },
     },
@@ -492,8 +493,11 @@ export async function getSessionProgressionSummary(
     ls.mesocycle?.deloadEveryWeeks ?? 0,
   );
 
+  // Exercises not done today get no summary row (a call about a lift the
+  // lifter skipped would read as a verdict on today).
+  const performed = ls.loggedExercises.filter((le) => le._count.sets > 0);
   const exercises = await Promise.all(
-    ls.loggedExercises.map(async (le) => {
+    performed.map(async (le) => {
       const occ = await getOccurrenceProgression(le.id);
       return {
         performedExerciseId: le.exercise.id,

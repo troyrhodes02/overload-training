@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Lock } from "lucide-react";
+import { Check, Lock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { logSetAction } from "@/app/(app)/log/actions";
+import {
+  logSetAction,
+  setExerciseSkippedAction,
+} from "@/app/(app)/log/actions";
 import type { ExerciseCardDto } from "@/lib/logging/queries";
 import type { ProgressionTag, SuggestedLoadDto } from "@/lib/progression/types";
 import { ProgressTag } from "@/components/progression/progress-tag";
@@ -63,7 +66,73 @@ export function ExerciseCard({
   );
   const [errors, setErrors] = useState<Record<number, string>>({});
   const [pendingSet, setPendingSet] = useState<number | null>(null);
+  const [extraRow, setExtraRow] = useState<number | null>(null);
+  const [skipError, setSkipError] = useState<string | null>(null);
+  const [skipping, startSkip] = useTransition();
   const [, startTransition] = useTransition();
+
+  const anySaved = exercise.sets.some((s) => s.saved);
+  const plannedDone = exercise.sets
+    .filter((s) => !s.extra)
+    .every((s) => s.saved);
+
+  function markSkipped(skipped: boolean) {
+    setSkipError(null);
+    startSkip(async () => {
+      const res = await setExerciseSkippedAction({
+        loggedExerciseId: exercise.loggedExerciseId,
+        skipped,
+      });
+      if (res.ok) router.refresh();
+      else setSkipError(res.error.message);
+    });
+  }
+
+  const skipControl = !anySaved ? (
+    <div className="mt-3 space-y-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-11 w-full text-muted-foreground"
+        disabled={skipping}
+        onClick={() => markSkipped(true)}
+      >
+        Didn&apos;t do this exercise
+      </Button>
+      {skipError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {skipError}
+        </p>
+      ) : null}
+    </div>
+  ) : null;
+
+  if (exercise.skipped) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="font-medium text-muted-foreground">
+          {exercise.performedExerciseName}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Not done today. It won&apos;t count toward progression.
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="mt-3 h-11"
+          disabled={skipping}
+          onClick={() => markSkipped(false)}
+        >
+          Undo — I&apos;ll log it
+        </Button>
+        {skipError ? (
+          <p role="alert" className="mt-1 text-xs text-destructive">
+            {skipError}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   if (exercise.performedArchived) {
     return (
@@ -77,16 +146,50 @@ export function ExerciseCard({
           complete it. The plan is not changed.
         </p>
         {swapSlot ? <div className="mt-4">{swapSlot}</div> : null}
+        {skipControl}
       </div>
     );
   }
 
+  // Rows: the planned sets, any logged extras, and one pending extra row.
+  const lastSaved = [...exercise.sets].reverse().find((s) => s.saved);
+  const pendingExtra =
+    extraRow !== null && !exercise.sets.some((s) => s.setNumber === extraRow)
+      ? extraRow
+      : null;
+  const rows = [
+    ...exercise.sets,
+    ...(pendingExtra !== null
+      ? [
+          {
+            setNumber: pendingExtra,
+            weightLbs: null,
+            reps: null,
+            saved: false,
+            extra: true,
+          },
+        ]
+      : []),
+  ];
+
+  function addExtraSet() {
+    const next = Math.max(...exercise.sets.map((s) => s.setNumber)) + 1;
+    setDrafts((d) => ({
+      ...d,
+      [next]: { weight: lastSaved?.weightLbs?.toString() ?? "", reps: "" },
+    }));
+    setExtraRow(next);
+  }
+
   function setDraft(n: number, patch: Partial<Draft>) {
-    setDrafts((d) => ({ ...d, [n]: { ...d[n], ...patch } }));
+    setDrafts((d) => ({
+      ...d,
+      [n]: { ...(d[n] ?? { weight: "", reps: "" }), ...patch },
+    }));
   }
 
   function save(n: number) {
-    const draft = drafts[n];
+    const draft = drafts[n] ?? { weight: "", reps: "" };
     const weight = Number(draft.weight);
     const reps = Number(draft.reps);
     if (!draft.weight || !Number.isFinite(weight) || weight <= 0) {
@@ -156,14 +259,22 @@ export function ExerciseCard({
       </div>
 
       <div className="mt-4 space-y-3 tabular-nums">
-        {exercise.sets.map((s) => {
-          const draft = drafts[s.setNumber];
+        {rows.map((s) => {
+          const draft = drafts[s.setNumber] ?? {
+            weight: s.weightLbs?.toString() ?? "",
+            reps: s.reps?.toString() ?? "",
+          };
           const err = errors[s.setNumber];
           return (
             <div key={s.setNumber} className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="w-12 text-sm text-muted-foreground">
                   Set {s.setNumber}
+                  {s.extra ? (
+                    <span className="block text-[10px] leading-none">
+                      extra
+                    </span>
+                  ) : null}
                 </span>
                 <Input
                   aria-label={`Set ${s.setNumber} weight in pounds`}
@@ -210,6 +321,18 @@ export function ExerciseCard({
         })}
       </div>
 
+      {plannedDone && pendingExtra === null ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-3 h-11 w-full"
+          onClick={addExtraSet}
+        >
+          <Plus aria-hidden />
+          Add set
+        </Button>
+      ) : null}
+
       {progression?.hasTrend ? (
         <div className="mt-3">
           <Link
@@ -222,6 +345,7 @@ export function ExerciseCard({
       ) : null}
 
       {swapSlot ? <div className="mt-4">{swapSlot}</div> : null}
+      {skipControl}
     </div>
   );
 }

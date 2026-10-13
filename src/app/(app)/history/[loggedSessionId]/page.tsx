@@ -47,6 +47,12 @@ export default async function LoggedWorkoutPage({
               >
                 <span>
                   Set {s.setNumber} &nbsp; {s.weightLbs} lbs × {s.reps}
+                  {s.extra ? (
+                    <span className="text-xs text-muted-foreground">
+                      {" "}
+                      · extra
+                    </span>
+                  ) : null}
                 </span>
                 <EditSetDialog
                   loggedSetId={s.loggedSetId}
@@ -58,7 +64,12 @@ export default async function LoggedWorkoutPage({
               </div>
             ))}
             {ex.sets.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No sets logged.</p>
+              <p className="text-xs text-muted-foreground">Not done.</p>
+            ) : ex.sets.filter((s) => !s.extra).length < ex.plannedSets ? (
+              <p className="text-xs text-muted-foreground">
+                {ex.sets.filter((s) => !s.extra).length} of {ex.plannedSets}{" "}
+                planned sets — doesn&apos;t count toward progression.
+              </p>
             ) : null}
           </div>
         </div>

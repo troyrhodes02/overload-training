@@ -158,14 +158,67 @@ export async function swapExercise(
   }
   await tx.loggedExercise.update({
     where: { id: le.id },
-    data: { exerciseId: candidate.id },
+    // Swapping in a substitute means the lifter is doing it: clear "not done".
+    data: { exerciseId: candidate.id, skippedAt: null },
   });
 }
 
 /**
- * Mark a workout complete (Decisions 16–18). Atomic and explicit: it validates
- * that every LoggedExercise has all its planned working sets and no performed
- * exercise is archived, then flips status + completedAt together. Never inferred.
+ * Mark a planned exercise as not done ("Didn't do"), or undo that, while the
+ * workout is in progress. Only an exercise with NO sets logged can be marked —
+ * a logged set is never hidden or discarded. Records a fact; touches no set,
+ * plan, baseline, or goal.
+ */
+export async function setExerciseSkipped(
+  input: { loggedExerciseId: string; skipped: boolean },
+  tx?: Db,
+): Promise<void> {
+  if (!tx)
+    return void (await prisma.$transaction((t) =>
+      setExerciseSkipped(input, t),
+    ));
+
+  const le = isUuid(input.loggedExerciseId)
+    ? await tx.loggedExercise.findUnique({
+        where: { id: input.loggedExerciseId },
+        include: {
+          loggedSession: { select: { status: true } },
+          sets: { select: { id: true }, take: 1 },
+        },
+      })
+    : null;
+  if (!le) {
+    throw new DomainError(
+      "not_found",
+      "That exercise isn't part of this workout.",
+    );
+  }
+  if (le.loggedSession.status !== "in_progress") {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This workout is already finished.",
+    );
+  }
+  if (input.skipped && le.sets.length > 0) {
+    throw new DomainError(
+      "invalid_state_transition",
+      "Sets are logged for this exercise, so it can't be marked as not done.",
+    );
+  }
+  await tx.loggedExercise.update({
+    where: { id: le.id },
+    data: { skippedAt: input.skipped ? new Date() : null },
+  });
+}
+
+/**
+ * Mark a workout complete (Decisions 16–18, amended). Atomic and explicit;
+ * never inferred. The lifter may finish without doing every planned set: the
+ * workout needs at least one logged set, any exercise left with no sets is
+ * recorded as not done (skippedAt), and a partly logged exercise stays as
+ * logged. Incomplete exercises never count toward progression, goals, or gym
+ * baselines — those read only exercises with every planned working set — so
+ * finishing early can't distort a call.
  */
 export async function completeWorkout(
   input: { loggedSessionId: string },
@@ -177,38 +230,33 @@ export async function completeWorkout(
   const ls = await tx.loggedSession.findUnique({
     where: { id: input.loggedSessionId },
     include: {
-      loggedExercises: {
-        include: {
-          exercise: { select: { name: true, deletedAt: true } },
-          sets: true,
-        },
-      },
+      loggedExercises: { include: { sets: { select: { id: true } } } },
     },
   });
   if (!ls) throw new DomainError("not_found", "That workout doesn't exist.");
 
-  const unresolved: string[] = [];
-  for (const le of ls.loggedExercises) {
-    if (le.exercise.deletedAt !== null) {
-      unresolved.push(
-        `${le.exercise.name} (unavailable — choose a substitute)`,
-      );
-      continue;
-    }
-    const validSets = le.sets.filter(
-      (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
-    ).length;
-    if (validSets < le.plannedSets) unresolved.push(le.exercise.name);
+  const anySet = ls.loggedExercises.some((le) => le.sets.length > 0);
+  if (!anySet) {
+    throw new DomainError(
+      "validation_error",
+      "Log at least one set before finishing.",
+    );
   }
-  if (unresolved.length > 0) {
-    throw new DomainError("validation_error", "Finish every exercise first.", {
-      exercises: unresolved.join(", "),
+
+  const now = new Date();
+  const untouched = ls.loggedExercises
+    .filter((le) => le.sets.length === 0 && le.skippedAt === null)
+    .map((le) => le.id);
+  if (untouched.length > 0) {
+    await tx.loggedExercise.updateMany({
+      where: { id: { in: untouched } },
+      data: { skippedAt: now },
     });
   }
 
   await tx.loggedSession.update({
     where: { id: ls.id },
-    data: { status: "complete", completedAt: new Date() },
+    data: { status: "complete", completedAt: now },
   });
 }
 
