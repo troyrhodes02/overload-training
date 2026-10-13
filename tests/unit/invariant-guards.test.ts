@@ -439,6 +439,48 @@ describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () =
     expect(schemaModel("Session")).not.toMatch(/cardio/i);
   });
 
+  it("cardio code never reaches progression, e1RM, goals, gym baselines, or strength history", () => {
+    const cardioCode = [
+      ...walk(path.join(SRC, "lib", "cardio")),
+      ...walk(path.join(SRC, "components", "cardio")),
+    ];
+    expect(cardioCode.length).toBeGreaterThan(3);
+    const forbidden =
+      /estimateOneRepMax|sessionE1rm|lib\/progression|lib\/goals|reconcileGoal|isGymVariable|gymExerciseBaseline|lib\/gyms|\bloggedSet\b|\.loggedSet\b|\.loggedExercise\b|\.sessionExercise\b|\.exercise\s*\.|\.goal\s*\./;
+    const code = (f: string) =>
+      read(f)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+    expect(cardioCode.filter((f) => forbidden.test(code(f))).map(rel)).toEqual(
+      [],
+    );
+  });
+
+  it("the strength engine and goals never know cardio exists (R42–R45)", () => {
+    const strength = [
+      ...walk(path.join(SRC, "lib", "progression")),
+      ...walk(path.join(SRC, "components", "progression")),
+      ...walk(path.join(SRC, "lib", "goals")),
+      ...walk(path.join(SRC, "lib", "gyms")),
+      path.join(SRC, "lib", "logging", "logged-sets.ts"),
+      path.join(SRC, "lib", "logging", "schedule.ts"),
+      path.join(SRC, "lib", "logging", "missed-days.ts"),
+    ];
+    expect(strength.filter((f) => /cardio/i.test(read(f))).map(rel)).toEqual(
+      [],
+    );
+  });
+
+  it("writes cardio logs only in the cardio write module", () => {
+    const write =
+      /\.\s*cardioLog\s*\.\s*(create|createMany|update|updateMany|upsert)\s*\(/;
+    expect(
+      walk(SRC)
+        .filter((f) => write.test(read(f)))
+        .map(rel),
+    ).toEqual(["src/lib/cardio/cardio-logs.ts"]);
+  });
+
   it("adds no timer, health, wearable, or GPS dependency", () => {
     const pkg = JSON.parse(read(path.join(REPO_ROOT, "package.json")));
     const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
