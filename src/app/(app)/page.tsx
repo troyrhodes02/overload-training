@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatPlanDate } from "@/lib/plan/calendar";
+import { lifterToday } from "@/lib/time/lifter-time-zone";
 import { MissedDayPrompt } from "@/components/logging/missed-day-prompt";
 import {
   getTodayDashboard,
@@ -163,7 +164,7 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
 
 export default async function TodayPage() {
   const dash = await getTodayDashboard();
-  const today = formatPlanDate(new Date().toISOString().slice(0, 10));
+  const today = formatPlanDate(await lifterToday());
 
   // Goals fill the dashboard ONLY when no training action is pending (Goals
   // R42, R43). Completion is reconciled first (spec §11b, R54) so a just-met

@@ -6,8 +6,8 @@ import {
   formatPlanDate,
   formatPlanRange,
   toIsoDate,
-  todayIso,
 } from "@/lib/plan/calendar";
+import { lifterToday } from "@/lib/time/lifter-time-zone";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
 import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
@@ -197,7 +197,7 @@ async function loggedPreview(loggedSessionId: string): Promise<{
 export async function getTodayDashboard(): Promise<DashboardDto> {
   const active = await activeContext();
   if (!active) return { kind: "no_plan" };
-  const today = todayIso();
+  const today = await lifterToday();
 
   const missed = oldestUnresolvedMissedDay(active.ctx, today);
   const occ = occurrenceOnDate(active.ctx, today);
@@ -404,7 +404,7 @@ export async function getWorkout(
     status: ls.status,
     gymName,
     gymLocked,
-    isHistoricalDate: toIsoDate(ls.scheduledFor) !== todayIso(),
+    isHistoricalDate: toIsoDate(ls.scheduledFor) !== (await lifterToday()),
     exercises,
     complete: allComplete && ls.status === "complete",
   };
@@ -494,7 +494,7 @@ export async function getWeekSchedule(
 ): Promise<WeekScheduleDto | null> {
   const active = await activeContext();
   if (!active) return null;
-  const today = todayIso();
+  const today = await lifterToday();
   const current = mesocycleWeek(active.startDate, today);
   const week = Math.min(Math.max(weekNumber ?? current, 1), active.lengthWeeks);
 

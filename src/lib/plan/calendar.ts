@@ -62,13 +62,38 @@ export function isoWeekday(iso: string): number {
   return ((date.getUTCDay() + 6) % 7) + 1;
 }
 
+/** True for an IANA time zone this runtime understands ("America/Chicago"). */
+export function isValidTimeZone(timeZone: unknown): timeZone is string {
+  if (typeof timeZone !== "string" || timeZone.length === 0) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The calendar date ("YYYY-MM-DD") an instant falls on in a time zone. */
+export function isoDateInZone(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 /**
- * "Today" as the UTC calendar date — the app's all-UTC calendar convention
- * (a single lifter timezone is a deliberate decision deferred beyond Pitch 4).
- * The one place it is defined, so every surface agrees on what today is.
+ * "Today" as a calendar date in the lifter's time zone — the one place it is
+ * defined, so every surface agrees on what today is. Server code passes the
+ * zone from src/lib/time/lifter-time-zone.ts (the lifter's browser zone);
+ * without one it is the UTC date. All date ARITHMETIC stays on UTC midnights
+ * (above) — only the choice of which calendar day is "today" is zone-aware.
  */
-export function todayIso(): string {
-  return toIsoDate(new Date());
+export function todayIso(timeZone = "UTC", now: Date = new Date()): string {
+  return isoDateInZone(now, timeZone);
 }
 
 export function addDays(iso: string, days: number): string {
