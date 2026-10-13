@@ -17,6 +17,7 @@ import { DashboardGoals } from "@/components/goals/dashboard-goals";
 import { SessionGoalRows } from "@/components/goals/session-goal-rows";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { dashboardShowsGoals } from "@/lib/goals/dashboard";
+import { CardioCards, CardioFocal } from "@/components/cardio/cardio-today";
 
 export const metadata = { title: "Today · Overload" };
 
@@ -84,7 +85,12 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
 
 async function TodayBlock({ state }: { state: DashboardTodayDto }) {
   if (state.kind === "complete") {
-    return <CompleteBlock state={state} />;
+    return (
+      <div className="space-y-4">
+        <CompleteBlock state={state} />
+        <CardioCards entries={state.cardio} />
+      </div>
+    );
   }
 
   const resuming = state.kind === "in_progress";
@@ -149,6 +155,8 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
       <Button asChild size="lg" className="w-full">
         <Link href={href}>{resuming ? "Resume workout" : "Start workout"}</Link>
       </Button>
+      {/* Cardio sits beneath the lifting workflow; lifting keeps the floor. */}
+      <CardioCards entries={state.cardio} />
     </div>
   );
 }
@@ -181,6 +189,17 @@ export default async function TodayPage() {
     );
   }
 
+  if (dash.kind === "rest" && dash.cardio.length > 0) {
+    // Cardio-only day: a real training day, no fake workout (Cardio R16).
+    return (
+      <section className="space-y-6">
+        <p className="text-sm text-muted-foreground">Today · {today}</p>
+        <CardioFocal entries={dash.cardio} week={dash.week} />
+        <DashboardGoals />
+      </section>
+    );
+  }
+
   if (dash.kind === "rest") {
     return (
       <section className="space-y-6">
@@ -205,8 +224,14 @@ export default async function TodayPage() {
         <p className="text-sm text-muted-foreground">Today · {today}</p>
         <MissedDayPrompt missed={dash.missed} />
         {dash.below ? (
-          <div className="pointer-events-none opacity-50" aria-hidden>
+          <div inert className="opacity-50">
             <TodayBlock state={dash.below} />
+          </div>
+        ) : dash.cardio.length > 0 ? (
+          // Cardio never prompts; it waits, dimmed, until the lifting
+          // missed day is resolved (Cardio R35, R67).
+          <div inert className="opacity-50">
+            <CardioCards entries={dash.cardio} />
           </div>
         ) : null}
       </section>

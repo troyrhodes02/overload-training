@@ -1,6 +1,7 @@
 import "server-only";
 import { DomainError } from "@/lib/actions/result";
 import { parseIsoDate } from "./calendar";
+import { plannedCardioCopies, plannedCardioSourceSelect } from "./cardio";
 import { PRESET_STRUCTURES } from "./presets";
 import { evaluateReadiness, readinessIssueMessage } from "./readiness";
 import { planInclude, toReadinessInput } from "./snapshot";
@@ -222,10 +223,12 @@ export async function archiveDraftMesocycle(
  * the clone form), every session's name, day, and order, and every planned
  * exercise's exercise, order, sets, and rep range — archived exercises
  * included, so they arrive as repair slots that block activation until
- * replaced or removed (never dropped, substituted, or un-archived).
+ * replaced or removed (never dropped, substituted, or un-archived) — and each
+ * day's planned cardio (day, activity, minutes; Cardio Logging R12).
  *
  * Plan-forward, never history-forward: no logged session, logged exercise,
- * logged set, goal, gym baseline, or completion state is read or written.
+ * logged set, cardio log, goal, gym baseline, or completion state is read or
+ * written.
  */
 export async function cloneMesocycle(
   input: RawMesocycleDetails & { sourceMesocycleId: string },
@@ -257,6 +260,10 @@ export async function cloneMesocycle(
             },
           },
         },
+        plannedCardio: {
+          orderBy: { dayOfWeek: "asc" },
+          select: plannedCardioSourceSelect,
+        },
       },
     });
 
@@ -287,6 +294,11 @@ export async function cloneMesocycle(
           data: plannedExerciseCopies(session.id, s.sessionExercises),
         });
       }
+    }
+    if (source.plannedCardio.length > 0) {
+      await t.plannedCardio.createMany({
+        data: plannedCardioCopies(clone.id, source.plannedCardio),
+      });
     }
     return { id: clone.id };
   });

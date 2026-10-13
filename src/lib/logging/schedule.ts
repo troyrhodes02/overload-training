@@ -1,8 +1,4 @@
-import {
-  addDays,
-  mesocycleWeekForDate,
-  parseIsoDate,
-} from "@/lib/plan/calendar";
+import { addDays, isoWeekday, mesocycleWeekForDate } from "@/lib/plan/calendar";
 
 /** Mesocycle week for a date, defaulting to week 1 before the start. */
 export function mesocycleWeek(startDate: string, dateIso: string): number {
@@ -57,12 +53,6 @@ export type EffectiveOccurrence = {
   loggedStatus: "in_progress" | "complete" | null;
   dropped: boolean;
 };
-
-function isoWeekday(iso: string): number {
-  const d = parseIsoDate(iso);
-  if (!d) throw new Error(`Not a calendar date: ${iso}`);
-  return ((d.getUTCDay() + 6) % 7) + 1;
-}
 
 function cmp(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;

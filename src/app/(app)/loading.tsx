@@ -5,6 +5,7 @@ export default function Loading() {
     <section className="space-y-6">
       <Skeleton className="h-6 w-40" />
       <Skeleton className="h-28 w-full rounded-lg" />
+      <Skeleton className="h-16 w-full rounded-lg" />
     </section>
   );
 }
