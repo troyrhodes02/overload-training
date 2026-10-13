@@ -10,7 +10,7 @@ project **Overload V1** (`P-OVE-1`). Classification: UI-bearing, merge-on-green
 ## Delivery
 
 - **Feature PR:** [#40](https://github.com/troyrhodes02/overload-training/pull/40) — `feat/07-cardio-logging` → `main`
-- **Merge status:** __MERGE_STATUS__
+- **Merge status:** ✅ Squash-merged into `main` on green — final feature commit **`2d35e3d`** ("Cardio Logging (Pitch 7) (#40)").
 - **Linear issues** (milestone *Cardio Logging*, `eea0888a-1b50-47c8-b075-d4a8460b7c64`; chained via blockedBy; all In Review with PRs merged into the feature branch):
   - **OVE-33** — Planned cardio: model, builder add/edit/remove, clone-forward — PR #41
   - **OVE-34** — Cardio occurrences, idempotent CardioLog, and Today's cardio — PR #42
@@ -89,11 +89,62 @@ Stated and proven (static guards in `tests/unit/invariant-guards.test.ts` unless
 
 ## Verification
 
-__VERIFICATION__
+Run on the integrated feature branch after the audit fixes (tree identical to the merged commit) and re-confirmed on `main` post-merge (lint, typecheck, format, unit, integration, build):
+
+| Check | Result |
+| ----- | ------ |
+| `npm run lint` | ✅ clean |
+| `npm run typecheck` | ✅ clean |
+| `npm run format:check` | ✅ clean |
+| `npm test` (unit) | ✅ 344 passed / 28 suites |
+| `npm run test:integration` (embedded Postgres, migrations 0–6 applied) | ✅ 271 passed / 20 suites |
+| `npm run build` | ✅ compiled |
+| `npm run test:e2e` (Playwright) | ✅ 22 passed (auth boundary; no new route) |
+| `npm run verify:client-bundle` | ✅ no server secret in `.next/static` |
+| GitHub checks on #40–#43 | ✅ Vercel build + preview comments |
+| Local browser check (production build, local Supabase auth, throwaway DB) | ✅ phone light/dark + desktop; zero console errors; no horizontal overflow |
+
+Cardio Logging proofs (automated unless noted), following the run prompt's checklist:
+
+- **Planned cardio:** zero items valid; one item valid; a second on the same day → `conflict`, and a raw insert fails on the unique index; cardio-only and combined days valid (`plan-cardio.int`).
+- **Planned-field validation:** blank, whitespace, missing, 0, negative, decimal rejected with nothing written; DB CHECKs reject bypassed rows (`cardio-validation`, `plan-cardio.int`).
+- **Domain isolation:** planning cardio creates no Exercise / SessionExercise / LoggedExercise / LoggedSet; logging creates no LoggedSession / LoggedSet (integration counts and snapshots).
+- **Dashboard:** combined pending, lifting complete / cardio pending, cardio complete / lifting pending, both complete, cardio-only pending and completion (`cardio-logging.int` via `getTodayDashboard`; also checked visually).
+- **Logging:** planned type and minutes prefill the dialog (visual); actual type and minutes may differ; the plan row is unchanged after a differing log.
+- **CardioLog validation:** blank type and missing / 0 / negative / decimal minutes rejected with no row created.
+- **Identity:** one occurrence → at most one CardioLog; a retry returns `alreadyLogged` with the row unchanged; a concurrent double submit records once; a completed occurrence opens correction, never a second log.
+- **Completion independence:** a cardio log leaves the LoggedSession absent / unchanged; completing the workout leaves cardio pending; a cardio-only day completes with zero LoggedSessions and zero Sessions.
+- **History:** completed cardio appears in the week with date, type, and minutes; combined and cardio-only days; changed-type comparison (`cardio-history.int`; visual).
+- **Historical correction:** type and minutes persist; invalid edits rejected with the row unchanged; snapshot, date, and occurrence immutable; no delete path (static guard).
+- **Plan edits vs history:** changing planned type or minutes, moving, or removing the plan never rewrites or deletes a CardioLog; logs stay listed after their plan row is removed.
+- **Clone-forward:** type, minutes, and day copied; zero CardioLogs copied; source untouched.
+- **Session duplication:** never copies cardio.
+- **Missed cardio:** past unlogged → `missed`, zero rows; never a `missed_day` dashboard state or resolution; optional log-late works.
+- **Effective lifting shift:** the shifted Pull carries its walk; the cardio-only Saturday stays; next week is authored; cardio created no resolution; a log made before the shift stays on its performed day (review fix).
+- **Cardio-only miss:** shifts nothing (no missed-day state).
+- **Scheduled deload:** cardio type and minutes as authored; no deload input exists for cardio.
+- **Progression / e1RM / Goals / Gym isolation:** static guards (cardio code never references progression, e1RM, goals, baselines, `isGymVariable`, or strength history; strength, goal, and scheduler code never references cardio); cardio actions never reconcile goals (unit); Goal rows and baselines byte-identical after logging (integration).
+- **Health / metric absence:** schema guard on both cardio models; dependency guard (no timer, health, wearable, or GPS package).
+- **Existing invariants:** RLS on every table including `planned_cardio` and anon Data API deny-all (`rls.int`); migration safety for `6_cardio_logging`; auth gating (action unit tests + e2e); single LoggedSet write path; Exercise / Gym history preservation and hard-delete restriction; no stored tag / e1RM; baseline isolation; scheduled-deload suppression — all prior suites green.
 
 ## Review
 
-__REVIEW__
+`/code-review` (high) on PR #40 posted **10 inline findings**. `/overload-review-audit` dispositions (summary comment on #40):
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | Logged cardio re-placed by a later lifting shift | **Implemented**: logs show on their performed day; regression tests; spec R57 amended |
+| 2 | Snapshot taken from the current plan row on a late log after an in-place edit | **Deferred**: needs plan versioning; code comment + spec R51 note |
+| 3 | Dimmed content under the missed-day prompt still focusable | **Implemented**: `inert` |
+| 4 | All cardio logs loaded per render | **Implemented**: week-scoped query |
+| 5 | Effective schedule recomputed per item | **Implemented**: once per week |
+| 6 | Serialized dashboard reads | **Implemented**: `Promise.all` |
+| 7 | Duplicated `isUniqueViolation` / `todayIso` | **Implemented**: reused; one `todayIso` in `plan/calendar.ts` |
+| 8 | Third `isoWeekday` | **Implemented**: exported from `plan/calendar.ts` |
+| 9 | Duplicated static cardio line | **Implemented**: shared `CardioLineContent` |
+| 10 | Dialog buttons enabled during save | **Implemented**: disabled while pending |
+
+**Implement 9 · Defer 1 · Skip 0 · Discuss 0.** No blocking finding; nothing expanded scope.
 
 ## Required upstream amendments
 
@@ -119,8 +170,21 @@ Recorded per the run prompt; no approved planning doc was edited.
 
 ## MVP completion status
 
-__MVP__
+**The seven-pitch MVP roadmap in `docs/planning/pitch-roadmap.md` is now functionally complete.** All seven pitches have shipped to `main` with their roadmap acceptance criteria met: Foundation, Library & Gyms Setup, Split & Mesocycle Builder, Guided Workout Logging, Progressive Overload Engine, Goals, and Cardio Logging. For Pitch 7 those criteria are "A cardio session can be assigned to a day and logged with type and duration" and "No progress/deload tag or trend is generated for a cardio log".
+
+This covers the roadmap only, not the whole product. Still outstanding:
+
+- the production migration step;
+- the open upstream amendments above;
+- the deferred items: dated goals, RPE/RIR, mobile/health integrations, multiple cardio blocks, and ad-hoc cardio.
 
 ## Halt / resume
 
-__HALT__
+Not halted. No stop condition was encountered:
+
+- **No invariant weakened.** `CardioLog` and `PlannedCardio` are new, separate records. `LoggedSet` is untouched, the new table has RLS, no tag or e1RM is stored, and nothing writes a baseline.
+- **No approved planning doc contradicted or edited.** Amendments are recorded above.
+- **No production data or credentials touched.** Verification used a throwaway local database and a temporary local user, both removed afterward.
+- **No destructive operation.** The migration is additive only, and nothing was force-pushed.
+
+**Human follow-up:** apply `6_cardio_logging` to `overload-prod` before or with the production deploy of `2d35e3d`. The steps are in `docs/runs/07-cardio-logging-runbook.md`.

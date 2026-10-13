@@ -18,7 +18,7 @@ transition and ticket boundary.
 - Effective schedule: pure `effectiveWeekSchedule(ctx, week)` / `occurrenceOnDate` in `src/lib/logging/schedule.ts` (shifts only Session occurrences, per week, never compounding). Missed-day prompt = `oldestUnresolvedMissedDay` (Session occurrences only).
 - Dashboard `getTodayDashboard` / history `getWeekSchedule` in `src/lib/logging/queries.ts`.
 
-## Pipeline status
+## Pipeline status — COMPLETE ✅ (merged to `main` on green, `2d35e3d`)
 
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/07-cardio-logging-design-doc.md`
@@ -30,8 +30,8 @@ transition and ticket boundary.
 - [x] 8. Runbook — `docs/runs/07-cardio-logging-runbook.md`
 - [x] 9. Merge ticket PRs into feature branch (squash, dependency order)
 - [x] 10. Full verification (lint, typecheck, format, unit 343, integration 270, build, e2e 22, client-bundle)
-- [ ] 11. Review + audit
-- [ ] 12. Merge on green + run report
+- [x] 11. Review + audit (#40: 10 findings → implement 9 / defer 1)
+- [x] 12. Merge on green (`2d35e3d`) + run report — `docs/runs/07-cardio-logging-report.md`
 
 ## Linear
 
