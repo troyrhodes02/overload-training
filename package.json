@@ -15,7 +15,8 @@
     "test:integration": "jest --config jest.integration.config.js",
     "test:e2e": "playwright test",
     "verify:client-bundle": "node scripts/check-client-bundle.mjs",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "import:plan": "tsx --conditions=react-server scripts/import/real-plan/cli.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
