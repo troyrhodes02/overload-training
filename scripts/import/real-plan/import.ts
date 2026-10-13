@@ -37,7 +37,7 @@ export type ResolvedExercise = {
   id: string | null; // null → custom exercise to create
   productionName: string | null;
   equipmentType: string | null;
-  match: "exact" | "normalized" | "create-custom";
+  match: "exact" | "normalized" | "create-custom" | "missing";
 };
 
 export type Inspection = {
@@ -269,7 +269,7 @@ export async function inspect(db: Db): Promise<Inspection> {
           id: null,
           productionName: null,
           equipmentType: null,
-          match: "exact",
+          match: "missing",
         });
         continue;
       }
@@ -349,6 +349,15 @@ export async function inspect(db: Db): Promise<Inspection> {
     if (active.length) {
       blockers.push(
         `An active mesocycle already exists: "${active[0].name}" (${active[0].id}). Activating Block 1 would archive it — not done automatically.`,
+      );
+    }
+  }
+
+  if (exercises.filter((e) => e.match === "missing").length > 1) {
+    const libraryRows = await db.exercise.count({ where: { isCustom: false } });
+    if (libraryRows === 0) {
+      blockers.unshift(
+        "The exercise library is empty on this database: run the one-time catalog import (npm run db:seed) first.",
       );
     }
   }

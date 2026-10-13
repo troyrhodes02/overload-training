@@ -63,14 +63,22 @@ async function main() {
   const apply = args.includes("--apply");
   const confirmIdx = args.indexOf("--confirm-host");
   const confirmHost = confirmIdx >= 0 ? args[confirmIdx + 1] : undefined;
-  const unknown = args.filter(
+  // Anything else is a mistake — e.g. PowerShell swallowing `--`, so npm eats
+  // --apply/--confirm-host and only the host arrives. Fail loudly, never
+  // silently fall back to a different mode.
+  const unexpected = args.filter(
     (a, i) =>
-      a.startsWith("-") &&
       a !== "--apply" &&
       a !== "--confirm-host" &&
-      args[i - 1] !== "--confirm-host",
+      !(args[i - 1] === "--confirm-host" && i === confirmIdx + 1),
   );
-  if (unknown.length) fail(`Unknown option(s): ${unknown.join(" ")}`);
+  if (unexpected.length) {
+    fail(
+      `Unexpected argument(s): ${unexpected.join(" ")}\n` +
+        "In PowerShell, npm drops options after `--`. Run the script directly instead:\n" +
+        "  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --apply --confirm-host <host>",
+    );
+  }
 
   const t = target();
   if (apply && confirmHost !== t.host) {
@@ -125,8 +133,9 @@ async function main() {
           ? ", per-gym baseline"
           : ""
         : "";
+      const status = e.match === "missing" ? "MISSING" : e.match;
       out.push(
-        `  ${e.match.padEnd(13)} ${e.ref.requested} → ${e.productionName}  [${e.equipmentType}${gv}]  ${e.id ?? "(new custom)"}`,
+        `  ${status.padEnd(13)} ${e.ref.requested} → ${e.productionName ?? e.ref.name}  [${e.equipmentType ?? "?"}${gv}]  ${e.id ?? (e.match === "create-custom" ? "(new custom)" : "(not in library)")}`,
       );
     }
     out.push(``);
@@ -173,8 +182,9 @@ async function main() {
       return;
     }
     if (!apply) {
+      out.push(`Dry run clean. To write (works in PowerShell too):`);
       out.push(
-        `Dry run clean. To write: npm run import:plan -- --apply --confirm-host ${t.host}`,
+        `  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --apply --confirm-host ${t.host}`,
       );
       console.log(out.join("\n"));
       return;
