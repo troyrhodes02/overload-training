@@ -45,7 +45,7 @@ export function plannedComparison(entry: CardioOccurrenceDto): string | null {
     : `Planned ${plannedLabel(entry)}`;
 }
 
-function CardioLogDialog({
+export function CardioLogDialog({
   open,
   onOpenChange,
   entry,
