@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "verify:client-bundle": "node scripts/check-client-bundle.mjs",
     "db:seed": "prisma db seed",
-    "import:plan": "tsx --conditions=react-server scripts/import/real-plan/cli.ts"
+    "import:plan": "tsx --conditions=react-server scripts/import/real-plan/cli.ts",
+    "ownership:backfill": "tsx --conditions=react-server scripts/operator/account-ownership/cli.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 7 — feature PR.
+Step 8 — implementing tickets (OVE-38 next).
 
 ## Authority used (read before resuming)
 
@@ -37,7 +37,7 @@ Step 7 — feature PR.
 - [x] 4. Spec — `docs/specs/08-multi-user-foundation-spec.md`
 - [x] 5. Resolved Decisions recorded in spec
 - [x] 6. Linear milestone + issues (blockedBy chain)
-- [ ] 7. Feature PR into `main` (do not merge)
+- [x] 7. Feature PR into `main` (do not merge) — **#49**
 - [ ] 8. Implement tickets (ticket worker, stacked branches)
 - [ ] 9. Production runbook — `docs/runs/08-multi-user-foundation-runbook.md`
 - [ ] 10. Squash-merge ticket PRs into feature branch, in order
@@ -59,10 +59,18 @@ Step 7 — feature PR.
 
 ### Ticket branches / PRs
 (stacked: OVE-36 branches from the feature branch; each next from the previous)
+- OVE-36 → branch `feat/ove-36-ownership-expand-scoped-layer` → **PR #50** (base `feat/08-multi-user-foundation`) · In Review · verified: lint, typecheck, format, unit 549, integration 327, build
+- OVE-37 → branch `feat/ove-37-ownership-backfill` → PR (base `feat/ove-36-…`) · verified: lint, typecheck, format, unit 554, integration 340, build
 
 ## Resolved Decisions so far
 
 R1–R24 are recorded in `docs/specs/08-multi-user-foundation-spec.md` → Resolved Decisions. Highlights: R1 planning-doc authority; R3 scoped layer = DMMF-driven Prisma query extension in `src/lib/data` behind `requireAccount()`; R12 favorites → `ExerciseFavorite`, `is_favorite` kept unused (no destructive drop); R13 library read-only, legacy library archives untouched; R14 DB triggers/CHECKs as layer 2; R15 staged apply (db execute + resolve for 9 → backfill → migrate deploy for 10); R18 profile zone = sole today authority, cookie retired; R21 local-stack rehearsal, prod-copy rehearsal is human.
+
+## Run notes
+
+- Embedded test Postgres is WIN1252: migration SQL must be ASCII-only.
+- If an integration run is killed, an orphaned embedded `postgres.exe --forkchild` can hold port 5433; find it with `Get-CimInstance Win32_Process -Filter "name='postgres.exe'"` and stop it.
+- Spec R9 amended in OVE-36: creates pass `userId: account.userId` (Prisma's create input requires the owner once NOT NULL).
 
 ## Deferred / flagged
 
