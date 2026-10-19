@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-42** (OVE-41 done → PR #57).
+**Step 8 — implementing OVE-43** (OVE-41 → #57, OVE-42 → #58).
 
 ## Authority used (read before resuming)
 
@@ -58,6 +58,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 ### Ticket branches / PRs
 (stacked: OVE-41 branches from the feature branch; each next from the previous)
 - OVE-41 → branch `feat/ove-41-auth-surfaces-settings` → **PR #57** (base feature branch) · In Review · verified: lint, typecheck, format, unit 36/588, integration 32/395, build, e2e 25
+- OVE-42 → branch `feat/ove-42-invite-signup` → **PR #58** (base `feat/ove-41-…`) · In Review · verified: lint, typecheck, format, unit 38/607, integration 32/398, build + client-bundle (invite + service key set), e2e 26; local-stack signup check (wrong code → 0 users; profile names + browser zone)
+- OVE-43 → branch `feat/ove-43-password-recovery` → PR (pending) · verified: lint, typecheck, format, unit 39/617, integration 32/398, build, e2e 28; local-stack recovery flow via Mailpit (identical copy known/unknown, ≥1.5 s both, subject + /auth/confirm link, same-password rejected, other device signed out, reused link → expired, old pw fails/new works). Local stack restarted once to load the recovery template (data intact: 463 sets, 1 user).
 
 
 ## Resolved Decisions so far
@@ -75,4 +77,4 @@ Empirical (local stack, 2026-10-19): admin dup → `email_exists`; anon signUp �
 
 ## Deferred / flagged
 
-(none yet)
+- Known limitation (OVE-43): for up to 30 min after following a reset link, that same browser's recovery session can set a password again without the old one (the device that proved email possession). Report it; not fixed (would need extra state).
