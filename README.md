@@ -43,6 +43,7 @@ locally and in production. See `docs/runs/01-foundation-runbook.md`.
 | `npm test` | Jest unit tests |
 | `npm run test:integration` | Jest integration tests against a throwaway Postgres (`TEST_DATABASE_URL`; an embedded Postgres is provisioned automatically) |
 | `npm run test:e2e` | Playwright auth-boundary tests (uses system Chrome via `channel`) |
+| `npm run test:e2e:accounts` | Accounts lifecycle in a real browser (signup with invite, isolation, sign out/in, password reset via Mailpit, Settings, deletion). Needs `npx supabase start`; uses only the local stack (refuses anything else) and removes the temporary accounts it creates |
 | `npm run verify:client-bundle` | Fails if a server DB secret leaked into `.next/static` (run after `build`) |
 
 ## Database & migrations

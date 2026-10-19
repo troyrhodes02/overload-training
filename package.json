@@ -14,6 +14,7 @@
     "test": "jest --config jest.config.js",
     "test:integration": "jest --config jest.integration.config.js",
     "test:e2e": "playwright test",
+    "test:e2e:accounts": "playwright test --config playwright.accounts.config.ts",
     "verify:client-bundle": "node scripts/check-client-bundle.mjs",
     "db:seed": "prisma db seed",
     "import:plan": "tsx --conditions=react-server scripts/import/real-plan/cli.ts",

@@ -13,6 +13,9 @@ const BASE_URL = `http://localhost:${PORT}`;
  */
 export default defineConfig({
   testDir: "./e2e",
+  // The Accounts lifecycle suite needs the local Supabase stack and has its
+  // own config (playwright.accounts.config.ts).
+  testIgnore: ["accounts/**"],
   timeout: 30_000,
   fullyParallel: true,
   use: {
@@ -32,6 +35,11 @@ export default defineConfig({
       // Signup stays closed here (production's default until the runbook
       // opens it); the open path is proven by playwright.accounts.config.ts.
       OVERLOAD_INVITE_CODE: "",
+      // Never let the e2e server fall back to `.env` (which may hold
+      // production values): an unroutable database it never needs.
+      DATABASE_URL: "postgresql://e2e:e2e@127.0.0.1:1/unused",
+      DIRECT_URL: "postgresql://e2e:e2e@127.0.0.1:1/unused",
+      SUPABASE_SERVICE_ROLE_KEY: "",
     },
   },
 });
