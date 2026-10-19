@@ -9,9 +9,13 @@ test.describe("authentication boundary", () => {
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
   });
 
-  test("settings needs an auth session", async ({ page }) => {
-    await page.goto("/settings");
-    await expect(page).toHaveURL(/\/login$/);
+  test("settings and account deletion need an auth session", async ({
+    page,
+  }) => {
+    for (const route of ["/settings", "/settings/delete-account"]) {
+      await page.goto(route);
+      await expect(page).toHaveURL(/\/login$/);
+    }
   });
 
   test("login shows email, password, recovery, and the invite-only signup link", async ({
