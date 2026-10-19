@@ -522,6 +522,8 @@ GIVEN the source tree THEN no file outside src/lib/accounts/deletion.ts calls a 
 | R20 | Five tickets, stacked: (1) auth surfaces + login/logout + Settings profile/timezone; (2) invite-gated signup + admin facade; (3) password recovery; (4) account deletion; (5) local-stack lifecycle e2e + hardening. | Vertical, medium-large PRs in dependency order. | Run prompt; ticket-worker skill |
 | R21 | The run stops before merging to `main`; it never sets production env vars, SMTP, or Supabase settings. | Run prompt; stop condition 3. | Run prompt; CLAUDE.md |
 | R22 | Root `CLAUDE.md` (single-user) is not edited; `.claude/CLAUDE.md` governs. | Owner's uncommitted file; Pitch 8 report §9. | Pitch 8 standing |
+| R23 | *(added in OVE-43)* A reset request answers in no less than `RESET_REQUEST_MIN_MS` (1500 ms). | With custom SMTP the auth service sends a known address's email before it replies, so a known address would answer measurably slower than an unknown one; the floor equalizes timing as well as wording. Measured locally: known 1883 ms, unknown 1965 ms. | PRD edge case "looks identical"; pitch §8.4 |
+| R24 | *(added in OVE-43)* Known limitation accepted: within the 30-minute recovery window, the browser that followed the link can set a password again without the old one. | It is the device that just proved control of the email; closing it would need extra server state for little gain. Reported for review. | Pitch §8.8 (no overbuilding) |
 
 ## 17. Open questions
 

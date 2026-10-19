@@ -63,6 +63,33 @@ test.describe("authentication boundary", () => {
     await expect(page.getByLabel("Invite code")).toHaveCount(0);
   });
 
+  test("recovery pages are reachable signed out; reset needs a recovery session", async ({
+    page,
+  }) => {
+    await page.goto("/forgot-password?email=will%40example.com");
+    await expect(
+      page.getByRole("heading", { name: "Reset your password" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Email")).toHaveValue("will@example.com");
+    await page.goto("/forgot-password?link=expired");
+    await expect(
+      page.getByText("That reset link has expired or was already used."),
+    ).toBeVisible();
+    // Opened directly, with no recovery auth session.
+    await page.goto("/reset-password");
+    await expect(
+      page.getByRole("heading", { name: "This link has expired" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("New password")).toHaveCount(0);
+  });
+
+  test("a confirm link without a valid token goes back to the request form", async ({
+    page,
+  }) => {
+    await page.goto("/auth/confirm?type=signup&token_hash=x");
+    await expect(page).toHaveURL(/\/forgot-password\?link=expired$/);
+  });
+
   test("there is no other registration surface (/register)", async ({
     page,
   }) => {
