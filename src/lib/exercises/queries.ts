@@ -1,6 +1,6 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import type { Account } from "@/lib/data/account";
 import { isUuid } from "@/lib/actions/result";
 import { exerciseImageUrl } from "./images";
 import {
@@ -20,6 +20,10 @@ import {
  * `deletedAt: null`; `getExercise` deliberately does not, because history and
  * direct links must still resolve an archived exercise (CLAUDE.md Layer 1).
  * Data comes from Overload's own tables only — never the source dataset.
+ *
+ * Multi-User Foundation: the account sees the shared library plus its own
+ * custom exercises (the scoped client enforces it), and "favorite" means the
+ * acting account's ExerciseFavorite row, never a flag on the shared row.
  */
 
 export type ExerciseListItemDto = {
@@ -37,6 +41,8 @@ export type ExerciseDetailDto = ExerciseListItemDto & {
   equipmentType: EquipmentValue;
   secondaryMuscleLabels: string[];
   isArchived: boolean;
+  /** Only the account's own custom exercises can be archived (spec R13). */
+  canArchive: boolean;
 };
 
 export type ExerciseList = {
@@ -55,13 +61,12 @@ const listSelect = {
   primaryMuscle: true,
   equipmentType: true,
   isCustom: true,
-  isFavorite: true,
   imageRef: true,
 } satisfies Prisma.ExerciseSelect;
 
 type ListRow = Prisma.ExerciseGetPayload<{ select: typeof listSelect }>;
 
-function toListItem(row: ListRow): ExerciseListItemDto {
+function toListItem(row: ListRow, isFavorite: boolean): ExerciseListItemDto {
   return {
     id: row.id,
     name: row.name,
@@ -69,7 +74,7 @@ function toListItem(row: ListRow): ExerciseListItemDto {
     primaryMuscleLabel: muscleGroupLabel(row.primaryMuscle),
     equipmentLabel: equipmentLabel(row.equipmentType),
     isCustom: row.isCustom,
-    isFavorite: row.isFavorite,
+    isFavorite,
     imageUrl: row.isCustom ? null : exerciseImageUrl(row.imageRef),
   };
 }
@@ -86,10 +91,11 @@ function escapeLike(token: string): string {
 /** The composable library filter: active ∧ scope ∧ primary muscle ∧ every search word. */
 export function libraryWhere(
   filters: Pick<LibraryFilters, "view" | "muscle" | "search">,
+  favoriteIds: readonly string[] = [],
 ): Prisma.ExerciseWhereInput {
   return {
     deletedAt: null,
-    ...(filters.view === "favorites" ? { isFavorite: true } : {}),
+    ...(filters.view === "favorites" ? { id: { in: [...favoriteIds] } } : {}),
     // Primary muscle ONLY: secondaryMuscles is never consulted here.
     ...(filters.muscle ? { primaryMuscle: filters.muscle } : {}),
     AND: searchTokens(filters.search).map((token) => ({
@@ -98,7 +104,18 @@ export function libraryWhere(
   };
 }
 
+/** The acting account's starred exercise ids. */
+export async function favoriteExerciseIds(
+  account: Account,
+): Promise<Set<string>> {
+  const rows = await account.db.exerciseFavorite.findMany({
+    select: { exerciseId: true },
+  });
+  return new Set(rows.map((r) => r.exerciseId));
+}
+
 export async function listExercises(
+  account: Account,
   filters: Partial<LibraryFilters> = {},
 ): Promise<ExerciseList> {
   const resolved = {
@@ -107,28 +124,29 @@ export async function listExercises(
     search: filters.search ?? "",
   } as const;
   const limit = filters.limit ?? LIBRARY_PAGE_SIZE;
-  const where = libraryWhere(resolved);
+  const favorites = await favoriteExerciseIds(account);
+  const where = libraryWhere(resolved, [...favorites]);
 
   const [rows, total, anyActive, anyFavorite] = await Promise.all([
-    prisma.exercise.findMany({
+    account.db.exercise.findMany({
       where,
       select: listSelect,
       orderBy: [{ name: "asc" }, { id: "asc" }],
       take: limit,
     }),
-    prisma.exercise.count({ where }),
-    prisma.exercise.findFirst({
+    account.db.exercise.count({ where }),
+    account.db.exercise.findFirst({
       where: { deletedAt: null },
       select: { id: true },
     }),
-    prisma.exercise.findFirst({
-      where: { deletedAt: null, isFavorite: true },
+    account.db.exercise.findFirst({
+      where: { deletedAt: null, id: { in: [...favorites] } },
       select: { id: true },
     }),
   ]);
 
   return {
-    items: rows.map(toListItem),
+    items: rows.map((r) => toListItem(r, favorites.has(r.id))),
     total,
     limit,
     hasAnyActive: anyActive !== null,
@@ -138,18 +156,27 @@ export async function listExercises(
 
 /** Resolves an exercise by id, INCLUDING archived ones (history must still resolve). */
 export async function getExercise(
+  account: Account,
   id: string,
 ): Promise<ExerciseDetailDto | null> {
   if (!isUuid(id)) return null;
-  const row = await prisma.exercise.findUnique({
-    where: { id },
-    select: { ...listSelect, secondaryMuscles: true, deletedAt: true },
-  });
+  const [row, favorite] = await Promise.all([
+    account.db.exercise.findUnique({
+      where: { id },
+      select: { ...listSelect, secondaryMuscles: true, deletedAt: true },
+    }),
+    account.db.exerciseFavorite.findFirst({
+      where: { exerciseId: id },
+      select: { exerciseId: true },
+    }),
+  ]);
   if (!row) return null;
   return {
-    ...toListItem(row),
+    ...toListItem(row, favorite !== null),
     equipmentType: row.equipmentType,
     secondaryMuscleLabels: row.secondaryMuscles.map(muscleGroupLabel),
     isArchived: row.deletedAt !== null,
+    // A visible custom exercise is always the account's own.
+    canArchive: row.isCustom,
   };
 }

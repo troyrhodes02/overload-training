@@ -3,7 +3,7 @@ const archiveGym = jest.fn();
 const restoreGym = jest.fn();
 
 jest.mock("@/lib/gyms/gyms", () => ({ createGym, archiveGym, restoreGym }));
-jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
+jest.mock("@/lib/data/account", () => ({ requireAccount: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -11,7 +11,7 @@ jest.mock("next/navigation", () => ({
 }));
 jest.mock("next/cache", () => ({ refresh: jest.fn() }));
 
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import {
   archiveGymAction,
   createGymAction,
@@ -19,6 +19,9 @@ import {
   type GymFormState,
 } from "@/app/(app)/gyms/actions";
 import { gymInputFromFormData, parseGymInput } from "@/lib/gyms/validation";
+
+/** The acting account the mocked requireAccount() resolves (Multi-User Foundation). */
+const TEST_ACCOUNT = { userId: "a0000000-0000-4000-8000-000000000001" };
 
 const ID = "3f2c1d1e-8a7b-4c6d-9e0f-112233445566";
 const initial: GymFormState = {
@@ -32,10 +35,10 @@ function form(fields: Record<string, string>): FormData {
   return fd;
 }
 
-describe("gym server actions re-check auth before doing anything", () => {
+describe("gym server actions resolve the acting account before doing anything", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockImplementation(() => {
+    (requireAccount as jest.Mock).mockImplementation(() => {
       throw new Error("NEXT_REDIRECT:/login");
     });
   });
@@ -61,7 +64,7 @@ describe("gym server actions re-check auth before doing anything", () => {
 describe("gym server actions (authenticated)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockResolvedValue({ id: "user" });
+    (requireAccount as jest.Mock).mockResolvedValue(TEST_ACCOUNT);
   });
 
   it("create redirects to the gym list on success", async () => {
@@ -72,7 +75,7 @@ describe("gym server actions (authenticated)", () => {
         form({ name: "Downtown Gym", address: "Downtown" }),
       ),
     ).rejects.toThrow("NEXT_REDIRECT:/gyms?created=1");
-    expect(createGym).toHaveBeenCalledWith({
+    expect(createGym).toHaveBeenCalledWith(TEST_ACCOUNT, {
       name: "Downtown Gym",
       address: "Downtown",
     });

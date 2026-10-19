@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@/lib/db";
+import type { Account } from "@/lib/data/account";
 
 /**
  * Gym reads. The selection list filters `deletedAt: null`; history views (a
@@ -13,8 +13,10 @@ export type GymListItemDto = {
   address: string | null;
 };
 
-export async function listActiveGyms(): Promise<GymListItemDto[]> {
-  return prisma.gym.findMany({
+export async function listActiveGyms(
+  account: Account,
+): Promise<GymListItemDto[]> {
+  return account.db.gym.findMany({
     where: { deletedAt: null },
     select: { id: true, name: true, address: true },
     orderBy: [{ name: "asc" }, { createdAt: "asc" }],

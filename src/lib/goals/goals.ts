@@ -1,6 +1,7 @@
 import "server-only";
+import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
@@ -21,13 +22,12 @@ import { parseGoalInput, type RawGoalInput } from "./validation";
  *    `active → archived/completed` update, so it happens at most once.
  *  - Reconciliation never runs inside a LoggedSet transaction; logging callers
  *    use `reconcileGoalCompletionsSafely` after their write has committed.
+ *  - Multi-User Foundation: every function takes the acting Account; "one
+ *    active goal per exercise" and reconciliation are per account, and another
+ *    account's goal, exercise, or gym is "not found" like a missing one.
  */
 
-type Db = Prisma.TransactionClient;
-
-function db(tx?: Db): Db {
-  return tx ?? prisma;
-}
+type Db = AccountTx;
 
 const NOT_FOUND = "That goal doesn't exist.";
 
@@ -38,10 +38,11 @@ const NOT_FOUND = "That goal doesn't exist.";
  * rewritten (the update is conditional on `status = active`).
  */
 export async function reconcileGoalCompletions(
+  account: Account,
   opts: { goalIds?: string[]; now?: Date } = {},
   tx?: Db,
 ): Promise<string[]> {
-  const goals = await db(tx).goal.findMany({
+  const goals = await (tx ?? account.db).goal.findMany({
     where: {
       status: "active",
       ...(opts.goalIds ? { id: { in: opts.goalIds } } : {}),
@@ -60,7 +61,7 @@ export async function reconcileGoalCompletions(
           targetWeightLbs: Number(goal.targetWeightLbs),
           targetReps: goal.targetReps,
         },
-        await goalPerformances(goal, tx),
+        await goalPerformances(account, goal, tx),
       ),
     })),
   );
@@ -69,7 +70,7 @@ export async function reconcileGoalCompletions(
   const completed: string[] = [];
   for (const { goal, progress } of measured) {
     if (!progress.reached) continue;
-    const { count } = await db(tx).goal.updateMany({
+    const { count } = await (tx ?? account.db).goal.updateMany({
       where: { id: goal.id, status: "active" },
       data: { status: "archived", archiveReason: "completed", archivedAt: now },
     });
@@ -83,9 +84,11 @@ export async function reconcileGoalCompletions(
  * goal: after a LoggedSet / workout write has committed, and before a goal
  * page renders. Errors are logged and swallowed (spec R30, R54).
  */
-export async function reconcileGoalCompletionsSafely(): Promise<string[]> {
+export async function reconcileGoalCompletionsSafely(
+  account: Account,
+): Promise<string[]> {
   try {
-    return await reconcileGoalCompletions();
+    return await reconcileGoalCompletions(account);
   } catch (error) {
     console.error("Goal completion reconciliation failed", error);
     return [];
@@ -102,6 +105,7 @@ export type CreateGoalResult = { id: string; outcome: "active" | "completed" };
  * already satisfies completes immediately with `archivedAt = createdAt`.
  */
 export async function createGoal(
+  account: Account,
   raw: RawGoalInput,
   now: Date = new Date(),
 ): Promise<CreateGoalResult> {
@@ -116,7 +120,7 @@ export async function createGoal(
   const input = parsed.value;
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await account.db.$transaction(async (tx) => {
       const exercise = isUuid(input.exerciseId)
         ? await tx.exercise.findUnique({
             where: { id: input.exerciseId },
@@ -192,6 +196,7 @@ export async function createGoal(
 
       const goal = await tx.goal.create({
         data: {
+          userId: account.userId,
           exerciseId: exercise.id,
           gymId: isGymVariable(exercise) ? input.gymId : null,
           targetWeightLbs: new Prisma.Decimal(input.targetWeightLbs),
@@ -205,6 +210,7 @@ export async function createGoal(
       // archivedAt === createdAt, which is how the read layer recognizes
       // "Already reached" (R57). Keep the shared timestamp if this changes.
       const completed = await reconcileGoalCompletions(
+        account,
         { goalIds: [goal.id], now },
         tx,
       );
@@ -215,12 +221,12 @@ export async function createGoal(
     });
   } catch (error) {
     // A concurrent create racing past the pre-check hits the partial unique
-    // index goals_one_active_per_exercise: same answer, never a replacement.
+    // index goals_one_active_per_exercise_per_user: same answer, never a replacement.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      const existing = await prisma.goal.findFirst({
+      const existing = await account.db.goal.findFirst({
         where: { exerciseId: input.exerciseId, status: "active" },
         select: { id: true, exercise: { select: { name: true } } },
       });
@@ -240,18 +246,19 @@ function duplicate(exerciseName: string, existingGoalId?: string) {
 
 /** Manually retire an active goal (R9). No undo; the record is kept. */
 export async function archiveGoal(
+  account: Account,
   input: { goalId: string },
   now: Date = new Date(),
 ): Promise<{ id: string }> {
   const { count } = isUuid(input.goalId)
-    ? await prisma.goal.updateMany({
+    ? await account.db.goal.updateMany({
         where: { id: input.goalId, status: "active" },
         data: { status: "archived", archiveReason: "manual", archivedAt: now },
       })
     : { count: 0 };
   if (count === 1) return { id: input.goalId };
   const exists = isUuid(input.goalId)
-    ? await prisma.goal.findUnique({
+    ? await account.db.goal.findUnique({
         where: { id: input.goalId },
         select: { id: true },
       })
@@ -268,11 +275,12 @@ export async function archiveGoal(
  * an already-acknowledged completion succeeds without changing its timestamp.
  */
 export async function acknowledgeGoalCompletion(
+  account: Account,
   input: { goalId: string },
   now: Date = new Date(),
 ): Promise<{ id: string }> {
   const goal = isUuid(input.goalId)
-    ? await prisma.goal.findUnique({
+    ? await account.db.goal.findUnique({
         where: { id: input.goalId },
         select: { archiveReason: true, completionAcknowledgedAt: true },
       })
@@ -285,7 +293,7 @@ export async function acknowledgeGoalCompletion(
     );
   }
   if (!goal.completionAcknowledgedAt) {
-    await prisma.goal.updateMany({
+    await account.db.goal.updateMany({
       where: {
         id: input.goalId,
         archiveReason: "completed",

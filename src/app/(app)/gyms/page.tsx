@@ -5,6 +5,7 @@ import { CreatedToast } from "@/components/feedback/created-toast";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { GymRowMenu } from "@/components/gyms/gym-row-menu";
 import { listActiveGyms } from "@/lib/gyms/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Gyms · Overload" };
 
@@ -13,9 +14,10 @@ type PageProps = {
 };
 
 export default async function GymsPage({ searchParams }: PageProps) {
+  const account = await requireAccount();
   const [{ created }, gyms] = await Promise.all([
     searchParams,
-    listActiveGyms(),
+    listActiveGyms(account),
   ]);
 
   return (

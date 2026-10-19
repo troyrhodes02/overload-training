@@ -68,3 +68,13 @@ const UUID_RE =
 export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
+
+/**
+ * A unique-constraint violation (Prisma P2002). Checked structurally so this
+ * shared module never pulls the Prisma runtime into anything that imports it.
+ */
+export function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const e = error as { name?: unknown; code?: unknown };
+  return e.name === "PrismaClientKnownRequestError" && e.code === "P2002";
+}

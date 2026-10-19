@@ -28,7 +28,7 @@ jest.mock("@/lib/cardio/cardio-logs", () => ({
   logCardio: jest.fn(),
   editCardioLog: jest.fn(),
 }));
-jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
+jest.mock("@/lib/data/account", () => ({ requireAccount: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -36,7 +36,7 @@ jest.mock("next/navigation", () => ({
 }));
 jest.mock("next/cache", () => ({ refresh: jest.fn() }));
 
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import * as goals from "@/lib/goals/goals";
 import * as sessions from "@/lib/logging/sessions";
 import * as loggedSets from "@/lib/logging/logged-sets";
@@ -45,13 +45,16 @@ import * as goalActions from "@/app/(app)/goals/actions";
 import { completeWorkoutAction, logSetAction } from "@/app/(app)/log/actions";
 import { editLoggedSetAction } from "@/app/(app)/history/actions";
 
+/** The acting account the mocked requireAccount() resolves (Multi-User Foundation). */
+const TEST_ACCOUNT = { userId: "a0000000-0000-4000-8000-000000000001" };
+
 const ID = "3f2c1d1e-8a7b-4c6d-9e0f-112233445566";
 const reconcile = goals.reconcileGoalCompletionsSafely as jest.Mock;
 
 describe("goal actions re-check auth before doing anything", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockImplementation(() => {
+    (requireAccount as jest.Mock).mockImplementation(() => {
       throw new Error("NEXT_REDIRECT:/login");
     });
   });
@@ -94,7 +97,7 @@ describe("goal actions re-check auth before doing anything", () => {
 describe("createGoalAction outcomes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockResolvedValue({ id: "u" });
+    (requireAccount as jest.Mock).mockResolvedValue(TEST_ACCOUNT);
   });
 
   const form = () => {
@@ -150,7 +153,7 @@ describe("createGoalAction outcomes", () => {
 describe("logging actions reconcile goals only after a committed write", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockResolvedValue({ id: "u" });
+    (requireAccount as jest.Mock).mockResolvedValue(TEST_ACCOUNT);
   });
 
   it("completeWorkoutAction reconciles after success, not after failure", async () => {

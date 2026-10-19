@@ -16,6 +16,14 @@ import {
   createTestSessionExercise,
   historyCounts,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Cardio Logging — the CardioLog write path and today's cardio (OVE-34; spec
@@ -79,6 +87,7 @@ async function block(
   const longAgo = parseIsoDate(addDays(start, -30))!;
   const walk = await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: W,
       type: "Incline Walk",
@@ -88,6 +97,7 @@ async function block(
   });
   const bike = await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: dayAfter(2),
       type: "Bike",
@@ -103,13 +113,13 @@ async function weekEntries(mesocycleId: string, week: number) {
     where: { id: mesocycleId },
     include: { sessions: true },
   });
-  const ctx = await loadScheduleContext(prisma(), {
+  const ctx = await loadScheduleContext(account.db, {
     id: meso.id,
     startDate: meso.startDate!,
     lengthWeeks: meso.lengthWeeks,
     sessions: meso.sessions,
   });
-  return getCardioWeek({ mesocycleId, ctx }, week, TODAY);
+  return getCardioWeek(account, { mesocycleId, ctx }, week, TODAY);
 }
 
 const strengthSnapshot = async () => ({
@@ -127,7 +137,7 @@ describe("logCardio — the factual record", () => {
   it("records actual type and minutes with a snapshot of the plan; the plan is unchanged", async () => {
     const { m, walk } = await block();
     const before = await strengthSnapshot();
-    const res = await logCardio({
+    const res = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: " Incline Walk ",
@@ -157,7 +167,7 @@ describe("logCardio — the factual record", () => {
 
   it("records a different activity without touching the plan (no swap engine)", async () => {
     const { m, walk } = await block();
-    const { cardioLogId } = await logCardio({
+    const { cardioLogId } = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Bike",
@@ -189,7 +199,7 @@ describe("logCardio — the factual record", () => {
   ])("rejects %p and records nothing", async (fields, key) => {
     const { m } = await block();
     const err = await fails(
-      logCardio({ mesocycleId: m.id, scheduledFor: TODAY, ...fields }),
+      logCardio(account, { mesocycleId: m.id, scheduledFor: TODAY, ...fields }),
     );
     expect(err.code).toBe("validation_error");
     expect(err.details?.[key]).toBeTruthy();
@@ -198,7 +208,7 @@ describe("logCardio — the factual record", () => {
 
   it("a retry returns the existing record unchanged — never a second copy", async () => {
     const { m } = await block();
-    const first = await logCardio({
+    const first = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
@@ -207,7 +217,7 @@ describe("logCardio — the factual record", () => {
     const row = await prisma().cardioLog.findUniqueOrThrow({
       where: { id: first.cardioLogId },
     });
-    const retry = await logCardio({
+    const retry = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Bike",
@@ -233,7 +243,10 @@ describe("logCardio — the factual record", () => {
       type: "Incline Walk",
       durationMin: "20",
     };
-    const results = await Promise.all([logCardio(input), logCardio(input)]);
+    const results = await Promise.all([
+      logCardio(account, input),
+      logCardio(account, input),
+    ]);
     expect(await prisma().cardioLog.count()).toBe(1);
     expect(new Set(results.map((r) => r.cardioLogId)).size).toBe(1);
     expect(results.map((r) => r.alreadyLogged).sort()).toEqual([false, true]);
@@ -242,7 +255,7 @@ describe("logCardio — the factual record", () => {
   it("refuses an occurrence that isn't due yet", async () => {
     const { m } = await block();
     const err = await fails(
-      logCardio({
+      logCardio(account, {
         mesocycleId: m.id,
         scheduledFor: addDays(TODAY, 7),
         type: "Incline Walk",
@@ -257,7 +270,7 @@ describe("logCardio — the factual record", () => {
     const { m } = await block({ startOffset: -14 });
     // W+1 has neither cardio nor lifting.
     const err = await fails(
-      logCardio({
+      logCardio(account, {
         mesocycleId: m.id,
         scheduledFor: addDays(TODAY, -6),
         type: "Outdoor Walk",
@@ -272,6 +285,7 @@ describe("logCardio — the factual record", () => {
     const { m } = await block({ startOffset: -14 });
     await prisma().plannedCardio.create({
       data: {
+        userId: account.userId,
         mesocycleId: m.id,
         dayOfWeek: dayAfter(3),
         type: "Rowing",
@@ -279,7 +293,7 @@ describe("logCardio — the factual record", () => {
       },
     });
     const err = await fails(
-      logCardio({
+      logCardio(account, {
         mesocycleId: m.id,
         scheduledFor: addDays(TODAY, -4),
         type: "Rowing",
@@ -292,7 +306,7 @@ describe("logCardio — the factual record", () => {
   it("refuses a block that isn't active", async () => {
     const { m } = await block({ status: "draft" });
     const err = await fails(
-      logCardio({
+      logCardio(account, {
         mesocycleId: m.id,
         scheduledFor: TODAY,
         type: "Incline Walk",
@@ -304,7 +318,7 @@ describe("logCardio — the factual record", () => {
 
   it("logs a missed past occurrence later — no prompt involved", async () => {
     const { m } = await block({ startOffset: -14 });
-    const res = await logCardio({
+    const res = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: addDays(TODAY, -5), // last week's cardio-only Bike
       type: "Bike",
@@ -318,7 +332,7 @@ describe("logCardio — the factual record", () => {
 describe("editCardioLog — correction, never deletion", () => {
   it("corrects type and minutes; the snapshot and occurrence never change", async () => {
     const { m } = await block();
-    const { cardioLogId } = await logCardio({
+    const { cardioLogId } = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
@@ -327,7 +341,11 @@ describe("editCardioLog — correction, never deletion", () => {
     const before = await prisma().cardioLog.findUniqueOrThrow({
       where: { id: cardioLogId },
     });
-    await editCardioLog({ cardioLogId, type: "Treadmill", durationMin: "32" });
+    await editCardioLog(account, {
+      cardioLogId,
+      type: "Treadmill",
+      durationMin: "32",
+    });
     const after = await prisma().cardioLog.findUniqueOrThrow({
       where: { id: cardioLogId },
     });
@@ -344,7 +362,7 @@ describe("editCardioLog — correction, never deletion", () => {
 
   it("rejects an invalid correction and leaves the record unchanged", async () => {
     const { m } = await block();
-    const { cardioLogId } = await logCardio({
+    const { cardioLogId } = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
@@ -358,9 +376,9 @@ describe("editCardioLog — correction, never deletion", () => {
       { type: "Bike", durationMin: "0" },
       { type: "  ", durationMin: "20" },
     ]) {
-      expect((await fails(editCardioLog({ cardioLogId, ...bad }))).code).toBe(
-        "validation_error",
-      );
+      expect(
+        (await fails(editCardioLog(account, { cardioLogId, ...bad }))).code,
+      ).toBe("validation_error");
     }
     expect(
       await prisma().cardioLog.findUniqueOrThrow({
@@ -371,7 +389,7 @@ describe("editCardioLog — correction, never deletion", () => {
 
   it("returns not_found for an unknown entry", async () => {
     const err = await fails(
-      editCardioLog({
+      editCardioLog(account, {
         cardioLogId: "00000000-0000-4000-8000-000000000000",
         type: "Bike",
         durationMin: 20,
@@ -382,7 +400,7 @@ describe("editCardioLog — correction, never deletion", () => {
 
   it("editing the plan after logging never rewrites the record", async () => {
     const { m, walk } = await block();
-    const { cardioLogId } = await logCardio({
+    const { cardioLogId } = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
@@ -391,7 +409,7 @@ describe("editCardioLog — correction, never deletion", () => {
     const before = await prisma().cardioLog.findUniqueOrThrow({
       where: { id: cardioLogId },
     });
-    await updatePlannedCardio({
+    await updatePlannedCardio(account, {
       plannedCardioId: walk.id,
       dayOfWeek: W,
       type: "Stair Climber",
@@ -408,13 +426,13 @@ describe("editCardioLog — correction, never deletion", () => {
 describe("independent completion (R26–R28)", () => {
   it("logging cardio leaves lifting pending, and today's dashboard shows both", async () => {
     const { m } = await block();
-    await logCardio({
+    await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
       durationMin: 23,
     });
-    const dash = await getTodayDashboard();
+    const dash = await getTodayDashboard(account);
     expect(dash.kind).toBe("pending");
     if (dash.kind !== "pending") return;
     expect(dash.sessionName).toBe("Pull Day 1");
@@ -430,8 +448,10 @@ describe("independent completion (R26–R28)", () => {
 
   it("completing the workout leaves cardio pending, and cardio never changes the LoggedSession", async () => {
     const { m, session, exercise } = await block();
-    const gym = await prisma().gym.create({ data: { name: "Downtown Gym" } });
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const gym = await prisma().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId: session!.id,
       scheduledFor: TODAY,
       gymId: gym.id,
@@ -439,15 +459,15 @@ describe("independent completion (R26–R28)", () => {
     const le = await prisma().loggedExercise.findFirstOrThrow({
       where: { loggedSessionId, exerciseId: exercise!.id },
     });
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 185,
       reps: 8,
     });
-    await completeWorkout({ loggedSessionId });
+    await completeWorkout(account, { loggedSessionId });
 
-    let dash = await getTodayDashboard();
+    let dash = await getTodayDashboard(account);
     expect(dash.kind).toBe("complete");
     if (dash.kind !== "complete") return;
     expect(dash.cardio.map((c) => c.state)).toEqual(["pending"]);
@@ -455,7 +475,7 @@ describe("independent completion (R26–R28)", () => {
     const ls = await prisma().loggedSession.findUniqueOrThrow({
       where: { id: loggedSessionId },
     });
-    await logCardio({
+    await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
@@ -466,7 +486,7 @@ describe("independent completion (R26–R28)", () => {
         where: { id: loggedSessionId },
       }),
     ).toEqual(ls);
-    dash = await getTodayDashboard();
+    dash = await getTodayDashboard(account);
     expect(dash.kind).toBe("complete");
     if (dash.kind === "complete")
       expect(dash.cardio.map((c) => c.state)).toEqual(["complete"]);
@@ -474,7 +494,7 @@ describe("independent completion (R26–R28)", () => {
 
   it("a cardio-only day is a rest day for lifting with cardio to log — no fake workout", async () => {
     const { m } = await block({ lifting: false });
-    let dash = await getTodayDashboard();
+    let dash = await getTodayDashboard(account);
     expect(dash.kind).toBe("rest");
     if (dash.kind !== "rest") return;
     expect(dash.cardio).toEqual([
@@ -484,13 +504,13 @@ describe("independent completion (R26–R28)", () => {
         log: null,
       }),
     ]);
-    await logCardio({
+    await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
       durationMin: 20,
     });
-    dash = await getTodayDashboard();
+    dash = await getTodayDashboard(account);
     if (dash.kind !== "rest") throw new Error("expected rest");
     expect(dash.cardio[0].state).toBe("complete");
     expect(await prisma().loggedSession.count()).toBe(0);
@@ -504,7 +524,7 @@ describe("missed cardio is a fact, not a prompt (R35–R37, R39)", () => {
     const lastWeek = await weekEntries(m.id, 2);
     expect(lastWeek.map((e) => e.state)).toEqual(["missed", "missed"]);
     expect(await prisma().cardioLog.count()).toBe(0);
-    const dash = await getTodayDashboard();
+    const dash = await getTodayDashboard(account);
     expect(dash.kind).toBe("rest"); // never missed_day for cardio
     expect(await prisma().missedDayResolution.count()).toBe(0);
   });
@@ -515,7 +535,11 @@ describe("cardio follows an existing lifting shift and never makes one (R38–R4
     const { m } = await block({ startOffset: -14 });
     // Last week's Pull (W) was missed: the lifting engine shifts it to W+1.
     const missedOn = addDays(TODAY, -7);
-    await resolveMissedDay({ mesocycleId: m.id, missedOn, outcome: "shifted" });
+    await resolveMissedDay(account, {
+      mesocycleId: m.id,
+      missedOn,
+      outcome: "shifted",
+    });
 
     const lastWeek = await weekEntries(m.id, 2);
     expect(
@@ -530,7 +554,7 @@ describe("cardio follows an existing lifting shift and never makes one (R38–R4
       addDays(TODAY, 2),
     ]);
     // Logging the shifted occurrence records it on its effective day.
-    const { cardioLogId } = await logCardio({
+    const { cardioLogId } = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: missedOn,
       type: "Incline Walk",

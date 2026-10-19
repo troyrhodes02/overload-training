@@ -1,17 +1,17 @@
 import "server-only";
+import { accountToday, type Account } from "@/lib/data/account";
 import type { LoggedSessionStatus } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import {
   addDays,
   formatPlanDate,
   formatPlanRange,
   toIsoDate,
 } from "@/lib/plan/calendar";
-import { lifterToday } from "@/lib/time/lifter-time-zone";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
 import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
+import { favoriteExerciseIds } from "@/lib/exercises/queries";
 import { getCardioWeek, type CardioOccurrenceDto } from "@/lib/cardio/queries";
 import { loadScheduleContext } from "./schedule-context";
 import {
@@ -124,20 +124,20 @@ function scheme(sets: number, min: number, max: number): string {
 }
 
 /** The active mesocycle and its effective-schedule context, or null if none. */
-async function activeContext(): Promise<{
+async function activeContext(account: Account): Promise<{
   mesocycleId: string;
   lengthWeeks: number;
   deloadEveryWeeks: number;
   startDate: string;
   ctx: ScheduleContext;
 } | null> {
-  const meso = await prisma.mesocycle.findFirst({
+  const meso = await account.db.mesocycle.findFirst({
     where: { status: "active" },
     include: { sessions: true },
   });
   if (!meso || !meso.startDate) return null;
   const startDate = toIsoDate(meso.startDate);
-  const ctx = await loadScheduleContext(prisma, {
+  const ctx = await loadScheduleContext(account.db, {
     id: meso.id,
     startDate: meso.startDate,
     lengthWeeks: meso.lengthWeeks,
@@ -153,9 +153,10 @@ async function activeContext(): Promise<{
 }
 
 async function plannedPreview(
+  account: Account,
   sessionId: string,
 ): Promise<DashboardExercisePreview[]> {
-  const slots = await prisma.sessionExercise.findMany({
+  const slots = await account.db.sessionExercise.findMany({
     where: { sessionId },
     orderBy: { position: "asc" },
     include: {
@@ -171,12 +172,15 @@ async function plannedPreview(
   }));
 }
 
-async function loggedPreview(loggedSessionId: string): Promise<{
+async function loggedPreview(
+  account: Account,
+  loggedSessionId: string,
+): Promise<{
   exercises: DashboardExercisePreview[];
   setsLogged: number;
   gymName: string | null;
 }> {
-  const les = await prisma.loggedExercise.findMany({
+  const les = await account.db.loggedExercise.findMany({
     where: { loggedSessionId },
     orderBy: { position: "asc" },
     include: {
@@ -202,10 +206,12 @@ async function loggedPreview(loggedSessionId: string): Promise<{
   return { exercises, setsLogged, gymName: les[0]?.gym?.name ?? null };
 }
 
-export async function getTodayDashboard(): Promise<DashboardDto> {
-  const active = await activeContext();
+export async function getTodayDashboard(
+  account: Account,
+): Promise<DashboardDto> {
+  const active = await activeContext(account);
   if (!active) return { kind: "no_plan" };
-  const today = await lifterToday();
+  const today = accountToday(account);
 
   const missed = oldestUnresolvedMissedDay(active.ctx, today);
   const occ = occurrenceOnDate(active.ctx, today);
@@ -214,8 +220,8 @@ export async function getTodayDashboard(): Promise<DashboardDto> {
   // never feeds the missed-day prompt or the lifting state (R35–R39).
   const week = mesocycleWeek(active.startDate, today);
   const [lifting, cardioWeek] = await Promise.all([
-    occ ? buildTodayState(active, occ, today) : null,
-    getCardioWeek(active, week, today),
+    occ ? buildTodayState(account, active, occ, today) : null,
+    getCardioWeek(account, active, week, today),
   ]);
   const cardio = cardioWeek.filter((c) => c.dateIso === today);
   const todayState: DashboardTodayDto | null = lifting
@@ -252,6 +258,7 @@ export async function getTodayDashboard(): Promise<DashboardDto> {
 }
 
 async function buildTodayState(
+  account: Account,
   active: { ctx: ScheduleContext; deloadEveryWeeks: number },
   occ: {
     sessionId: string;
@@ -266,7 +273,7 @@ async function buildTodayState(
     week,
     active.deloadEveryWeeks,
   );
-  const logged = await prisma.loggedSession.findUnique({
+  const logged = await account.db.loggedSession.findUnique({
     where: {
       sessionId_scheduledFor: {
         sessionId: occ.sessionId,
@@ -286,12 +293,15 @@ async function buildTodayState(
       week,
       scheduledDeloadWeek,
       gymName: null,
-      exercises: await plannedPreview(occ.sessionId),
+      exercises: await plannedPreview(account, occ.sessionId),
       setsLogged: 0,
     };
   }
 
-  const { exercises, setsLogged, gymName } = await loggedPreview(logged.id);
+  const { exercises, setsLogged, gymName } = await loggedPreview(
+    account,
+    logged.id,
+  );
   return {
     kind: logged.status === "complete" ? "complete" : "in_progress",
     sessionId: occ.sessionId,
@@ -307,18 +317,19 @@ async function buildTodayState(
 }
 
 async function suggestedWeight(
+  account: Account,
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
 ): Promise<number | null> {
   if (gymVariable && gymId) {
-    const b = await prisma.gymExerciseBaseline.findUnique({
+    const b = await account.db.gymExerciseBaseline.findUnique({
       where: { gymId_exerciseId: { gymId, exerciseId: performedExerciseId } },
     });
     if (b) return Number(b.weightLbs);
   }
   // Latest REAL load only: a bodyweight (NULL) set is never read back as 0.
-  const recent = await prisma.loggedSet.findFirst({
+  const recent = await account.db.loggedSet.findFirst({
     where: {
       loggedExercise: { exerciseId: performedExerciseId },
       weightLbs: { not: null },
@@ -337,17 +348,19 @@ async function suggestedWeight(
  * (Resolved Decisions R29, R34). Returns null when no context exists (R31, R36).
  */
 export async function currentWorkingWeightLbs(
+  account: Account,
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
 ): Promise<number | null> {
-  return suggestedWeight(performedExerciseId, gymId, gymVariable);
+  return suggestedWeight(account, performedExerciseId, gymId, gymVariable);
 }
 
 export async function getWorkout(
+  account: Account,
   loggedSessionId: string,
 ): Promise<WorkoutDto | null> {
-  const ls = await prisma.loggedSession.findUnique({
+  const ls = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     include: {
       session: { select: { name: true } },
@@ -416,7 +429,7 @@ export async function getWorkout(
       plannedRepRange: { min: le.targetRepMin, max: le.targetRepMax },
       skipped: le.skippedAt !== null,
       suggestedWeightLbs: externalLoad
-        ? await suggestedWeight(le.exerciseId, le.gymId, variable)
+        ? await suggestedWeight(account, le.exerciseId, le.gymId, variable)
         : null,
       sets: rows,
     });
@@ -429,7 +442,7 @@ export async function getWorkout(
     status: ls.status,
     gymName,
     gymLocked,
-    isHistoricalDate: toIsoDate(ls.scheduledFor) !== (await lifterToday()),
+    isHistoricalDate: toIsoDate(ls.scheduledFor) !== accountToday(account),
     exercises,
     complete: allComplete && ls.status === "complete",
   };
@@ -452,9 +465,10 @@ export type SwapContextDto = {
  * qualify. Swap is locked once a set exists on the occurrence.
  */
 export async function getSwapContext(
+  account: Account,
   loggedExerciseId: string,
 ): Promise<SwapContextDto | null> {
-  const le = await prisma.loggedExercise.findUnique({
+  const le = await account.db.loggedExercise.findUnique({
     where: { id: loggedExerciseId },
     include: {
       plannedExercise: { select: { name: true, primaryMuscle: true } },
@@ -463,15 +477,22 @@ export async function getSwapContext(
   });
   if (!le) return null;
 
-  const candidates = await prisma.exercise.findMany({
-    where: {
-      deletedAt: null,
-      primaryMuscle: le.plannedExercise.primaryMuscle,
-      id: { not: le.exerciseId },
-    },
-    select: { id: true, name: true, isFavorite: true },
-    orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
-  });
+  const [rows, favorites] = await Promise.all([
+    account.db.exercise.findMany({
+      where: {
+        deletedAt: null,
+        primaryMuscle: le.plannedExercise.primaryMuscle,
+        id: { not: le.exerciseId },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    favoriteExerciseIds(account),
+  ]);
+  // The acting account's favorites first (stable: name order within each group).
+  const candidates: SwapCandidate[] = rows
+    .map((r) => ({ ...r, isFavorite: favorites.has(r.id) }))
+    .sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite));
 
   return {
     loggedExerciseId: le.id,
@@ -515,16 +536,17 @@ function weekDayState(o: EffectiveOccurrence): WeekDayState {
  * given week, with their effective-schedule state. Record navigation, not stats.
  */
 export async function getWeekSchedule(
+  account: Account,
   weekNumber?: number,
 ): Promise<WeekScheduleDto | null> {
-  const active = await activeContext();
+  const active = await activeContext(account);
   if (!active) return null;
-  const today = await lifterToday();
+  const today = accountToday(account);
   const current = mesocycleWeek(active.startDate, today);
   const week = Math.min(Math.max(weekNumber ?? current, 1), active.lengthWeeks);
 
   const occ = effectiveWeekSchedule(active.ctx, week);
-  const logged = await prisma.loggedSession.findMany({
+  const logged = await account.db.loggedSession.findMany({
     where: { mesocycleId: active.mesocycleId },
     select: { id: true, sessionId: true, scheduledFor: true },
   });
@@ -554,7 +576,7 @@ export async function getWeekSchedule(
     lengthWeeks: active.lengthWeeks,
     rangeLabel: formatPlanRange(weekStart, weekEnd),
     days,
-    cardio: await getCardioWeek(active, week, today),
+    cardio: await getCardioWeek(account, active, week, today),
   };
 }
 
@@ -591,9 +613,10 @@ export type LoggedWorkoutDetailDto = {
  * exercises and gyms still render by name (never "Unknown"). No derived values.
  */
 export async function getLoggedWorkoutDetail(
+  account: Account,
   loggedSessionId: string,
 ): Promise<LoggedWorkoutDetailDto | null> {
-  const ls = await prisma.loggedSession.findUnique({
+  const ls = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     include: {
       session: { select: { name: true } },

@@ -15,6 +15,7 @@ import {
 } from "@/lib/exercises/library-params";
 import { listExercises, type ExerciseList } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/exercises/taxonomy";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Exercises · Overload" };
 
@@ -23,8 +24,9 @@ type PageProps = {
 };
 
 export default async function ExerciseLibraryPage({ searchParams }: PageProps) {
+  const account = await requireAccount();
   const filters = parseLibraryParams(await searchParams);
-  const list = await listExercises(filters);
+  const list = await listExercises(account, filters);
   const query = libraryQueryString(filters);
 
   return (

@@ -1,6 +1,7 @@
 // Overload — base schema (Pitch 1: Foundation).
 // Shape only: all eleven approved entities with their referential invariants.
-// NO feature behavior, NO stored progression tag / e1RM, NO ownership column.
+// NO feature behavior, NO stored progression tag / e1RM.
+// Multi-User Foundation (Pitch 8): every owned model carries userId → Profile.
 // Row-level security (deny-all) is enabled on every table in the migration SQL.
 
 datasource db {
@@ -15,8 +16,9 @@ generator client {
 }
 
 /// Split & Mesocycle Builder (spec D1): every mesocycle starts as a draft and
-/// becomes active only through explicit activation; at most one is active
-/// (partial unique index mesocycles_single_active in migration 3).
+/// becomes active only through explicit activation; at most one is active per
+/// account (partial unique index mesocycles_single_active_per_user,
+/// 9_account_ownership_2_enforce; was global in migration 3).
 enum MesocycleStatus {
   draft
   active
@@ -104,6 +106,9 @@ enum Equipment {
 
 model Mesocycle {
   id               String          @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId           String          @map("user_id") @db.Uuid
   name             String
   lengthWeeks      Int             @map("length_weeks")
   /// Deload cadence: a planned deload falls on every Nth week (weeks N, 2N, 3N…).
@@ -121,13 +126,18 @@ model Mesocycle {
   missedDayResolutions MissedDayResolution[]
   plannedCardio        PlannedCardio[]
   cardioLogs           CardioLog[]
+  profile              Profile               @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([status])
+  @@index([userId])
   @@map("mesocycles")
 }
 
 model Session {
   id          String   @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId      String   @map("user_id") @db.Uuid
   mesocycleId String   @map("mesocycle_id") @db.Uuid
   name        String
   /// 1 = Monday … 7 = Sunday; null = not on the schedule (spec D41/D42).
@@ -140,15 +150,20 @@ model Session {
   sessionExercises     SessionExercise[]
   loggedSessions       LoggedSession[]
   missedDayResolutions MissedDayResolution[]
+  profile              Profile               @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // Zero or one session per weekday (NULLs are distinct: any number unscheduled).
   @@unique([mesocycleId, dayOfWeek])
   @@index([mesocycleId])
+  @@index([userId])
   @@map("sessions")
 }
 
 model SessionExercise {
   id           String   @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId       String   @map("user_id") @db.Uuid
   sessionId    String   @map("session_id") @db.Uuid
   exerciseId   String   @map("exercise_id") @db.Uuid
   position     Int      @default(0)
@@ -164,11 +179,13 @@ model SessionExercise {
   // Logged occurrences that fulfilled this planned slot. SetNull on the logged
   // side so editing the plan later never cascades history away.
   loggedExercises LoggedExercise[]
+  profile         Profile          @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // One occurrence of an Exercise per Session (spec D20).
   @@unique([sessionId, exerciseId])
   @@index([sessionId, position])
   @@index([exerciseId])
+  @@index([userId])
   @@map("session_exercises")
 }
 
@@ -178,6 +195,9 @@ model SessionExercise {
 // flag. The CHECK constraints that enforce these live in the migration SQL.
 model Exercise {
   id               String        @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). NULL = shared library row (read-only
+  /// to the app); set = custom exercise of that account. Never changes.
+  userId           String?       @map("user_id") @db.Uuid
   name             String
   /// Exactly one primary muscle. The column keeps its Foundation name.
   primaryMuscle    MuscleGroup   @map("muscle_group")
@@ -189,6 +209,8 @@ model Exercise {
   isCustom         Boolean       @default(false) @map("is_custom")
   /// free-exercise-db record id: the import identity key. Null for custom.
   sourceId         String?       @unique @map("source_id")
+  /// DEPRECATED (Multi-User Foundation, spec R12): superseded by ExerciseFavorite.
+  /// Not read or written by any code; kept so no column holding data is dropped.
   isFavorite       Boolean       @default(false) @map("is_favorite")
   deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
@@ -201,14 +223,20 @@ model Exercise {
   plannedLoggedExercises LoggedExercise[]      @relation("PlannedExercise")
   baselines              GymExerciseBaseline[]
   goals                  Goal[]
+  profile                Profile?              @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  favorites              ExerciseFavorite[]
 
   @@index([primaryMuscle])
   @@index([deletedAt])
+  @@index([userId])
   @@map("exercises")
 }
 
 model Gym {
   id        String    @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId    String    @map("user_id") @db.Uuid
   name      String
   address   String?
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz
@@ -218,13 +246,18 @@ model Gym {
   baselines       GymExerciseBaseline[]
   loggedExercises LoggedExercise[]
   goals           Goal[]
+  profile         Profile               @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([deletedAt])
+  @@index([userId])
   @@map("gyms")
 }
 
 model GymExerciseBaseline {
   id         String   @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId     String   @map("user_id") @db.Uuid
   gymId      String   @map("gym_id") @db.Uuid
   exerciseId String   @map("exercise_id") @db.Uuid
   weightLbs  Decimal  @map("weight_lbs") @db.Decimal(6, 2)
@@ -233,15 +266,20 @@ model GymExerciseBaseline {
 
   gym      Gym      @relation(fields: [gymId], references: [id], onDelete: Restrict)
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  profile  Profile  @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // One baseline per (gym, exercise).
   @@unique([gymId, exerciseId])
   @@index([exerciseId])
+  @@index([userId])
   @@map("gym_exercise_baselines")
 }
 
 model LoggedSession {
   id           String              @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId       String              @map("user_id") @db.Uuid
   mesocycleId  String?             @map("mesocycle_id") @db.Uuid
   sessionId    String?             @map("session_id") @db.Uuid
   performedOn  DateTime            @map("performed_on") @db.Timestamptz
@@ -259,17 +297,22 @@ model LoggedSession {
   mesocycle       Mesocycle?       @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
   session         Session?         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   loggedExercises LoggedExercise[]
+  profile         Profile          @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // One LoggedSession per planned occurrence (sessionId, scheduledFor). Postgres
   // treats NULLs as distinct, so this constrains only real session-backed rows.
   @@unique([sessionId, scheduledFor])
   @@index([performedOn])
   @@index([mesocycleId])
+  @@index([userId])
   @@map("logged_sessions")
 }
 
 model LoggedExercise {
   id                String    @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId            String    @map("user_id") @db.Uuid
   loggedSessionId   String    @map("logged_session_id") @db.Uuid
   /// The exercise actually performed (changes on swap).
   exerciseId        String    @map("exercise_id") @db.Uuid
@@ -299,17 +342,22 @@ model LoggedExercise {
   sessionExercise SessionExercise? @relation(fields: [sessionExerciseId], references: [id], onDelete: SetNull)
   gym             Gym?             @relation(fields: [gymId], references: [id], onDelete: Restrict)
   sets            LoggedSet[]
+  profile         Profile          @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // No progressionTag column and no e1RM column. Both are computed on read in later pitches.
   @@index([loggedSessionId, position])
   @@index([exerciseId])
   @@index([plannedExerciseId])
   @@index([gymId])
+  @@index([userId])
   @@map("logged_exercises")
 }
 
 model MissedDayResolution {
   id          String           @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId      String           @map("user_id") @db.Uuid
   mesocycleId String           @map("mesocycle_id") @db.Uuid
   /// The planned Session occurrence that was missed (SetNull if the plan slot is
   /// later removed; the dated record still stands).
@@ -322,15 +370,20 @@ model MissedDayResolution {
 
   mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
   session   Session?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  profile   Profile   @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // One resolution per missed planned day. Immutable in Pitch 4.
   @@unique([mesocycleId, missedOn])
   @@index([mesocycleId])
+  @@index([userId])
   @@map("missed_day_resolutions")
 }
 
 model LoggedSet {
   id               String   @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId           String   @map("user_id") @db.Uuid
   loggedExerciseId String   @map("logged_exercise_id") @db.Uuid
   setNumber        Int      @map("set_number")
   /// External load. NULL iff the set is pure bodyweight (reps only) — never 0
@@ -342,20 +395,26 @@ model LoggedSet {
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   loggedExercise LoggedExercise @relation(fields: [loggedExerciseId], references: [id], onDelete: Restrict)
+  profile        Profile        @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // A retried set collides here; a deliberate change goes through editLoggedSet (later pitch).
   @@unique([loggedExerciseId, setNumber])
+  @@index([userId])
   @@map("logged_sets")
 }
 
 /// Goals (Pitch 6): one lifter-authored, undated target for one Exercise.
 /// Stores the target, its measurement context, and lifecycle ONLY — progress
 /// (target e1RM, best e1RM, percent) is derived on read from LoggedSets.
-/// At most one active goal per exercise, at any gym: partial unique index
-/// goals_one_active_per_exercise (migration 5). Lifecycle consistency and
+/// At most one active goal per exercise per account, at any gym: partial unique
+/// index goals_one_active_per_exercise_per_user (9_account_ownership_2_enforce;
+/// was global in migration 5). Lifecycle consistency and
 /// positive targets are CHECK constraints in the same migration.
 model Goal {
   id                       String             @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId                   String             @map("user_id") @db.Uuid
   exerciseId               String             @map("exercise_id") @db.Uuid
   /// Measurement gym — set iff the Exercise is gym-variable (machine/cable).
   gymId                    String?            @map("gym_id") @db.Uuid
@@ -372,11 +431,13 @@ model Goal {
 
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   gym      Gym?     @relation(fields: [gymId], references: [id], onDelete: Restrict)
+  profile  Profile  @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // No progress / percent / e1RM column: goal progress is computed on read.
   @@index([exerciseId])
   @@index([gymId])
   @@index([status])
+  @@index([userId])
   @@map("goals")
 }
 
@@ -388,6 +449,9 @@ model Goal {
 /// CHECKs (day 1–7, minutes 1–600, trimmed type 1–40) live in migration 6.
 model PlannedCardio {
   id          String   @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId      String   @map("user_id") @db.Uuid
   mesocycleId String   @map("mesocycle_id") @db.Uuid
   /// 1 = Monday … 7 = Sunday. Planned cardio is always on a day.
   dayOfWeek   Int      @map("day_of_week")
@@ -397,8 +461,10 @@ model PlannedCardio {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
+  profile   Profile   @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([mesocycleId, dayOfWeek])
+  @@index([userId])
   @@map("planned_cardio")
 }
 
@@ -411,6 +477,9 @@ model PlannedCardio {
 /// Written only by src/lib/cardio/cardio-logs.ts. Never deleted.
 model CardioLog {
   id                 String   @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
+  /// 9_account_ownership_2_enforce); every owned parent it references has the same owner.
+  userId             String   @map("user_id") @db.Uuid
   mesocycleId        String   @map("mesocycle_id") @db.Uuid
   /// The authored calendar date of the planned occurrence (DATE, no zone).
   scheduledFor       DateTime @map("scheduled_for") @db.Date
@@ -423,8 +492,60 @@ model CardioLog {
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
+  profile   Profile   @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([mesocycleId, scheduledFor])
   @@index([performedOn])
+  @@index([userId])
   @@map("cardio_logs")
+}
+
+/// Multi-User Foundation (Pitch 8): one row per account, keyed by the Supabase
+/// auth user id (the account's userId). The ownership root — every owned row's
+/// userId references it (Restrict) — and the home of the account's IANA
+/// timezone, the ONLY authority for "today" (src/lib/data/account.ts).
+/// Email and password live in Supabase Auth, never here. Names stay nullable
+/// until Accounts (Pitch 9) collects them at signup. RLS deny-all (migration 9).
+model Profile {
+  userId    String   @id @map("user_id") @db.Uuid
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  /// IANA zone name (e.g. "America/Chicago"), validated by isValidTimeZone on write.
+  timeZone  String   @map("time_zone")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  mesocycles           Mesocycle[]
+  sessions             Session[]
+  sessionExercises     SessionExercise[]
+  exercises            Exercise[]
+  exerciseFavorites    ExerciseFavorite[]
+  gyms                 Gym[]
+  gymExerciseBaselines GymExerciseBaseline[]
+  loggedSessions       LoggedSession[]
+  loggedExercises      LoggedExercise[]
+  loggedSets           LoggedSet[]
+  missedDayResolutions MissedDayResolution[]
+  goals                Goal[]
+  plannedCardio        PlannedCardio[]
+  cardioLogs           CardioLog[]
+
+  @@map("profiles")
+}
+
+/// Multi-User Foundation (Pitch 8, spec R12): account X starred exercise E (a
+/// library exercise or X's own custom one). Replaces the shared
+/// Exercise.isFavorite flag, which lets one account change another's library.
+/// RLS deny-all (migration 9).
+model ExerciseFavorite {
+  userId     String   @map("user_id") @db.Uuid
+  exerciseId String   @map("exercise_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile  Profile  @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@id([userId, exerciseId])
+  @@index([exerciseId])
+  @@map("exercise_favorites")
 }

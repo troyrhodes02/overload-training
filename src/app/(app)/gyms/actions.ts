@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { archiveGym, createGym, restoreGym } from "@/lib/gyms/gyms";
 import { gymInputFromFormData } from "@/lib/gyms/validation";
@@ -21,10 +21,10 @@ export async function createGymAction(
   _prev: GymFormState,
   formData: FormData,
 ): Promise<GymFormState> {
-  await requireUser();
+  const account = await requireAccount();
   const raw = gymInputFromFormData(formData);
   const result = await toActionResult(
-    async () => ({ id: (await createGym(raw)).id }),
+    async () => ({ id: (await createGym(account, raw)).id }),
     "Couldn't add the gym. Your entries are still here.",
   );
   if (result.ok) redirect("/gyms?created=1");
@@ -40,9 +40,9 @@ export async function createGymAction(
 export async function archiveGymAction(
   gymId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => archiveGym({ gymId }),
+    () => archiveGym(account, { gymId }),
     "Couldn't archive. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -52,9 +52,9 @@ export async function archiveGymAction(
 export async function restoreGymAction(
   gymId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => restoreGym({ gymId }),
+    () => restoreGym(account, { gymId }),
     "Couldn't restore. Try again.",
   );
   if (result.ok) refresh();

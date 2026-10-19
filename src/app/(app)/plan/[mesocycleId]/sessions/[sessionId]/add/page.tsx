@@ -16,6 +16,7 @@ import {
 import { listExercises, type ExerciseList } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/exercises/taxonomy";
 import { getSessionDetail } from "@/lib/plan/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Add exercise · Overload" };
 
@@ -35,11 +36,12 @@ function first(v: string | string[] | undefined): string | undefined {
  * chosen again. `?replace=<slot>` swaps an existing slot's exercise.
  */
 export default async function PickerPage({ params, searchParams }: PageProps) {
+  const account = await requireAccount();
   const [{ mesocycleId, sessionId }, sp] = await Promise.all([
     params,
     searchParams,
   ]);
-  const session = await getSessionDetail(mesocycleId, sessionId);
+  const session = await getSessionDetail(account, mesocycleId, sessionId);
   if (!session) notFound();
   const sessionHref = `/plan/${mesocycleId}/sessions/${sessionId}`;
   if (session.mesocycle.status === "archived") redirect(sessionHref);
@@ -77,7 +79,7 @@ export default async function PickerPage({ params, searchParams }: PageProps) {
   const extraParams = replace ? { replace: replace.id } : undefined;
   const basePath = `${sessionHref}/add`;
   const filters = parseLibraryParams(sp);
-  const list = await listExercises(filters);
+  const list = await listExercises(account, filters);
   const href = (f: Partial<LibraryFilters>) =>
     `${basePath}${withExtraParams(libraryQueryString(f), extraParams)}`;
 

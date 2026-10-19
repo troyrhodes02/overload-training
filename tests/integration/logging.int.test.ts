@@ -19,6 +19,14 @@ import {
   shouldCorrect,
   BASELINE_CORRECTION_THRESHOLD_PERCENT,
 } from "@/lib/gyms/baselines";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Guided Workout Logging — the correctness core (Resolved Decisions 9–18,
@@ -30,7 +38,7 @@ const db = () => getTestPrisma();
 const D = (n: number) => new Prisma.Decimal(n);
 
 async function makeGym(name = "Downtown Gym") {
-  return db().gym.create({ data: { name } });
+  return db().gym.create({ data: { userId: account.userId, name } });
 }
 
 /** A one-exercise session plan. Returns the session + exercise ids. */
@@ -75,14 +83,14 @@ async function logComplete(
   scheduledFor: string,
   weights: number[],
 ) {
-  const { loggedSessionId } = await startOrResumeWorkout({
+  const { loggedSessionId } = await startOrResumeWorkout(account, {
     sessionId,
     scheduledFor,
     gymId,
   });
   const le = await firstLoggedExercise(loggedSessionId);
   for (let i = 0; i < weights.length; i++) {
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: i + 1,
       weightLbs: weights[i],
@@ -102,7 +110,7 @@ describe("set validation (Decision 11)", () => {
   async function started() {
     const { sessionId } = await makePlan();
     const gym = await makeGym();
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
@@ -119,7 +127,7 @@ describe("set validation (Decision 11)", () => {
   ])("rejects %s and persists nothing", async (_label, weightLbs, reps) => {
     const loggedExerciseId = await started();
     await expect(
-      logSet({ loggedExerciseId, setNumber: 1, weightLbs, reps }),
+      logSet(account, { loggedExerciseId, setNumber: 1, weightLbs, reps }),
     ).rejects.toMatchObject({ code: "validation_error" });
     expect(await db().loggedSet.count()).toBe(0);
   });
@@ -127,7 +135,12 @@ describe("set validation (Decision 11)", () => {
   it("rejects an extra set until every planned set is logged (Decision 12, amended)", async () => {
     const loggedExerciseId = await started();
     await expect(
-      logSet({ loggedExerciseId, setNumber: 4, weightLbs: 100, reps: 8 }),
+      logSet(account, {
+        loggedExerciseId,
+        setNumber: 4,
+        weightLbs: 100,
+        reps: 8,
+      }),
     ).rejects.toMatchObject({ code: "validation_error" });
     expect(await db().loggedSet.count()).toBe(0);
   });
@@ -137,19 +150,19 @@ describe("retry idempotency and conflict (Decision 14)", () => {
   it("an identical retry returns the existing set and never duplicates", async () => {
     const { sessionId } = await makePlan();
     const gym = await makeGym();
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
     });
     const le = await firstLoggedExercise(loggedSessionId);
-    const a = await logSet({
+    const a = await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 185,
       reps: 8,
     });
-    const b = await logSet({
+    const b = await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 185,
@@ -162,20 +175,20 @@ describe("retry idempotency and conflict (Decision 14)", () => {
   it("a changed value for the same set is a conflict, not an overwrite", async () => {
     const { sessionId } = await makePlan();
     const gym = await makeGym();
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
     });
     const le = await firstLoggedExercise(loggedSessionId);
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 185,
       reps: 8,
     });
     await expect(
-      logSet({
+      logSet(account, {
         loggedExerciseId: le.id,
         setNumber: 1,
         weightLbs: 190,
@@ -189,12 +202,12 @@ describe("start/resume idempotency (Decision 2)", () => {
   it("resuming the same occurrence returns the same LoggedSession and never duplicates", async () => {
     const { sessionId } = await makePlan();
     const gym = await makeGym();
-    const a = await startOrResumeWorkout({
+    const a = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
     });
-    const b = await startOrResumeWorkout({
+    const b = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
@@ -210,33 +223,33 @@ describe("gym selection and lock (Decision 5)", () => {
     const { sessionId } = await makePlan();
     const gymA = await makeGym("Gym A");
     const gymB = await makeGym("Gym B");
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gymA.id,
     });
-    await changeGym({ loggedSessionId, gymId: gymB.id });
+    await changeGym(account, { loggedSessionId, gymId: gymB.id });
     const le = await firstLoggedExercise(loggedSessionId);
     expect(le.gymId).toBe(gymB.id);
 
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 100,
       reps: 8,
     });
     await expect(
-      changeGym({ loggedSessionId, gymId: gymA.id }),
+      changeGym(account, { loggedSessionId, gymId: gymA.id }),
     ).rejects.toMatchObject({ code: "invalid_state_transition" });
   });
 
   it("refuses to start at an archived gym", async () => {
     const { sessionId } = await makePlan();
     const gym = await db().gym.create({
-      data: { name: "Old Gym", deletedAt: new Date() },
+      data: { userId: account.userId, name: "Old Gym", deletedAt: new Date() },
     });
     await expect(
-      startOrResumeWorkout({
+      startOrResumeWorkout(account, {
         sessionId,
         scheduledFor: "2026-11-02",
         gymId: gym.id,
@@ -262,7 +275,7 @@ describe("exercise swap (Decisions 25–27)", () => {
       primaryMuscle: "chest",
       deletedAt: new Date(),
     });
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
@@ -274,7 +287,7 @@ describe("exercise swap (Decisions 25–27)", () => {
   it("swaps to an active same-primary-muscle exercise without touching the plan", async () => {
     const { le, exerciseId, sessionId, sameMuscle } =
       await startedWithCandidates();
-    await swapExercise({
+    await swapExercise(account, {
       loggedExerciseId: le.id,
       newExerciseId: sameMuscle.id,
     });
@@ -293,27 +306,36 @@ describe("exercise swap (Decisions 25–27)", () => {
   it("rejects a different primary muscle", async () => {
     const { le, otherMuscle } = await startedWithCandidates();
     await expect(
-      swapExercise({ loggedExerciseId: le.id, newExerciseId: otherMuscle.id }),
+      swapExercise(account, {
+        loggedExerciseId: le.id,
+        newExerciseId: otherMuscle.id,
+      }),
     ).rejects.toMatchObject({ code: "validation_error" });
   });
 
   it("rejects an archived candidate", async () => {
     const { le, archived } = await startedWithCandidates();
     await expect(
-      swapExercise({ loggedExerciseId: le.id, newExerciseId: archived.id }),
+      swapExercise(account, {
+        loggedExerciseId: le.id,
+        newExerciseId: archived.id,
+      }),
     ).rejects.toMatchObject({ code: "validation_error" });
   });
 
   it("is locked once a set is logged", async () => {
     const { le, sameMuscle } = await startedWithCandidates();
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 100,
       reps: 8,
     });
     await expect(
-      swapExercise({ loggedExerciseId: le.id, newExerciseId: sameMuscle.id }),
+      swapExercise(account, {
+        loggedExerciseId: le.id,
+        newExerciseId: sameMuscle.id,
+      }),
     ).rejects.toMatchObject({ code: "invalid_state_transition" });
   });
 });
@@ -322,22 +344,24 @@ describe("completion (Decisions 16–18)", () => {
   it("needs at least one logged set, then finishes even if an exercise is incomplete", async () => {
     const { sessionId } = await makePlan({ plannedSets: 3 });
     const gym = await makeGym();
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
     });
-    await expect(completeWorkout({ loggedSessionId })).rejects.toMatchObject({
+    await expect(
+      completeWorkout(account, { loggedSessionId }),
+    ).rejects.toMatchObject({
       code: "validation_error",
     });
     const le = await firstLoggedExercise(loggedSessionId);
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 100,
       reps: 8,
     });
-    await completeWorkout({ loggedSessionId });
+    await completeWorkout(account, { loggedSessionId });
     const ls = await db().loggedSession.findUniqueOrThrow({
       where: { id: loggedSessionId },
     });
@@ -359,11 +383,11 @@ describe("completion (Decisions 16–18)", () => {
       "2026-11-02",
       [100],
     );
-    await completeWorkout({ loggedSessionId });
+    await completeWorkout(account, { loggedSessionId });
     const set = await db().loggedSet.findFirstOrThrow({
       where: { loggedExerciseId },
     });
-    const edited = await editLoggedSet({
+    const edited = await editLoggedSet(account, {
       loggedSetId: set.id,
       weightLbs: 105,
       reps: 7,
@@ -462,7 +486,11 @@ describe("gym baselines — establish, correct, isolate (Decisions 42–48)", ()
     const set = await db().loggedSet.findFirstOrThrow({
       where: { loggedExerciseId, setNumber: 1 },
     });
-    await editLoggedSet({ loggedSetId: set.id, weightLbs: 300, reps: 8 });
+    await editLoggedSet(account, {
+      loggedSetId: set.id,
+      weightLbs: 300,
+      reps: 8,
+    });
     expect(Number((await baseline(gym.id, exerciseId))!.weightLbs)).toBe(100);
   });
 });
@@ -486,14 +514,14 @@ describe("missed-day resolution is immutable (Decision 33)", () => {
   it("records one resolution per day and rejects a second", async () => {
     const meso = await createTestMesocycle();
     await createTestSession(meso.id, { dayOfWeek: 1 });
-    await resolveMissedDay({
+    await resolveMissedDay(account, {
       mesocycleId: meso.id,
       missedOn: "2026-11-02",
       outcome: "skipped",
     });
     expect(await db().missedDayResolution.count()).toBe(1);
     await expect(
-      resolveMissedDay({
+      resolveMissedDay(account, {
         mesocycleId: meso.id,
         missedOn: "2026-11-02",
         outcome: "shifted",
@@ -505,7 +533,7 @@ describe("missed-day resolution is immutable (Decision 33)", () => {
     const meso = await createTestMesocycle();
     const session = await createTestSession(meso.id, { dayOfWeek: 1 }); // Monday
     // 2026-11-02 is a Monday.
-    await resolveMissedDay({
+    await resolveMissedDay(account, {
       mesocycleId: meso.id,
       missedOn: "2026-11-02",
       outcome: "skipped",

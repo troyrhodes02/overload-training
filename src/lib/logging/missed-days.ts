@@ -1,7 +1,8 @@
 import "server-only";
-import { Prisma, type MissedDayOutcome } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { DomainError } from "@/lib/actions/result";
+import type { MissedDayOutcome } from "@prisma/client";
+import { DomainError, isUuid } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
 import { parseIsoDate } from "@/lib/plan/calendar";
 
 /**
@@ -11,7 +12,7 @@ import { parseIsoDate } from "@/lib/plan/calendar";
  * authored Session template is never mutated here.
  */
 
-type Db = Prisma.TransactionClient;
+type Db = AccountTx;
 
 /** ISO 1 = Monday … 7 = Sunday from a UTC-midnight calendar date. */
 function isoWeekday(date: Date): number {
@@ -19,14 +20,27 @@ function isoWeekday(date: Date): number {
 }
 
 export async function resolveMissedDay(
+  account: Account,
   input: { mesocycleId: string; missedOn: string; outcome: MissedDayOutcome },
   tx?: Db,
 ): Promise<void> {
   if (!tx)
-    return void (await prisma.$transaction((t) => resolveMissedDay(input, t)));
+    return void (await account.db.$transaction((t) =>
+      resolveMissedDay(account, input, t),
+    ));
 
   const date = parseIsoDate(input.missedOn);
   if (!date) throw new DomainError("validation_error", "Invalid date.");
+  // The mesocycle must be the acting account's: another account's (or a
+  // missing) one is "not found" — never a resolution pointing at it.
+  const meso = isUuid(input.mesocycleId)
+    ? await tx.mesocycle.findUnique({
+        where: { id: input.mesocycleId },
+        select: { id: true },
+      })
+    : null;
+  if (!meso)
+    throw new DomainError("not_found", "That mesocycle doesn't exist.");
 
   const existing = await tx.missedDayResolution.findUnique({
     where: {
@@ -47,6 +61,7 @@ export async function resolveMissedDay(
 
   await tx.missedDayResolution.create({
     data: {
+      userId: account.userId,
       mesocycleId: input.mesocycleId,
       sessionId: session?.id ?? null,
       missedOn: date,

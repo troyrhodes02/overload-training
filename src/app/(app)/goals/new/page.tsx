@@ -16,6 +16,7 @@ import {
 import { listExercises, type ExerciseList } from "@/lib/exercises/queries";
 import { MUSCLE_GROUP_LABELS } from "@/lib/exercises/taxonomy";
 import { activeGoalExerciseMap } from "@/lib/goals/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "New goal · Overload" };
 
@@ -31,14 +32,15 @@ const BASE = "/goals/new";
  * R5), pointed at the goal form.
  */
 export default async function NewGoalPickerPage({ searchParams }: PageProps) {
+  const account = await requireAccount();
   const filters = parseLibraryParams(await searchParams);
   // Reconcile first (request time only) so a goal history has already met is
   // never presented as the "active goal" blocking a new one (R54).
   await connection();
-  await reconcileGoalCompletionsSafely();
+  await reconcileGoalCompletionsSafely(account);
   const [list, activeGoals] = await Promise.all([
-    listExercises(filters),
-    activeGoalExerciseMap(),
+    listExercises(account, filters),
+    activeGoalExerciseMap(account),
   ]);
   const href = (f: Partial<LibraryFilters>) =>
     `${BASE}${libraryQueryString(f)}`;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CircleCheck } from "lucide-react";
 import { getSessionGoalSummary } from "@/lib/goals/queries";
+import { requireAccount } from "@/lib/data/account";
 
 /**
  * The goals a completed workout actually moved (design Screen 8; R44, R45).
@@ -14,7 +15,8 @@ export async function SessionGoalRows({
 }: {
   loggedSessionId: string;
 }) {
-  const rows = await getSessionGoalSummary(loggedSessionId);
+  const account = await requireAccount();
+  const rows = await getSessionGoalSummary(account, loggedSessionId);
   if (rows.length === 0) return null;
 
   return (

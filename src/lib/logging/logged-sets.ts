@@ -1,7 +1,8 @@
 import "server-only";
 import { Prisma, type LoggedSet } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import type { EquipmentValue } from "@/lib/exercises/taxonomy";
@@ -15,9 +16,13 @@ import type { EquipmentValue } from "@/lib/exercises/taxonomy";
  * Every function accepts an optional transaction client so callers can compose;
  * when none is given it opens its own transaction, because a set write and any
  * baseline change it triggers must succeed or fail together (Decision 57).
+ *
+ * Multi-User Foundation: every function takes the acting Account and runs on
+ * its scoped client, so a set can only be written to, or edited on, the
+ * account's own logged exercise — another account's id is "not found".
  */
 
-type Db = Prisma.TransactionClient;
+type Db = AccountTx;
 
 /**
  * `weightLbs` is the external load. A bodyweight exercise (requiresExternalWeight
@@ -114,12 +119,20 @@ function isAllowedSetNumber(
   return true;
 }
 
-export async function logSet(input: LogSetInput, tx?: Db): Promise<LoggedSet> {
-  if (!tx) return prisma.$transaction((t) => logSet(input, t));
-  return logSetInTx(input, tx);
+export async function logSet(
+  account: Account,
+  input: LogSetInput,
+  tx?: Db,
+): Promise<LoggedSet> {
+  if (!tx) return account.db.$transaction((t) => logSet(account, input, t));
+  return logSetInTx(account, input, tx);
 }
 
-async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
+async function logSetInTx(
+  account: Account,
+  input: LogSetInput,
+  tx: Db,
+): Promise<LoggedSet> {
   const loggedExercise = isUuid(input.loggedExerciseId)
     ? await tx.loggedExercise.findUnique({
         where: { id: input.loggedExerciseId },
@@ -188,6 +201,7 @@ async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
 
   const created = await tx.loggedSet.create({
     data: {
+      userId: account.userId,
       loggedExerciseId: input.loggedExerciseId,
       setNumber: input.setNumber,
       weightLbs: weight,
@@ -199,7 +213,7 @@ async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
   // gym-variable exercise at a gym (Decisions 18, 46, 57). No-op otherwise.
   // A bodyweight set has no load to baseline, so it never reaches that path.
   if (weight !== null) {
-    await applyBaselineOnCompletion(input.loggedExerciseId, tx);
+    await applyBaselineOnCompletion(account, input.loggedExerciseId, tx);
   }
 
   return created;
@@ -211,10 +225,12 @@ async function logSetInTx(input: LogSetInput, tx: Db): Promise<LoggedSet> {
  * the stored baseline stays the latest value established/corrected by live logging.
  */
 export async function editLoggedSet(
+  account: Account,
   input: EditLoggedSetInput,
   tx?: Db,
 ): Promise<LoggedSet> {
-  if (!tx) return prisma.$transaction((t) => editLoggedSet(input, t));
+  if (!tx)
+    return account.db.$transaction((t) => editLoggedSet(account, input, t));
   if (!isUuid(input.loggedSetId)) {
     throw new DomainError("not_found", "That set doesn't exist.");
   }

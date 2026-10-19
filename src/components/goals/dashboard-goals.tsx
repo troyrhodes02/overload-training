@@ -7,6 +7,7 @@ import {
 } from "@/lib/goals/queries";
 import { GoalList } from "./goal-list";
 import { GoalReachedCard } from "./goal-reached-card";
+import { requireAccount } from "@/lib/data/account";
 
 /** How many active goals the dashboard surfaces before "All goals" (R64). */
 export const DASHBOARD_GOAL_LIMIT = 3;
@@ -19,10 +20,11 @@ export const DASHBOARD_GOAL_LIMIT = 3;
  * "Goal reached" cards, then at most three active goals.
  */
 export async function DashboardGoals() {
+  const account = await requireAccount();
   const [reached, goals, total] = await Promise.all([
-    listUnacknowledgedCompletions(),
-    listActiveGoals({ take: DASHBOARD_GOAL_LIMIT }),
-    countActiveGoals(),
+    listUnacknowledgedCompletions(account),
+    listActiveGoals(account, { take: DASHBOARD_GOAL_LIMIT }),
+    countActiveGoals(account),
   ]);
 
   return (

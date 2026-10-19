@@ -30,6 +30,7 @@ import {
   occupancyOf,
   type SessionSummaryDto,
 } from "@/lib/plan/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Mesocycle · Overload" };
 
@@ -42,8 +43,9 @@ export default async function MesocyclePage({
   params,
   searchParams,
 }: PageProps) {
+  const account = await requireAccount();
   const [{ mesocycleId }, sp] = await Promise.all([params, searchParams]);
-  const m = await getMesocycleWeek(mesocycleId);
+  const m = await getMesocycleWeek(account, mesocycleId);
   if (!m) notFound();
 
   const archived = m.status === "archived";

@@ -1,7 +1,7 @@
 import "server-only";
+import type { Account } from "@/lib/data/account";
+import type { AccountDb } from "@/lib/data/account-db";
 import type { Equipment, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { lifterTimeZone } from "@/lib/time/lifter-time-zone";
 import { isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
@@ -163,18 +163,20 @@ export type GoalScopeInput = {
  * goal is measured at its gym only; a gym-consistent goal across all gyms.
  */
 export async function goalPerformances(
+  account: Account,
   g: GoalScopeInput,
-  db?: Prisma.TransactionClient,
+  db?: AccountDb,
 ): Promise<QualifyingE1rm[]> {
   if (!isGymVariable(g.exercise)) {
-    return getQualifyingSessionE1rms(g.exerciseId, null, db);
+    return getQualifyingSessionE1rms(account, g.exerciseId, null, db);
   }
   // A gym-variable goal without a gym is unmeasurable (never created so).
   if (!g.gymId) return [];
-  return getQualifyingSessionE1rms(g.exerciseId, g.gymId, db);
+  return getQualifyingSessionE1rms(account, g.exerciseId, g.gymId, db);
 }
 
-const performancesFor = (g: GoalRow) => goalPerformances(g);
+const performancesFor = (account: Account, g: GoalRow) =>
+  goalPerformances(account, g);
 
 function progressOf(g: GoalRow, perfs: QualifyingE1rm[]): GoalProgress {
   return computeGoalProgress(
@@ -204,8 +206,12 @@ function toActive(
   };
 }
 
-async function activeDto(g: GoalRow, tz: string): Promise<ActiveGoalDto> {
-  return toActive(g, progressOf(g, await performancesFor(g)), tz);
+async function activeDto(
+  account: Account,
+  g: GoalRow,
+  tz: string,
+): Promise<ActiveGoalDto> {
+  return toActive(g, progressOf(g, await performancesFor(account, g)), tz);
 }
 
 function toHistory(g: GoalRow, tz: string): GoalHistoryDto {
@@ -235,48 +241,53 @@ function newGoalHrefFor(g: GoalRow): string {
 }
 
 /** Active goals, oldest first (stable order the lifter set them in; R64). */
-export async function listActiveGoals(opts?: {
-  take?: number;
-}): Promise<ActiveGoalDto[]> {
-  const rows = await prisma.goal.findMany({
+export async function listActiveGoals(
+  account: Account,
+  opts?: {
+    take?: number;
+  },
+): Promise<ActiveGoalDto[]> {
+  const rows = await account.db.goal.findMany({
     where: { status: "active" },
     include: goalInclude,
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     ...(opts?.take ? { take: opts.take } : {}),
   });
-  const tz = await lifterTimeZone();
-  return Promise.all(rows.map((g) => activeDto(g, tz)));
+  const tz = account.timeZone;
+  return Promise.all(rows.map((g) => activeDto(account, g, tz)));
 }
 
-export async function countActiveGoals(): Promise<number> {
-  return prisma.goal.count({ where: { status: "active" } });
+export async function countActiveGoals(account: Account): Promise<number> {
+  return account.db.goal.count({ where: { status: "active" } });
 }
 
 /** Reached and manually archived goals, most recently archived first. */
-export async function listGoalHistory(): Promise<GoalHistoryDto[]> {
-  const rows = await prisma.goal.findMany({
+export async function listGoalHistory(
+  account: Account,
+): Promise<GoalHistoryDto[]> {
+  const rows = await account.db.goal.findMany({
     where: { status: "archived" },
     include: goalInclude,
     orderBy: [{ archivedAt: "desc" }, { id: "asc" }],
   });
-  const tz = await lifterTimeZone();
+  const tz = account.timeZone;
   return rows.map((g) => toHistory(g, tz));
 }
 
-export async function countGoalHistory(): Promise<number> {
-  return prisma.goal.count({ where: { status: "archived" } });
+export async function countGoalHistory(account: Account): Promise<number> {
+  return account.db.goal.count({ where: { status: "archived" } });
 }
 
 /** Completed goals whose one-time "Goal reached" card has not been dismissed. */
-export async function listUnacknowledgedCompletions(): Promise<
-  GoalReachedDto[]
-> {
-  const rows = await prisma.goal.findMany({
+export async function listUnacknowledgedCompletions(
+  account: Account,
+): Promise<GoalReachedDto[]> {
+  const rows = await account.db.goal.findMany({
     where: { archiveReason: "completed", completionAcknowledgedAt: null },
     include: goalInclude,
     orderBy: [{ archivedAt: "desc" }, { id: "asc" }],
   });
-  const tz = await lifterTimeZone();
+  const tz = account.timeZone;
   return rows.map((g) => ({
     ...toContext(g, tz),
     alreadyReached: isAlreadyReached(g),
@@ -285,8 +296,10 @@ export async function listUnacknowledgedCompletions(): Promise<
 }
 
 /** exerciseId → its active goal's id (the picker marks these rows). */
-export async function activeGoalExerciseMap(): Promise<Map<string, string>> {
-  const rows = await prisma.goal.findMany({
+export async function activeGoalExerciseMap(
+  account: Account,
+): Promise<Map<string, string>> {
+  const rows = await account.db.goal.findMany({
     where: { status: "active" },
     select: { id: true, exerciseId: true },
   });
@@ -294,19 +307,20 @@ export async function activeGoalExerciseMap(): Promise<Map<string, string>> {
 }
 
 export async function getGoalDetail(
+  account: Account,
   goalId: string,
 ): Promise<GoalDetailDto | null> {
   if (!isUuid(goalId)) return null;
-  const g = await prisma.goal.findUnique({
+  const g = await account.db.goal.findUnique({
     where: { id: goalId },
     include: goalInclude,
   });
   if (!g) return null;
-  const tz = await lifterTimeZone();
+  const tz = account.timeZone;
   if (g.status === "active")
-    return { kind: "active", ...(await activeDto(g, tz)) };
+    return { kind: "active", ...(await activeDto(account, g, tz)) };
 
-  const otherActive = await prisma.goal.findFirst({
+  const otherActive = await account.db.goal.findFirst({
     where: { exerciseId: g.exerciseId, status: "active" },
     select: { id: true },
   });
@@ -322,10 +336,11 @@ export async function getGoalDetail(
 
 /** Everything the target form needs for one exercise (design Screen 3). */
 export async function getGoalFormContext(
+  account: Account,
   exerciseId: string,
   requestedGymId?: string | null,
 ): Promise<GoalFormContextDto> {
-  const exercise = await getExercise(exerciseId);
+  const exercise = await getExercise(account, exerciseId);
   if (!exercise) return { kind: "not_found" };
   if (exercise.isArchived) {
     return { kind: "archived_exercise", exerciseName: exercise.name };
@@ -334,7 +349,7 @@ export async function getGoalFormContext(
     return { kind: "bodyweight_unsupported", exerciseName: exercise.name };
   }
 
-  const existing = await prisma.goal.findFirst({
+  const existing = await account.db.goal.findFirst({
     where: { exerciseId: exercise.id, status: "active" },
     include: goalInclude,
   });
@@ -342,14 +357,14 @@ export async function getGoalFormContext(
     return {
       kind: "duplicate",
       exerciseName: exercise.name,
-      existing: await activeDto(existing, await lifterTimeZone()),
+      existing: await activeDto(account, existing, account.timeZone),
     };
   }
 
   const meta = `${exercise.primaryMuscleLabel} · ${exercise.equipmentLabel}`;
   const gymVariable = isGymVariable({ equipmentType: exercise.equipmentType });
   const gyms = gymVariable
-    ? (await listActiveGyms()).map((g) => ({ id: g.id, name: g.name }))
+    ? (await listActiveGyms(account)).map((g) => ({ id: g.id, name: g.name }))
     : [];
   if (gymVariable && gyms.length === 0) {
     return { kind: "no_gyms", exerciseName: exercise.name, exerciseMeta: meta };
@@ -383,10 +398,11 @@ export async function getGoalFormContext(
  * for a machine goal, at its gym. Untouched goals never appear.
  */
 export async function getSessionGoalSummary(
+  account: Account,
   loggedSessionId: string,
 ): Promise<SessionGoalRowDto[]> {
   if (!isUuid(loggedSessionId)) return [];
-  const session = await prisma.loggedSession.findUnique({
+  const session = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     select: {
       status: true,
@@ -402,7 +418,7 @@ export async function getSessionGoalSummary(
   ];
   if (performed.length === 0) return [];
 
-  const goals = await prisma.goal.findMany({
+  const goals = await account.db.goal.findMany({
     where: {
       exerciseId: { in: performed },
       // Only goals that existed when the workout was completed (R44): a goal
@@ -422,7 +438,7 @@ export async function getSessionGoalSummary(
 
   const rows: SessionGoalRowDto[] = [];
   for (const g of goals) {
-    const perfs = await performancesFor(g);
+    const perfs = await performancesFor(account, g);
     const fromSession = perfs.filter(
       (p) => p.loggedSessionId === loggedSessionId,
     );

@@ -17,6 +17,14 @@ import {
   createTestSession,
   createTestSessionExercise,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /** Split & Mesocycle Builder — planned exercises inside a session. */
 const prisma = () => getTestPrisma();
@@ -53,19 +61,19 @@ const order = async (sessionId: string) =>
 describe("adding exercises from the library (spec D19)", () => {
   it("adds an active exercise with the sets and reps typed, at the end", async () => {
     const { m, s, bench, incline } = await setup();
-    await addSessionExercise({
+    await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: bench.id,
       ...plan,
     });
-    await addSessionExercise({
+    await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: incline.id,
       plannedSets: "3",
       targetRepMin: "8",
       targetRepMax: "10",
     });
-    const detail = await getSessionDetail(m.id, s.id);
+    const detail = await getSessionDetail(account, m.id, s.id);
     expect(
       detail?.exercises.map((e) => [
         e.exerciseName,
@@ -86,10 +94,14 @@ describe("adding exercises from the library (spec D19)", () => {
       name: "Barbell Row",
       deletedAt: new Date(),
     });
-    const list = await listExercises({});
+    const list = await listExercises(account, {});
     expect(list.items.map((e) => e.name)).not.toContain("Barbell Row");
     const err = await fails(
-      addSessionExercise({ sessionId: s.id, exerciseId: archived.id, ...plan }),
+      addSessionExercise(account, {
+        sessionId: s.id,
+        exerciseId: archived.id,
+        ...plan,
+      }),
     );
     expect(err.message).toBe("That exercise is archived.");
     expect(await prisma().sessionExercise.count()).toBe(0);
@@ -106,13 +118,17 @@ describe("adding exercises from the library (spec D19)", () => {
 
   it("the same exercise can't appear twice in one session", async () => {
     const { s, bench } = await setup();
-    await addSessionExercise({
+    await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: bench.id,
       ...plan,
     });
     const err = await fails(
-      addSessionExercise({ sessionId: s.id, exerciseId: bench.id, ...plan }),
+      addSessionExercise(account, {
+        sessionId: s.id,
+        exerciseId: bench.id,
+        ...plan,
+      }),
     );
     expect(err.message).toBe("Already in this session.");
     expect(await prisma().sessionExercise.count()).toBe(1);
@@ -128,7 +144,7 @@ describe("adding exercises from the library (spec D19)", () => {
       [{ plannedSets: "2.5" }, "plannedSets"],
     ] as const) {
       const err = await fails(
-        addSessionExercise({
+        addSessionExercise(account, {
           sessionId: s.id,
           exerciseId: bench.id,
           ...plan,
@@ -139,7 +155,7 @@ describe("adding exercises from the library (spec D19)", () => {
       expect(err.details).toHaveProperty(field);
     }
     expect(await prisma().sessionExercise.count()).toBe(0);
-    await addSessionExercise({
+    await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: bench.id,
       plannedSets: "4",
@@ -157,12 +173,12 @@ describe("adding exercises from the library (spec D19)", () => {
 describe("editing, ordering, removing (spec D23, D24)", () => {
   it("updates sets and the rep range", async () => {
     const { s, bench } = await setup();
-    const { id } = await addSessionExercise({
+    const { id } = await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: bench.id,
       ...plan,
     });
-    await updateSessionExercise({
+    await updateSessionExercise(account, {
       sessionExerciseId: id,
       plannedSets: "4",
       targetRepMin: "4",
@@ -178,29 +194,38 @@ describe("editing, ordering, removing (spec D23, D24)", () => {
 
   it("order persists; up/down swap neighbors; the ends are no-ops", async () => {
     const { s, bench, incline, fly } = await setup();
-    const a = await addSessionExercise({
+    const a = await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: bench.id,
       ...plan,
     });
-    await addSessionExercise({
+    await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: incline.id,
       ...plan,
     });
-    const c = await addSessionExercise({
+    const c = await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: fly.id,
       ...plan,
     });
-    await moveSessionExercise({ sessionExerciseId: c.id, direction: "up" });
+    await moveSessionExercise(account, {
+      sessionExerciseId: c.id,
+      direction: "up",
+    });
     expect(await order(s.id)).toEqual([
       ["Barbell Bench Press", 0],
       ["Cable Fly", 1],
       ["Incline Dumbbell Press", 2],
     ]);
-    await moveSessionExercise({ sessionExerciseId: a.id, direction: "up" });
-    await moveSessionExercise({ sessionExerciseId: a.id, direction: "down" });
+    await moveSessionExercise(account, {
+      sessionExerciseId: a.id,
+      direction: "up",
+    });
+    await moveSessionExercise(account, {
+      sessionExerciseId: a.id,
+      direction: "down",
+    });
     expect(await order(s.id)).toEqual([
       ["Cable Fly", 0],
       ["Barbell Bench Press", 1],
@@ -210,21 +235,25 @@ describe("editing, ordering, removing (spec D23, D24)", () => {
 
   it("removing renumbers and never touches the Exercise row", async () => {
     const { s, bench, incline, fly } = await setup();
-    await addSessionExercise({
+    await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: bench.id,
       ...plan,
     });
-    const b = await addSessionExercise({
+    const b = await addSessionExercise(account, {
       sessionId: s.id,
       exerciseId: incline.id,
       ...plan,
     });
-    await addSessionExercise({ sessionId: s.id, exerciseId: fly.id, ...plan });
+    await addSessionExercise(account, {
+      sessionId: s.id,
+      exerciseId: fly.id,
+      ...plan,
+    });
     const before = await prisma().exercise.findUniqueOrThrow({
       where: { id: incline.id },
     });
-    await removeSessionExercise({ sessionExerciseId: b.id });
+    await removeSessionExercise(account, { sessionExerciseId: b.id });
     expect(await order(s.id)).toEqual([
       ["Barbell Bench Press", 0],
       ["Cable Fly", 1],
@@ -247,17 +276,19 @@ describe("archived exercises in a plan: repair, never substitute (spec D29, D36,
       where: { id: exercise.id },
       data: { deletedAt: new Date() },
     });
-    const detail = await getSessionDetail(mesocycle.id, session.id);
+    const detail = await getSessionDetail(account, mesocycle.id, session.id);
     expect(detail?.exercises[0]).toMatchObject({
       exerciseName: "Barbell Bench Press",
       isArchived: true,
     });
-    expect((await getMesocycleWeek(mesocycle.id))?.readiness.ready).toBe(false);
+    expect(
+      (await getMesocycleWeek(account, mesocycle.id))?.readiness.ready,
+    ).toBe(false);
 
     const replacement = await createTestExercise({
       name: "Chest Press Machine",
     });
-    await replaceSessionExercise({
+    await replaceSessionExercise(account, {
       sessionExerciseId: slot.id,
       exerciseId: replacement.id,
     });
@@ -288,7 +319,10 @@ describe("archived exercises in a plan: repair, never substitute (spec D29, D36,
       ).deletedAt,
     ).not.toBeNull();
     await expect(
-      activateMesocycle({ mesocycleId: mesocycle.id, expectedActiveId: null }),
+      activateMesocycle(account, {
+        mesocycleId: mesocycle.id,
+        expectedActiveId: null,
+      }),
     ).resolves.toMatchObject({ id: mesocycle.id });
   });
 
@@ -300,8 +334,10 @@ describe("archived exercises in a plan: repair, never substitute (spec D29, D36,
       where: { id: exercise.id },
       data: { deletedAt: new Date() },
     });
-    await removeSessionExercise({ sessionExerciseId: slot.id });
-    expect((await getMesocycleWeek(mesocycle.id))?.readiness.ready).toBe(true);
+    await removeSessionExercise(account, { sessionExerciseId: slot.id });
+    expect(
+      (await getMesocycleWeek(account, mesocycle.id))?.readiness.ready,
+    ).toBe(true);
   });
 
   it("replace refuses an archived target and one already in the session", async () => {
@@ -313,7 +349,7 @@ describe("archived exercises in a plan: repair, never substitute (spec D29, D36,
     expect(
       (
         await fails(
-          replaceSessionExercise({
+          replaceSessionExercise(account, {
             sessionExerciseId: slot.id,
             exerciseId: archived.id,
           }),
@@ -325,7 +361,7 @@ describe("archived exercises in a plan: repair, never substitute (spec D29, D36,
     expect(
       (
         await fails(
-          replaceSessionExercise({
+          replaceSessionExercise(account, {
             sessionExerciseId: slot.id,
             exerciseId: other.id,
           }),
@@ -340,11 +376,21 @@ describe("archived mesocycles are read-only", () => {
     const { session, slot } = await createReadyDraft({ status: "archived" });
     const e = await createTestExercise({ name: "Cable Fly" });
     for (const op of [
-      addSessionExercise({ sessionId: session.id, exerciseId: e.id, ...plan }),
-      updateSessionExercise({ sessionExerciseId: slot.id, ...plan }),
-      replaceSessionExercise({ sessionExerciseId: slot.id, exerciseId: e.id }),
-      removeSessionExercise({ sessionExerciseId: slot.id }),
-      moveSessionExercise({ sessionExerciseId: slot.id, direction: "down" }),
+      addSessionExercise(account, {
+        sessionId: session.id,
+        exerciseId: e.id,
+        ...plan,
+      }),
+      updateSessionExercise(account, { sessionExerciseId: slot.id, ...plan }),
+      replaceSessionExercise(account, {
+        sessionExerciseId: slot.id,
+        exerciseId: e.id,
+      }),
+      removeSessionExercise(account, { sessionExerciseId: slot.id }),
+      moveSessionExercise(account, {
+        sessionExerciseId: slot.id,
+        direction: "down",
+      }),
     ]) {
       expect((await fails(op)).code).toBe("invalid_state_transition");
     }

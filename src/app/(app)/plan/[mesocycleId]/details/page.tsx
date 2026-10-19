@@ -3,14 +3,16 @@ import { BackLink } from "@/components/plan/plan-bits";
 import { MesocycleForm } from "@/components/plan/mesocycle-form";
 import { getMesocycleWeek } from "@/lib/plan/queries";
 import { updateMesocycleDetailsAction } from "../../actions";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Edit details · Overload" };
 
 type PageProps = { params: Promise<{ mesocycleId: string }> };
 
 export default async function EditDetailsPage({ params }: PageProps) {
+  const account = await requireAccount();
   const { mesocycleId } = await params;
-  const m = await getMesocycleWeek(mesocycleId);
+  const m = await getMesocycleWeek(account, mesocycleId);
   if (!m) notFound();
   // Archived blocks are read-only; there is nothing to edit.
   if (m.status === "archived") redirect(`/plan/${m.id}`);

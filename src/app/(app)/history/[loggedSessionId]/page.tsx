@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { getLoggedWorkoutDetail } from "@/lib/logging/queries";
 import { EditSetDialog } from "@/components/logging/edit-set-dialog";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Workout · Overload" };
 
@@ -11,8 +12,9 @@ export default async function LoggedWorkoutPage({
 }: {
   params: Promise<{ loggedSessionId: string }>;
 }) {
+  const account = await requireAccount();
   const { loggedSessionId } = await params;
-  const detail = await getLoggedWorkoutDetail(loggedSessionId);
+  const detail = await getLoggedWorkoutDetail(account, loggedSessionId);
   if (!detail) notFound();
 
   return (

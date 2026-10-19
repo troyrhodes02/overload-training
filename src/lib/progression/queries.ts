@@ -1,6 +1,6 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import type { Account } from "@/lib/data/account";
+import type { AccountDb } from "@/lib/data/account-db";
 import {
   formatPlanDate,
   mesocycleWeekForDate,
@@ -97,8 +97,9 @@ type Row = {
  * and all planned working sets are present (R9, R44).
  */
 async function gatherRows(
+  account: Account,
   exerciseId: string,
-  db: Prisma.TransactionClient = prisma,
+  db: AccountDb = account.db,
 ): Promise<Row[]> {
   const les = await db.loggedExercise.findMany({
     where: { exerciseId },
@@ -183,11 +184,12 @@ export type QualifyingE1rm = {
  * connection and snapshot (Goals' createGoal); reads only — never a write.
  */
 export async function getQualifyingSessionE1rms(
+  account: Account,
   exerciseId: string,
   gymId: string | null,
-  db: Prisma.TransactionClient = prisma,
+  db: AccountDb = account.db,
 ): Promise<QualifyingE1rm[]> {
-  const rows = await gatherRows(exerciseId, db);
+  const rows = await gatherRows(account, exerciseId, db);
   const scoped = gymId ? rows.filter((r) => r.perf.gymId === gymId) : rows;
   const sessionOf = new Map(
     scoped.map((r) => [r.perf.loggedExerciseId, r.loggedSessionId]),
@@ -246,6 +248,7 @@ function currentE1rm(rows: Row[]): number | null {
 }
 
 async function progressSuggestion(
+  account: Account,
   exerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
@@ -253,12 +256,18 @@ async function progressSuggestion(
 ): Promise<SuggestedLoadDto> {
   // Bodyweight: the lifter decides how to make it harder — never "+5 lb".
   if (!externalLoad) return null;
-  const base = await currentWorkingWeightLbs(exerciseId, gymId, gymVariable);
+  const base = await currentWorkingWeightLbs(
+    account,
+    exerciseId,
+    gymId,
+    gymVariable,
+  );
   if (base == null) return null; // fail safe — never fabricate (R31)
   return { lbs: base + PROGRESS_INCREMENT_LBS, kind: "progress_increment" };
 }
 
 async function scheduledDeloadSuggestion(
+  account: Account,
   exerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
@@ -266,7 +275,12 @@ async function scheduledDeloadSuggestion(
 ): Promise<SuggestedLoadDto> {
   // Bodyweight: no load to reduce to 90% of; show the state without a number.
   if (!externalLoad) return null;
-  const base = await currentWorkingWeightLbs(exerciseId, gymId, gymVariable);
+  const base = await currentWorkingWeightLbs(
+    account,
+    exerciseId,
+    gymId,
+    gymVariable,
+  );
   if (base == null) return null; // show state without a number (R36)
   return { lbs: scheduledDeloadLoad(base), kind: "scheduled_deload" };
 }
@@ -277,10 +291,11 @@ async function scheduledDeloadSuggestion(
  * for a gym-consistent exercise it is the global history.
  */
 export async function getExerciseProgression(
+  account: Account,
   exerciseId: string,
   requestedGymId?: string | null,
 ): Promise<ExerciseProgressionDto | null> {
-  const exercise = await prisma.exercise.findUnique({
+  const exercise = await account.db.exercise.findUnique({
     where: { id: exerciseId },
     select: { id: true, name: true, equipmentType: true, deletedAt: true },
   });
@@ -288,7 +303,7 @@ export async function getExerciseProgression(
 
   const gymVariable = isGymVariable(exercise);
   const externalLoad = requiresExternalWeight(exercise);
-  const rows = await gatherRows(exerciseId);
+  const rows = await gatherRows(account, exerciseId);
 
   if (!gymVariable) {
     const state = evaluateReactive(
@@ -309,7 +324,13 @@ export async function getExerciseProgression(
       tag,
       suggestion:
         tag === "progress"
-          ? await progressSuggestion(exerciseId, null, false, externalLoad)
+          ? await progressSuggestion(
+              account,
+              exerciseId,
+              null,
+              false,
+              externalLoad,
+            )
           : null,
       currentE1rm: externalLoad ? currentE1rm(rows) : null,
       qualifyingCount: qualifyingSequence(rows.map((r) => r.perf)).length,
@@ -361,7 +382,13 @@ export async function getExerciseProgression(
     tag,
     suggestion:
       tag === "progress"
-        ? await progressSuggestion(exerciseId, selectedGymId, true, true)
+        ? await progressSuggestion(
+            account,
+            exerciseId,
+            selectedGymId,
+            true,
+            true,
+          )
         : null,
     currentE1rm: currentE1rm(scopeRows),
     qualifyingCount: qualifyingSequence(scopeRows.map((r) => r.perf)).length,
@@ -384,10 +411,11 @@ export type PlannedProgressionDto = {
  * reactive tag is suppressed and the 90% load is shown instead (R37).
  */
 export async function getPlannedProgression(
+  account: Account,
   exerciseId: string,
   opts: { scheduledDeloadWeek: boolean },
 ): Promise<PlannedProgressionDto> {
-  const base = await getExerciseProgression(exerciseId);
+  const base = await getExerciseProgression(account, exerciseId);
   if (!base) {
     return { tag: null, gymVariable: false, suggestion: null, hasTrend: false };
   }
@@ -400,6 +428,7 @@ export async function getPlannedProgression(
       tag: null,
       gymVariable: false,
       suggestion: await scheduledDeloadSuggestion(
+        account,
         exerciseId,
         null,
         false,
@@ -423,9 +452,10 @@ export async function getPlannedProgression(
  * gym-variable at this occurrence's gym) decides the tag.
  */
 export async function getOccurrenceProgression(
+  account: Account,
   loggedExerciseId: string,
 ): Promise<OccurrenceProgressionDto | null> {
-  const le = await prisma.loggedExercise.findUnique({
+  const le = await account.db.loggedExercise.findUnique({
     where: { id: loggedExerciseId },
     include: {
       exercise: { select: { id: true, equipmentType: true } },
@@ -453,7 +483,7 @@ export async function getOccurrenceProgression(
     le.loggedSession.mesocycle?.deloadEveryWeeks ?? 0,
   );
 
-  const rows = await gatherRows(le.exercise.id);
+  const rows = await gatherRows(account, le.exercise.id);
   const scopeRows = gymVariable
     ? rows.filter((r) => r.perf.gymId === le.gymId)
     : rows;
@@ -468,6 +498,7 @@ export async function getOccurrenceProgression(
       scheduledDeloadWeek: true,
       tag: null,
       suggestion: await scheduledDeloadSuggestion(
+        account,
         le.exercise.id,
         le.gymId,
         gymVariable,
@@ -490,6 +521,7 @@ export async function getOccurrenceProgression(
     suggestion:
       tag === "progress"
         ? await progressSuggestion(
+            account,
             le.exercise.id,
             le.gymId,
             gymVariable,
@@ -505,9 +537,10 @@ export async function getOccurrenceProgression(
  * the occurrence logic so the summary and the card never disagree.
  */
 export async function getSessionProgressionSummary(
+  account: Account,
   loggedSessionId: string,
 ): Promise<SessionProgressionSummaryDto | null> {
-  const ls = await prisma.loggedSession.findUnique({
+  const ls = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     select: {
       id: true,
@@ -541,7 +574,7 @@ export async function getSessionProgressionSummary(
   const performed = ls.loggedExercises.filter((le) => le._count.sets > 0);
   const exercises = await Promise.all(
     performed.map(async (le) => {
-      const occ = await getOccurrenceProgression(le.id);
+      const occ = await getOccurrenceProgression(account, le.id);
       return {
         performedExerciseId: le.exercise.id,
         performedExerciseName: le.exercise.name,

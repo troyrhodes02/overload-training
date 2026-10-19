@@ -2,12 +2,15 @@
  * One-time import of the lifter's real plan into the database in DATABASE_URL.
  * Admin tooling: never imported by `src/`, no route, no browser surface.
  *
- *   npm run import:plan                                   # DRY RUN (default): reads only
- *   npm run import:plan -- --apply --confirm-host <host>  # writes, in one transaction
+ *   npm run import:plan -- --account-email <email>                          # DRY RUN (default)
+ *   npm run import:plan -- --account-email <email> --apply --confirm-host <host>
  *
- * The dry run prints the target host, every gym / exercise / session / cardio
- * decision, and any blocker. --apply refuses unless the dry run is clean and
- * <host> exactly matches the DATABASE_URL host (no secrets are printed).
+ * The dry run prints the target host, the target account (resolved from the
+ * email to exactly one auth user, which must already have a profile), every
+ * gym / exercise / session / cardio decision, and any blocker. --apply refuses
+ * unless the dry run is clean and <host> exactly matches the DATABASE_URL host
+ * (no secrets are printed). The account is never inferred (CLAUDE.md →
+ * Operator tasks; Multi-User Foundation R19).
  */
 import "dotenv/config";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
@@ -63,6 +66,8 @@ async function main() {
   const apply = args.includes("--apply");
   const confirmIdx = args.indexOf("--confirm-host");
   const confirmHost = confirmIdx >= 0 ? args[confirmIdx + 1] : undefined;
+  const emailIdx = args.indexOf("--account-email");
+  const accountEmail = emailIdx >= 0 ? args[emailIdx + 1] : undefined;
   // Anything else is a mistake — e.g. PowerShell swallowing `--`, so npm eats
   // --apply/--confirm-host and only the host arrives. Fail loudly, never
   // silently fall back to a different mode.
@@ -70,13 +75,20 @@ async function main() {
     (a, i) =>
       a !== "--apply" &&
       a !== "--confirm-host" &&
-      !(args[i - 1] === "--confirm-host" && i === confirmIdx + 1),
+      a !== "--account-email" &&
+      !(args[i - 1] === "--confirm-host" && i === confirmIdx + 1) &&
+      !(args[i - 1] === "--account-email" && i === emailIdx + 1),
   );
   if (unexpected.length) {
     fail(
       `Unexpected argument(s): ${unexpected.join(" ")}\n` +
         "In PowerShell, npm drops options after `--`. Run the script directly instead:\n" +
-        "  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --apply --confirm-host <host>",
+        "  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --account-email <email> --apply --confirm-host <host>",
+    );
+  }
+  if (!accountEmail) {
+    fail(
+      "Name the target account: --account-email <email>. The import never infers it.",
     );
   }
 
@@ -89,10 +101,15 @@ async function main() {
 
   // Loaded only after the target checks: these create the Prisma client.
   const { prisma } = await import("@/lib/db");
-  const { inspect, applyImport, verifyImport } = await import("./import");
+  const { inspect, applyImport, verifyImport, resolveTargetAccount } =
+    await import("./import");
+  const { accountFor } = await import("@/lib/data/operator");
 
   try {
-    const ins = await inspect(prisma);
+    const target = await resolveTargetAccount(prisma, accountEmail);
+    if ("error" in target) fail(`Refusing: ${target.error}`);
+    const account = await accountFor(target.userId);
+    const ins = await inspect(prisma, account);
     const out: string[] = [];
     out.push(
       `${apply ? "IMPORT" : "DRY RUN (no writes)"} — real training plan`,
@@ -103,6 +120,7 @@ async function main() {
       `  Database host   ${t.host}${t.local ? " (LOCAL)" : " (REMOTE)"} / ${t.database}`,
     );
     out.push(`  Supabase project ${t.project}`);
+    out.push(`  Target account  ${target.email} → ${target.userId}`);
     out.push(
       `  Auth accounts   ${ins.authAccounts ?? "n/a"} (never created or changed)`,
     );
@@ -184,15 +202,15 @@ async function main() {
     if (!apply) {
       out.push(`Dry run clean. To write (works in PowerShell too):`);
       out.push(
-        `  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --apply --confirm-host ${t.host}`,
+        `  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --account-email ${target.email} --apply --confirm-host ${t.host}`,
       );
       console.log(out.join("\n"));
       return;
     }
     console.log(out.join("\n"));
 
-    const result = await applyImport(prisma, ins);
-    const failures = await verifyImport(prisma, ins, result);
+    const result = await applyImport(account, ins);
+    const failures = await verifyImport(prisma, account, ins, result);
     console.log(`\n## Import written (one transaction)`);
     console.log(
       `  Block 1 ${result.block1Id} (active) · Block 2 ${result.block2Id} (draft)`,

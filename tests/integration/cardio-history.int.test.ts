@@ -10,6 +10,14 @@ import {
   createTestSession,
   createTestSessionExercise,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Cardio Logging — the week at a glance (OVE-35; spec §13, R30–R33, R36–R37,
@@ -43,6 +51,7 @@ async function block(startOffset: number) {
   const longAgo = parseIsoDate(addDays(start, -30))!;
   const walk = await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: W,
       type: "Incline Walk",
@@ -52,6 +61,7 @@ async function block(startOffset: number) {
   });
   await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: dayAfter(2),
       type: "Bike",
@@ -75,7 +85,7 @@ const cardioLines = (
 describe("cardio in the week at a glance", () => {
   it("shows a combined day and a cardio-only day this week", async () => {
     await block(0);
-    const week = await getWeekSchedule();
+    const week = await getWeekSchedule(account);
     expect(week!.weekNumber).toBe(1);
     expect(week!.days.map((d) => [d.dateIso, d.sessionName])).toEqual([
       [TODAY, "Pull Day 1"],
@@ -88,7 +98,7 @@ describe("cardio in the week at a glance", () => {
 
   it("shows last week's unlogged cardio as missed and creates nothing", async () => {
     await block(-14);
-    const week = await getWeekSchedule(2);
+    const week = await getWeekSchedule(account, 2);
     expect(cardioLines(week)).toEqual([
       [addDays(TODAY, -7), "Incline Walk", "20", "missed"],
       [addDays(TODAY, -5), "Bike", "30", "missed"],
@@ -98,13 +108,13 @@ describe("cardio in the week at a glance", () => {
 
   it("a missed occurrence logged later reads complete, with the plan when it differs", async () => {
     const { m } = await block(-14);
-    await logCardio({
+    await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: addDays(TODAY, -7),
       type: "Bike",
       durationMin: "25",
     });
-    const week = await getWeekSchedule(2);
+    const week = await getWeekSchedule(account, 2);
     expect(week!.cardio[0]).toMatchObject({
       dateIso: addDays(TODAY, -7),
       state: "complete",
@@ -116,33 +126,37 @@ describe("cardio in the week at a glance", () => {
 
   it("keeps logged cardio after its planned item is removed; unlogged ones go with the plan", async () => {
     const { m, walk } = await block(-14);
-    await logCardio({
+    await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: addDays(TODAY, -7),
       type: "Incline Walk",
       durationMin: 22,
     });
-    await removePlannedCardio({ plannedCardioId: walk.id });
-    expect(cardioLines(await getWeekSchedule(2))).toEqual([
+    await removePlannedCardio(account, { plannedCardioId: walk.id });
+    expect(cardioLines(await getWeekSchedule(account, 2))).toEqual([
       [addDays(TODAY, -7), "Incline Walk", "22", "complete"],
       [addDays(TODAY, -5), "Bike", "30", "missed"],
     ]);
     // This week the removed walk no longer appears.
-    expect(cardioLines(await getWeekSchedule(3)).map((l) => l[1])).toEqual([
-      "Bike",
-    ]);
+    expect(
+      cardioLines(await getWeekSchedule(account, 3)).map((l) => l[1]),
+    ).toEqual(["Bike"]);
   });
 
   it("a correction shows on the next read", async () => {
     const { m } = await block(0);
-    const { cardioLogId } = await logCardio({
+    const { cardioLogId } = await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: TODAY,
       type: "Incline Walk",
       durationMin: 23,
     });
-    await editCardioLog({ cardioLogId, type: "Treadmill", durationMin: 31 });
-    expect(cardioLines(await getWeekSchedule())[0]).toEqual([
+    await editCardioLog(account, {
+      cardioLogId,
+      type: "Treadmill",
+      durationMin: 31,
+    });
+    expect(cardioLines(await getWeekSchedule(account))[0]).toEqual([
       TODAY,
       "Treadmill",
       "31",
@@ -153,8 +167,12 @@ describe("cardio in the week at a glance", () => {
   it("puts shifted cardio on the shifted lifting day; the cardio-only day stays", async () => {
     const { m } = await block(-14);
     const missedOn = addDays(TODAY, -7);
-    await resolveMissedDay({ mesocycleId: m.id, missedOn, outcome: "shifted" });
-    const week = await getWeekSchedule(2);
+    await resolveMissedDay(account, {
+      mesocycleId: m.id,
+      missedOn,
+      outcome: "shifted",
+    });
+    const week = await getWeekSchedule(account, 2);
     expect(week!.days.map((d) => [d.dateIso, d.state])).toEqual([
       [addDays(missedOn, 1), "shifted"],
     ]);
@@ -163,25 +181,28 @@ describe("cardio in the week at a glance", () => {
       [addDays(missedOn, 2), "Bike"],
     ]);
     // The following week is authored again.
-    expect((await getWeekSchedule(3))!.cardio.map((c) => c.dateIso)).toEqual([
-      TODAY,
-      addDays(TODAY, 2),
-    ]);
+    expect(
+      (await getWeekSchedule(account, 3))!.cardio.map((c) => c.dateIso),
+    ).toEqual([TODAY, addDays(TODAY, 2)]);
   });
 
   it("a later lifting shift never moves cardio that was already logged (review fix)", async () => {
     const { m } = await block(-14);
     const missedOn = addDays(TODAY, -7);
     // Cardio done and logged on its day; the lifting was missed …
-    await logCardio({
+    await logCardio(account, {
       mesocycleId: m.id,
       scheduledFor: missedOn,
       type: "Incline Walk",
       durationMin: 20,
     });
     // … and only later is the lifting day shifted.
-    await resolveMissedDay({ mesocycleId: m.id, missedOn, outcome: "shifted" });
-    const week = await getWeekSchedule(2);
+    await resolveMissedDay(account, {
+      mesocycleId: m.id,
+      missedOn,
+      outcome: "shifted",
+    });
+    const week = await getWeekSchedule(account, 2);
     expect(week!.days.map((d) => d.dateIso)).toEqual([addDays(missedOn, 1)]);
     expect(cardioLines(week)[0]).toEqual([
       missedOn,
