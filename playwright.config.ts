@@ -29,6 +29,9 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
+      // Signup stays closed here (production's default until the runbook
+      // opens it); the open path is proven by playwright.accounts.config.ts.
+      OVERLOAD_INVITE_CODE: "",
     },
   },
 });

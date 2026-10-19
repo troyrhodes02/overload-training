@@ -125,7 +125,7 @@ describe("exercise and gym write guards (Library & Gyms Setup)", () => {
 
 describe("secret hygiene", () => {
   const dbSecretRe =
-    /NEXT_PUBLIC_[A-Z0-9_]*(DATABASE_URL|DIRECT_URL|SERVICE_ROLE|SERVICE_KEY)/;
+    /NEXT_PUBLIC_[A-Z0-9_]*(DATABASE_URL|DIRECT_URL|SERVICE_ROLE|SERVICE_KEY|INVITE|SMTP|SECRET)/;
 
   it("references no NEXT_PUBLIC_ database/service-role secret in source", () => {
     const offenders: string[] = [];
@@ -191,13 +191,75 @@ describe("free-exercise-db is an ingest dependency, never a runtime one", () => 
     expect(offenders.map((f) => path.relative(REPO_ROOT, f))).toEqual([]);
   });
 
-  it("no application source references the service-role key", () => {
-    const offenders = walk(SRC).filter((f) =>
-      /SUPABASE_SERVICE_ROLE_KEY|service_role|serviceRole/.test(
-        fs.readFileSync(f, "utf8"),
-      ),
-    );
-    expect(offenders.map((f) => path.relative(REPO_ROOT, f))).toEqual([]);
+  it("only the auth-admin facade references the service-role key (Accounts R4)", () => {
+    // Library & Gyms kept the key out of src/ entirely. Accounts needs it on
+    // the server for exactly two auth operations (create an invite-gated user,
+    // delete an account's identity), so it is allowed in ONE server-only file.
+    const offenders = walk(SRC)
+      .filter((f) =>
+        /SUPABASE_SERVICE_ROLE_KEY|service_role|serviceRole/.test(
+          fs.readFileSync(f, "utf8"),
+        ),
+      )
+      .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, "/"));
+    expect(offenders).toEqual(["src/lib/supabase/admin.ts"]);
+  });
+});
+
+describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)", () => {
+  const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
+  const read = (f: string) => fs.readFileSync(f, "utf8");
+  const ADMIN = "src/lib/supabase/admin.ts";
+  const INVITE = "src/lib/accounts/invite.ts";
+
+  it("the admin facade and the invite gate are server-only modules", () => {
+    for (const file of [ADMIN, INVITE]) {
+      expect([file, read(path.join(REPO_ROOT, file))]).toEqual([
+        file,
+        expect.stringMatching(/^import "server-only";/),
+      ]);
+    }
+  });
+
+  it("the admin facade is imported only by signup and account deletion", () => {
+    const importers = walk(SRC)
+      .filter((f) => /["']@\/lib\/supabase\/admin["']/.test(read(f)))
+      .map(rel)
+      .sort();
+    for (const file of importers) {
+      expect([
+        "src/lib/accounts/deletion.ts",
+        "src/lib/accounts/signup.ts",
+      ]).toContain(file);
+    }
+    expect(importers).toContain("src/lib/accounts/signup.ts");
+  });
+
+  it("only the invite gate reads the invite code", () => {
+    const readers = walk(SRC)
+      .filter((f) => /OVERLOAD_INVITE_CODE/.test(read(f)))
+      .map(rel);
+    expect(readers).toEqual([INVITE]);
+  });
+
+  it("only signup establishes a new account's profile", () => {
+    const callers = walk(SRC)
+      .filter((f) => !rel(f).startsWith("src/lib/data/"))
+      .filter((f) => /\bestablishProfile\b/.test(read(f)))
+      .map(rel);
+    expect(callers).toEqual(["src/lib/accounts/signup.ts"]);
+  });
+
+  it("no client component imports the admin facade or the invite gate", () => {
+    const offenders = walk(SRC)
+      .filter((f) => /^["']use client["']/m.test(read(f)))
+      .filter((f) =>
+        /@\/lib\/(supabase\/admin|accounts\/(invite|signup|deletion))["']/.test(
+          read(f).replace(/import type[^;]+;/g, ""),
+        ),
+      )
+      .map(rel);
+    expect(offenders).toEqual([]);
   });
 });
 

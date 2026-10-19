@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
- * Fails if any server-only database secret appears in the client bundle.
+ * Fails if any server-only secret (database URLs, the service-role key, the
+ * signup invite code) appears in the client bundle.
  * Run AFTER `next build`. Scans .next/static for forbidden tokens and for the
- * actual values of DATABASE_URL / DIRECT_URL / the service-role key if those
+ * actual values of DATABASE_URL / DIRECT_URL / the service-role key / the
+ * invite code if those
  * env vars are set in the build environment.
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
@@ -18,13 +20,21 @@ if (!existsSync(STATIC_DIR)) {
 }
 
 // Tokens that should never appear in client code.
-const forbiddenTokens = ["DATABASE_URL", "DIRECT_URL", "service_role"];
+const forbiddenTokens = [
+  "DATABASE_URL",
+  "DIRECT_URL",
+  "service_role",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "OVERLOAD_INVITE_CODE",
+];
 
 // Actual secret values present in the build env (never their public NEXT_PUBLIC_ vars).
 const forbiddenValues = [
   process.env.DATABASE_URL,
   process.env.DIRECT_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
+  // Accounts: the shared invite code is server-only (pitch §9).
+  process.env.OVERLOAD_INVITE_CODE?.trim(),
 ].filter((v) => typeof v === "string" && v.length > 0);
 
 function walk(dir) {
