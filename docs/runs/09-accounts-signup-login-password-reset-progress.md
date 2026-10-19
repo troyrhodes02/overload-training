@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 15 — run report** (review fixes committed; final verification green).
+**COMPLETE — stopped before merge to `main` (run prompt).** Feature PR #56 open with all ticket PRs integrated and review findings addressed. Remaining steps are human: run report §8 + runbook.
 
 ## Authority used (read before resuming)
 
@@ -43,7 +43,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 12. Code review → `code-review` skill (high) posted 10 inline comments on #56
 - [x] 13. Review audit + fixes — audit posted (https://github.com/troyrhodes02/overload-training/pull/56#issuecomment-6278021014): 10 implement, 0 defer/skip/discuss; new decisions R25–R27, R23 amended, R24 retired; design doc v1.1; preview v1.1; runbook updated; local stack restarted to load `secure_password_change`
 - [x] 14. Final verification — STOP (no merge to `main`): format, lint, typecheck, prisma validate, unit 40/631, integration 33/407, build + client-bundle, e2e 28, accounts lifecycle e2e 7/7 (local DB unchanged)
-- [ ] 15. Run report
+- [x] 15. Run report — `docs/runs/09-accounts-signup-login-password-reset-report.md`
 
 ## Linear
 
