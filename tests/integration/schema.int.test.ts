@@ -30,7 +30,11 @@ describe("schema invariants", () => {
     expect(rows).toEqual([]);
   });
 
-  it("has NO ownership/tenant column on any application table", async () => {
+  // Multi-User Foundation replaced the single-user "no ownership column"
+  // invariant: every application table now carries its owning account
+  // (CLAUDE.md first invariant; Architecture → Ownership). One owner column
+  // name only — no second tenant/owner/account key.
+  it("every application table carries user_id, and no other owner column", async () => {
     const prisma = getTestPrisma();
     const rows = await prisma.$queryRawUnsafe<
       { table_name: string; column_name: string }[]
@@ -38,10 +42,14 @@ describe("schema invariants", () => {
       `SELECT table_name, column_name FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = ANY($1::text[])
-          AND column_name IN ('user_id', 'owner_id', 'tenant_id', 'account_id')`,
+          AND column_name IN ('user_id', 'owner_id', 'tenant_id', 'account_id')
+        ORDER BY table_name`,
       APP_TABLES as unknown as string[],
     );
-    expect(rows).toEqual([]);
+    expect(rows.map((r) => r.column_name).every((c) => c === "user_id")).toBe(
+      true,
+    );
+    expect(rows.map((r) => r.table_name)).toEqual([...APP_TABLES].sort());
   });
 
   it("seeds no training data (every application table is empty on a clean migrate)", async () => {
