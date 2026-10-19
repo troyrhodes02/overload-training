@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { accountToday, resolveAccount } from "@/lib/data/account";
+import {
+  accountToday,
+  establishProfile,
+  resolveAccount,
+} from "@/lib/data/account";
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { getSettingsProfile, updateProfile } from "@/lib/accounts/profile";
@@ -115,5 +119,64 @@ describe("Settings profile edits (Accounts)", () => {
       lastName: "R",
       timeZone: "Pacific/Pago_Pago",
     });
+  });
+});
+
+describe("signup profile (Accounts R9)", () => {
+  it("establishProfile creates the new account's profile with names and zone", async () => {
+    const other = await createTestAccount("America/Chicago");
+    const id = randomUUID();
+    await establishProfile(
+      { id },
+      { firstName: "Sam", lastName: "Ortiz", timeZone: "Europe/Berlin" },
+    );
+    expect(
+      await getTestPrisma().profile.findUniqueOrThrow({
+        where: { userId: id },
+      }),
+    ).toMatchObject({
+      firstName: "Sam",
+      lastName: "Ortiz",
+      timeZone: "Europe/Berlin",
+    });
+    expect(
+      await getTestPrisma().profile.findUniqueOrThrow({
+        where: { userId: other.userId },
+      }),
+    ).toMatchObject({ firstName: null, timeZone: "America/Chicago" });
+  });
+
+  it("completes a lazily created profile instead of duplicating it", async () => {
+    const id = randomUUID();
+    await resolveAccount(id); // a concurrent first request made a UTC profile
+    await establishProfile(
+      { id },
+      { firstName: "Sam", lastName: "Ortiz", timeZone: "Asia/Tokyo" },
+    );
+    const rows = await getTestPrisma().profile.findMany({
+      where: { userId: id },
+    });
+    expect(rows).toEqual([
+      expect.objectContaining({
+        firstName: "Sam",
+        lastName: "Ortiz",
+        timeZone: "Asia/Tokyo",
+      }),
+    ]);
+  });
+
+  it("an invalid zone falls back to UTC", async () => {
+    const id = randomUUID();
+    await establishProfile(
+      { id },
+      { firstName: "Sam", lastName: "Ortiz", timeZone: "Nope/Zone" },
+    );
+    expect(
+      (
+        await getTestPrisma().profile.findUniqueOrThrow({
+          where: { userId: id },
+        })
+      ).timeZone,
+    ).toBe("UTC");
   });
 });

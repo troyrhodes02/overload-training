@@ -20,7 +20,7 @@ export const PasswordInput = forwardRef<
       <Input
         ref={ref}
         type={shown ? "text" : "password"}
-        className={cn("h-11 pr-12", className)}
+        className={cn("h-11 pr-12 aria-invalid:border-destructive", className)}
         autoCapitalize="none"
         spellCheck={false}
         {...props}

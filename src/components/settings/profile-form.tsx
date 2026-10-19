@@ -159,7 +159,7 @@ export function ProfileForm({
             <NativeSelect
               id="timeZone"
               name="timeZone"
-              className="h-11"
+              className="h-11 aria-invalid:border-destructive"
               value={values.timeZone}
               onChange={(e) => set("timeZone", e.target.value)}
               aria-describedby={
@@ -256,7 +256,7 @@ function NameField({
         name={id}
         autoComplete={autoComplete}
         maxLength={PROFILE_NAME_MAX}
-        className="h-11"
+        className="h-11 aria-invalid:border-destructive"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={Boolean(error)}

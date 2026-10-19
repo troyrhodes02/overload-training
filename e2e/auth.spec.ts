@@ -48,6 +48,21 @@ test.describe("authentication boundary", () => {
     await expect(page.getByRole("status")).toHaveCount(0);
   });
 
+  test("signup is closed when no invite code is configured", async ({
+    page,
+  }) => {
+    // The e2e server sets no OVERLOAD_INVITE_CODE: production's default.
+    await page.goto("/signup");
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(
+      page.getByRole("heading", { name: "Signup isn't open" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /create account/i }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Invite code")).toHaveCount(0);
+  });
+
   test("there is no other registration surface (/register)", async ({
     page,
   }) => {

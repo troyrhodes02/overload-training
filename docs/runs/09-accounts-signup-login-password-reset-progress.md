@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-41.**
+**Step 8 — implementing OVE-42** (OVE-41 done → PR #57).
 
 ## Authority used (read before resuming)
 
@@ -35,7 +35,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 4. Spec — `docs/specs/09-accounts-signup-login-password-reset-spec.md` (v1.0.0; no schema change, no migration)
 - [x] 5. Resolved Decisions recorded in spec (R1–R22)
 - [x] 6. Linear milestone + issues (blockedBy chain)
-- [ ] 7. Feature PR into `main` (do not merge)
+- [x] 7. Feature PR into `main` (do not merge) — **#56** (draft)
 - [ ] 8. Implement tickets (ticket worker, stacked branches)
 - [ ] 9. Production runbook
 - [ ] 10. Squash-merge ticket PRs into feature branch, in order
@@ -57,6 +57,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ### Ticket branches / PRs
 (stacked: OVE-41 branches from the feature branch; each next from the previous)
+- OVE-41 → branch `feat/ove-41-auth-surfaces-settings` → **PR #57** (base feature branch) · In Review · verified: lint, typecheck, format, unit 36/588, integration 32/395, build, e2e 25
 
 
 ## Resolved Decisions so far
@@ -64,6 +65,13 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 R1–R22 in `docs/specs/09-accounts-signup-login-password-reset-spec.md` → Resolved Decisions. Highlights: R2 shared invite code env var, closed when unset/<12 chars (= production gate); R3 admin-API account creation, Supabase project signup stays disabled; **R4 the app now uses `SUPABASE_SERVICE_ROLE_KEY` server-side (only `src/lib/supabase/admin.ts`) — supersedes Pitch 2's "never in src/" (flag for human review)**; R7 token_hash recovery template + `/auth/confirm`; R8 recovery session = amr otp ≤ 30 min; R12 deletion through the scoped client, one tx, data first then identity; R14 forgot always "sent".
 
 Empirical (local stack, 2026-10-19): admin dup → `email_exists`; anon signUp → `signup_disabled`; wrong/unknown login → `invalid_credentials` (same); reset unknown → ok, known repeated → 429 `over_email_send_rate_limit` (membership leak → swallow); verifyOtp recovery → amr `otp`; reuse → `otp_expired`; same password → `same_password`; signOut others revokes old sessions; deleted user getUser → `user_not_found`; deleteUser again → 404.
+
+## Run notes
+
+- Local-stack helper: scratchpad `localenv.sh` (sources local URLs/keys from `npx supabase status -o env`, refuses non-127.0.0.1). Integration: scratchpad `itest.sh`.
+- Port 3200 is held by an unrelated process on this machine; use 3317 for ad-hoc `next start`.
+- Visual checks create TEMPORARY local auth users (`visual-*@example.test`) and remove them + their profile afterwards.
+- Cache Components: pages reading `searchParams` outside the (app) layout need `export const instant = false` (login).
 
 ## Deferred / flagged
 
