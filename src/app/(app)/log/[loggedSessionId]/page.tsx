@@ -15,14 +15,14 @@ export default async function WorkoutPage({
 }) {
   const account = await requireAccount();
   const { loggedSessionId } = await params;
-  const workout = await getWorkout(loggedSessionId);
+  const workout = await getWorkout(account, loggedSessionId);
   if (!workout) notFound();
 
   // Derived per-occurrence progression for each card (OVE-28). Computed on read;
   // nothing is stored. Scheduled-deload weeks suppress the reactive tag here too.
   const progressionEntries = await Promise.all(
     workout.exercises.map(async (e) => {
-      const occ = await getOccurrenceProgression(e.loggedExerciseId);
+      const occ = await getOccurrenceProgression(account, e.loggedExerciseId);
       const value: CardProgression = {
         tag: occ?.tag ?? null,
         suggestion: occ?.suggestion ?? null,

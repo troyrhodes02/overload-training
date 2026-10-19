@@ -12,23 +12,6 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const SRC = path.join(REPO_ROOT, "src");
 const DATA_LAYER = "src/lib/data/";
 
-/**
- * TEMPORARY (OVE-38 → OVE-39): modules not yet converted to the account-
- * scoped layer. Mirrors NOT_YET_SCOPED in eslint.config.mjs. OVE-39 converts
- * them and this list must then be empty.
- */
-const NOT_YET_SCOPED = [
-  "src/lib/cardio/cardio-logs.ts",
-  "src/lib/cardio/queries.ts",
-  "src/lib/goals/goals.ts",
-  "src/lib/goals/queries.ts",
-  "src/lib/logging/logged-sets.ts",
-  "src/lib/logging/missed-days.ts",
-  "src/lib/logging/queries.ts",
-  "src/lib/logging/sessions.ts",
-  "src/lib/progression/queries.ts",
-];
-
 function walk(dir: string, acc: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -46,10 +29,7 @@ const code = (f: string) =>
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-const appFiles = () =>
-  walk(SRC).filter(
-    (f) => !rel(f).startsWith(DATA_LAYER) && !NOT_YET_SCOPED.includes(rel(f)),
-  );
+const appFiles = () => walk(SRC).filter((f) => !rel(f).startsWith(DATA_LAYER));
 
 describe("account-scoped access is the only door (Multi-User Foundation)", () => {
   it("only src/lib/data imports the raw Prisma client", () => {
@@ -112,14 +92,9 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("the temporary allowlist matches eslint.config.mjs exactly", () => {
+  it("eslint enforces the same boundary with no exemption beyond src/lib/data", () => {
     const eslint = read(path.join(REPO_ROOT, "eslint.config.mjs"));
-    const block =
-      /const NOT_YET_SCOPED = \[([\s\S]*?)\];/.exec(eslint)?.[1] ?? "";
-    const listed = [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-    expect(listed.sort()).toEqual([...NOT_YET_SCOPED].sort());
-    for (const f of NOT_YET_SCOPED) {
-      expect(fs.existsSync(path.join(REPO_ROOT, f))).toBe(true);
-    }
+    expect(eslint).toMatch(/ignores:\s*\["src\/lib\/data\/\*\*"\]/);
+    expect(eslint).not.toMatch(/NOT_YET_SCOPED/);
   });
 });

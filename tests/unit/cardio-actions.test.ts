@@ -16,16 +16,19 @@ jest.mock("@/lib/cardio/cardio-logs", () => ({
 jest.mock("@/lib/logging/sessions", () => ({}));
 jest.mock("@/lib/logging/logged-sets", () => ({}));
 jest.mock("@/lib/logging/missed-days", () => ({}));
-jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
+jest.mock("@/lib/data/account", () => ({ requireAccount: jest.fn() }));
 jest.mock("next/cache", () => ({ refresh: jest.fn() }));
 
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import { refresh } from "next/cache";
 import * as goals from "@/lib/goals/goals";
 import * as cardio from "@/lib/cardio/cardio-logs";
 import { DomainError } from "@/lib/actions/result";
 import { logCardioAction } from "@/app/(app)/log/actions";
 import { editCardioLogAction } from "@/app/(app)/history/actions";
+
+/** The acting account the mocked requireAccount() resolves (Multi-User Foundation). */
+const TEST_ACCOUNT = { userId: "a0000000-0000-4000-8000-000000000001" };
 
 const ID = "3f2c1d1e-8a7b-4c6d-9e0f-112233445566";
 const logInput = {
@@ -39,7 +42,7 @@ const editInput = { cardioLogId: ID, type: "Bike", durationMin: "25" };
 describe("cardio actions re-check auth before doing anything", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockImplementation(() => {
+    (requireAccount as jest.Mock).mockImplementation(() => {
       throw new Error("NEXT_REDIRECT:/login");
     });
   });
@@ -57,7 +60,7 @@ describe("cardio actions re-check auth before doing anything", () => {
 describe("cardio actions never reach goals", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockResolvedValue({ id: "user" });
+    (requireAccount as jest.Mock).mockResolvedValue(TEST_ACCOUNT);
   });
 
   it("logs, passes the idempotency flag through, refreshes, and reconciles nothing", async () => {
@@ -70,7 +73,7 @@ describe("cardio actions never reach goals", () => {
       ok: true,
       data: { cardioLogId: ID, alreadyLogged: true },
     });
-    expect(cardio.logCardio).toHaveBeenCalledWith(logInput);
+    expect(cardio.logCardio).toHaveBeenCalledWith(TEST_ACCOUNT, logInput);
     expect(refresh).toHaveBeenCalled();
     expect(goals.reconcileGoalCompletionsSafely).not.toHaveBeenCalled();
   });

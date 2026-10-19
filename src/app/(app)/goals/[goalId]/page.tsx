@@ -13,6 +13,7 @@ import { GoalReachedCard } from "@/components/goals/goal-reached-card";
 import { BackLink } from "@/components/plan/plan-bits";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { getGoalDetail, type GoalDetailDto } from "@/lib/goals/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Goal · Overload" };
 
@@ -32,12 +33,13 @@ export default async function GoalDetailPage({
   params,
   searchParams,
 }: PageProps) {
+  const account = await requireAccount();
   const [{ goalId }, sp] = await Promise.all([params, searchParams]);
   // Request-time only: reconciliation may write a completion, which must
   // never happen during a build-time prerender (and reads the clock).
   await connection();
-  await reconcileGoalCompletionsSafely();
-  const goal = await getGoalDetail(goalId);
+  await reconcileGoalCompletionsSafely(account);
+  const goal = await getGoalDetail(account, goalId);
   if (!goal) notFound();
 
   return (

@@ -1,5 +1,5 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
+import type { AccountDb } from "@/lib/data/account-db";
 import { toIsoDate } from "@/lib/plan/calendar";
 import type { ScheduleContext } from "./schedule";
 
@@ -9,9 +9,10 @@ import type { ScheduleContext } from "./schedule";
  * resolutions, and its logged-session occurrences. The ONE place a
  * ScheduleContext is assembled, so the dashboard, history, and Cardio Logging
  * (which consumes the effective schedule, never produces it) can't disagree.
- * Read-only; works with the app client or inside a caller's transaction.
+ * Read-only; works with the account-scoped client or inside a caller's
+ * (scoped) transaction, so only the acting account's records are loaded.
  */
-type Db = Prisma.TransactionClient;
+type Db = AccountDb;
 
 export async function loadScheduleContext(
   db: Db,

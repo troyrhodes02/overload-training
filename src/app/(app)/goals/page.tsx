@@ -11,6 +11,7 @@ import {
   listActiveGoals,
   listUnacknowledgedCompletions,
 } from "@/lib/goals/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Goals · Overload" };
 
@@ -22,14 +23,15 @@ export const metadata = { title: "Goals · Overload" };
  * order the goals were set in (R64). History is one quiet link below.
  */
 export default async function GoalsPage() {
+  const account = await requireAccount();
   // Request-time only: reconciliation may write a completion, which must
   // never happen during a build-time prerender (and reads the clock).
   await connection();
-  await reconcileGoalCompletionsSafely();
+  await reconcileGoalCompletionsSafely(account);
   const [reached, goals, historyCount] = await Promise.all([
-    listUnacknowledgedCompletions(),
-    listActiveGoals(),
-    countGoalHistory(),
+    listUnacknowledgedCompletions(account),
+    listActiveGoals(account),
+    countGoalHistory(account),
   ]);
 
   return (

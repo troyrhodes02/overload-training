@@ -9,6 +9,14 @@ import {
   getOccurrenceProgression,
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Progressive Overload Engine read layer (OVE-27). Logged history is inserted
@@ -39,6 +47,7 @@ async function logPerf(opts: {
   const plannedSets = opts.plannedSets ?? opts.reps.length;
   const ls = await p.loggedSession.create({
     data: {
+      userId: account.userId,
       mesocycleId: opts.mesocycleId,
       performedOn: new Date(`${opts.scheduledFor}T12:00:00Z`),
       scheduledFor: new Date(`${opts.scheduledFor}T00:00:00Z`),
@@ -47,6 +56,7 @@ async function logPerf(opts: {
   });
   const le = await p.loggedExercise.create({
     data: {
+      userId: account.userId,
       loggedSessionId: ls.id,
       exerciseId: opts.exerciseId,
       plannedExerciseId: opts.plannedExerciseId ?? opts.exerciseId,
@@ -59,6 +69,7 @@ async function logPerf(opts: {
   for (let i = 0; i < opts.reps.length; i++) {
     await p.loggedSet.create({
       data: {
+        userId: account.userId,
         loggedExerciseId: le.id,
         setNumber: i + 1,
         weightLbs: opts.weights?.[i] ?? 185,
@@ -73,8 +84,12 @@ describe("free-weight (gym-consistent) progression is global across gyms", () =>
   it("qualifying sessions at different gyms form one sequence and one trend", async () => {
     const meso = await createTestMesocycle({ status: "active" });
     const bench = await createTestExercise({ equipmentType: "barbell" });
-    const a = await db().gym.create({ data: { name: "Downtown Gym" } });
-    const b = await db().gym.create({ data: { name: "Campus Rec" } });
+    const a = await db().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
+    const b = await db().gym.create({
+      data: { userId: account.userId, name: "Campus Rec" },
+    });
 
     await logPerf({
       mesocycleId: meso.id,
@@ -93,7 +108,7 @@ describe("free-weight (gym-consistent) progression is global across gyms", () =>
       weights: [185, 185, 185],
     });
 
-    const dto = (await getExerciseProgression(bench.id))!;
+    const dto = (await getExerciseProgression(account, bench.id))!;
     expect(dto.isGymVariable).toBe(false);
     expect(dto.gyms).toEqual([]); // no gym selector for free weights
     expect(dto.tag).toBe("progress");
@@ -109,14 +124,28 @@ describe("machine (gym-variable) progression is scoped per (exercise, gym)", () 
       name: "Chest Press Machine",
       equipmentType: "machine",
     });
-    const a = await db().gym.create({ data: { name: "Downtown Gym" } });
-    const b = await db().gym.create({ data: { name: "Campus Rec" } });
+    const a = await db().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
+    const b = await db().gym.create({
+      data: { userId: account.userId, name: "Campus Rec" },
+    });
     // Gym A baseline (working-weight source for suggestions); Gym B untouched.
     await db().gymExerciseBaseline.create({
-      data: { gymId: a.id, exerciseId: press.id, weightLbs: 120 },
+      data: {
+        userId: account.userId,
+        gymId: a.id,
+        exerciseId: press.id,
+        weightLbs: 120,
+      },
     });
     await db().gymExerciseBaseline.create({
-      data: { gymId: b.id, exerciseId: press.id, weightLbs: 90 },
+      data: {
+        userId: account.userId,
+        gymId: b.id,
+        exerciseId: press.id,
+        weightLbs: 90,
+      },
     });
 
     // Gym A: three all-top sessions with rising e1RM → progress survives stall.
@@ -144,14 +173,14 @@ describe("machine (gym-variable) progression is scoped per (exercise, gym)", () 
       weights: [90, 90, 90],
     });
 
-    const atA = (await getExerciseProgression(press.id, a.id))!;
+    const atA = (await getExerciseProgression(account, press.id, a.id))!;
     expect(atA.selectedGymName).toBe("Downtown Gym");
     expect(atA.tag).toBe("progress");
     expect(atA.points).toHaveLength(3); // A only — B excluded
     expect(atA.points.every((p) => p.gymName === "Downtown Gym")).toBe(true);
     expect(atA.suggestion).toEqual({ lbs: 125, kind: "progress_increment" }); // 120 + 5
 
-    const atB = (await getExerciseProgression(press.id, b.id))!;
+    const atB = (await getExerciseProgression(account, press.id, b.id))!;
     expect(atB.selectedGymName).toBe("Campus Rec");
     expect(atB.state).toBe("insufficient"); // one session at B is not enough
     expect(atB.tag).toBeNull();
@@ -201,7 +230,7 @@ describe("scheduled-deload weeks: suppression, exclusion, and chart visibility",
       reps: [10, 10, 10],
     }); // week 6 all-top
 
-    const dto = (await getExerciseProgression(bench.id))!;
+    const dto = (await getExerciseProgression(account, bench.id))!;
     // Qualifying = weeks 1 & 6 (both all-top) → progress, NOT deload.
     expect(dto.tag).toBe("progress");
     expect(dto.qualifyingCount).toBe(2);
@@ -239,7 +268,10 @@ describe("scheduled-deload weeks: suppression, exclusion, and chart visibility",
       reps: [],
       status: "in_progress",
     });
-    const sup = (await getOccurrenceProgression(deloadOcc.loggedExerciseId))!;
+    const sup = (await getOccurrenceProgression(
+      account,
+      deloadOcc.loggedExerciseId,
+    ))!;
     expect(sup.scheduledDeloadWeek).toBe(true);
     expect(sup.tag).toBeNull(); // reactive suppressed entirely
     expect(sup.suggestion).toEqual({ lbs: 165, kind: "scheduled_deload" }); // 185*0.9=166.5 → 165
@@ -252,7 +284,10 @@ describe("scheduled-deload weeks: suppression, exclusion, and chart visibility",
       reps: [],
       status: "in_progress",
     });
-    const resumed = (await getOccurrenceProgression(after.loggedExerciseId))!;
+    const resumed = (await getOccurrenceProgression(
+      account,
+      after.loggedExerciseId,
+    ))!;
     expect(resumed.scheduledDeloadWeek).toBe(false);
     expect(resumed.tag).toBe("progress");
     expect(resumed.suggestion).toEqual({
@@ -271,7 +306,10 @@ describe("scheduled-deload weeks: suppression, exclusion, and chart visibility",
       reps: [],
       status: "in_progress",
     });
-    const dto = (await getOccurrenceProgression(occ.loggedExerciseId))!;
+    const dto = (await getOccurrenceProgression(
+      account,
+      occ.loggedExerciseId,
+    ))!;
     expect(dto.scheduledDeloadWeek).toBe(true);
     expect(dto.suggestion).toBeNull(); // never fabricate a load
   });
@@ -304,11 +342,11 @@ describe("exercise identity: swaps and incomplete work", () => {
       reps: [8, 8, 8],
     });
 
-    const performedDto = (await getExerciseProgression(performed.id))!;
+    const performedDto = (await getExerciseProgression(account, performed.id))!;
     expect(performedDto.tag).toBe("progress");
     expect(performedDto.points).toHaveLength(2);
 
-    const plannedDto = (await getExerciseProgression(planned.id))!;
+    const plannedDto = (await getExerciseProgression(account, planned.id))!;
     expect(plannedDto.state).toBe("insufficient"); // no performed history
     expect(plannedDto.points).toHaveLength(0);
   });
@@ -338,7 +376,7 @@ describe("exercise identity: swaps and incomplete work", () => {
       status: "in_progress", // session not complete
     });
 
-    const dto = (await getExerciseProgression(bench.id))!;
+    const dto = (await getExerciseProgression(account, bench.id))!;
     expect(dto.qualifyingCount).toBe(1); // only the first
     expect(dto.state).toBe("insufficient");
     expect(dto.points).toHaveLength(1); // only completed performances charted
@@ -366,7 +404,7 @@ describe("historical rep ranges and past-log re-derivation", () => {
       repMax: 6,
       reps: [6, 6, 6],
     });
-    const dto = (await getExerciseProgression(bench.id))!;
+    const dto = (await getExerciseProgression(account, bench.id))!;
     expect(dto.tag).toBe("progress");
   });
 
@@ -390,7 +428,7 @@ describe("historical rep ranges and past-log re-derivation", () => {
       reps: [8, 8, 8],
     });
 
-    const before = (await getExerciseProgression(bench.id))!;
+    const before = (await getExerciseProgression(account, bench.id))!;
     expect(before.tag).toBe("progress");
 
     // Correct the first session's last set down to 6 reps → no longer all-top.
@@ -398,9 +436,13 @@ describe("historical rep ranges and past-log re-derivation", () => {
       where: { loggedExerciseId: first.loggedExerciseId, setNumber: 3 },
     });
     const baselinesBefore = await db().gymExerciseBaseline.count();
-    await editLoggedSet({ loggedSetId: set.id, weightLbs: 185, reps: 6 });
+    await editLoggedSet(account, {
+      loggedSetId: set.id,
+      weightLbs: 185,
+      reps: 6,
+    });
 
-    const after = (await getExerciseProgression(bench.id))!;
+    const after = (await getExerciseProgression(account, bench.id))!;
     expect(after.tag).toBeNull(); // progress withdrawn on the next read
     // No recompute/trend rows exist to synchronize; baselines untouched.
     expect(await db().gymExerciseBaseline.count()).toBe(baselinesBefore);
@@ -434,6 +476,7 @@ describe("session summary", () => {
       reps: [8, 8, 8],
     });
     const summary = (await getSessionProgressionSummary(
+      account,
       deloadSession.loggedSessionId,
     ))!;
     expect(summary.scheduledDeloadWeek).toBe(true);

@@ -88,8 +88,9 @@ export function isoDateInZone(instant: Date, timeZone: string): string {
 /**
  * "Today" as a calendar date in the lifter's time zone — the one place it is
  * defined, so every surface agrees on what today is. Server code passes the
- * zone from src/lib/time/lifter-time-zone.ts (the lifter's browser zone);
- * without one it is the UTC date. All date ARITHMETIC stays on UTC midnights
+ * acting account's stored zone (Profile.timeZone via accountToday in
+ * src/lib/data/account.ts — Multi-User Foundation); without one it is the
+ * UTC date. All date ARITHMETIC stays on UTC midnights
  * (above) — only the choice of which calendar day is "today" is zone-aware.
  */
 export function todayIso(timeZone = "UTC", now: Date = new Date()): string {

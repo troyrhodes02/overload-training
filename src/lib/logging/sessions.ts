@@ -1,7 +1,7 @@
 import "server-only";
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import { DomainError, isUuid } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
 import { parseIsoDate } from "@/lib/plan/calendar";
 
 /**
@@ -9,9 +9,13 @@ import { parseIsoDate } from "@/lib/plan/calendar";
  * mutate LOGGED state only — they never write a Session or SessionExercise
  * (Resolved Decisions 1, 6, 26). LoggedSet writes go through
  * src/lib/logging/logged-sets.ts exclusively.
+ *
+ * Multi-User Foundation: every function takes the acting Account and runs on
+ * its scoped client; another account's session, workout, gym, or exercise is
+ * "not found" (or "isn't available"), exactly like a missing one.
  */
 
-type Db = Prisma.TransactionClient;
+type Db = AccountTx;
 
 /**
  * Start a workout for a planned occurrence, or resume the existing one
@@ -21,10 +25,14 @@ type Db = Prisma.TransactionClient;
  * if no set has been logged yet it may still (re)attach the chosen gym.
  */
 export async function startOrResumeWorkout(
+  account: Account,
   input: { sessionId: string; scheduledFor: string; gymId: string },
   tx?: Db,
 ): Promise<{ loggedSessionId: string }> {
-  if (!tx) return prisma.$transaction((t) => startOrResumeWorkout(input, t));
+  if (!tx)
+    return account.db.$transaction((t) =>
+      startOrResumeWorkout(account, input, t),
+    );
 
   const date = parseIsoDate(input.scheduledFor);
   if (!date) throw new DomainError("validation_error", "Invalid date.");
@@ -64,35 +72,54 @@ export async function startOrResumeWorkout(
 
   const ls = await tx.loggedSession.create({
     data: {
+      userId: account.userId,
       mesocycleId: session.mesocycleId,
       sessionId: session.id,
       performedOn: date,
       scheduledFor: date,
       status: "in_progress",
-      loggedExercises: {
-        create: session.sessionExercises.map((se) => ({
-          exerciseId: se.exerciseId, // performed starts equal to planned
-          plannedExerciseId: se.exerciseId,
-          sessionExerciseId: se.id,
-          gymId: input.gymId,
-          position: se.position,
-          plannedSets: se.plannedSets,
-          targetRepMin: se.targetRepMin,
-          targetRepMax: se.targetRepMax,
-        })),
-      },
     },
     select: { id: true },
   });
+  // Written explicitly (not as a nested create) so each row is stamped with
+  // its owner by the scoped client (Multi-User Foundation R6).
+  if (session.sessionExercises.length > 0) {
+    await tx.loggedExercise.createMany({
+      data: session.sessionExercises.map((se) => ({
+        userId: account.userId,
+        loggedSessionId: ls.id,
+        exerciseId: se.exerciseId, // performed starts equal to planned
+        plannedExerciseId: se.exerciseId,
+        sessionExerciseId: se.id,
+        gymId: input.gymId,
+        position: se.position,
+        plannedSets: se.plannedSets,
+        targetRepMin: se.targetRepMin,
+        targetRepMax: se.targetRepMax,
+      })),
+    });
+  }
   return { loggedSessionId: ls.id };
 }
 
 /** Change the workout gym — only while no set exists (Decision 5). */
 export async function changeGym(
+  account: Account,
   input: { loggedSessionId: string; gymId: string },
   tx?: Db,
 ): Promise<void> {
-  if (!tx) return void (await prisma.$transaction((t) => changeGym(input, t)));
+  if (!tx)
+    return void (await account.db.$transaction((t) =>
+      changeGym(account, input, t),
+    ));
+  const workout = isUuid(input.loggedSessionId)
+    ? await tx.loggedSession.findUnique({
+        where: { id: input.loggedSessionId },
+        select: { id: true },
+      })
+    : null;
+  if (!workout)
+    throw new DomainError("not_found", "That workout doesn't exist.");
   const setCount = await tx.loggedSet.count({
     where: { loggedExercise: { loggedSessionId: input.loggedSessionId } },
   });
@@ -116,11 +143,14 @@ export async function changeGym(
  * never plannedExerciseId, Session, or SessionExercise.
  */
 export async function swapExercise(
+  account: Account,
   input: { loggedExerciseId: string; newExerciseId: string },
   tx?: Db,
 ): Promise<void> {
   if (!tx)
-    return void (await prisma.$transaction((t) => swapExercise(input, t)));
+    return void (await account.db.$transaction((t) =>
+      swapExercise(account, input, t),
+    ));
 
   const le = await tx.loggedExercise.findUnique({
     where: { id: input.loggedExerciseId },
@@ -170,12 +200,13 @@ export async function swapExercise(
  * plan, baseline, or goal.
  */
 export async function setExerciseSkipped(
+  account: Account,
   input: { loggedExerciseId: string; skipped: boolean },
   tx?: Db,
 ): Promise<void> {
   if (!tx)
-    return void (await prisma.$transaction((t) =>
-      setExerciseSkipped(input, t),
+    return void (await account.db.$transaction((t) =>
+      setExerciseSkipped(account, input, t),
     ));
 
   const le = isUuid(input.loggedExerciseId)
@@ -221,11 +252,14 @@ export async function setExerciseSkipped(
  * finishing early can't distort a call.
  */
 export async function completeWorkout(
+  account: Account,
   input: { loggedSessionId: string },
   tx?: Db,
 ): Promise<void> {
   if (!tx)
-    return void (await prisma.$transaction((t) => completeWorkout(input, t)));
+    return void (await account.db.$transaction((t) =>
+      completeWorkout(account, input, t),
+    ));
 
   const ls = await tx.loggedSession.findUnique({
     where: { id: input.loggedSessionId },
