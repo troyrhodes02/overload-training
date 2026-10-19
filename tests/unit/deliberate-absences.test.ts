@@ -104,14 +104,15 @@ describe("no workout logging, plan building, or progression", () => {
   // tests/unit/invariant-guards.test.ts: no progression/e1RM column, a single
   // e1RM formula, and read-only progression modules.)
 
-  it("has exactly the app routes shipped so far (Goals adds `goals`, Pitch 6)", () => {
+  it("has exactly the app routes shipped so far (Accounts adds `settings`, Pitch 9)", () => {
     const appDir = path.join(SRC, "app", "(app)");
     const routes = fs
       .readdirSync(appDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name)
       .sort();
-    // Guided Workout Logging adds `log` and `history`; Goals adds `goals`.
+    // Guided Workout Logging adds `log` and `history`; Goals adds `goals`;
+    // Accounts adds `settings` (profile + account deletion).
     expect(routes).toEqual([
       "exercises",
       "goals",
@@ -119,6 +120,7 @@ describe("no workout logging, plan building, or progression", () => {
       "history",
       "log",
       "plan",
+      "settings",
     ]);
   });
 });

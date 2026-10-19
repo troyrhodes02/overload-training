@@ -58,8 +58,13 @@ describe("signInAction", () => {
   });
 
   it("returns a plain error on wrong credentials (no leak)", async () => {
+    // The auth service's real shape for a wrong password AND an unknown email.
     signInWithPassword.mockResolvedValue({
-      error: { message: "Invalid login" },
+      error: {
+        message: "Invalid login credentials",
+        code: "invalid_credentials",
+        status: 400,
+      },
     });
     const result = await signInAction(
       initial,
@@ -69,6 +74,28 @@ describe("signInAction", () => {
       error: "Wrong email or password.",
       email: "a@b.co",
     });
+  });
+
+  it("maps rate limiting and an unreachable auth service to their own messages", async () => {
+    signInWithPassword.mockResolvedValueOnce({
+      error: { code: "over_request_rate_limit", status: 429 },
+    });
+    expect(
+      (await signInAction(initial, form({ email: "a@b.co", password: "x" })))
+        .error,
+    ).toBe("Too many attempts. Wait a minute and try again.");
+    signInWithPassword.mockResolvedValueOnce({
+      error: { name: "AuthRetryableFetchError", status: 0 },
+    });
+    expect(
+      (await signInAction(initial, form({ email: "a@b.co", password: "x" })))
+        .error,
+    ).toBe("Couldn't sign in. Check your connection and try again.");
+    signInWithPassword.mockRejectedValueOnce(new Error("fetch failed"));
+    expect(
+      (await signInAction(initial, form({ email: "a@b.co", password: "x" })))
+        .error,
+    ).toBe("Couldn't sign in. Check your connection and try again.");
   });
 
   it("redirects to / on success", async () => {

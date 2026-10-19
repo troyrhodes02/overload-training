@@ -1,14 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { routeRedirect } from "@/lib/auth-routes";
 
 /**
  * Next.js 16 Proxy (formerly Middleware). Two jobs:
  *  1. Refresh the Supabase auth session cookie on every request.
  *  2. OPTIMISTICALLY redirect unauthenticated requests away from protected
- *     routes to /login. This is defense-in-depth only — the protected layout's
- *     requireUser() and every server action re-check the session authoritatively.
+ *     routes to /login (and signed-in visitors away from login/signup/forgot).
+ *     This is defense-in-depth only — the protected layout's requireAccount()
+ *     and every server action re-check the session authoritatively.
  */
-const PUBLIC_PATHS = ["/login"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -38,11 +39,6 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
-
   // Redirect while preserving any session cookies the Supabase client refreshed
   // during getUser(): a plain NextResponse.redirect would drop them, leaving the
   // client with a stale refresh token and bouncing it back to /login next time.
@@ -56,15 +52,8 @@ export async function proxy(request: NextRequest) {
     return redirect;
   };
 
-  if (!user && !isPublic) {
-    return redirectTo("/login");
-  }
-
-  if (user && pathname === "/login") {
-    return redirectTo("/");
-  }
-
-  return response;
+  const target = routeRedirect(request.nextUrl.pathname, Boolean(user));
+  return target ? redirectTo(target) : response;
 }
 
 export const config = {
