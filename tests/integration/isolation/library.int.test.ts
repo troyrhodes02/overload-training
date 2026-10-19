@@ -106,6 +106,20 @@ describe("library writes", () => {
     ).toBe(1);
   });
 
+  it("concurrent stars of the same exercise both succeed and store one favorite", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        setExerciseFavorite(b, { exerciseId: bench.id, isFavorite: true }),
+      ),
+    );
+    expect(results.every((r) => r.isFavorite)).toBe(true);
+    expect(
+      await getTestPrisma().exerciseFavorite.count({
+        where: { userId: b.userId, exerciseId: bench.id },
+      }),
+    ).toBe(1);
+  });
+
   it("no account can archive or restore a library exercise", async () => {
     for (const acct of [a, b]) {
       await expect(

@@ -20,6 +20,7 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { isValidTimeZone } from "@/lib/plan/calendar";
+import { resolveAccountByEmail } from "../resolve-account";
 
 export const EXPAND_MIGRATION = "9_account_ownership_1_expand";
 export const ENFORCE_MIGRATION = "9_account_ownership_2_enforce";
@@ -156,20 +157,9 @@ export async function planOwnershipBackfill(
   } else {
     authUserCount = n(await scalar(db, `SELECT count(*)::int FROM auth.users`));
     if (email) {
-      const matches = await db.$queryRawUnsafe<{ id: string; email: string }[]>(
-        `SELECT id::text AS id, email::text AS email FROM auth.users
-          WHERE lower(email) = lower($1)`,
-        email,
-      );
-      if (matches.length !== 1) {
-        refusals.push(
-          matches.length === 0
-            ? `No account has the email ${email}.`
-            : `More than one account matches ${email}.`,
-        );
-      } else {
-        account = { userId: matches[0].id, email: matches[0].email };
-      }
+      const resolved = await resolveAccountByEmail(db, email);
+      if ("error" in resolved) refusals.push(resolved.error);
+      else account = resolved.account;
     }
     if (authUserCount !== 1) {
       refusals.push(

@@ -104,15 +104,12 @@ export async function setExerciseFavorite(
     );
   }
   if (input.isFavorite) {
-    await db.exerciseFavorite.upsert({
-      where: {
-        userId_exerciseId: {
-          userId: account.userId,
-          exerciseId: exercise.id,
-        },
-      },
-      create: { userId: account.userId, exerciseId: exercise.id },
-      update: {},
+    // ON CONFLICT DO NOTHING: idempotent and race-free (a double tap or two
+    // tabs can't fail). A scoped upsert can't be native — the account filter
+    // makes its lookup non-unique — so it would race find-then-create.
+    await db.exerciseFavorite.createMany({
+      data: [{ userId: account.userId, exerciseId: exercise.id }],
+      skipDuplicates: true,
     });
   } else {
     await db.exerciseFavorite.deleteMany({

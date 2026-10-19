@@ -328,6 +328,36 @@ describe("no traversal from the shared Exercise into owned rows", () => {
     );
   });
 
+  it.each([
+    [{ include: { _count: true } }],
+    [{ select: { _count: true } }],
+    [{ include: { _count: {} } }],
+  ])(
+    "shorthand _count %j on Exercise (counts every relation) is refused",
+    (args) => {
+      expect(() => scopeArgs("Exercise", "findMany", args, ME)).toThrow(
+        AccountScopeError,
+      );
+    },
+  );
+
+  it("shorthand _count nested under an owned model's exercise is refused", () => {
+    expect(() =>
+      scopeArgs(
+        "LoggedExercise",
+        "findMany",
+        { include: { exercise: { include: { _count: true } } } },
+        ME,
+      ),
+    ).toThrow(AccountScopeError);
+  });
+
+  it("_count on an owned model (children share its owner) is allowed", () => {
+    expect(() =>
+      scopeArgs("Mesocycle", "findMany", { include: { _count: true } }, ME),
+    ).not.toThrow();
+  });
+
   it("orderBy a back-relation count is refused", () => {
     expect(() =>
       scopeArgs(

@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
-import { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
+import { isUniqueViolation } from "@/lib/actions/result";
 import { isValidTimeZone, todayIso } from "@/lib/plan/calendar";
 import {
   createAccountClient,
@@ -29,13 +29,6 @@ export type Account = {
  * ownership backfill with its real zone (spec R17).
  */
 export const DEFAULT_PROFILE_TIME_ZONE = "UTC";
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  );
-}
 
 /**
  * Builds the Account for an authenticated user id, creating the profile if

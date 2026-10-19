@@ -32,10 +32,33 @@ const code = (f: string) =>
 const appFiles = () => walk(SRC).filter((f) => !rel(f).startsWith(DATA_LAYER));
 
 describe("account-scoped access is the only door (Multi-User Foundation)", () => {
-  it("only src/lib/data imports the raw Prisma client", () => {
-    const offenders = appFiles().filter((f) =>
-      /from\s+["']@\/lib\/db["']/.test(read(f)),
-    );
+  // Any spelling of the raw client module — alias, relative, static, dynamic,
+  // re-export — and any construction of a second client.
+  const RAW_CLIENT =
+    /(from\s+|import\s*\(\s*|require\s*\(\s*)["'](@\/lib\/db|(\.{1,2}\/)+(lib\/)?db)["']|new\s+PrismaClient\b|import\s*\{[^}]*\bPrismaClient\b[^}]*\}\s*from\s*["']@prisma\/client["']/;
+
+  it("the raw-client pattern catches every spelling", () => {
+    for (const src of [
+      'import { prisma } from "@/lib/db";',
+      'import { prisma } from "../db";',
+      "import { prisma } from '../../lib/db';",
+      'export { prisma } from "./db";',
+      'const m = await import("@/lib/db");',
+      'const { prisma } = require("../db");',
+      "const c = new PrismaClient();",
+      'import { PrismaClient } from "@prisma/client";',
+    ]) {
+      expect([src, RAW_CLIENT.test(src)]).toEqual([src, true]);
+    }
+    expect(
+      RAW_CLIENT.test('import type { Prisma } from "@prisma/client";'),
+    ).toBe(false);
+  });
+
+  it("only src/lib/data (and src/lib/db.ts itself) reaches the raw Prisma client", () => {
+    const offenders = appFiles()
+      .filter((f) => rel(f) !== "src/lib/db.ts")
+      .filter((f) => RAW_CLIENT.test(code(f)));
     expect(offenders.map(rel)).toEqual([]);
   });
 
@@ -92,9 +115,11 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("eslint enforces the same boundary with no exemption beyond src/lib/data", () => {
+  it("eslint enforces the same boundary with no exemption beyond src/lib/data and db.ts", () => {
     const eslint = read(path.join(REPO_ROOT, "eslint.config.mjs"));
-    expect(eslint).toMatch(/ignores:\s*\["src\/lib\/data\/\*\*"\]/);
+    expect(eslint).toMatch(
+      /ignores:\s*\["src\/lib\/data\/\*\*", "src\/lib\/db\.ts"\]/,
+    );
     expect(eslint).not.toMatch(/NOT_YET_SCOPED/);
   });
 });

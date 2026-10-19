@@ -139,7 +139,15 @@ function checkTraversal(from: string, field: string): string {
 }
 
 function walkCount(model: string, value: unknown): void {
-  if (!isPlainObject(value) || !isPlainObject(value.select)) return;
+  if (value === false || value === undefined) return;
+  if (!isPlainObject(value) || !isPlainObject(value.select)) {
+    // `_count: true` (or `{}` without `select`) counts EVERY relation of the
+    // model, so each one must be a permitted traversal.
+    for (const field of RELATIONS.get(model)?.keys() ?? []) {
+      checkTraversal(model, field);
+    }
+    return;
+  }
   for (const [field, spec] of Object.entries(value.select)) {
     const target = checkTraversal(model, field);
     if (isPlainObject(spec) && spec.where !== undefined)

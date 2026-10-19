@@ -21,6 +21,18 @@ const RAW_DATA_ACCESS = {
   ],
   patterns: [
     {
+      // Any spelling of the raw client module: "@/lib/db", "../db", "./lib/db".
+      regex: "(^|/)(lib/)?db$",
+      message:
+        "Owned data goes through the account-scoped layer: use requireAccount() and account.db (src/lib/data).",
+    },
+    {
+      group: ["@prisma/client"],
+      importNames: ["PrismaClient"],
+      message:
+        "Never construct a Prisma client in application code; the only client is src/lib/db.ts behind src/lib/data.",
+    },
+    {
       group: ["@/lib/data/account-db"],
       importNames: ["createAccountClient"],
       message:
@@ -45,8 +57,23 @@ const eslintConfig = defineConfig([
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/data/**"],
-    rules: { "no-restricted-imports": ["error", RAW_DATA_ACCESS] },
+    ignores: ["src/lib/data/**", "src/lib/db.ts"],
+    rules: {
+      "no-restricted-imports": ["error", RAW_DATA_ACCESS],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression[source.value=/db$/]",
+          message:
+            "No dynamic import of the raw client; use requireAccount() and account.db.",
+        },
+        {
+          selector: "NewExpression[callee.name='PrismaClient']",
+          message:
+            "Never construct a Prisma client in application code (src/lib/db.ts is the only one).",
+        },
+      ],
+    },
   },
 ]);
 

@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { DomainError } from "@/lib/actions/result";
+import { DomainError, isUniqueViolation } from "@/lib/actions/result";
 import { inAccountTx, type Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
 import { lockMesocycleForUpdate, type LockedMesocycle } from "@/lib/data/locks";
@@ -33,12 +33,8 @@ export function invalid(details: Record<string, string>): DomainError {
   );
 }
 
-export function isUniqueViolation(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  );
-}
+// One P2002 check for the whole app (src/lib/actions/result.ts).
+export { isUniqueViolation };
 
 export function isForeignKeyViolation(error: unknown): boolean {
   return (

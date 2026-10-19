@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 11 — full verification on the integrated feature branch.
+Step 12 — code review of PR #49 (code-review skill, `--comment`, running).
 
 ## Authority used (read before resuming)
 
@@ -41,7 +41,7 @@ Step 11 — full verification on the integrated feature branch.
 - [x] 8. Implement tickets (ticket worker, stacked branches)
 - [x] 9. Production runbook — `docs/runs/08-multi-user-foundation-runbook.md`
 - [x] 10. Squash-merge ticket PRs into feature branch, in order
-- [ ] 11. Full verification
+- [x] 11. Full verification — `f92b2c3`: lint, format, typecheck, prisma validate, fresh-DB migrate deploy (11), no drift, unit 34/563, integration 32/390, build, client-bundle, e2e 22
 - [ ] 12. Code review → inline comments on feature PR
 - [ ] 13. Review audit + fixes
 - [ ] 14. Final verification — STOP (no merge to `main`)

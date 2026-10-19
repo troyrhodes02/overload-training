@@ -195,11 +195,24 @@ describe("refusals change nothing", () => {
   }
 
   it("an email that matches no account", async () => {
+    const db = await legacyCopy();
     await expectRefused(
-      await legacyCopy(),
+      db,
       { ...input, email: "someone@else.com" },
-      /No account has the email/,
+      /No account has that email/,
     );
+    // Personal data: the refusal never repeats the email (CLAUDE.md).
+    const plan = await planOwnershipBackfill(db.prisma, {
+      ...input,
+      email: "someone@else.com",
+    });
+    expect(plan.refusals.join("\n")).not.toContain("someone@else.com");
+    await expect(
+      executeOwnershipBackfill(db.prisma, {
+        ...input,
+        email: "someone@else.com",
+      }),
+    ).rejects.not.toThrow(/someone@else\.com/);
   });
 
   it("a missing email", async () => {

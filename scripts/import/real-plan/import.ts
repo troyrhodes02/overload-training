@@ -3,6 +3,7 @@ import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb } from "@/lib/data/account-db";
+import { resolveAccountByEmail } from "../../operator/resolve-account";
 import { toIsoDate } from "@/lib/plan/calendar";
 import { createGym } from "@/lib/gyms/gyms";
 import { createCustomExercise } from "@/lib/exercises/exercises";
@@ -154,27 +155,8 @@ export async function resolveTargetAccount(
   db: Db,
   email: string,
 ): Promise<{ userId: string; email: string } | { error: string }> {
-  const wanted = email.trim();
-  if (!wanted) return { error: "No target account email was given." };
-  let rows: { id: string; email: string }[];
-  try {
-    rows = await db.$queryRawUnsafe<{ id: string; email: string }[]>(
-      `SELECT id::text AS id, email::text AS email FROM auth.users
-        WHERE lower(email) = lower($1)`,
-      wanted,
-    );
-  } catch {
-    return { error: "auth.users is not readable on this database." };
-  }
-  if (rows.length !== 1) {
-    return {
-      error:
-        rows.length === 0
-          ? `No account has the email ${wanted}.`
-          : `More than one account matches ${wanted}.`,
-    };
-  }
-  return { userId: rows[0].id, email: rows[0].email };
+  const resolved = await resolveAccountByEmail(db, email);
+  return "error" in resolved ? resolved : resolved.account;
 }
 
 async function authAccounts(db: Db): Promise<number | null> {
