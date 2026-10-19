@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
+import type { Account } from "@/lib/data/account";
+import type { AccountDb } from "@/lib/data/account-db";
 import { toIsoDate } from "@/lib/plan/calendar";
 import { createGym } from "@/lib/gyms/gyms";
 import { createCustomExercise } from "@/lib/exercises/exercises";
@@ -28,6 +30,14 @@ import {
  * included); `verifyImport` re-reads every created record. Create-only:
  * nothing existing is modified, archived, or deleted — exact matches (gyms,
  * custom exercises) are reused.
+ *
+ * Multi-User Foundation (spec R19): the import always targets ONE account,
+ * named by email and resolved to exactly one auth user before anything is
+ * read (CLAUDE.md → Operator tasks). Every read of plan, gym, and exercise
+ * data and every write goes through that account's scoped client, so another
+ * account's rows are invisible to the matching logic and can never be reused.
+ * The before/after safety snapshots stay database-wide on purpose: nothing
+ * outside the import may change, in any account.
  */
 
 type Db = PrismaClient;
@@ -139,6 +149,34 @@ async function untouchableSnapshot(db: Db): Promise<Record<string, string>> {
   );
 }
 
+/** The account an import targets: exactly one auth user with this email. */
+export async function resolveTargetAccount(
+  db: Db,
+  email: string,
+): Promise<{ userId: string; email: string } | { error: string }> {
+  const wanted = email.trim();
+  if (!wanted) return { error: "No target account email was given." };
+  let rows: { id: string; email: string }[];
+  try {
+    rows = await db.$queryRawUnsafe<{ id: string; email: string }[]>(
+      `SELECT id::text AS id, email::text AS email FROM auth.users
+        WHERE lower(email) = lower($1)`,
+      wanted,
+    );
+  } catch {
+    return { error: "auth.users is not readable on this database." };
+  }
+  if (rows.length !== 1) {
+    return {
+      error:
+        rows.length === 0
+          ? `No account has the email ${wanted}.`
+          : `More than one account matches ${wanted}.`,
+    };
+  }
+  return { userId: rows[0].id, email: rows[0].email };
+}
+
 async function authAccounts(db: Db): Promise<number | null> {
   try {
     const rows = await db.$queryRawUnsafe<{ n: number }[]>(
@@ -165,7 +203,7 @@ async function pendingMigrations(db: Db): Promise<string[]> {
 
 /** Does an existing mesocycle exactly match a planned block (structure included)? */
 async function matchesBlock(
-  db: Db,
+  db: AccountDb,
   id: string,
   block: (typeof BLOCKS)[number],
   resolved: Map<string, string | null>,
@@ -225,7 +263,7 @@ async function matchesBlock(
   );
 }
 
-export async function inspect(db: Db): Promise<Inspection> {
+export async function inspect(db: Db, account: Account): Promise<Inspection> {
   const blockers: string[] = [];
   const warnings: string[] = [];
 
@@ -236,7 +274,7 @@ export async function inspect(db: Db): Promise<Inspection> {
     );
 
   // Gyms: exact, case-insensitive name match → reuse; archived or duplicate → stop.
-  const allGyms = await db.gym.findMany();
+  const allGyms = await account.db.gym.findMany();
   const gyms = GYMS.map((name) => {
     const hits = allGyms.filter((g) => norm(g.name) === norm(name));
     const active = hits.filter((g) => !g.deletedAt);
@@ -257,7 +295,7 @@ export async function inspect(db: Db): Promise<Inspection> {
   const exercises: ResolvedExercise[] = [];
   for (const ref of planExercises()) {
     if (ref.kind === "library") {
-      const row = await db.exercise.findUnique({
+      const row = await account.db.exercise.findUnique({
         where: { sourceId: ref.sourceId },
       });
       if (!row) {
@@ -289,7 +327,7 @@ export async function inspect(db: Db): Promise<Inspection> {
         match: norm(row.name) === norm(ref.requested) ? "exact" : "normalized",
       });
     } else {
-      const hits = await db.exercise.findMany({
+      const hits = await account.db.exercise.findMany({
         where: { name: { equals: ref.name, mode: "insensitive" } },
       });
       const active = hits.filter((h) => !h.deletedAt);
@@ -324,7 +362,9 @@ export async function inspect(db: Db): Promise<Inspection> {
   }
 
   // Mesocycles: an active block or a same-named block must be ours exactly.
-  const mesos = await db.mesocycle.findMany({ orderBy: { createdAt: "asc" } });
+  const mesos = await account.db.mesocycle.findMany({
+    orderBy: { createdAt: "asc" },
+  });
   const resolved = new Map(exercises.map((e) => [refKey(e.ref), e.id]));
   let alreadyImported = false;
   const named = BLOCKS.map((b) =>
@@ -335,8 +375,8 @@ export async function inspect(db: Db): Promise<Inspection> {
     alreadyImported =
       b1.status === "active" &&
       b2.status === "draft" &&
-      (await matchesBlock(db, b1.id, BLOCKS[0], resolved)) &&
-      (await matchesBlock(db, b2.id, BLOCKS[1], resolved));
+      (await matchesBlock(account.db, b1.id, BLOCKS[0], resolved)) &&
+      (await matchesBlock(account.db, b2.id, BLOCKS[1], resolved));
   }
   if (!alreadyImported) {
     for (const [i, hits] of named.entries()) {
@@ -354,7 +394,9 @@ export async function inspect(db: Db): Promise<Inspection> {
   }
 
   if (exercises.filter((e) => e.match === "missing").length > 1) {
-    const libraryRows = await db.exercise.count({ where: { isCustom: false } });
+    const libraryRows = await account.db.exercise.count({
+      where: { isCustom: false },
+    });
     if (libraryRows === 0) {
       blockers.unshift(
         "The exercise library is empty on this database: run the one-time catalog import (npm run db:seed) first.",
@@ -398,7 +440,7 @@ export type ApplyResult = {
 
 /** Everything in ONE transaction, through the application's write modules. */
 export async function applyImport(
-  db: Db,
+  account: Account,
   ins: Inspection,
 ): Promise<ApplyResult> {
   if (ins.blockers.length || ins.alreadyImported) {
@@ -406,11 +448,12 @@ export async function applyImport(
       "Refusing to apply: the dry run has blockers or the plan is already imported.",
     );
   }
-  return db.$transaction(
+  return account.db.$transaction(
     async (tx) => {
       const gyms: Record<string, string> = {};
       for (const g of ins.gyms) {
-        gyms[g.name] = g.id ?? (await createGym({ name: g.name }, tx)).id;
+        gyms[g.name] =
+          g.id ?? (await createGym(account, { name: g.name }, tx)).id;
       }
       const ids = new Map<string, string>();
       const customExercises: Record<string, string> = {};
@@ -419,6 +462,7 @@ export async function applyImport(
           ids.set(refKey(e.ref), e.id);
         } else if (e.ref.kind === "custom") {
           const row = await createCustomExercise(
+            account,
             {
               name: e.ref.name,
               primaryMuscle: e.ref.primaryMuscle,
@@ -436,6 +480,7 @@ export async function applyImport(
 
       const b1 = BLOCKS[0];
       const { id: block1Id } = await createMesocycle(
+        account,
         {
           name: b1.name,
           startDate: b1.startDate,
@@ -447,11 +492,13 @@ export async function applyImport(
       );
       for (const plan of SESSIONS) {
         const { id: sessionId } = await addSession(
+          account,
           { mesocycleId: block1Id, name: plan.name, dayOfWeek: plan.dayOfWeek },
           tx,
         );
         for (const slot of plan.slots) {
           await addSessionExercise(
+            account,
             {
               sessionId,
               exerciseId: ids.get(refKey(slot.ex)),
@@ -464,6 +511,7 @@ export async function applyImport(
         }
         if (plan.cardio) {
           await addPlannedCardio(
+            account,
             {
               mesocycleId: block1Id,
               dayOfWeek: plan.dayOfWeek,
@@ -475,6 +523,7 @@ export async function applyImport(
         }
       }
       await activateMesocycle(
+        account,
         { mesocycleId: block1Id, expectedActiveId: null },
         tx,
       );
@@ -483,6 +532,7 @@ export async function applyImport(
       // and cardio, starting the day after Block 1 ends. Activated by hand later.
       const b2 = BLOCKS[1];
       const { id: block2Id } = await cloneMesocycle(
+        account,
         {
           sourceMesocycleId: block1Id,
           name: b2.name,
@@ -501,6 +551,7 @@ export async function applyImport(
 /** Re-reads everything; returns failures (empty = verified). */
 export async function verifyImport(
   db: Db,
+  account: Account,
   before: Inspection,
   result: ApplyResult,
 ): Promise<string[]> {
@@ -510,7 +561,7 @@ export async function verifyImport(
   };
 
   for (const name of GYMS) {
-    const rows = (await db.gym.findMany()).filter(
+    const rows = (await account.db.gym.findMany()).filter(
       (g) => norm(g.name) === norm(name) && !g.deletedAt,
     );
     check(
@@ -526,20 +577,20 @@ export async function verifyImport(
         (e.ref.kind === "custom" ? result.customExercises[e.ref.name] : null),
     ]),
   );
-  const b1 = await db.mesocycle.findUniqueOrThrow({
+  const b1 = await account.db.mesocycle.findUniqueOrThrow({
     where: { id: result.block1Id },
   });
-  const b2 = await db.mesocycle.findUniqueOrThrow({
+  const b2 = await account.db.mesocycle.findUniqueOrThrow({
     where: { id: result.block2Id },
   });
   check(b1.status === "active", "Block 1 should be active");
   check(b2.status === "draft", "Block 2 should be a draft");
   check(
-    await matchesBlock(db, b1.id, BLOCKS[0], resolved),
+    await matchesBlock(account.db, b1.id, BLOCKS[0], resolved),
     "Block 1 structure should match the plan exactly",
   );
   check(
-    await matchesBlock(db, b2.id, BLOCKS[1], resolved),
+    await matchesBlock(account.db, b2.id, BLOCKS[1], resolved),
     "Block 2 structure should match the plan exactly",
   );
 

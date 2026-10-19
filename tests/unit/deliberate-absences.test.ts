@@ -215,12 +215,16 @@ describe("no automatic personalization or recommendations", () => {
   });
 
   it("never writes a favorite except from the lifter's explicit toggle", () => {
-    // A hardcoded `data: { isFavorite: true }` would be automatic favoriting.
-    expect(offenders(/data\s*:\s*\{[^}]*isFavorite\s*:\s*true/)).toEqual([]);
-    // The only favorite write takes its value from the caller (the toggle).
-    expect(offenders(/data\s*:\s*\{[^}]*isFavorite\s*:/)).toEqual([
-      "src/lib/exercises/exercises.ts",
-    ]);
+    // Multi-User Foundation (spec R12): favorites are per-account
+    // ExerciseFavorite rows. The shared Exercise.isFavorite flag is never
+    // written by anything (it would change every account's library).
+    expect(offenders(/data\s*:\s*\{[^}]*isFavorite\s*:/)).toEqual([]);
+    // The only favorite writes are the toggle's, in the exercise write module.
+    expect(
+      offenders(
+        /exerciseFavorite\s*\.\s*(create|createMany|upsert|update|updateMany|delete|deleteMany)\b/,
+      ),
+    ).toEqual(["src/lib/exercises/exercises.ts"]);
   });
 });
 

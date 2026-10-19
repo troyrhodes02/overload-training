@@ -17,6 +17,14 @@ import {
   historyCounts,
   seedLoggedHistory,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /** Split & Mesocycle Builder — the weekly schedule and session authoring. */
 const prisma = () => getTestPrisma();
@@ -33,12 +41,12 @@ async function fails(p: Promise<unknown>): Promise<DomainError> {
 describe("zero or one lifting session per day (spec D14, D15, D56)", () => {
   it("a rest day is valid and one session on a day is valid", async () => {
     const m = await createTestMesocycle();
-    const { id } = await addSession({
+    const { id } = await addSession(account, {
       mesocycleId: m.id,
       name: "Push Day 1",
       dayOfWeek: 1,
     });
-    const week = await getMesocycleWeek(m.id);
+    const week = await getMesocycleWeek(account, m.id);
     expect(week?.week.map((s) => s?.id ?? null)).toEqual([
       id,
       null,
@@ -57,7 +65,7 @@ describe("zero or one lifting session per day (spec D14, D15, D56)", () => {
       dayOfWeek: 4,
     });
     const err = await fails(
-      addSession({ mesocycleId: m.id, name: "Upper A", dayOfWeek: 4 }),
+      addSession(account, { mesocycleId: m.id, name: "Upper A", dayOfWeek: 4 }),
     );
     expect(err.code).toBe("conflict");
     expect(err.message).toBe("Thursday already has Push Day 2.");
@@ -75,13 +83,13 @@ describe("zero or one lifting session per day (spec D14, D15, D56)", () => {
       name: "Push Day 2",
       dayOfWeek: 4,
     });
-    const { id } = await addSession({
+    const { id } = await addSession(account, {
       mesocycleId: m.id,
       name: "Upper A",
       dayOfWeek: 4,
       replace: true,
     });
-    const week = await getMesocycleWeek(m.id);
+    const week = await getMesocycleWeek(account, m.id);
     expect(week?.week[3]?.id).toBe(id);
     expect(week?.unscheduled.map((s) => s.id)).toEqual([push.id]);
   });
@@ -97,10 +105,15 @@ describe("zero or one lifting session per day (spec D14, D15, D56)", () => {
       dayOfWeek: 4,
     });
     expect(
-      (await fails(moveSession({ sessionId: a.id, dayOfWeek: 4 }))).code,
+      (await fails(moveSession(account, { sessionId: a.id, dayOfWeek: 4 })))
+        .code,
     ).toBe("conflict");
     expect(
-      await moveSession({ sessionId: a.id, dayOfWeek: 4, replace: true }),
+      await moveSession(account, {
+        sessionId: a.id,
+        dayOfWeek: 4,
+        replace: true,
+      }),
     ).toEqual({ id: a.id, displacedId: b.id });
     const rows = await prisma().session.findMany({
       where: { mesocycleId: m.id },
@@ -116,13 +129,13 @@ describe("zero or one lifting session per day (spec D14, D15, D56)", () => {
   it("moving to a rest day, off the schedule, or onto its own day", async () => {
     const m = await createTestMesocycle();
     const a = await createTestSession(m.id, { dayOfWeek: 1 });
-    await moveSession({ sessionId: a.id, dayOfWeek: 3 });
-    await moveSession({ sessionId: a.id, dayOfWeek: 3 }); // no-op
+    await moveSession(account, { sessionId: a.id, dayOfWeek: 3 });
+    await moveSession(account, { sessionId: a.id, dayOfWeek: 3 }); // no-op
     expect(
       (await prisma().session.findUniqueOrThrow({ where: { id: a.id } }))
         .dayOfWeek,
     ).toBe(3);
-    await moveSession({ sessionId: a.id, dayOfWeek: null });
+    await moveSession(account, { sessionId: a.id, dayOfWeek: null });
     expect(
       (await prisma().session.findUniqueOrThrow({ where: { id: a.id } }))
         .dayOfWeek,
@@ -132,8 +145,11 @@ describe("zero or one lifting session per day (spec D14, D15, D56)", () => {
   it("rejects an invalid day", async () => {
     const m = await createTestMesocycle();
     expect(
-      (await fails(addSession({ mesocycleId: m.id, name: "X", dayOfWeek: 8 })))
-        .code,
+      (
+        await fails(
+          addSession(account, { mesocycleId: m.id, name: "X", dayOfWeek: 8 }),
+        )
+      ).code,
     ).toBe("validation_error");
   });
 });
@@ -142,16 +158,23 @@ describe("session names (spec D17)", () => {
   it("are required and need not be unique", async () => {
     const m = await createTestMesocycle();
     expect(
-      (await fails(addSession({ mesocycleId: m.id, name: "  ", dayOfWeek: 1 })))
-        .details,
+      (
+        await fails(
+          addSession(account, { mesocycleId: m.id, name: "  ", dayOfWeek: 1 }),
+        )
+      ).details,
     ).toEqual({ name: "Enter a name." });
-    const a = await addSession({
+    const a = await addSession(account, {
       mesocycleId: m.id,
       name: "Push",
       dayOfWeek: 1,
     });
-    await addSession({ mesocycleId: m.id, name: "Push", dayOfWeek: 2 });
-    await renameSession({ sessionId: a.id, name: "  Push Day 1 " });
+    await addSession(account, {
+      mesocycleId: m.id,
+      name: "Push",
+      dayOfWeek: 2,
+    });
+    await renameSession(account, { sessionId: a.id, name: "  Push Day 1 " });
     expect(
       (await prisma().session.findUniqueOrThrow({ where: { id: a.id } })).name,
     ).toBe("Push Day 1");
@@ -161,20 +184,22 @@ describe("session names (spec D17)", () => {
 describe("empty sessions (spec D18)", () => {
   it("a draft session may be empty; scheduled empty blocks activation", async () => {
     const { mesocycle } = await createReadyDraft();
-    const { id } = await addSession({
+    const { id } = await addSession(account, {
       mesocycleId: mesocycle.id,
       name: "Leg Day 1",
       dayOfWeek: 3,
     });
-    const week = await getMesocycleWeek(mesocycle.id);
+    const week = await getMesocycleWeek(account, mesocycle.id);
     expect(week?.readiness.issues).toContainEqual({
       code: "session_empty",
       sessionId: id,
       sessionName: "Leg Day 1",
       dayOfWeek: 3,
     });
-    await moveSession({ sessionId: id, dayOfWeek: null });
-    expect((await getMesocycleWeek(mesocycle.id))?.readiness.ready).toBe(true);
+    await moveSession(account, { sessionId: id, dayOfWeek: null });
+    expect(
+      (await getMesocycleWeek(account, mesocycle.id))?.readiness.ready,
+    ).toBe(true);
   });
 });
 
@@ -185,7 +210,7 @@ describe("removing a session is plan authoring (spec D25, D53)", () => {
     const before = await prisma().exercise.findUniqueOrThrow({
       where: { id: exercise.id },
     });
-    await removeSession({ sessionId: session.id });
+    await removeSession(account, { sessionId: session.id });
     expect(await prisma().session.count({ where: { id: session.id } })).toBe(0);
     expect(
       await prisma().sessionExercise.count({
@@ -213,7 +238,7 @@ describe("removing a session is plan authoring (spec D25, D53)", () => {
       exerciseId: exercise.id,
     });
     const before = await historyCounts();
-    const err = await fails(removeSession({ sessionId: session.id }));
+    const err = await fails(removeSession(account, { sessionId: session.id }));
     expect(err.code).toBe("invalid_state_transition");
     expect(await historyCounts()).toEqual(before);
     expect(await prisma().session.count({ where: { id: session.id } })).toBe(1);
@@ -228,10 +253,15 @@ describe("archived mesocycles are read-only", () => {
     // Thunks so each op runs only when awaited — sequential, not four concurrent
     // transactions racing on the same row (which was intermittently flaky).
     const ops = [
-      () => addSession({ mesocycleId: mesocycle.id, name: "X", dayOfWeek: 2 }),
-      () => renameSession({ sessionId: session.id, name: "X" }),
-      () => moveSession({ sessionId: session.id, dayOfWeek: 2 }),
-      () => removeSession({ sessionId: session.id }),
+      () =>
+        addSession(account, {
+          mesocycleId: mesocycle.id,
+          name: "X",
+          dayOfWeek: 2,
+        }),
+      () => renameSession(account, { sessionId: session.id, name: "X" }),
+      () => moveSession(account, { sessionId: session.id, dayOfWeek: 2 }),
+      () => removeSession(account, { sessionId: session.id }),
     ];
     for (const op of ops) {
       expect((await fails(op())).code).toBe("invalid_state_transition");
@@ -240,17 +270,17 @@ describe("archived mesocycles are read-only", () => {
 
   it("an active mesocycle stays editable", async () => {
     const { mesocycle, session } = await createReadyDraft();
-    await activateMesocycle({
+    await activateMesocycle(account, {
       mesocycleId: mesocycle.id,
       expectedActiveId: null,
     });
-    await renameSession({ sessionId: session.id, name: "Push A" });
-    await addSession({
+    await renameSession(account, { sessionId: session.id, name: "Push A" });
+    await addSession(account, {
       mesocycleId: mesocycle.id,
       name: "Pull A",
       dayOfWeek: 2,
     });
-    const week = await getMesocycleWeek(mesocycle.id);
+    const week = await getMesocycleWeek(account, mesocycle.id);
     expect(week?.status).toBe("active");
     // An empty scheduled session in the live plan: still active, needs attention.
     expect(week?.readiness.ready).toBe(false);
@@ -269,7 +299,7 @@ describe("session detail", () => {
     });
     await createTestSessionExercise(s.id, fly.id, { position: 1 });
     await createTestSessionExercise(s.id, bench.id, { position: 0 });
-    const detail = await getSessionDetail(m.id, s.id);
+    const detail = await getSessionDetail(account, m.id, s.id);
     expect(
       detail?.exercises.map((e) => [e.exerciseName, e.isArchived]),
     ).toEqual([
@@ -282,6 +312,6 @@ describe("session detail", () => {
       null,
     ]);
     const other = await createTestMesocycle({ name: "Other" });
-    expect(await getSessionDetail(other.id, s.id)).toBeNull();
+    expect(await getSessionDetail(account, other.id, s.id)).toBeNull();
   });
 });

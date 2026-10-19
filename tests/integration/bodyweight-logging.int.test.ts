@@ -20,6 +20,14 @@ import {
 } from "@/lib/progression/queries";
 import { createGoal } from "@/lib/goals/goals";
 import { getGoalFormContext } from "@/lib/goals/queries";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Bodyweight logging: a pure bodyweight exercise (equipment `bodyweight`) logs
@@ -424,7 +432,7 @@ describe("goals: bodyweight lifts have no valid goal math", () => {
     });
     expect(await db().goal.count()).toBe(0);
 
-    const ctx = await getGoalFormContext(plan.exerciseId);
+    const ctx = await getGoalFormContext(account, plan.exerciseId);
     expect(ctx).toEqual({
       kind: "bodyweight_unsupported",
       exerciseName: "Wide-Grip Pull-Ups",

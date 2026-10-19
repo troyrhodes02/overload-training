@@ -10,6 +10,14 @@ import {
   createTestSession,
   createTestSessionExercise,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Cardio Logging — the week at a glance (OVE-35; spec §13, R30–R33, R36–R37,
@@ -43,6 +51,7 @@ async function block(startOffset: number) {
   const longAgo = parseIsoDate(addDays(start, -30))!;
   const walk = await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: W,
       type: "Incline Walk",
@@ -52,6 +61,7 @@ async function block(startOffset: number) {
   });
   await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: dayAfter(2),
       type: "Bike",
@@ -122,7 +132,7 @@ describe("cardio in the week at a glance", () => {
       type: "Incline Walk",
       durationMin: 22,
     });
-    await removePlannedCardio({ plannedCardioId: walk.id });
+    await removePlannedCardio(account, { plannedCardioId: walk.id });
     expect(cardioLines(await getWeekSchedule(2))).toEqual([
       [addDays(TODAY, -7), "Incline Walk", "22", "complete"],
       [addDays(TODAY, -5), "Bike", "30", "missed"],

@@ -19,6 +19,14 @@ import {
   historyCounts,
   seedLoggedHistory,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /** Split & Mesocycle Builder — duplicating a session onto another day. */
 const prisma = () => getTestPrisma();
@@ -54,19 +62,24 @@ async function pushDay() {
 }
 
 const shape = async (mesocycleId: string, sessionId: string) =>
-  (await getSessionDetail(mesocycleId, sessionId))?.exercises.map((e) => [
-    e.exerciseName,
-    e.position,
-    e.plannedSets,
-    e.targetRepMin,
-    e.targetRepMax,
-    e.isArchived,
-  ]);
+  (await getSessionDetail(account, mesocycleId, sessionId))?.exercises.map(
+    (e) => [
+      e.exerciseName,
+      e.position,
+      e.plannedSets,
+      e.targetRepMin,
+      e.targetRepMax,
+      e.isArchived,
+    ],
+  );
 
 describe("duplicating a session (spec D26–D29)", () => {
   it("creates a separate session with the same exercises, order, sets, and reps", async () => {
     const { m, s } = await pushDay();
-    const { id } = await duplicateSession({ sessionId: s.id, dayOfWeek: 4 });
+    const { id } = await duplicateSession(account, {
+      sessionId: s.id,
+      dayOfWeek: 4,
+    });
     expect(id).not.toBe(s.id);
     const copy = await prisma().session.findUniqueOrThrow({ where: { id } });
     expect(copy).toMatchObject({
@@ -90,25 +103,30 @@ describe("duplicating a session (spec D26–D29)", () => {
   it("editing the copy never changes the source", async () => {
     const { m, s, bench } = await pushDay();
     const before = await shape(m.id, s.id);
-    const { id } = await duplicateSession({ sessionId: s.id, dayOfWeek: 4 });
+    const { id } = await duplicateSession(account, {
+      sessionId: s.id,
+      dayOfWeek: 4,
+    });
     const copySlots = await prisma().sessionExercise.findMany({
       where: { sessionId: id },
       orderBy: { position: "asc" },
     });
-    await renameSession({ sessionId: id, name: "Push Day 2" });
-    await updateSessionExercise({
+    await renameSession(account, { sessionId: id, name: "Push Day 2" });
+    await updateSessionExercise(account, {
       sessionExerciseId: copySlots[0].id,
       plannedSets: "5",
       targetRepMin: "3",
       targetRepMax: "5",
     });
-    await moveSessionExercise({
+    await moveSessionExercise(account, {
       sessionExerciseId: copySlots[2].id,
       direction: "up",
     });
-    await removeSessionExercise({ sessionExerciseId: copySlots[1].id });
+    await removeSessionExercise(account, {
+      sessionExerciseId: copySlots[1].id,
+    });
     const press = await createTestExercise({ name: "Overhead Press" });
-    await addSessionExercise({
+    await addSessionExercise(account, {
       sessionId: id,
       exerciseId: press.id,
       plannedSets: "3",
@@ -124,20 +142,23 @@ describe("duplicating a session (spec D26–D29)", () => {
 
   it("editing the source never changes the copy; removing the copy keeps the source", async () => {
     const { m, s } = await pushDay();
-    const { id } = await duplicateSession({ sessionId: s.id, dayOfWeek: 4 });
+    const { id } = await duplicateSession(account, {
+      sessionId: s.id,
+      dayOfWeek: 4,
+    });
     const copyBefore = await shape(m.id, id);
     const sourceSlots = await prisma().sessionExercise.findMany({
       where: { sessionId: s.id },
       orderBy: { position: "asc" },
     });
-    await updateSessionExercise({
+    await updateSessionExercise(account, {
       sessionExerciseId: sourceSlots[0].id,
       plannedSets: "5",
       targetRepMin: "5",
       targetRepMax: "5",
     });
     expect(await shape(m.id, id)).toEqual(copyBefore);
-    await removeSession({ sessionId: id });
+    await removeSession(account, { sessionId: id });
     expect(await prisma().session.count({ where: { id: s.id } })).toBe(1);
     expect(
       await prisma().sessionExercise.count({ where: { sessionId: s.id } }),
@@ -150,7 +171,10 @@ describe("duplicating a session (spec D26–D29)", () => {
       where: { id: fly.id },
       data: { deletedAt: new Date() },
     });
-    const { id } = await duplicateSession({ sessionId: s.id, dayOfWeek: 4 });
+    const { id } = await duplicateSession(account, {
+      sessionId: s.id,
+      dayOfWeek: 4,
+    });
     const copy = await shape(m.id, id);
     expect(copy?.[2]).toEqual(["Cable Fly", 2, 4, 12, 15, true]);
     expect(
@@ -167,7 +191,7 @@ describe("duplicating a session (spec D26–D29)", () => {
       exerciseId: bench.id,
     });
     const before = await historyCounts();
-    await duplicateSession({ sessionId: s.id, dayOfWeek: 4 });
+    await duplicateSession(account, { sessionId: s.id, dayOfWeek: 4 });
     expect(await historyCounts()).toEqual(before);
   });
 
@@ -175,13 +199,17 @@ describe("duplicating a session (spec D26–D29)", () => {
     const { m, s } = await pushDay();
     const thu = await createTestSession(m.id, { name: "Legs", dayOfWeek: 4 });
     const err = await fails(
-      duplicateSession({ sessionId: s.id, dayOfWeek: 4 }),
+      duplicateSession(account, { sessionId: s.id, dayOfWeek: 4 }),
     );
     expect(err.code).toBe("conflict");
     expect(await prisma().session.count({ where: { mesocycleId: m.id } })).toBe(
       2,
     );
-    await duplicateSession({ sessionId: s.id, dayOfWeek: 4, replace: true });
+    await duplicateSession(account, {
+      sessionId: s.id,
+      dayOfWeek: 4,
+      replace: true,
+    });
     expect(
       (await prisma().session.findUniqueOrThrow({ where: { id: thu.id } }))
         .dayOfWeek,
@@ -190,7 +218,10 @@ describe("duplicating a session (spec D26–D29)", () => {
 
   it("can be duplicated off the schedule", async () => {
     const { m, s } = await pushDay();
-    const { id } = await duplicateSession({ sessionId: s.id, dayOfWeek: null });
+    const { id } = await duplicateSession(account, {
+      sessionId: s.id,
+      dayOfWeek: null,
+    });
     expect(
       (await prisma().session.findUniqueOrThrow({ where: { id } })).dayOfWeek,
     ).toBeNull();
@@ -201,7 +232,11 @@ describe("duplicating a session (spec D26–D29)", () => {
     const m = await createTestMesocycle({ status: "archived" });
     const s = await createTestSession(m.id);
     expect(
-      (await fails(duplicateSession({ sessionId: s.id, dayOfWeek: 2 }))).code,
+      (
+        await fails(
+          duplicateSession(account, { sessionId: s.id, dayOfWeek: 2 }),
+        )
+      ).code,
     ).toBe("invalid_state_transition");
   });
 });

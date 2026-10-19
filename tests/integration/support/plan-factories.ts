@@ -1,22 +1,29 @@
 import type { Prisma } from "@prisma/client";
 import { getTestPrisma } from "./db";
+import { defaultAccount } from "./accounts";
 
 /**
  * Split & Mesocycle Builder test factories. Rows are inserted directly into
  * the throwaway database (tests only — application code writes plan rows
  * through src/lib/plan/* exclusively).
+ *
+ * Multi-User Foundation: every row is owned by the default test account
+ * unless `overrides.userId` names another (library exercises stay ownerless).
  */
 const prisma = () => getTestPrisma();
+const owner = async () => ({ userId: (await defaultAccount()).userId });
 
 export async function createTestExercise(
   overrides: Partial<Prisma.ExerciseUncheckedCreateInput> = {},
 ) {
+  const isCustom = overrides.isCustom ?? true;
   return prisma().exercise.create({
     data: {
       name: "Barbell Bench Press",
       primaryMuscle: "chest",
       equipmentType: "barbell",
-      isCustom: true,
+      isCustom,
+      ...(isCustom ? await owner() : {}),
       ...overrides,
     },
   });
@@ -27,6 +34,7 @@ export async function createTestMesocycle(
 ) {
   return prisma().mesocycle.create({
     data: {
+      ...(await owner()),
       name: "Strength Block",
       lengthWeeks: 5,
       deloadEveryWeeks: 5,
@@ -43,7 +51,13 @@ export async function createTestSession(
   overrides: Partial<Prisma.SessionUncheckedCreateInput> = {},
 ) {
   return prisma().session.create({
-    data: { mesocycleId, name: "Push Day 1", dayOfWeek: 1, ...overrides },
+    data: {
+      ...(await owner()),
+      mesocycleId,
+      name: "Push Day 1",
+      dayOfWeek: 1,
+      ...overrides,
+    },
   });
 }
 
@@ -54,6 +68,7 @@ export async function createTestSessionExercise(
 ) {
   return prisma().sessionExercise.create({
     data: {
+      ...(await owner()),
       sessionId,
       exerciseId,
       position: 0,
@@ -83,8 +98,10 @@ export async function seedLoggedHistory(input: {
   exerciseId: string;
 }) {
   const p = prisma();
+  const own = await owner();
   const loggedSession = await p.loggedSession.create({
     data: {
+      ...own,
       mesocycleId: input.mesocycleId,
       sessionId: input.sessionId,
       performedOn: new Date("2026-10-05T12:00:00Z"),
@@ -93,6 +110,7 @@ export async function seedLoggedHistory(input: {
   });
   const loggedExercise = await p.loggedExercise.create({
     data: {
+      ...own,
       loggedSessionId: loggedSession.id,
       exerciseId: input.exerciseId,
       plannedExerciseId: input.exerciseId,
@@ -103,6 +121,7 @@ export async function seedLoggedHistory(input: {
   });
   await p.loggedSet.create({
     data: {
+      ...own,
       loggedExerciseId: loggedExercise.id,
       setNumber: 1,
       weightLbs: 185,

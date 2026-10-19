@@ -25,6 +25,14 @@ import {
   historyCounts,
   seedLoggedHistory,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /** Split & Mesocycle Builder — clone-forward: plan-forward, never history-forward. */
 const prisma = () => getTestPrisma();
@@ -126,7 +134,7 @@ const cloneInput = (sourceMesocycleId: string, over = {}) => ({
 describe("clone-forward creates a new draft (spec D30, D31)", () => {
   it("copies split type, length, deload, sessions, days, names, exercises, order, sets, reps", async () => {
     const { m } = await hypertrophyBlock3();
-    const { id } = await cloneMesocycle(cloneInput(m.id));
+    const { id } = await cloneMesocycle(account, cloneInput(m.id));
     expect(id).not.toBe(m.id);
     const clone = await prisma().mesocycle.findUniqueOrThrow({ where: { id } });
     expect(clone).toMatchObject({
@@ -146,25 +154,27 @@ describe("clone-forward creates a new draft (spec D30, D31)", () => {
         include: { sessions: { include: { sessionExercises: true } } },
       });
     const before = await snapshot();
-    await cloneMesocycle(cloneInput(m.id));
+    await cloneMesocycle(account, cloneInput(m.id));
     expect(await snapshot()).toEqual(before);
   });
 
   it("an active block can be the source too; a draft cannot", async () => {
     const { m } = await hypertrophyBlock3("active");
-    await expect(cloneMesocycle(cloneInput(m.id))).resolves.toHaveProperty(
-      "id",
-    );
+    await expect(
+      cloneMesocycle(account, cloneInput(m.id)),
+    ).resolves.toHaveProperty("id");
     const draft = await createTestMesocycle({ name: "Strength Block" });
-    expect((await fails(cloneMesocycle(cloneInput(draft.id)))).code).toBe(
-      "invalid_state_transition",
-    );
-    expect((await listCloneSources()).map((s) => s.id)).toEqual([m.id]);
+    expect(
+      (await fails(cloneMesocycle(account, cloneInput(draft.id)))).code,
+    ).toBe("invalid_state_transition");
+    expect((await listCloneSources(account)).map((s) => s.id)).toEqual([m.id]);
   });
 
   it("validates the clone form like any mesocycle", async () => {
     const { m } = await hypertrophyBlock3();
-    const err = await fails(cloneMesocycle(cloneInput(m.id, { name: " " })));
+    const err = await fails(
+      cloneMesocycle(account, cloneInput(m.id, { name: " " })),
+    );
     expect(err.code).toBe("validation_error");
     expect(await prisma().mesocycle.count()).toBe(1);
   });
@@ -173,7 +183,7 @@ describe("clone-forward creates a new draft (spec D30, D31)", () => {
 describe("clone defaults (spec D33–D35)", () => {
   it("name + Copy, start = source end + 1 day, same length and deload", async () => {
     const { m } = await hypertrophyBlock3();
-    const setup = await getCloneSetup(m.id);
+    const setup = await getCloneSetup(account, m.id);
     expect(setup?.defaults).toEqual({
       name: "Hypertrophy Block 3 Copy",
       startDate: "2026-11-02", // 2026-09-28 + 5 weeks; the source ends Sun 2026-11-01
@@ -187,6 +197,7 @@ describe("clone defaults (spec D33–D35)", () => {
   it("every default is editable (a gap, a new length, a new deload cadence)", async () => {
     const { m } = await hypertrophyBlock3();
     const { id } = await cloneMesocycle(
+      account,
       cloneInput(m.id, {
         name: "Strength Block",
         startDate: "2026-11-16",
@@ -208,7 +219,7 @@ describe("clone defaults (spec D33–D35)", () => {
       status: "archived",
       startDate: null,
     });
-    expect((await getCloneSetup(m.id))?.defaults.startDate).toBeNull();
+    expect((await getCloneSetup(account, m.id))?.defaults.startDate).toBeNull();
   });
 });
 
@@ -216,7 +227,7 @@ describe("clone independence (spec D31)", () => {
   it("editing the clone never changes the source, and vice versa", async () => {
     const { m } = await hypertrophyBlock3("active");
     const sourceBefore = await planShape(m.id);
-    const { id } = await cloneMesocycle(cloneInput(m.id));
+    const { id } = await cloneMesocycle(account, cloneInput(m.id));
     const cloneSlots = await prisma().sessionExercise.findMany({
       where: { session: { mesocycleId: id } },
       orderBy: { position: "asc" },
@@ -224,21 +235,26 @@ describe("clone independence (spec D31)", () => {
     const cloneSession = await prisma().session.findFirstOrThrow({
       where: { mesocycleId: id, dayOfWeek: 1 },
     });
-    await renameSession({ sessionId: cloneSession.id, name: "Push A" });
-    await updateSessionExercise({
+    await renameSession(account, {
+      sessionId: cloneSession.id,
+      name: "Push A",
+    });
+    await updateSessionExercise(account, {
       sessionExerciseId: cloneSlots[0].id,
       plannedSets: "5",
       targetRepMin: "3",
       targetRepMax: "5",
     });
-    await removeSessionExercise({ sessionExerciseId: cloneSlots[1].id });
+    await removeSessionExercise(account, {
+      sessionExerciseId: cloneSlots[1].id,
+    });
     expect(await planShape(m.id)).toEqual(sourceBefore);
 
     const cloneBefore = await planShape(id);
     const sourceSlot = await prisma().sessionExercise.findFirstOrThrow({
       where: { session: { mesocycleId: m.id } },
     });
-    await updateSessionExercise({
+    await updateSessionExercise(account, {
       sessionExerciseId: sourceSlot.id,
       plannedSets: "6",
       targetRepMin: "6",
@@ -264,7 +280,7 @@ describe("clone-forward never copies performed data (spec D32)", () => {
       data: { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
     });
     const before = await historyCounts();
-    const { id } = await cloneMesocycle(cloneInput(m.id));
+    const { id } = await cloneMesocycle(account, cloneInput(m.id));
     expect(await historyCounts()).toEqual(before);
     expect(
       await prisma().loggedSession.count({ where: { mesocycleId: id } }),
@@ -284,13 +300,13 @@ describe("archived exercises in a clone (spec D36)", () => {
       data: { deletedAt: new Date() },
     });
 
-    const setup = await getCloneSetup(m.id);
+    const setup = await getCloneSetup(account, m.id);
     expect(setup?.archivedReferences).toEqual([
       { exerciseName: "Cable Fly", sessionName: "Push Day 1" },
       { exerciseName: "Barbell Row", sessionName: "Pull Day 1" },
     ]);
 
-    const { id } = await cloneMesocycle(cloneInput(m.id));
+    const { id } = await cloneMesocycle(account, cloneInput(m.id));
     expect(await planShape(id)).toEqual(await planShape(m.id));
     const archivedIds = (
       await prisma().exercise.findMany({
@@ -305,7 +321,7 @@ describe("archived exercises in a clone (spec D36)", () => {
       }),
     ).toBe(0);
 
-    const week = await getMesocycleWeek(id);
+    const week = await getMesocycleWeek(account, id);
     expect(
       week?.readiness.issues
         .filter((i) => i.code === "exercise_archived")
@@ -314,7 +330,10 @@ describe("archived exercises in a clone (spec D36)", () => {
     expect(
       (
         await fails(
-          activateMesocycle({ mesocycleId: id, expectedActiveId: null }),
+          activateMesocycle(account, {
+            mesocycleId: id,
+            expectedActiveId: null,
+          }),
         )
       ).code,
     ).toBe("invalid_state_transition");
@@ -323,28 +342,28 @@ describe("archived exercises in a clone (spec D36)", () => {
     const clonePull = await prisma().session.findFirstOrThrow({
       where: { mesocycleId: id, name: pull.name },
     });
-    const detail = await getSessionDetail(id, clonePull.id);
+    const detail = await getSessionDetail(account, id, clonePull.id);
     const rowSlot = detail?.exercises.find(
       (e) => e.exerciseName === "Barbell Row",
     );
     const cableRow = await createTestExercise({ name: "Seated Cable Row" });
-    await replaceSessionExercise({
+    await replaceSessionExercise(account, {
       sessionExerciseId: rowSlot!.id,
       exerciseId: cableRow.id,
     });
     const flySlot = await prisma().sessionExercise.findFirstOrThrow({
       where: { exerciseId: fly.id, session: { mesocycleId: id } },
     });
-    await removeSessionExercise({ sessionExerciseId: flySlot.id });
+    await removeSessionExercise(account, { sessionExerciseId: flySlot.id });
     await expect(
-      activateMesocycle({ mesocycleId: id, expectedActiveId: null }),
+      activateMesocycle(account, { mesocycleId: id, expectedActiveId: null }),
     ).resolves.toMatchObject({ id });
   });
 });
 
 describe("a clone of a cloned plan", () => {
   it("copies the selected plan's current structure, with no lineage", async () => {
-    const { m } = await createMesocycle({
+    const { m } = await createMesocycle(account, {
       name: "A",
       startDate: "2026-11-02",
       lengthWeeks: "5",
@@ -357,6 +376,7 @@ describe("a clone of a cloned plan", () => {
       }),
     }));
     const b = await cloneMesocycle(
+      account,
       cloneInput(m.id, { name: "B", deloadEveryWeeks: "5" }),
     );
     await prisma().mesocycle.update({
@@ -364,6 +384,7 @@ describe("a clone of a cloned plan", () => {
       data: { status: "archived" },
     });
     const c = await cloneMesocycle(
+      account,
       cloneInput(b.id, { name: "C", deloadEveryWeeks: "5" }),
     );
     expect(await planShape(c.id)).toEqual(await planShape(m.id));

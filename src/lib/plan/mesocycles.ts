@@ -1,5 +1,6 @@
 import "server-only";
 import { DomainError } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
 import { parseIsoDate } from "./calendar";
 import { plannedCardioCopies, plannedCardioSourceSelect } from "./cardio";
 import { PRESET_STRUCTURES } from "./presets";
@@ -42,7 +43,9 @@ import {
  *    set count, a rep range, or a weight (spec D13).
  *  - Archived mesocycles are read-only. Mesocycles are never deleted.
  *  - Nothing here reads or writes logged history, goals, or gym baselines.
- *  - Every function accepts an optional transaction client so callers compose.
+ *  - Every function takes the acting Account (Multi-User Foundation): all reads
+ *    and writes go through its scoped client, so another account's block is
+ *    "not found". Each also accepts an optional transaction client to compose.
  */
 
 // Re-exported for ./sessions.ts and callers that compose plan writes.
@@ -53,6 +56,7 @@ function toDbDate(iso: string | null): Date | null {
 }
 
 export async function createMesocycle(
+  account: Account,
   input: RawMesocycleDetails & { splitType?: unknown },
   tx?: Db,
 ): Promise<{ id: string }> {
@@ -64,9 +68,10 @@ export async function createMesocycle(
       ...(split.ok ? {} : split.details),
     });
   }
-  return inTx(tx, async (t) => {
+  return inTx(account, tx, async (t) => {
     const mesocycle = await t.mesocycle.create({
       data: {
+        userId: account.userId,
         name: details.value.name,
         startDate: toDbDate(details.value.startDate),
         lengthWeeks: details.value.lengthWeeks,
@@ -81,6 +86,7 @@ export async function createMesocycle(
     if (structure.length > 0) {
       await t.session.createMany({
         data: structure.map((s, i) => ({
+          userId: account.userId,
           mesocycleId: mesocycle.id,
           name: s.name,
           dayOfWeek: s.dayOfWeek,
@@ -93,14 +99,15 @@ export async function createMesocycle(
 }
 
 export async function updateMesocycleDetails(
+  account: Account,
   input: RawMesocycleDetails & { mesocycleId: string },
   tx?: Db,
 ): Promise<{ id: string }> {
   const parsed = parseMesocycleDetails(input);
   if (!parsed.ok) throw invalid(parsed.details);
   const v = parsed.value;
-  return inTx(tx, async (t) => {
-    const row = await requireEditableMesocycle(input.mesocycleId, t);
+  return inTx(account, tx, async (t) => {
+    const row = await requireEditableMesocycle(account, input.mesocycleId, t);
     // A draft may hold an incomplete configuration; the live plan may not
     // (spec D61; backed by the mesocycles_active_is_well_formed CHECK).
     if (row.status === "active") {
@@ -132,14 +139,15 @@ export async function updateMesocycleDetails(
  * archived first, then the draft becomes active.
  */
 export async function activateMesocycle(
+  account: Account,
   input: { mesocycleId: string; expectedActiveId: string | null },
   tx?: Db,
 ): Promise<{ id: string; archivedId: string | null }> {
   return mapDbErrors(
     tx,
     () =>
-      inTx(tx, async (t) => {
-        const locked = await lockMesocycle(input.mesocycleId, t);
+      inTx(account, tx, async (t) => {
+        const locked = await lockMesocycle(account, input.mesocycleId, t);
         if (locked.status !== "draft") {
           throw new DomainError(
             "invalid_state_transition",
@@ -197,11 +205,12 @@ export async function activateMesocycle(
 
 /** Draft → archived (an abandoned draft). Never a delete (spec D46). */
 export async function archiveDraftMesocycle(
+  account: Account,
   input: { mesocycleId: string },
   tx?: Db,
 ): Promise<{ id: string }> {
-  return inTx(tx, async (t) => {
-    const row = await lockMesocycle(input.mesocycleId, t);
+  return inTx(account, tx, async (t) => {
+    const row = await lockMesocycle(account, input.mesocycleId, t);
     if (row.status !== "draft") {
       throw new DomainError(
         "invalid_state_transition",
@@ -231,14 +240,15 @@ export async function archiveDraftMesocycle(
  * written.
  */
 export async function cloneMesocycle(
+  account: Account,
   input: RawMesocycleDetails & { sourceMesocycleId: string },
   tx?: Db,
 ): Promise<{ id: string }> {
   const parsed = parseMesocycleDetails(input);
   if (!parsed.ok) throw invalid(parsed.details);
   const v = parsed.value;
-  return inTx(tx, async (t) => {
-    const locked = await lockMesocycle(input.sourceMesocycleId, t);
+  return inTx(account, tx, async (t) => {
+    const locked = await lockMesocycle(account, input.sourceMesocycleId, t);
     if (locked.status === "draft") {
       throw new DomainError(
         "invalid_state_transition",
@@ -269,6 +279,7 @@ export async function cloneMesocycle(
 
     const clone = await t.mesocycle.create({
       data: {
+        userId: account.userId,
         name: v.name,
         startDate: toDbDate(v.startDate),
         lengthWeeks: v.lengthWeeks,
@@ -281,6 +292,7 @@ export async function cloneMesocycle(
     for (const [i, s] of source.sessions.entries()) {
       const session = await t.session.create({
         data: {
+          userId: account.userId,
           mesocycleId: clone.id,
           name: s.name,
           dayOfWeek: s.dayOfWeek,
@@ -291,13 +303,13 @@ export async function cloneMesocycle(
       });
       if (s.sessionExercises.length > 0) {
         await t.sessionExercise.createMany({
-          data: plannedExerciseCopies(session.id, s.sessionExercises),
+          data: plannedExerciseCopies(account, session.id, s.sessionExercises),
         });
       }
     }
     if (source.plannedCardio.length > 0) {
       await t.plannedCardio.createMany({
-        data: plannedCardioCopies(clone.id, source.plannedCardio),
+        data: plannedCardioCopies(account, clone.id, source.plannedCardio),
       });
     }
     return { id: clone.id };

@@ -13,6 +13,7 @@ import {
   listMesocyclesForHome,
   type MesocycleSummaryDto,
 } from "@/lib/plan/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Plan · Overload" };
 
@@ -55,9 +56,10 @@ function MesocycleRow({ m, meta }: { m: MesocycleSummaryDto; meta: string }) {
 }
 
 export default async function PlanHomePage() {
+  const account = await requireAccount();
   const [home, canClone] = await Promise.all([
-    listMesocyclesForHome(),
-    hasCloneSource(),
+    listMesocyclesForHome(account),
+    hasCloneSource(account),
   ]);
   const { active, drafts, previous } = home;
   const nothing = !active && drafts.length === 0 && previous.length === 0;

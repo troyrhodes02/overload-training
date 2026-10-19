@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@/lib/db";
+import type { Account } from "@/lib/data/account";
 import { isUuid } from "@/lib/actions/result";
 import { exerciseImageUrl } from "@/lib/exercises/images";
 import { equipmentLabel, muscleGroupLabel } from "@/lib/exercises/taxonomy";
@@ -134,8 +134,10 @@ export function toPlannedExercise(
   };
 }
 
-export async function listMesocyclesForHome(): Promise<MesocycleHomeDto> {
-  const rows = await prisma.mesocycle.findMany({
+export async function listMesocyclesForHome(
+  account: Account,
+): Promise<MesocycleHomeDto> {
+  const rows = await account.db.mesocycle.findMany({
     include: planInclude,
     orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
   });
@@ -154,8 +156,8 @@ export async function listMesocyclesForHome(): Promise<MesocycleHomeDto> {
 }
 
 /** True when an active or archived mesocycle exists to clone forward. */
-export async function hasCloneSource(): Promise<boolean> {
-  const row = await prisma.mesocycle.findFirst({
+export async function hasCloneSource(account: Account): Promise<boolean> {
+  const row = await account.db.mesocycle.findFirst({
     where: { status: { in: ["active", "archived"] } },
     select: { id: true },
   });
@@ -163,12 +165,13 @@ export async function hasCloneSource(): Promise<boolean> {
 }
 
 export async function getMesocycleWeek(
+  account: Account,
   id: string,
 ): Promise<MesocycleWeekDto | null> {
   if (!isUuid(id)) return null;
   const [row, active] = await Promise.all([
-    prisma.mesocycle.findUnique({ where: { id }, include: planInclude }),
-    prisma.mesocycle.findFirst({
+    account.db.mesocycle.findUnique({ where: { id }, include: planInclude }),
+    account.db.mesocycle.findFirst({
       where: { status: "active" },
       select: { id: true, name: true },
     }),
@@ -237,13 +240,14 @@ export function occupancyOf(
 
 /** A session inside its mesocycle (null when either id is wrong or mismatched). */
 export async function getSessionDetail(
+  account: Account,
   mesocycleId: string,
   sessionId: string,
 ): Promise<SessionDetailDto | null> {
   if (!isUuid(mesocycleId) || !isUuid(sessionId)) return null;
   // Just this session's planned exercises, plus a light list of the
   // mesocycle's sessions for day occupancy — not the whole plan graph.
-  const session = await prisma.session.findFirst({
+  const session = await account.db.session.findFirst({
     where: { id: sessionId, mesocycleId },
     include: {
       sessionExercises: planInclude.sessions.include.sessionExercises,
@@ -270,8 +274,10 @@ export async function getSessionDetail(
 }
 
 /** Prior blocks that can be cloned forward: the active one, then archived (spec D47). */
-export async function listCloneSources(): Promise<MesocycleSummaryDto[]> {
-  const rows = await prisma.mesocycle.findMany({
+export async function listCloneSources(
+  account: Account,
+): Promise<MesocycleSummaryDto[]> {
+  const rows = await account.db.mesocycle.findMany({
     where: { status: { in: ["active", "archived"] } },
     include: planInclude,
     orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
@@ -307,10 +313,11 @@ export type CloneSetupDto = {
  * Null when the source doesn't exist or is a draft.
  */
 export async function getCloneSetup(
+  account: Account,
   sourceId: string,
 ): Promise<CloneSetupDto | null> {
   if (!isUuid(sourceId)) return null;
-  const row = await prisma.mesocycle.findUnique({
+  const row = await account.db.mesocycle.findUnique({
     where: { id: sourceId },
     include: planInclude,
   });

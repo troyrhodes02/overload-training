@@ -1,5 +1,6 @@
 import "server-only";
 import { DomainError, isUuid } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
 import { dayName } from "./calendar";
 import {
   copyName,
@@ -35,13 +36,19 @@ import {
  *    onDelete: Restrict, so a session that has been trained can't be removed.
  *  - Archived mesocycles are read-only.
  *  - Nothing here reads or writes logged history, goals, or gym baselines.
- *  - Every function accepts an optional transaction client so callers compose.
+ *  - Every function takes the acting Account (Multi-User Foundation); another
+ *    account's session, slot, or exercise is "not found". Each also accepts
+ *    an optional transaction client so callers compose.
  */
 
 const SESSION_NOT_FOUND = "That session doesn't exist.";
 
 /** Loads a session whose mesocycle is editable (draft or active). */
-export async function requireEditableSession(sessionId: string, tx: Db) {
+export async function requireEditableSession(
+  account: Account,
+  sessionId: string,
+  tx: Db,
+) {
   const session = isUuid(sessionId)
     ? await tx.session.findUnique({
         where: { id: sessionId },
@@ -49,7 +56,7 @@ export async function requireEditableSession(sessionId: string, tx: Db) {
       })
     : null;
   if (!session) throw new DomainError("not_found", SESSION_NOT_FOUND);
-  await requireEditableMesocycle(session.mesocycleId, tx);
+  await requireEditableMesocycle(account, session.mesocycleId, tx);
   return session;
 }
 
@@ -119,6 +126,7 @@ async function nextSessionPosition(mesocycleId: string, tx: Db) {
 }
 
 export async function addSession(
+  account: Account,
   input: {
     mesocycleId: string;
     name: unknown;
@@ -132,14 +140,15 @@ export async function addSession(
   if (Object.keys(details).length > 0) throw invalid(details);
   const dayOfWeek = parseDay(input.dayOfWeek);
   return dayRace(tx, () =>
-    inTx(tx, async (t) => {
-      const m = await requireEditableMesocycle(input.mesocycleId, t);
+    inTx(account, tx, async (t) => {
+      const m = await requireEditableMesocycle(account, input.mesocycleId, t);
       await clearDayFor(
         { mesocycleId: m.id, dayOfWeek, replace: input.replace === true },
         t,
       );
       const session = await t.session.create({
         data: {
+          userId: account.userId,
           mesocycleId: m.id,
           name,
           dayOfWeek,
@@ -153,27 +162,29 @@ export async function addSession(
 }
 
 export async function renameSession(
+  account: Account,
   input: { sessionId: string; name: unknown },
   tx?: Db,
 ): Promise<{ id: string }> {
   const details: Record<string, string> = {};
   const name = parseName(input.name, details);
   if (Object.keys(details).length > 0) throw invalid(details);
-  return inTx(tx, async (t) => {
-    const s = await requireEditableSession(input.sessionId, t);
+  return inTx(account, tx, async (t) => {
+    const s = await requireEditableSession(account, input.sessionId, t);
     await t.session.update({ where: { id: s.id }, data: { name } });
     return { id: s.id };
   });
 }
 
 export async function moveSession(
+  account: Account,
   input: { sessionId: string; dayOfWeek: unknown; replace?: boolean },
   tx?: Db,
 ): Promise<{ id: string; displacedId: string | null }> {
   const dayOfWeek = parseDay(input.dayOfWeek);
   return dayRace(tx, () =>
-    inTx(tx, async (t) => {
-      const s = await requireEditableSession(input.sessionId, t);
+    inTx(account, tx, async (t) => {
+      const s = await requireEditableSession(account, input.sessionId, t);
       if (s.dayOfWeek === dayOfWeek) return { id: s.id, displacedId: null };
       const { displacedId } = await clearDayFor(
         {
@@ -199,13 +210,14 @@ export async function moveSession(
  * progression, or completion exists on a plan to copy, and none is read.
  */
 export async function duplicateSession(
+  account: Account,
   input: { sessionId: string; dayOfWeek: unknown; replace?: boolean },
   tx?: Db,
 ): Promise<{ id: string }> {
   const dayOfWeek = parseDay(input.dayOfWeek);
   return dayRace(tx, () =>
-    inTx(tx, async (t) => {
-      const source = await requireEditableSession(input.sessionId, t);
+    inTx(account, tx, async (t) => {
+      const source = await requireEditableSession(account, input.sessionId, t);
       await clearDayFor(
         {
           mesocycleId: source.mesocycleId,
@@ -216,6 +228,7 @@ export async function duplicateSession(
       );
       const copy = await t.session.create({
         data: {
+          userId: account.userId,
           mesocycleId: source.mesocycleId,
           name: copyName(source.name),
           dayOfWeek,
@@ -230,7 +243,7 @@ export async function duplicateSession(
       });
       if (slots.length > 0) {
         await t.sessionExercise.createMany({
-          data: plannedExerciseCopies(copy.id, slots),
+          data: plannedExerciseCopies(account, copy.id, slots),
         });
       }
       return { id: copy.id };
@@ -240,14 +253,15 @@ export async function duplicateSession(
 
 /** Deletes the session and (by cascade) its planned exercises. */
 export async function removeSession(
+  account: Account,
   input: { sessionId: string },
   tx?: Db,
 ): Promise<{ id: string; mesocycleId: string }> {
   return mapDbErrors(
     tx,
     () =>
-      inTx(tx, async (t) => {
-        const s = await requireEditableSession(input.sessionId, t);
+      inTx(account, tx, async (t) => {
+        const s = await requireEditableSession(account, input.sessionId, t);
         await t.session.delete({ where: { id: s.id } });
         return { id: s.id, mesocycleId: s.mesocycleId };
       }),
@@ -270,7 +284,11 @@ const SLOT_NOT_FOUND = "That planned exercise doesn't exist.";
 const ALREADY_IN_SESSION = "Already in this session.";
 
 /** Loads a planned exercise whose mesocycle is editable. */
-async function requireEditableSlot(sessionExerciseId: string, tx: Db) {
+async function requireEditableSlot(
+  account: Account,
+  sessionExerciseId: string,
+  tx: Db,
+) {
   const slot = isUuid(sessionExerciseId)
     ? await tx.sessionExercise.findUnique({
         where: { id: sessionExerciseId },
@@ -283,7 +301,7 @@ async function requireEditableSlot(sessionExerciseId: string, tx: Db) {
       })
     : null;
   if (!slot) throw new DomainError("not_found", SLOT_NOT_FOUND);
-  await requireEditableMesocycle(slot.session.mesocycleId, tx);
+  await requireEditableMesocycle(account, slot.session.mesocycleId, tx);
   return slot;
 }
 
@@ -354,6 +372,7 @@ function parsePlan(raw: {
 
 /** Adds an exercise at the end of the session, with the sets and reps typed. */
 export async function addSessionExercise(
+  account: Account,
   input: {
     sessionId: string;
     exerciseId: unknown;
@@ -365,8 +384,8 @@ export async function addSessionExercise(
 ): Promise<{ id: string }> {
   const plan = parsePlan(input);
   return slotRace(tx, () =>
-    inTx(tx, async (t) => {
-      const session = await requireEditableSession(input.sessionId, t);
+    inTx(account, tx, async (t) => {
+      const session = await requireEditableSession(account, input.sessionId, t);
       const exercise = await requireActiveExercise(input.exerciseId, t);
       await requireNotInSession(session.id, exercise.id, t);
       const last = await t.sessionExercise.aggregate({
@@ -375,6 +394,7 @@ export async function addSessionExercise(
       });
       const slot = await t.sessionExercise.create({
         data: {
+          userId: account.userId,
           sessionId: session.id,
           exerciseId: exercise.id,
           position: (last._max.position ?? -1) + 1,
@@ -388,6 +408,7 @@ export async function addSessionExercise(
 }
 
 export async function updateSessionExercise(
+  account: Account,
   input: {
     sessionExerciseId: string;
     plannedSets: unknown;
@@ -397,8 +418,8 @@ export async function updateSessionExercise(
   tx?: Db,
 ): Promise<{ id: string }> {
   const plan = parsePlan(input);
-  return inTx(tx, async (t) => {
-    const slot = await requireEditableSlot(input.sessionExerciseId, t);
+  return inTx(account, tx, async (t) => {
+    const slot = await requireEditableSlot(account, input.sessionExerciseId, t);
     await t.sessionExercise.update({ where: { id: slot.id }, data: plan });
     return { id: slot.id };
   });
@@ -409,12 +430,17 @@ export async function updateSessionExercise(
  * and position: the repair path for an archived exercise (spec D58).
  */
 export async function replaceSessionExercise(
+  account: Account,
   input: { sessionExerciseId: string; exerciseId: unknown },
   tx?: Db,
 ): Promise<{ id: string }> {
   return slotRace(tx, () =>
-    inTx(tx, async (t) => {
-      const slot = await requireEditableSlot(input.sessionExerciseId, t);
+    inTx(account, tx, async (t) => {
+      const slot = await requireEditableSlot(
+        account,
+        input.sessionExerciseId,
+        t,
+      );
       const exercise = await requireActiveExercise(input.exerciseId, t);
       if (exercise.id === slot.exerciseId) return { id: slot.id };
       await requireNotInSession(slot.sessionId, exercise.id, t, slot.id);
@@ -446,11 +472,12 @@ async function renumber(sessionId: string, tx: Db) {
 
 /** Removes the slot from the plan. The Exercise row is never touched. */
 export async function removeSessionExercise(
+  account: Account,
   input: { sessionExerciseId: string },
   tx?: Db,
 ): Promise<{ id: string; sessionId: string }> {
-  return inTx(tx, async (t) => {
-    const slot = await requireEditableSlot(input.sessionExerciseId, t);
+  return inTx(account, tx, async (t) => {
+    const slot = await requireEditableSlot(account, input.sessionExerciseId, t);
     await t.sessionExercise.delete({ where: { id: slot.id } });
     await renumber(slot.sessionId, t);
     return { id: slot.id, sessionId: slot.sessionId };
@@ -459,6 +486,7 @@ export async function removeSessionExercise(
 
 /** Swaps a slot with its neighbor; a no-op at either end (spec D52). */
 export async function moveSessionExercise(
+  account: Account,
   input: { sessionExerciseId: string; direction: unknown },
   tx?: Db,
 ): Promise<{ id: string }> {
@@ -466,8 +494,8 @@ export async function moveSessionExercise(
     throw invalid({ direction: "Choose up or down." });
   }
   const step = input.direction === "up" ? -1 : 1;
-  return inTx(tx, async (t) => {
-    const slot = await requireEditableSlot(input.sessionExerciseId, t);
+  return inTx(account, tx, async (t) => {
+    const slot = await requireEditableSlot(account, input.sessionExerciseId, t);
     await renumber(slot.sessionId, t);
     const ordered = await t.sessionExercise.findMany({
       where: { sessionId: slot.sessionId },

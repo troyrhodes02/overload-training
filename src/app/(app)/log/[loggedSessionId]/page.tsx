@@ -4,6 +4,7 @@ import { getWorkout } from "@/lib/logging/queries";
 import { getOccurrenceProgression } from "@/lib/progression/queries";
 import { WorkoutRunner } from "@/components/logging/workout-runner";
 import type { CardProgression } from "@/components/logging/exercise-card";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Workout · Overload" };
 
@@ -12,6 +13,7 @@ export default async function WorkoutPage({
 }: {
   params: Promise<{ loggedSessionId: string }>;
 }) {
+  const account = await requireAccount();
   const { loggedSessionId } = await params;
   const workout = await getWorkout(loggedSessionId);
   if (!workout) notFound();
@@ -33,7 +35,7 @@ export default async function WorkoutPage({
   const progression: Record<string, CardProgression> =
     Object.fromEntries(progressionEntries);
 
-  const gyms = await listActiveGyms();
+  const gyms = await listActiveGyms(account);
 
   return (
     <WorkoutRunner

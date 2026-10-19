@@ -16,6 +16,14 @@ import {
   createTestSessionExercise,
   historyCounts,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Cardio Logging — the CardioLog write path and today's cardio (OVE-34; spec
@@ -79,6 +87,7 @@ async function block(
   const longAgo = parseIsoDate(addDays(start, -30))!;
   const walk = await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: W,
       type: "Incline Walk",
@@ -88,6 +97,7 @@ async function block(
   });
   const bike = await prisma().plannedCardio.create({
     data: {
+      userId: account.userId,
       mesocycleId: m.id,
       dayOfWeek: dayAfter(2),
       type: "Bike",
@@ -272,6 +282,7 @@ describe("logCardio — the factual record", () => {
     const { m } = await block({ startOffset: -14 });
     await prisma().plannedCardio.create({
       data: {
+        userId: account.userId,
         mesocycleId: m.id,
         dayOfWeek: dayAfter(3),
         type: "Rowing",
@@ -391,7 +402,7 @@ describe("editCardioLog — correction, never deletion", () => {
     const before = await prisma().cardioLog.findUniqueOrThrow({
       where: { id: cardioLogId },
     });
-    await updatePlannedCardio({
+    await updatePlannedCardio(account, {
       plannedCardioId: walk.id,
       dayOfWeek: W,
       type: "Stair Climber",
@@ -430,7 +441,9 @@ describe("independent completion (R26–R28)", () => {
 
   it("completing the workout leaves cardio pending, and cardio never changes the LoggedSession", async () => {
     const { m, session, exercise } = await block();
-    const gym = await prisma().gym.create({ data: { name: "Downtown Gym" } });
+    const gym = await prisma().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
     const { loggedSessionId } = await startOrResumeWorkout({
       sessionId: session!.id,
       scheduledFor: TODAY,

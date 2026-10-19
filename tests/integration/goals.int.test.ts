@@ -21,6 +21,14 @@ import {
   listUnacknowledgedCompletions,
 } from "@/lib/goals/queries";
 import { DomainError } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Goals (OVE-30). Logged history is inserted raw (test-only) to control dates,
@@ -110,8 +118,12 @@ async function setup() {
     name: "Chest Press Machine",
     equipmentType: "machine",
   });
-  const downtown = await db().gym.create({ data: { name: "Downtown Gym" } });
-  const campus = await db().gym.create({ data: { name: "Campus Rec Center" } });
+  const downtown = await db().gym.create({
+    data: { userId: account.userId, name: "Downtown Gym" },
+  });
+  const campus = await db().gym.create({
+    data: { userId: account.userId, name: "Campus Rec Center" },
+  });
   return { meso, bench, chestPress, downtown, campus };
 }
 
@@ -871,7 +883,7 @@ describe("exercise and gym archival keep goals readable (R39–R41)", () => {
     expect(g).toMatchObject({ goalId: r.id, exerciseArchived: true });
     const detail = await getGoalDetail(r.id);
     expect(detail).toMatchObject({ kind: "active", exerciseArchived: true });
-    expect(await getGoalFormContext(bench.id)).toMatchObject({
+    expect(await getGoalFormContext(account, bench.id)).toMatchObject({
       kind: "archived_exercise",
     });
     // Still archivable by hand.
@@ -930,24 +942,26 @@ describe("the target form context (design Screen 3)", () => {
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    expect(await getGoalFormContext(bench.id)).toMatchObject({
+    expect(await getGoalFormContext(account, bench.id)).toMatchObject({
       kind: "duplicate",
       existing: { targetLabel: "315 lb × 1" },
     });
 
-    expect(await getGoalFormContext(chestPress.id, campus.id)).toMatchObject({
+    expect(
+      await getGoalFormContext(account, chestPress.id, campus.id),
+    ).toMatchObject({
       kind: "ok",
       gymVariable: true,
       defaultGymId: campus.id,
     });
-    expect(await getGoalFormContext(chestPress.id)).toMatchObject({
+    expect(await getGoalFormContext(account, chestPress.id)).toMatchObject({
       kind: "ok",
       defaultGymId: null,
     });
     for (const id of [downtown.id, campus.id]) {
       await db().gym.update({ where: { id }, data: { deletedAt: new Date() } });
     }
-    expect(await getGoalFormContext(chestPress.id)).toMatchObject({
+    expect(await getGoalFormContext(account, chestPress.id)).toMatchObject({
       kind: "no_gyms",
     });
   });

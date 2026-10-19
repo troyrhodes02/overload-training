@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { DomainError, isUuid } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
 import { parseCardioEntry } from "@/lib/cardio/validation";
 import { dayName } from "./calendar";
 import { parseDayOfWeek } from "./validation";
@@ -32,7 +33,8 @@ import {
  *    the new day's occurrences begin now (the occurrence floor, R56) instead
  *    of inventing past occurrences on that day.
  *  - Archived mesocycles are read-only (requireEditableMesocycle).
- *  - Every function accepts an optional transaction client so callers compose.
+ *  - Every function takes the acting Account (Multi-User Foundation) and
+ *    accepts an optional transaction client so callers compose.
  */
 
 const NOT_FOUND = "That planned cardio doesn't exist.";
@@ -93,7 +95,11 @@ async function requireFreeDay(
 }
 
 /** Loads a planned cardio row whose mesocycle is editable (draft or active). */
-async function requireEditablePlannedCardio(plannedCardioId: string, tx: Db) {
+async function requireEditablePlannedCardio(
+  account: Account,
+  plannedCardioId: string,
+  tx: Db,
+) {
   const row = isUuid(plannedCardioId)
     ? await tx.plannedCardio.findUnique({
         where: { id: plannedCardioId },
@@ -101,11 +107,12 @@ async function requireEditablePlannedCardio(plannedCardioId: string, tx: Db) {
       })
     : null;
   if (!row) throw new DomainError("not_found", NOT_FOUND);
-  await requireEditableMesocycle(row.mesocycleId, tx);
+  await requireEditableMesocycle(account, row.mesocycleId, tx);
   return row;
 }
 
 export async function addPlannedCardio(
+  account: Account,
   input: {
     mesocycleId: string;
     dayOfWeek: unknown;
@@ -116,11 +123,11 @@ export async function addPlannedCardio(
 ): Promise<{ id: string }> {
   const fields = parseFields(input);
   return dayRace(tx, fields.dayOfWeek, () =>
-    inTx(tx, async (t) => {
-      const m = await requireEditableMesocycle(input.mesocycleId, t);
+    inTx(account, tx, async (t) => {
+      const m = await requireEditableMesocycle(account, input.mesocycleId, t);
       await requireFreeDay(m.id, fields.dayOfWeek, t);
       const row = await t.plannedCardio.create({
-        data: { mesocycleId: m.id, ...fields },
+        data: { userId: account.userId, mesocycleId: m.id, ...fields },
         select: { id: true },
       });
       return { id: row.id };
@@ -134,6 +141,7 @@ export async function addPlannedCardio(
  * item's occurrences start from now on its new day.
  */
 export async function updatePlannedCardio(
+  account: Account,
   input: {
     plannedCardioId: string;
     dayOfWeek: unknown;
@@ -144,8 +152,12 @@ export async function updatePlannedCardio(
 ): Promise<{ id: string }> {
   const fields = parseFields(input);
   return dayRace(tx, fields.dayOfWeek, () =>
-    inTx(tx, async (t) => {
-      const row = await requireEditablePlannedCardio(input.plannedCardioId, t);
+    inTx(account, tx, async (t) => {
+      const row = await requireEditablePlannedCardio(
+        account,
+        input.plannedCardioId,
+        t,
+      );
       if (row.dayOfWeek === fields.dayOfWeek) {
         await t.plannedCardio.update({
           where: { id: row.id },
@@ -156,7 +168,11 @@ export async function updatePlannedCardio(
       await requireFreeDay(row.mesocycleId, fields.dayOfWeek, t, row.id);
       await t.plannedCardio.delete({ where: { id: row.id } });
       const moved = await t.plannedCardio.create({
-        data: { mesocycleId: row.mesocycleId, ...fields },
+        data: {
+          userId: account.userId,
+          mesocycleId: row.mesocycleId,
+          ...fields,
+        },
         select: { id: true },
       });
       return { id: moved.id };
@@ -170,11 +186,16 @@ export async function updatePlannedCardio(
  * never touched.
  */
 export async function removePlannedCardio(
+  account: Account,
   input: { plannedCardioId: string },
   tx?: Db,
 ): Promise<{ id: string; mesocycleId: string }> {
-  return inTx(tx, async (t) => {
-    const row = await requireEditablePlannedCardio(input.plannedCardioId, t);
+  return inTx(account, tx, async (t) => {
+    const row = await requireEditablePlannedCardio(
+      account,
+      input.plannedCardioId,
+      t,
+    );
     await t.plannedCardio.delete({ where: { id: row.id } });
     return { id: row.id, mesocycleId: row.mesocycleId };
   });
@@ -193,10 +214,12 @@ export const plannedCardioSourceSelect = {
  * missed state — those are history, and history is never cloned.
  */
 export function plannedCardioCopies(
+  account: Account,
   mesocycleId: string,
   sources: { dayOfWeek: number; type: string; durationMin: number }[],
 ): Prisma.PlannedCardioCreateManyInput[] {
   return sources.map((s) => ({
+    userId: account.userId,
     mesocycleId,
     dayOfWeek: s.dayOfWeek,
     type: s.type,

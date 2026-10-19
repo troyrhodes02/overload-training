@@ -6,6 +6,14 @@ import {
 import { planExercises } from "../../scripts/import/real-plan/plan";
 import { getTestPrisma } from "./support/db";
 import { createTestMesocycle } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: the import targets the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * The one-time real-plan import (scripts/import/real-plan), run end to end
@@ -71,7 +79,7 @@ beforeEach(async () => {
 
 describe("real-plan import (throwaway database only)", () => {
   it("dry run is read-only and clean on an empty account", async () => {
-    const ins = await inspect(prisma());
+    const ins = await inspect(prisma(), account);
     expect(ins.blockers).toEqual([]);
     expect(ins.alreadyImported).toBe(false);
     expect(ins.gyms.map((g) => g.action)).toEqual(["create", "create"]);
@@ -90,11 +98,13 @@ describe("real-plan import (throwaway database only)", () => {
 
   it("applies in one transaction, verifies, and creates no history", async () => {
     // A pre-existing gym (case-insensitive match) is reused, not duplicated.
-    await prisma().gym.create({ data: { name: "eos desoto" } });
-    const ins = await inspect(prisma());
+    await prisma().gym.create({
+      data: { userId: account.userId, name: "eos desoto" },
+    });
+    const ins = await inspect(prisma(), account);
     expect(ins.gyms[0]).toMatchObject({ action: "reuse" });
-    const result = await applyImport(prisma(), ins);
-    expect(await verifyImport(prisma(), ins, result)).toEqual([]);
+    const result = await applyImport(account, ins);
+    expect(await verifyImport(prisma(), account, ins, result)).toEqual([]);
 
     expect(await prisma().gym.count()).toBe(2);
     const blocks = await prisma().mesocycle.findMany({
@@ -116,20 +126,20 @@ describe("real-plan import (throwaway database only)", () => {
       expect(n).toBe(0);
 
     // A second run recognizes the finished import and writes nothing.
-    const again = await inspect(prisma());
+    const again = await inspect(prisma(), account);
     expect(again.alreadyImported).toBe(true);
-    await expect(applyImport(prisma(), again)).rejects.toThrow(
+    await expect(applyImport(account, again)).rejects.toThrow(
       /already imported/,
     );
   });
 
   it("refuses when an active plan already exists", async () => {
     await createTestMesocycle({ status: "active", name: "Something Else" });
-    const ins = await inspect(prisma());
+    const ins = await inspect(prisma(), account);
     expect(ins.blockers.join("\n")).toMatch(
       /An active mesocycle already exists/,
     );
-    await expect(applyImport(prisma(), ins)).rejects.toThrow(
+    await expect(applyImport(account, ins)).rejects.toThrow(
       /Refusing to apply/,
     );
     expect(await prisma().mesocycle.count()).toBe(1);

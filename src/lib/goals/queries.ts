@@ -1,4 +1,5 @@
 import "server-only";
+import type { Account } from "@/lib/data/account";
 import type { Equipment, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { lifterTimeZone } from "@/lib/time/lifter-time-zone";
@@ -322,10 +323,11 @@ export async function getGoalDetail(
 
 /** Everything the target form needs for one exercise (design Screen 3). */
 export async function getGoalFormContext(
+  account: Account,
   exerciseId: string,
   requestedGymId?: string | null,
 ): Promise<GoalFormContextDto> {
-  const exercise = await getExercise(exerciseId);
+  const exercise = await getExercise(account, exerciseId);
   if (!exercise) return { kind: "not_found" };
   if (exercise.isArchived) {
     return { kind: "archived_exercise", exerciseName: exercise.name };
@@ -349,7 +351,7 @@ export async function getGoalFormContext(
   const meta = `${exercise.primaryMuscleLabel} · ${exercise.equipmentLabel}`;
   const gymVariable = isGymVariable({ equipmentType: exercise.equipmentType });
   const gyms = gymVariable
-    ? (await listActiveGyms()).map((g) => ({ id: g.id, name: g.name }))
+    ? (await listActiveGyms(account)).map((g) => ({ id: g.id, name: g.name }))
     : [];
   if (gymVariable && gyms.length === 0) {
     return { kind: "no_gyms", exerciseName: exercise.name, exerciseMeta: meta };

@@ -16,6 +16,7 @@ import { ProgressTag } from "@/components/progression/progress-tag";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
 import { GymSelector } from "@/components/progression/gym-selector";
 import { E1rmChart } from "@/components/progression/e1rm-chart";
+import { requireAccount } from "@/lib/data/account";
 
 /**
  * Per-exercise progression + e1RM trend (Pitch 5, design Screen 4). Derived on
@@ -130,9 +131,10 @@ export default async function ExerciseDetailPage({
   params,
   searchParams,
 }: PageProps) {
+  const account = await requireAccount();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   // Resolves archived exercises too: history and direct links must still work.
-  const exercise = await getExercise(id);
+  const exercise = await getExercise(account, id);
   if (!exercise) notFound();
   const back = backHref(sp.from);
   const gymParam = Array.isArray(sp.gym) ? sp.gym[0] : sp.gym;
@@ -198,7 +200,9 @@ export default async function ExerciseDetailPage({
             <dd>{exercise.equipmentLabel}</dd>
           </dl>
 
-          {!exercise.isArchived && (
+          {/* Library exercises are shared and read-only: only the account's
+              own custom exercises can be archived (Multi-User Foundation). */}
+          {exercise.canArchive && !exercise.isArchived && (
             <ArchiveExerciseButton
               exerciseId={exercise.id}
               name={exercise.name}
