@@ -13,4 +13,12 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Exercise: ["library.int.test.ts"],
   ExerciseFavorite: ["library.int.test.ts"],
   Gym: ["gyms.int.test.ts"],
+  GymExerciseBaseline: ["logging.int.test.ts"],
+  LoggedSession: ["logging.int.test.ts"],
+  LoggedExercise: ["logging.int.test.ts"],
+  LoggedSet: ["logging.int.test.ts"],
+  MissedDayResolution: ["logging.int.test.ts"],
+  CardioLog: ["logging.int.test.ts"],
+  Goal: ["goals.int.test.ts"],
+  Profile: ["profile.int.test.ts"],
 };

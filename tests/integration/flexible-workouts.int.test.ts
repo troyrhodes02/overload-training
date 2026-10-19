@@ -17,6 +17,14 @@ import {
   getExerciseProgression,
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Flexible workouts: extra sets beyond the plan, "Didn't do" for a planned
@@ -53,8 +61,10 @@ async function workout(
     position: 1,
     plannedSets: 2,
   });
-  const gym = await db().gym.create({ data: { name: "Downtown Gym" } });
-  const { loggedSessionId } = await startOrResumeWorkout({
+  const gym = await db().gym.create({
+    data: { userId: account.userId, name: "Downtown Gym" },
+  });
+  const { loggedSessionId } = await startOrResumeWorkout(account, {
     sessionId: session.id,
     scheduledFor: opts.scheduledFor ?? "2026-11-02",
     gymId: gym.id,
@@ -71,7 +81,7 @@ const set = (
   setNumber: number,
   weightLbs: number,
   reps: number,
-) => logSet({ loggedExerciseId, setNumber, weightLbs, reps });
+) => logSet(account, { loggedExerciseId, setNumber, weightLbs, reps });
 
 describe("extra sets", () => {
   it("are allowed after every planned set, in sequence, and shown as extra", async () => {
@@ -91,14 +101,14 @@ describe("extra sets", () => {
       await db().loggedSet.count({ where: { loggedExerciseId: w.benchLe.id } }),
     ).toBe(4);
 
-    const card = (await getWorkout(w.loggedSessionId))!.exercises[0];
+    const card = (await getWorkout(account, w.loggedSessionId))!.exercises[0];
     expect(card.sets.map((s) => [s.setNumber, s.extra])).toEqual([
       [1, false],
       [2, false],
       [3, true],
       [4, true],
     ]);
-    const detail = (await getLoggedWorkoutDetail(w.loggedSessionId))!
+    const detail = (await getLoggedWorkoutDetail(account, w.loggedSessionId))!
       .exercises[0];
     expect(detail.sets.filter((s) => s.extra)).toHaveLength(2);
   });
@@ -116,7 +126,7 @@ describe("extra sets", () => {
     // Two all-top performances → Progress. A heavy 1-rep extra set would
     // change the e1RM if counted; its low reps would break "all at the top".
     const first = await workout({ scheduledFor: "2026-11-02" });
-    const { loggedSessionId: secondId } = await startOrResumeWorkout({
+    const { loggedSessionId: secondId } = await startOrResumeWorkout(account, {
       sessionId: first.session.id,
       scheduledFor: "2026-11-09",
       gymId: first.gym.id,
@@ -131,9 +141,9 @@ describe("extra sets", () => {
       await set(leId, 1, 185, 8);
       await set(leId, 2, 185, 8);
       await set(leId, 3, 225, 1); // extra
-      await completeWorkout({ loggedSessionId: lsId });
+      await completeWorkout(account, { loggedSessionId: lsId });
     }
-    const p = (await getExerciseProgression(first.bench.id))!;
+    const p = (await getExerciseProgression(account, first.bench.id))!;
     expect(p.state).toBe("progress");
     expect(p.currentE1rm).toBe(Math.round(185 * (1 + 8 / 30)));
   });
@@ -157,14 +167,20 @@ describe("extra sets", () => {
 describe("didn't do", () => {
   it("marks an exercise with no sets as not done, refuses logging until undone", async () => {
     const w = await workout();
-    await setExerciseSkipped({ loggedExerciseId: w.flyLe.id, skipped: true });
+    await setExerciseSkipped(account, {
+      loggedExerciseId: w.flyLe.id,
+      skipped: true,
+    });
     await expect(set(w.flyLe.id, 1, 40, 12)).rejects.toMatchObject({
       code: "invalid_state_transition",
     });
-    expect((await getWorkout(w.loggedSessionId))!.exercises[1].skipped).toBe(
-      true,
-    );
-    await setExerciseSkipped({ loggedExerciseId: w.flyLe.id, skipped: false });
+    expect(
+      (await getWorkout(account, w.loggedSessionId))!.exercises[1].skipped,
+    ).toBe(true);
+    await setExerciseSkipped(account, {
+      loggedExerciseId: w.flyLe.id,
+      skipped: false,
+    });
     await set(w.flyLe.id, 1, 40, 12);
   });
 
@@ -172,16 +188,22 @@ describe("didn't do", () => {
     const w = await workout();
     await set(w.benchLe.id, 1, 185, 8);
     await expect(
-      setExerciseSkipped({ loggedExerciseId: w.benchLe.id, skipped: true }),
+      setExerciseSkipped(account, {
+        loggedExerciseId: w.benchLe.id,
+        skipped: true,
+      }),
     ).rejects.toMatchObject({ code: "invalid_state_transition" });
   });
 
   it("is refused after the workout is finished", async () => {
     const w = await workout();
     await set(w.benchLe.id, 1, 185, 8);
-    await completeWorkout({ loggedSessionId: w.loggedSessionId });
+    await completeWorkout(account, { loggedSessionId: w.loggedSessionId });
     await expect(
-      setExerciseSkipped({ loggedExerciseId: w.flyLe.id, skipped: false }),
+      setExerciseSkipped(account, {
+        loggedExerciseId: w.flyLe.id,
+        skipped: false,
+      }),
     ).rejects.toMatchObject({ code: "invalid_state_transition" });
   });
 
@@ -192,8 +214,14 @@ describe("didn't do", () => {
       primaryMuscle: "chest",
       equipmentType: "machine",
     });
-    await setExerciseSkipped({ loggedExerciseId: w.flyLe.id, skipped: true });
-    await swapExercise({ loggedExerciseId: w.flyLe.id, newExerciseId: alt.id });
+    await setExerciseSkipped(account, {
+      loggedExerciseId: w.flyLe.id,
+      skipped: true,
+    });
+    await swapExercise(account, {
+      loggedExerciseId: w.flyLe.id,
+      newExerciseId: alt.id,
+    });
     expect(
       (
         await db().loggedExercise.findUniqueOrThrow({
@@ -208,7 +236,7 @@ describe("finishing early", () => {
   it("records untouched exercises as not done and keeps partial ones as logged", async () => {
     const w = await workout();
     await set(w.benchLe.id, 1, 185, 8); // 1 of 2
-    await completeWorkout({ loggedSessionId: w.loggedSessionId });
+    await completeWorkout(account, { loggedSessionId: w.loggedSessionId });
     const [bench, fly] = await db().loggedExercise.findMany({
       where: { loggedSessionId: w.loggedSessionId },
       orderBy: { position: "asc" },
@@ -217,16 +245,19 @@ describe("finishing early", () => {
     expect(fly.skippedAt).not.toBeNull();
     expect(await db().loggedSet.count()).toBe(1);
 
-    const detail = (await getLoggedWorkoutDetail(w.loggedSessionId))!;
+    const detail = (await getLoggedWorkoutDetail(account, w.loggedSessionId))!;
     expect(detail.exercises.map((e) => e.skipped)).toEqual([false, true]);
 
     // The skipped lift gets no summary row; the partial one is not a
     // qualifying performance (no call, no chart point).
-    const summary = (await getSessionProgressionSummary(w.loggedSessionId))!;
+    const summary = (await getSessionProgressionSummary(
+      account,
+      w.loggedSessionId,
+    ))!;
     expect(summary.exercises.map((e) => e.performedExerciseName)).toEqual([
       "Barbell Bench Press",
     ]);
-    const p = (await getExerciseProgression(w.bench.id))!;
+    const p = (await getExerciseProgression(account, w.bench.id))!;
     expect(p.qualifyingCount).toBe(0);
     expect(p.points).toEqual([]);
   });
@@ -239,7 +270,7 @@ describe("finishing early", () => {
     });
     await set(w.benchLe.id, 1, 185, 8);
     await set(w.benchLe.id, 2, 185, 8);
-    await completeWorkout({ loggedSessionId: w.loggedSessionId });
+    await completeWorkout(account, { loggedSessionId: w.loggedSessionId });
     const fly = await db().loggedExercise.findUniqueOrThrow({
       where: { id: w.flyLe.id },
     });
@@ -252,7 +283,7 @@ describe("finishing early", () => {
       await set(le.id, 1, 100, 8);
       await set(le.id, 2, 100, 8);
     }
-    await completeWorkout({ loggedSessionId: w.loggedSessionId });
+    await completeWorkout(account, { loggedSessionId: w.loggedSessionId });
     expect(
       await db().loggedExercise.count({ where: { skippedAt: { not: null } } }),
     ).toBe(0);

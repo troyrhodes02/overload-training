@@ -56,6 +56,7 @@ async function logPerf(opts: {
   const p = db();
   const ls = await p.loggedSession.create({
     data: {
+      userId: account.userId,
       mesocycleId: opts.mesocycleId,
       performedOn: new Date(`${opts.scheduledFor}T12:00:00Z`),
       scheduledFor: new Date(`${opts.scheduledFor}T00:00:00Z`),
@@ -68,6 +69,7 @@ async function logPerf(opts: {
   });
   const le = await p.loggedExercise.create({
     data: {
+      userId: account.userId,
       loggedSessionId: ls.id,
       exerciseId: opts.exerciseId,
       plannedExerciseId: opts.plannedExerciseId ?? opts.exerciseId,
@@ -81,6 +83,7 @@ async function logPerf(opts: {
   for (let i = 0; i < opts.reps.length; i++) {
     const s = await p.loggedSet.create({
       data: {
+        userId: account.userId,
         loggedExerciseId: le.id,
         setNumber: i + 1,
         weightLbs: opts.weights[i],
@@ -141,7 +144,7 @@ async function historySnapshot() {
 describe("goal creation", () => {
   it("creates a free-weight goal with no gym and an active status", async () => {
     const { bench } = await setup();
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: "315",
       targetReps: "1",
@@ -159,7 +162,7 @@ describe("goal creation", () => {
   it("rejects a gym on a gym-consistent exercise", async () => {
     const { bench, downtown } = await setup();
     await expectDomainError(
-      createGoal({
+      createGoal(account, {
         exerciseId: bench.id,
         gymId: downtown.id,
         targetWeightLbs: "315",
@@ -173,7 +176,7 @@ describe("goal creation", () => {
   it("requires an active gym for a machine/cable exercise", async () => {
     const { chestPress, downtown } = await setup();
     await expectDomainError(
-      createGoal({
+      createGoal(account, {
         exerciseId: chestPress.id,
         targetWeightLbs: "200",
         targetReps: "10",
@@ -186,7 +189,7 @@ describe("goal creation", () => {
       data: { deletedAt: new Date() },
     });
     await expectDomainError(
-      createGoal({
+      createGoal(account, {
         exerciseId: chestPress.id,
         gymId: downtown.id,
         targetWeightLbs: "200",
@@ -200,7 +203,7 @@ describe("goal creation", () => {
 
   it("creates a machine goal scoped to its gym", async () => {
     const { chestPress, downtown } = await setup();
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: "200",
@@ -217,7 +220,7 @@ describe("goal creation", () => {
       data: { deletedAt: new Date() },
     });
     await expectDomainError(
-      createGoal({
+      createGoal(account, {
         exerciseId: bench.id,
         targetWeightLbs: "315",
         targetReps: "1",
@@ -226,7 +229,7 @@ describe("goal creation", () => {
       { exerciseId: "Pick an active exercise." },
     );
     await expectDomainError(
-      createGoal({
+      createGoal(account, {
         exerciseId: "3f2c1d1e-8a7b-4c6d-9e0f-112233445566",
         targetWeightLbs: "315",
         targetReps: "1",
@@ -246,7 +249,7 @@ describe("goal creation", () => {
   ])("rejects %s and writes nothing", async (_label, fields) => {
     const { bench } = await setup();
     await expectDomainError(
-      createGoal({ exerciseId: bench.id, ...fields }),
+      createGoal(account, { exerciseId: bench.id, ...fields }),
       "validation_error",
     );
     expect(await db().goal.count()).toBe(0);
@@ -261,7 +264,7 @@ describe("goal creation", () => {
       isCustom: true,
       imageRef: null,
     });
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: custom.id,
       targetWeightLbs: "225",
       targetReps: "5",
@@ -273,13 +276,13 @@ describe("goal creation", () => {
 describe("one active goal per exercise (R6, R7, R18)", () => {
   it("blocks a second active goal on the same exercise — never replaces it", async () => {
     const { bench } = await setup();
-    const first = await createGoal({
+    const first = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: "315",
       targetReps: "1",
     });
     await expectDomainError(
-      createGoal({
+      createGoal(account, {
         exerciseId: bench.id,
         targetWeightLbs: "225",
         targetReps: "12",
@@ -295,14 +298,14 @@ describe("one active goal per exercise (R6, R7, R18)", () => {
 
   it("blocks a second active machine goal even at a different gym", async () => {
     const { chestPress, downtown, campus } = await setup();
-    await createGoal({
+    await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: "200",
       targetReps: "10",
     });
     await expectDomainError(
-      createGoal({
+      createGoal(account, {
         exerciseId: chestPress.id,
         gymId: campus.id,
         targetWeightLbs: "180",
@@ -318,39 +321,42 @@ describe("one active goal per exercise (R6, R7, R18)", () => {
       name: "Hack Squat",
       equipmentType: "barbell",
     });
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    await createGoal({
+    await createGoal(account, {
       exerciseId: squat.id,
       targetWeightLbs: 365,
       targetReps: 5,
     });
-    await createGoal({
+    await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 200,
       targetReps: 10,
     });
-    expect((await listActiveGoals()).map((g) => g.exerciseName)).toEqual([
-      "Barbell Bench Press",
-      "Hack Squat",
-      "Chest Press Machine",
-    ]);
+    expect((await listActiveGoals(account)).map((g) => g.exerciseName)).toEqual(
+      ["Barbell Bench Press", "Hack Squat", "Chest Press Machine"],
+    );
   });
 
   it("the database itself rejects a second active row (partial unique index)", async () => {
     const { bench } = await setup();
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
     await expect(
       db().goal.create({
-        data: { exerciseId: bench.id, targetWeightLbs: 300, targetReps: 1 },
+        data: {
+          userId: account.userId,
+          exerciseId: bench.id,
+          targetWeightLbs: 300,
+          targetReps: 1,
+        },
       }),
     ).rejects.toMatchObject({ code: "P2002" });
   });
@@ -386,7 +392,10 @@ describe("database constraints on the goal lifecycle", () => {
       },
     ];
     for (const data of bad) {
-      await expect(db().goal.create({ data })).rejects.toThrow();
+      // Owned rows, so only the lifecycle/target CHECK can be what rejects them.
+      await expect(
+        db().goal.create({ data: { ...data, userId: account.userId } }),
+      ).rejects.toThrow();
     }
     expect(await db().goal.count()).toBe(0);
   });
@@ -395,41 +404,43 @@ describe("database constraints on the goal lifecycle", () => {
 describe("manual archive (R9, R37, R38)", () => {
   it("archives as manual, keeps the record, and frees the exercise", async () => {
     const { bench } = await setup();
-    const first = await createGoal({
+    const first = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    await archiveGoal({ goalId: first.id });
+    await archiveGoal(account, { goalId: first.id });
     const g = await db().goal.findUniqueOrThrow({ where: { id: first.id } });
     expect(g.status).toBe("archived");
     expect(g.archiveReason).toBe("manual");
     expect(g.archivedAt).not.toBeNull();
 
-    const second = await createGoal({
+    const second = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 225,
       targetReps: 12,
     });
     expect(second.outcome).toBe("active");
     expect(await db().goal.count()).toBe(2);
-    expect((await listGoalHistory()).map((h) => h.goalId)).toEqual([first.id]);
+    expect((await listGoalHistory(account)).map((h) => h.goalId)).toEqual([
+      first.id,
+    ]);
   });
 
   it("archiving twice is an invalid transition; unknown goals are not found", async () => {
     const { bench } = await setup();
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    await archiveGoal({ goalId: r.id });
+    await archiveGoal(account, { goalId: r.id });
     await expectDomainError(
-      archiveGoal({ goalId: r.id }),
+      archiveGoal(account, { goalId: r.id }),
       "invalid_state_transition",
     );
     await expectDomainError(
-      archiveGoal({ goalId: "3f2c1d1e-8a7b-4c6d-9e0f-112233445566" }),
+      archiveGoal(account, { goalId: "3f2c1d1e-8a7b-4c6d-9e0f-112233445566" }),
       "not_found",
     );
   });
@@ -454,12 +465,12 @@ describe("goal progress — scope and current best (R13–R20)", () => {
       reps: [5, 5, 5],
       weights: [215, 215, 215], // weaker, newer, other gym
     });
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    const [g] = await listActiveGoals();
+    const [g] = await listActiveGoals(account);
     expect(g.goalId).toBe(r.id);
     expect(g.percent).toBe(87);
     expect(g.best).toMatchObject({
@@ -481,10 +492,11 @@ describe("goal progress — scope and current best (R13–R20)", () => {
       weights: [235],
     });
     const r = await createGoal(
+      account,
       { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
       new Date("2027-03-01T00:00:00Z"),
     );
-    const detail = await getGoalDetail(r.id);
+    const detail = await getGoalDetail(account, r.id);
     expect(detail?.kind === "active" && detail.percent).toBe(87);
   });
 
@@ -499,16 +511,21 @@ describe("goal progress — scope and current best (R13–R20)", () => {
       weights: [250, 250], // would exceed the goal if compared across gyms
     });
     await db().gymExerciseBaseline.create({
-      data: { gymId: downtown.id, exerciseId: chestPress.id, weightLbs: 300 },
+      data: {
+        userId: account.userId,
+        gymId: downtown.id,
+        exerciseId: chestPress.id,
+        weightLbs: 300,
+      },
     });
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 200,
       targetReps: 10,
     });
     expect(r.outcome).toBe("active"); // baseline and other-gym history are not evidence
-    let [g] = await listActiveGoals();
+    let [g] = await listActiveGoals(account);
     expect(g.percent).toBeNull();
     expect(g.best).toBeNull();
 
@@ -520,19 +537,19 @@ describe("goal progress — scope and current best (R13–R20)", () => {
       reps: [10, 10],
       weights: [170, 180], // 180 × 10 = 240 / 266.67 = 90%
     });
-    [g] = await listActiveGoals();
+    [g] = await listActiveGoals(account);
     expect(g.percent).toBe(90);
     expect(g.gymName).toBe("Downtown Gym");
   });
 
   it("a goal with no qualifying history is unmeasured, never 0%", async () => {
     const { bench } = await setup();
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    const [g] = await listActiveGoals();
+    const [g] = await listActiveGoals(account);
     expect(g.percent).toBeNull();
     expect(g.best).toBeNull();
   });
@@ -565,13 +582,13 @@ describe("goal progress — scope and current best (R13–R20)", () => {
       reps: [5],
       weights: [300],
     });
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
     expect(r.outcome).toBe("active");
-    const [g] = await listActiveGoals();
+    const [g] = await listActiveGoals(account);
     expect(g.percent).toBeNull();
   });
 
@@ -590,17 +607,17 @@ describe("goal progress — scope and current best (R13–R20)", () => {
       reps: [10],
       weights: [85],
     });
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    await createGoal({
+    await createGoal(account, {
       exerciseId: incline.id,
       targetWeightLbs: 100,
       targetReps: 10,
     });
-    const goals = await listActiveGoals();
+    const goals = await listActiveGoals(account);
     expect(goals.find((g) => g.exerciseId === bench.id)?.percent).toBeNull();
     expect(goals.find((g) => g.exerciseId === incline.id)?.percent).toBe(85);
   });
@@ -618,6 +635,7 @@ describe("completion (R25–R29)", () => {
     });
     const now = new Date("2026-11-20T10:00:00Z");
     const r = await createGoal(
+      account,
       { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
       now,
     );
@@ -627,11 +645,11 @@ describe("completion (R25–R29)", () => {
     expect(g.archiveReason).toBe("completed");
     expect(g.archivedAt?.getTime()).toBe(now.getTime());
     expect(g.createdAt.getTime()).toBe(now.getTime());
-    expect(await listActiveGoals()).toEqual([]);
-    const [reached] = await listUnacknowledgedCompletions();
+    expect(await listActiveGoals(account)).toEqual([]);
+    const [reached] = await listUnacknowledgedCompletions(account);
     expect(reached).toMatchObject({ goalId: r.id, alreadyReached: true });
     // The slot is free again.
-    const next = await createGoal({
+    const next = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 335,
       targetReps: 1,
@@ -641,7 +659,7 @@ describe("completion (R25–R29)", () => {
 
   it("an exact-target performance completes; one below stays active", async () => {
     const { meso, bench } = await setup();
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
@@ -653,7 +671,7 @@ describe("completion (R25–R29)", () => {
       reps: [1],
       weights: [310],
     });
-    expect(await reconcileGoalCompletions()).toEqual([]);
+    expect(await reconcileGoalCompletions(account)).toEqual([]);
     expect(
       (await db().goal.findUniqueOrThrow({ where: { id: r.id } })).status,
     ).toBe("active");
@@ -664,7 +682,7 @@ describe("completion (R25–R29)", () => {
       reps: [1],
       weights: [315],
     });
-    expect(await reconcileGoalCompletions()).toEqual([r.id]);
+    expect(await reconcileGoalCompletions(account)).toEqual([r.id]);
     const g = await db().goal.findUniqueOrThrow({ where: { id: r.id } });
     expect(g.status).toBe("archived");
     expect(g.archiveReason).toBe("completed");
@@ -672,7 +690,7 @@ describe("completion (R25–R29)", () => {
 
   it("reconciliation is idempotent: one transition, archivedAt written once", async () => {
     const { meso, bench } = await setup();
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 155,
       targetReps: 8,
@@ -686,11 +704,13 @@ describe("completion (R25–R29)", () => {
     });
     const t1 = new Date("2026-11-02T14:00:00Z");
     const t2 = new Date("2026-11-03T14:00:00Z");
-    expect(await reconcileGoalCompletions({ now: t1 })).toEqual([r.id]);
-    expect(await reconcileGoalCompletions({ now: t2 })).toEqual([]);
+    expect(await reconcileGoalCompletions(account, { now: t1 })).toEqual([
+      r.id,
+    ]);
+    expect(await reconcileGoalCompletions(account, { now: t2 })).toEqual([]);
     const [a, b] = await Promise.all([
-      reconcileGoalCompletions({ now: t2 }),
-      reconcileGoalCompletions({ now: t2 }),
+      reconcileGoalCompletions(account, { now: t2 }),
+      reconcileGoalCompletions(account, { now: t2 }),
     ]);
     expect([...a, ...b]).toEqual([]);
     const g = await db().goal.findUniqueOrThrow({ where: { id: r.id } });
@@ -700,18 +720,18 @@ describe("completion (R25–R29)", () => {
 
   it("acknowledgement is recorded once and only for completed goals", async () => {
     const { meso, bench } = await setup();
-    const active = await createGoal({
+    const active = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 400,
       targetReps: 1,
     });
     await expectDomainError(
-      acknowledgeGoalCompletion({ goalId: active.id }),
+      acknowledgeGoalCompletion(account, { goalId: active.id }),
       "invalid_state_transition",
     );
-    await archiveGoal({ goalId: active.id });
+    await archiveGoal(account, { goalId: active.id });
     await expectDomainError(
-      acknowledgeGoalCompletion({ goalId: active.id }),
+      acknowledgeGoalCompletion(account, { goalId: active.id }),
       "invalid_state_transition",
     );
 
@@ -722,20 +742,21 @@ describe("completion (R25–R29)", () => {
       reps: [1],
       weights: [320],
     });
-    const done = await createGoal({
+    const done = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
     const t1 = new Date("2026-11-21T00:00:00Z");
-    await acknowledgeGoalCompletion({ goalId: done.id }, t1);
+    await acknowledgeGoalCompletion(account, { goalId: done.id }, t1);
     await acknowledgeGoalCompletion(
+      account,
       { goalId: done.id },
       new Date("2026-11-22T00:00:00Z"),
     );
     const g = await db().goal.findUniqueOrThrow({ where: { id: done.id } });
     expect(g.completionAcknowledgedAt?.getTime()).toBe(t1.getTime());
-    expect(await listUnacknowledgedCompletions()).toEqual([]);
+    expect(await listUnacknowledgedCompletions(account)).toEqual([]);
   });
 });
 
@@ -749,26 +770,26 @@ describe("historical corrections (R29, R30, R28)", () => {
       reps: [5],
       weights: [235], // 87%
     });
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    expect((await listActiveGoals())[0].percent).toBe(87);
+    expect((await listActiveGoals(account))[0].percent).toBe(87);
 
-    await editLoggedSet({
+    await editLoggedSet(account, {
       loggedSetId: perf.setIds[0],
       weightLbs: 215,
       reps: 5,
     });
-    expect((await listActiveGoals())[0].percent).toBe(79);
+    expect((await listActiveGoals(account))[0].percent).toBe(79);
 
-    await editLoggedSet({
+    await editLoggedSet(account, {
       loggedSetId: perf.setIds[0],
       weightLbs: 245,
       reps: 5,
     });
-    expect((await listActiveGoals())[0].percent).toBe(90);
+    expect((await listActiveGoals(account))[0].percent).toBe(90);
   });
 
   it("an upward correction to the target completes the goal on reconciliation", async () => {
@@ -780,17 +801,17 @@ describe("historical corrections (R29, R30, R28)", () => {
       reps: [1],
       weights: [305],
     });
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    await editLoggedSet({
+    await editLoggedSet(account, {
       loggedSetId: perf.setIds[0],
       weightLbs: 315,
       reps: 1,
     });
-    expect(await reconcileGoalCompletions()).toEqual([r.id]);
+    expect(await reconcileGoalCompletions(account)).toEqual([r.id]);
   });
 
   it("a completed goal never reopens after a downward correction", async () => {
@@ -802,7 +823,7 @@ describe("historical corrections (R29, R30, R28)", () => {
       reps: [1],
       weights: [320],
     });
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
@@ -810,17 +831,17 @@ describe("historical corrections (R29, R30, R28)", () => {
     expect(r.outcome).toBe("completed");
     const before = await db().goal.findUniqueOrThrow({ where: { id: r.id } });
 
-    await editLoggedSet({
+    await editLoggedSet(account, {
       loggedSetId: perf.setIds[0],
       weightLbs: 300,
       reps: 1,
     });
-    await reconcileGoalCompletions();
+    await reconcileGoalCompletions(account);
     const after = await db().goal.findUniqueOrThrow({ where: { id: r.id } });
     expect(after.status).toBe("archived");
     expect(after.archiveReason).toBe("completed");
     expect(after.archivedAt?.getTime()).toBe(before.archivedAt?.getTime());
-    const detail = await getGoalDetail(r.id);
+    const detail = await getGoalDetail(account, r.id);
     expect(detail?.kind).toBe("archived");
   });
 });
@@ -844,24 +865,29 @@ describe("goals never mutate logged history or baselines", () => {
       weights: [180],
     });
     await db().gymExerciseBaseline.create({
-      data: { gymId: downtown.id, exerciseId: chestPress.id, weightLbs: 180 },
+      data: {
+        userId: account.userId,
+        gymId: downtown.id,
+        exerciseId: chestPress.id,
+        weightLbs: 180,
+      },
     });
     const before = await historySnapshot();
 
-    const done = await createGoal({
+    const done = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
     });
-    const machine = await createGoal({
+    const machine = await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 220,
       targetReps: 10,
     });
-    await reconcileGoalCompletions();
-    await acknowledgeGoalCompletion({ goalId: done.id });
-    await archiveGoal({ goalId: machine.id });
+    await reconcileGoalCompletions(account);
+    await acknowledgeGoalCompletion(account, { goalId: done.id });
+    await archiveGoal(account, { goalId: machine.id });
 
     expect(await historySnapshot()).toBe(before);
   });
@@ -870,7 +896,7 @@ describe("goals never mutate logged history or baselines", () => {
 describe("exercise and gym archival keep goals readable (R39–R41)", () => {
   it("an archived exercise's active goal stays readable and marked; new goals are refused", async () => {
     const { bench } = await setup();
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
@@ -879,16 +905,16 @@ describe("exercise and gym archival keep goals readable (R39–R41)", () => {
       where: { id: bench.id },
       data: { deletedAt: new Date() },
     });
-    const [g] = await listActiveGoals();
+    const [g] = await listActiveGoals(account);
     expect(g).toMatchObject({ goalId: r.id, exerciseArchived: true });
-    const detail = await getGoalDetail(r.id);
+    const detail = await getGoalDetail(account, r.id);
     expect(detail).toMatchObject({ kind: "active", exerciseArchived: true });
     expect(await getGoalFormContext(account, bench.id)).toMatchObject({
       kind: "archived_exercise",
     });
     // Still archivable by hand.
-    await archiveGoal({ goalId: r.id });
-    expect((await listGoalHistory())[0]).toMatchObject({
+    await archiveGoal(account, { goalId: r.id });
+    expect((await listGoalHistory(account))[0]).toMatchObject({
       goalId: r.id,
       exerciseArchived: true,
       outcome: "manual",
@@ -897,7 +923,7 @@ describe("exercise and gym archival keep goals readable (R39–R41)", () => {
 
   it("an archived gym's machine goal stays scoped to that gym, readable and marked", async () => {
     const { chestPress, downtown } = await setup();
-    const r = await createGoal({
+    const r = await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 200,
@@ -907,7 +933,7 @@ describe("exercise and gym archival keep goals readable (R39–R41)", () => {
       where: { id: downtown.id },
       data: { deletedAt: new Date() },
     });
-    const detail = await getGoalDetail(r.id);
+    const detail = await getGoalDetail(account, r.id);
     expect(detail).toMatchObject({
       kind: "active",
       gymId: downtown.id,
@@ -918,7 +944,7 @@ describe("exercise and gym archival keep goals readable (R39–R41)", () => {
 
   it("a hard delete of an exercise or gym referenced by a goal is rejected", async () => {
     const { chestPress, downtown } = await setup();
-    await createGoal({
+    await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 200,
@@ -937,7 +963,7 @@ describe("exercise and gym archival keep goals readable (R39–R41)", () => {
 describe("the target form context (design Screen 3)", () => {
   it("reports duplicate, no-gym, and gym preselection states", async () => {
     const { bench, chestPress, downtown, campus } = await setup();
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
@@ -970,13 +996,14 @@ describe("the target form context (design Screen 3)", () => {
 describe("completion through the real logging write path (OVE-31)", () => {
   it("logSet + completeWorkout, then the post-commit reconcile, completes the goal once", async () => {
     const { meso, bench } = await setup();
-    const goal = await createGoal({
+    const goal = await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 155,
       targetReps: 8,
     });
     const ls = await db().loggedSession.create({
       data: {
+        userId: account.userId,
         mesocycleId: meso.id,
         performedOn: new Date("2026-11-02T12:00:00Z"),
         scheduledFor: new Date("2026-11-02T00:00:00Z"),
@@ -984,6 +1011,7 @@ describe("completion through the real logging write path (OVE-31)", () => {
     });
     const le = await db().loggedExercise.create({
       data: {
+        userId: account.userId,
         loggedSessionId: ls.id,
         exerciseId: bench.id,
         plannedExerciseId: bench.id,
@@ -993,42 +1021,42 @@ describe("completion through the real logging write path (OVE-31)", () => {
       },
     });
 
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 160,
       reps: 7,
     });
     // In progress: not yet qualifying, so nothing completes.
-    expect(await reconcileGoalCompletions()).toEqual([]);
-    await logSet({
+    expect(await reconcileGoalCompletions(account)).toEqual([]);
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 2,
       weightLbs: 150,
       reps: 8,
     });
-    await completeWorkout({ loggedSessionId: ls.id });
+    await completeWorkout(account, { loggedSessionId: ls.id });
 
-    expect(await reconcileGoalCompletions()).toEqual([goal.id]);
-    expect(await reconcileGoalCompletions()).toEqual([]);
+    expect(await reconcileGoalCompletions(account)).toEqual([goal.id]);
+    expect(await reconcileGoalCompletions(account)).toEqual([]);
     // Completion never generates the next goal (R35, R36).
     expect(await db().goal.count()).toBe(1);
 
     // The record survives in history, the reached card is pending once.
-    expect(await listActiveGoals()).toEqual([]);
-    expect((await listGoalHistory())[0]).toMatchObject({
+    expect(await listActiveGoals(account)).toEqual([]);
+    expect((await listGoalHistory(account))[0]).toMatchObject({
       goalId: goal.id,
       outcome: "completed",
     });
-    const pending = await listUnacknowledgedCompletions();
+    const pending = await listUnacknowledgedCompletions(account);
     expect(pending).toHaveLength(1);
     expect(pending[0]).toMatchObject({
       goalId: goal.id,
       alreadyReached: false,
       newGoalHref: `/goals/new/${bench.id}`,
     });
-    await acknowledgeGoalCompletion({ goalId: goal.id });
-    expect(await listUnacknowledgedCompletions()).toEqual([]);
+    await acknowledgeGoalCompletion(account, { goalId: goal.id });
+    expect(await listUnacknowledgedCompletions(account)).toEqual([]);
 
     // The logged sets are exactly as entered.
     const sets = await db().loggedSet.findMany({
@@ -1051,14 +1079,14 @@ describe("completion through the real logging write path (OVE-31)", () => {
       reps: [10],
       weights: [210],
     });
-    const done = await createGoal({
+    const done = await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 200,
       targetReps: 10,
     });
     expect(done.outcome).toBe("completed");
-    expect(await getGoalDetail(done.id)).toMatchObject({
+    expect(await getGoalDetail(account, done.id)).toMatchObject({
       kind: "archived",
       outcome: "completed",
       unacknowledged: true,
@@ -1066,22 +1094,24 @@ describe("completion through the real logging write path (OVE-31)", () => {
       newGoalHref: `/goals/new/${chestPress.id}?gymId=${downtown.id}`,
     });
 
-    const next = await createGoal({
+    const next = await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 230,
       targetReps: 10,
     });
     expect(next.outcome).toBe("active");
-    expect(await getGoalDetail(done.id)).toMatchObject({ newGoalHref: null });
+    expect(await getGoalDetail(account, done.id)).toMatchObject({
+      newGoalHref: null,
+    });
 
-    await archiveGoal({ goalId: next.id });
+    await archiveGoal(account, { goalId: next.id });
     await db().gym.update({
       where: { id: downtown.id },
       data: { deletedAt: new Date() },
     });
     // Archived gym: the new-goal link keeps the lift but drops the gym.
-    expect(await getGoalDetail(done.id)).toMatchObject({
+    expect(await getGoalDetail(account, done.id)).toMatchObject({
       newGoalHref: `/goals/new/${chestPress.id}`,
     });
   });
@@ -1107,18 +1137,22 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       weights: [235],
     });
     const benchGoal = await createGoal(
+      account,
       { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
       new Date("2026-11-03T00:00:00Z"),
     );
     const ohpGoal = await createGoal(
+      account,
       { exerciseId: ohp.id, targetWeightLbs: 155, targetReps: 8 },
       new Date("2026-11-03T00:01:00Z"),
     );
     await createGoal(
+      account,
       { exerciseId: squat.id, targetWeightLbs: 365, targetReps: 5 },
       new Date("2026-11-03T00:00:00Z"),
     );
     await createGoal(
+      account,
       {
         exerciseId: chestPress.id,
         gymId: downtown.id,
@@ -1138,6 +1172,7 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
     });
     const ohpLe = await db().loggedExercise.create({
       data: {
+        userId: account.userId,
         loggedSessionId: today.loggedSessionId,
         exerciseId: ohp.id,
         plannedExerciseId: ohp.id,
@@ -1149,15 +1184,18 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
     });
     await db().loggedSet.create({
       data: {
+        userId: account.userId,
         loggedExerciseId: ohpLe.id,
         setNumber: 1,
         weightLbs: 160,
         reps: 7,
       },
     });
-    await reconcileGoalCompletions({ now: new Date("2026-11-09T14:00:00Z") });
+    await reconcileGoalCompletions(account, {
+      now: new Date("2026-11-09T14:00:00Z"),
+    });
 
-    const rows = await getSessionGoalSummary(today.loggedSessionId);
+    const rows = await getSessionGoalSummary(account, today.loggedSessionId);
     expect(rows).toEqual([
       {
         goalId: benchGoal.id,
@@ -1189,15 +1227,17 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       weights: [235],
     });
     await createGoal(
+      account,
       { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
       new Date("2026-11-02T18:00:00Z"),
     );
-    expect(await getSessionGoalSummary(s.loggedSessionId)).toEqual([]);
+    expect(await getSessionGoalSummary(account, s.loggedSessionId)).toEqual([]);
   });
 
   it("a first measured session has no 'before'", async () => {
     const { meso, bench } = await setup();
     await createGoal(
+      account,
       { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
       new Date("2026-11-01T00:00:00Z"),
     );
@@ -1208,20 +1248,22 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       reps: [5],
       weights: [235],
     });
-    expect(await getSessionGoalSummary(s.loggedSessionId)).toMatchObject([
+    expect(
+      await getSessionGoalSummary(account, s.loggedSessionId),
+    ).toMatchObject([
       { kind: "progress", percentBefore: null, percentAfter: 87 },
     ]);
   });
 
   it("a machine goal is touched only at its gym; a swap counts to the performed exercise", async () => {
     const { meso, bench, chestPress, downtown, campus } = await setup();
-    await createGoal({
+    await createGoal(account, {
       exerciseId: chestPress.id,
       gymId: downtown.id,
       targetWeightLbs: 200,
       targetReps: 10,
     });
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
@@ -1235,7 +1277,9 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       reps: [10],
       weights: [180],
     });
-    expect(await getSessionGoalSummary(atCampus.loggedSessionId)).toEqual([]);
+    expect(
+      await getSessionGoalSummary(account, atCampus.loggedSessionId),
+    ).toEqual([]);
 
     // Bench was planned but Chest Press Machine was performed (swap) at Downtown.
     const swapped = await logPerf({
@@ -1247,7 +1291,9 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       reps: [10],
       weights: [180],
     });
-    expect(await getSessionGoalSummary(swapped.loggedSessionId)).toMatchObject([
+    expect(
+      await getSessionGoalSummary(account, swapped.loggedSessionId),
+    ).toMatchObject([
       {
         exerciseName: "Chest Press Machine",
         kind: "progress",
@@ -1258,7 +1304,7 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
 
   it("an in-progress or scheduled-deload session touches no goal", async () => {
     const { meso, bench } = await setup();
-    await createGoal({
+    await createGoal(account, {
       exerciseId: bench.id,
       targetWeightLbs: 315,
       targetReps: 1,
@@ -1271,7 +1317,9 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       weights: [235],
       status: "in_progress",
     });
-    expect(await getSessionGoalSummary(inProgress.loggedSessionId)).toEqual([]);
+    expect(
+      await getSessionGoalSummary(account, inProgress.loggedSessionId),
+    ).toEqual([]);
     const deloadWeek = await logPerf({
       mesocycleId: meso.id,
       exerciseId: bench.id,
@@ -1279,12 +1327,15 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       reps: [5],
       weights: [215],
     });
-    expect(await getSessionGoalSummary(deloadWeek.loggedSessionId)).toEqual([]);
+    expect(
+      await getSessionGoalSummary(account, deloadWeek.loggedSessionId),
+    ).toEqual([]);
   });
 
   it("a goal completed by an earlier session is not re-announced by a later one", async () => {
     const { meso, bench } = await setup();
     await createGoal(
+      account,
       { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
       new Date("2026-11-01T00:00:00Z"),
     );
@@ -1295,7 +1346,9 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       reps: [1],
       weights: [320],
     });
-    await reconcileGoalCompletions({ now: new Date("2026-11-02T14:00:00Z") });
+    await reconcileGoalCompletions(account, {
+      now: new Date("2026-11-02T14:00:00Z"),
+    });
     const later = await logPerf({
       mesocycleId: meso.id,
       exerciseId: bench.id,
@@ -1303,6 +1356,8 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
       reps: [1],
       weights: [325],
     });
-    expect(await getSessionGoalSummary(later.loggedSessionId)).toEqual([]);
+    expect(await getSessionGoalSummary(account, later.loggedSessionId)).toEqual(
+      [],
+    );
   });
 });

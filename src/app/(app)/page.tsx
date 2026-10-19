@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatPlanDate } from "@/lib/plan/calendar";
-import { lifterToday } from "@/lib/time/lifter-time-zone";
 import { MissedDayPrompt } from "@/components/logging/missed-day-prompt";
 import {
   getTodayDashboard,
@@ -19,13 +18,15 @@ import { SessionGoalRows } from "@/components/goals/session-goal-rows";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { dashboardShowsGoals } from "@/lib/goals/dashboard";
 import { CardioCards, CardioFocal } from "@/components/cardio/cardio-today";
+import { accountToday, requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Today · Overload" };
 
 /** Post-session progression summary on the day-complete state (OVE-28; R52). */
 async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
+  const account = await requireAccount();
   const summary = state.loggedSessionId
-    ? await getSessionProgressionSummary(state.loggedSessionId)
+    ? await getSessionProgressionSummary(account, state.loggedSessionId)
     : null;
   return (
     <div className="rounded-lg border border-border bg-card p-6">
@@ -85,6 +86,7 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
 }
 
 async function TodayBlock({ state }: { state: DashboardTodayDto }) {
+  const account = await requireAccount();
   if (state.kind === "complete") {
     return (
       <div className="space-y-4">
@@ -105,7 +107,7 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
   // the 90% load is shown instead (R37).
   const progression = await Promise.all(
     state.exercises.map((e) =>
-      getPlannedProgression(e.exerciseId, {
+      getPlannedProgression(account, e.exerciseId, {
         scheduledDeloadWeek: state.scheduledDeloadWeek,
       }),
     ),
@@ -163,14 +165,15 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
 }
 
 export default async function TodayPage() {
-  const dash = await getTodayDashboard();
-  const today = formatPlanDate(await lifterToday());
+  const account = await requireAccount();
+  const dash = await getTodayDashboard(account);
+  const today = formatPlanDate(accountToday(account));
 
   // Goals fill the dashboard ONLY when no training action is pending (Goals
   // R42, R43). Completion is reconciled first (spec §11b, R54) so a just-met
   // goal shows its card and the summary can say "Goal reached".
   const showGoals = dashboardShowsGoals(dash.kind);
-  if (showGoals) await reconcileGoalCompletionsSafely();
+  if (showGoals) await reconcileGoalCompletionsSafely(account);
 
   if (dash.kind === "no_plan") {
     return (

@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@/lib/db";
+import { type Account } from "@/lib/data/account";
 import {
   addDays,
   formatPlanDate,
@@ -23,17 +23,18 @@ export type CardioOccurrenceDto = CardioEntry & {
 
 /** The cardio entries of one week of the given (active) mesocycle. */
 export async function getCardioWeek(
+  account: Account,
   active: { mesocycleId: string; ctx: ScheduleContext },
   week: number,
   todayIso: string,
 ): Promise<CardioOccurrenceDto[]> {
   const weekStart = addDays(active.ctx.startDate, (week - 1) * 7);
   const [planned, logs] = await Promise.all([
-    prisma.plannedCardio.findMany({
+    account.db.plannedCardio.findMany({
       where: { mesocycleId: active.mesocycleId },
     }),
     // Only this week's records (by occurrence date).
-    prisma.cardioLog.findMany({
+    account.db.cardioLog.findMany({
       where: {
         mesocycleId: active.mesocycleId,
         scheduledFor: {

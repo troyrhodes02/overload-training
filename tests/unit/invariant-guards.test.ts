@@ -17,8 +17,9 @@ function walk(dir: string, acc: string[] = []): string[] {
 describe("logged-history write guard", () => {
   it("has no LoggedSet write outside lib/logging/logged-sets.ts", () => {
     const offenders: string[] = [];
+    // Any receiver: the raw client, account.db, or a (scoped) transaction.
     const writeRe =
-      /prisma\s*\.\s*loggedSet\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)/;
+      /\.\s*loggedSet\s*\.\s*(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\b/;
     for (const file of walk(SRC)) {
       const rel = path.relative(REPO_ROOT, file);
       if (rel.replace(/\\/g, "/") === "src/lib/logging/logged-sets.ts")

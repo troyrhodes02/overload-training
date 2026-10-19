@@ -1,7 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import {
   changeGym,
@@ -30,9 +30,9 @@ export async function startWorkoutAction(input: {
   scheduledFor: string;
   gymId: string;
 }): Promise<ActionResult<{ loggedSessionId: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => startOrResumeWorkout(input),
+    () => startOrResumeWorkout(account, input),
     "Couldn't start the workout. Nothing was changed.",
   );
   if (result.ok) refresh();
@@ -43,9 +43,9 @@ export async function changeGymAction(input: {
   loggedSessionId: string;
   gymId: string;
 }): Promise<ActionResult<{ ok: true }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await changeGym(input);
+    await changeGym(account, input);
     return { ok: true as const };
   }, "Couldn't change the gym.");
   if (result.ok) refresh();
@@ -55,13 +55,13 @@ export async function changeGymAction(input: {
 export async function logSetAction(
   input: LogSetInput,
 ): Promise<ActionResult<{ setId: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    async () => ({ setId: (await logSet(input)).id }),
+    async () => ({ setId: (await logSet(account, input)).id }),
     "Couldn't save. Your numbers are still here.",
   );
   if (result.ok) {
-    await reconcileGoalCompletionsSafely();
+    await reconcileGoalCompletionsSafely(account);
     refresh();
   }
   return result;
@@ -71,9 +71,9 @@ export async function swapExerciseAction(input: {
   loggedExerciseId: string;
   newExerciseId: string;
 }): Promise<ActionResult<{ ok: true }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await swapExercise(input);
+    await swapExercise(account, input);
     return { ok: true as const };
   }, "Couldn't swap the exercise.");
   if (result.ok) refresh();
@@ -85,9 +85,9 @@ export async function setExerciseSkippedAction(input: {
   loggedExerciseId: string;
   skipped: boolean;
 }): Promise<ActionResult<{ ok: true }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await setExerciseSkipped(input);
+    await setExerciseSkipped(account, input);
     return { ok: true as const };
   }, "Couldn't update the exercise.");
   if (result.ok) refresh();
@@ -97,13 +97,13 @@ export async function setExerciseSkippedAction(input: {
 export async function completeWorkoutAction(input: {
   loggedSessionId: string;
 }): Promise<ActionResult<{ ok: true }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await completeWorkout(input);
+    await completeWorkout(account, input);
     return { ok: true as const };
   }, "Couldn't finish the workout.");
   if (result.ok) {
-    await reconcileGoalCompletionsSafely();
+    await reconcileGoalCompletionsSafely(account);
     refresh();
   }
   return result;
@@ -120,9 +120,9 @@ export async function resolveMissedDayAction(input: {
   missedOn: string;
   outcome: "shifted" | "skipped";
 }): Promise<ActionResult<{ ok: true }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await resolveMissedDay(input);
+    await resolveMissedDay(account, input);
     return { ok: true as const };
   }, "Couldn't resolve the missed day.");
   if (result.ok) refresh();
@@ -141,9 +141,9 @@ export async function logCardioAction(input: {
   type: string;
   durationMin: string;
 }): Promise<ActionResult<{ cardioLogId: string; alreadyLogged: boolean }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => logCardio(input),
+    () => logCardio(account, input),
     "Couldn't save. Your entries are still here.",
   );
   if (result.ok) refresh();

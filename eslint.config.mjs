@@ -29,22 +29,6 @@ const RAW_DATA_ACCESS = {
   ],
 };
 
-/**
- * TEMPORARY (Multi-User Foundation OVE-38 → OVE-39): domains not yet converted
- * to the account-scoped layer. OVE-39 converts them and empties this list.
- */
-const NOT_YET_SCOPED = [
-  "src/lib/cardio/cardio-logs.ts",
-  "src/lib/cardio/queries.ts",
-  "src/lib/goals/goals.ts",
-  "src/lib/goals/queries.ts",
-  "src/lib/logging/logged-sets.ts",
-  "src/lib/logging/missed-days.ts",
-  "src/lib/logging/queries.ts",
-  "src/lib/logging/sessions.ts",
-  "src/lib/progression/queries.ts",
-];
-
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -61,7 +45,7 @@ const eslintConfig = defineConfig([
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/data/**", ...NOT_YET_SCOPED],
+    ignores: ["src/lib/data/**"],
     rules: { "no-restricted-imports": ["error", RAW_DATA_ACCESS] },
   },
 ]);

@@ -31,7 +31,8 @@ async function ProgressionSection({
   exerciseId: string;
   gymId?: string;
 }) {
-  const dto = await getExerciseProgression(exerciseId, gymId);
+  const account = await requireAccount();
+  const dto = await getExerciseProgression(account, exerciseId, gymId);
   if (!dto) return null;
 
   const scope = dto.isGymVariable ? dto.selectedGymName : null;

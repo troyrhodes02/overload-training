@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { BackLink } from "@/components/plan/plan-bits";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { listGoalHistory } from "@/lib/goals/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Goal history · Overload" };
 
@@ -15,11 +16,12 @@ export const metadata = { title: "Goal history · Overload" };
  * icons and text only (no status color).
  */
 export default async function GoalHistoryPage() {
+  const account = await requireAccount();
   // Request-time only: reconciliation may write a completion, which must
   // never happen during a build-time prerender (and reads the clock).
   await connection();
-  await reconcileGoalCompletionsSafely();
-  const history = await listGoalHistory();
+  await reconcileGoalCompletionsSafely(account);
+  const history = await listGoalHistory(account);
 
   return (
     <section className="space-y-4">

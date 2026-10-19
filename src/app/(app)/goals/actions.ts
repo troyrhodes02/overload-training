@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import {
   acknowledgeGoalCompletion,
@@ -32,10 +32,10 @@ export async function createGoalAction(
   _prev: GoalFormState,
   formData: FormData,
 ): Promise<GoalFormState> {
-  await requireUser();
+  const account = await requireAccount();
   const raw = goalInputFromFormData(formData);
   const result = await toActionResult(
-    () => createGoal(raw),
+    () => createGoal(account, raw),
     "Couldn't set the goal. Your numbers are still here.",
   );
   if (result.ok) {
@@ -61,10 +61,10 @@ export async function createGoalAction(
 export async function archiveGoalAction(
   goalId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   // No refresh(): the client navigates to /goals, which renders fresh.
   return toActionResult(
-    () => archiveGoal({ goalId }),
+    () => archiveGoal(account, { goalId }),
     "Couldn't archive the goal. Nothing changed.",
   );
 }
@@ -73,9 +73,9 @@ export async function archiveGoalAction(
 export async function acknowledgeGoalCompletionAction(
   goalId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => acknowledgeGoalCompletion({ goalId }),
+    () => acknowledgeGoalCompletion(account, { goalId }),
     "Couldn't update the goal. Try again.",
   );
   if (result.ok) refresh();

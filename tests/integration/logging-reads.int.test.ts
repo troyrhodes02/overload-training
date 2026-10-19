@@ -13,6 +13,14 @@ import {
   getTodayDashboard,
   getWorkout,
 } from "@/lib/logging/queries";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Read layer for the dashboard and runner (OVE-22). Dashboard "today" logic is
@@ -24,7 +32,7 @@ const db = () => getTestPrisma();
 describe("getTodayDashboard", () => {
   it("returns no_plan when there is no active mesocycle", async () => {
     await createTestMesocycle({ status: "draft" });
-    expect(await getTodayDashboard()).toEqual({ kind: "no_plan" });
+    expect(await getTodayDashboard(account)).toEqual({ kind: "no_plan" });
   });
 });
 
@@ -40,9 +48,11 @@ describe("getWorkout", () => {
     await createTestSessionExercise(session.id, exercise.id, {
       plannedSets: 3,
     });
-    const gym = await db().gym.create({ data: { name: "Downtown Gym" } });
+    const gym = await db().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
 
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId: session.id,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
@@ -50,14 +60,14 @@ describe("getWorkout", () => {
     const le = await db().loggedExercise.findFirstOrThrow({
       where: { loggedSessionId },
     });
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 120,
       reps: 8,
     });
 
-    const workout = await getWorkout(loggedSessionId);
+    const workout = await getWorkout(account, loggedSessionId);
     expect(workout).not.toBeNull();
     expect(workout!.sessionName).toBe("Push Day 1");
     expect(workout!.gymLocked).toBe(true); // a set exists
@@ -81,7 +91,9 @@ describe("getWorkout", () => {
   });
 
   it("returns null for an unknown workout", async () => {
-    expect(await getWorkout("00000000-0000-0000-0000-000000000000")).toBeNull();
+    expect(
+      await getWorkout(account, "00000000-0000-0000-0000-000000000000"),
+    ).toBeNull();
   });
 });
 
@@ -95,7 +107,9 @@ describe("getSwapContext", () => {
     });
     const session = await createTestSession(meso.id, { dayOfWeek: 1 });
     await createTestSessionExercise(session.id, planned.id, { plannedSets: 3 });
-    const gym = await db().gym.create({ data: { name: "Downtown Gym" } });
+    const gym = await db().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
 
     await createTestExercise({
       name: "Incline DB Press",
@@ -113,7 +127,7 @@ describe("getSwapContext", () => {
       deletedAt: new Date(),
     });
 
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId: session.id,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
@@ -122,7 +136,7 @@ describe("getSwapContext", () => {
       where: { loggedSessionId },
     });
 
-    const ctx = await getSwapContext(le.id);
+    const ctx = await getSwapContext(account, le.id);
     // Favorite first, then alpha; excludes the performed (Chest Press Machine),
     // the back exercise, and the archived one.
     expect(ctx!.candidates.map((c) => c.name)).toEqual([
@@ -131,13 +145,13 @@ describe("getSwapContext", () => {
     ]);
     expect(ctx!.swapLocked).toBe(false);
 
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 100,
       reps: 8,
     });
-    const locked = await getSwapContext(le.id);
+    const locked = await getSwapContext(account, le.id);
     expect(locked!.swapLocked).toBe(true);
   });
 });
@@ -154,9 +168,11 @@ describe("getLoggedWorkoutDetail", () => {
     await createTestSessionExercise(session.id, exercise.id, {
       plannedSets: 1,
     });
-    const gym = await db().gym.create({ data: { name: "Downtown Gym" } });
+    const gym = await db().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
 
-    const { loggedSessionId } = await startOrResumeWorkout({
+    const { loggedSessionId } = await startOrResumeWorkout(account, {
       sessionId: session.id,
       scheduledFor: "2026-11-02",
       gymId: gym.id,
@@ -164,7 +180,7 @@ describe("getLoggedWorkoutDetail", () => {
     const le = await db().loggedExercise.findFirstOrThrow({
       where: { loggedSessionId },
     });
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: le.id,
       setNumber: 1,
       weightLbs: 90,
@@ -181,7 +197,7 @@ describe("getLoggedWorkoutDetail", () => {
       data: { deletedAt: new Date() },
     });
 
-    const detail = await getLoggedWorkoutDetail(loggedSessionId);
+    const detail = await getLoggedWorkoutDetail(account, loggedSessionId);
     expect(detail!.gymName).toBe("Downtown Gym");
     expect(detail!.exercises[0].performedName).toBe("Chest Press Machine");
     expect(detail!.exercises[0].archived).toBe(true);

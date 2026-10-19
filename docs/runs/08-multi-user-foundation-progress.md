@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — implementing tickets (OVE-39 next).
+Step 8 — implementing tickets (OVE-40 next).
 
 ## Authority used (read before resuming)
 
@@ -61,7 +61,8 @@ Step 8 — implementing tickets (OVE-39 next).
 (stacked: OVE-36 branches from the feature branch; each next from the previous)
 - OVE-36 → branch `feat/ove-36-ownership-expand-scoped-layer` → **PR #50** (base `feat/08-multi-user-foundation`) · In Review · verified: lint, typecheck, format, unit 549, integration 327, build
 - OVE-37 → branch `feat/ove-37-ownership-backfill` → **PR #51** (base `feat/ove-36-…`) · In Review · verified: lint, typecheck, format, unit 554, integration 340, build
-- OVE-38 → branch `feat/ove-38-scope-plan-library-gyms` → PR (base `feat/ove-37-…`) · verified: lint, typecheck, format, unit 561, integration 358, build
+- OVE-38 → branch `feat/ove-38-scope-plan-library-gyms` → **PR #52** (base `feat/ove-37-…`) · In Review · verified: lint, typecheck, format, unit 561, integration 358, build
+- OVE-39 → branch `feat/ove-39-scope-logging-goals-cardio-progression` → PR (base `feat/ove-38-…`) · verified: lint, typecheck, format, unit 561, integration 375, build
 
 ## Resolved Decisions so far
 
@@ -75,6 +76,9 @@ R1–R24 are recorded in `docs/specs/08-multi-user-foundation-spec.md` → Resol
 
 - Wrap jest runs in `timeout` — one isolation run stalled once without reproducing.
 - OVE-38 left for OVE-39: swap-picker favorite ordering still reads the deprecated `exercises.is_favorite` column (logging queries); the per-account active-mesocycle test moves to OVE-40 (needs the per-user index from migration 10).
+
+- Integration runs: use the scratchpad `itest.sh` pattern — kill orphaned embedded postgres, set a random `TEST_PG_PORT`, wrap in `timeout`.
+- OVE-39 → OVE-40 hand-offs: (1) two accounts each with an ACTIVE mesocycle and (2) two accounts each with an active goal on the same library exercise both need migration 10's per-account indexes. Until then the global goal index lets B's createGoal hit P2002 on A's goal and answer "already has an active goal" — a transitional cross-account detection that OVE-40 removes (test lives in ownership-enforce). The logging isolation tests use a DRAFT plan for B for the same reason.
 
 ## Deferred / flagged
 

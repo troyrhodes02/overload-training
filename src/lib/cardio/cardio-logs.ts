@@ -1,13 +1,12 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { accountToday, type Account } from "@/lib/data/account";
+import type { AccountDb, AccountTx } from "@/lib/data/account-db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import {
   mesocycleWeekForDate,
   parseIsoDate,
   toIsoDate,
 } from "@/lib/plan/calendar";
-import { lifterToday } from "@/lib/time/lifter-time-zone";
 import { isUniqueViolation } from "@/lib/plan/write-support";
 import { loadScheduleContext } from "@/lib/logging/schedule-context";
 import { cardioWeekOccurrences } from "./schedule";
@@ -34,7 +33,7 @@ import { parseCardioEntry } from "./validation";
  *    anything.
  */
 
-type Db = Prisma.TransactionClient;
+type Db = AccountTx;
 
 export type LogCardioInput = {
   mesocycleId: string;
@@ -60,7 +59,7 @@ function parseEntry(raw: { type: unknown; durationMin: unknown }) {
 }
 
 async function existingLog(
-  db: Db,
+  db: AccountDb,
   mesocycleId: string,
   date: Date,
 ): Promise<{ id: string } | null> {
@@ -71,6 +70,7 @@ async function existingLog(
 }
 
 async function logCardioInTx(
+  account: Account,
   input: LogCardioInput,
   tx: Db,
 ): Promise<LogCardioResult> {
@@ -128,7 +128,7 @@ async function logCardioInTx(
       "That day was shifted out of the week.",
     );
   }
-  if (occurrence.effectiveIso > (await lifterToday())) {
+  if (occurrence.effectiveIso > accountToday(account)) {
     throw new DomainError(
       "invalid_state_transition",
       "That cardio isn't due yet.",
@@ -142,6 +142,7 @@ async function logCardioInTx(
   // out of scope for Pitch 7 (review finding, deferred; spec R51).
   const log = await tx.cardioLog.create({
     data: {
+      userId: account.userId,
       mesocycleId: meso.id,
       scheduledFor: date,
       plannedType: occurrence.type,
@@ -161,19 +162,22 @@ async function logCardioInTx(
  * the unique index) is returned with `alreadyLogged: true`, unchanged.
  */
 export async function logCardio(
+  account: Account,
   input: LogCardioInput,
   tx?: Db,
 ): Promise<LogCardioResult> {
-  if (tx) return logCardioInTx(input, tx);
+  if (tx) return logCardioInTx(account, input, tx);
   try {
-    return await prisma.$transaction((t) => logCardioInTx(input, t));
+    return await account.db.$transaction((t) =>
+      logCardioInTx(account, input, t),
+    );
   } catch (error) {
     // Only when this module opened the transaction: a concurrent submission
     // for the same occurrence won the unique index — it is already recorded.
     if (isUniqueViolation(error)) {
       const date = parseIsoDate(input.scheduledFor);
       const existing = date
-        ? await existingLog(prisma, input.mesocycleId, date)
+        ? await existingLog(account.db, input.mesocycleId, date)
         : null;
       if (existing) return { cardioLogId: existing.id, alreadyLogged: true };
     }
@@ -187,6 +191,7 @@ export async function logCardio(
  * downstream, because nothing downstream reads cardio (R34).
  */
 export async function editCardioLog(
+  account: Account,
   input: { cardioLogId: string; type: unknown; durationMin: unknown },
   tx?: Db,
 ): Promise<{ id: string }> {
@@ -207,5 +212,5 @@ export async function editCardioLog(
     });
     return { id: row.id };
   };
-  return tx ? run(tx) : prisma.$transaction(run);
+  return tx ? run(tx) : account.db.$transaction(run);
 }

@@ -33,7 +33,7 @@ export default async function NewGoalTargetPage({
   // Reconcile first (request time only) so a goal history has already met is
   // never presented as the "active goal" blocking a new one (R54).
   await connection();
-  await reconcileGoalCompletionsSafely();
+  await reconcileGoalCompletionsSafely(account);
   const gymParam = Array.isArray(sp.gymId) ? sp.gymId[0] : sp.gymId;
   const ctx = await getGoalFormContext(account, exerciseId, gymParam ?? null);
   if (ctx.kind === "not_found") notFound();

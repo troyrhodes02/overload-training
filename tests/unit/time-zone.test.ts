@@ -1,18 +1,19 @@
-const cookieStore = { get: jest.fn() };
-const cookiesMock = jest.fn(async () => cookieStore);
-jest.mock("next/headers", () => ({ cookies: () => cookiesMock() }));
-// formatGoalDate is pure; its module also holds DB reads we never call here.
+// formatGoalDate / accountToday are pure; their modules also hold DB reads we
+// never call here.
 jest.mock("@/lib/db", () => ({ prisma: {} }));
+jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
 
+import fs from "node:fs";
+import path from "node:path";
 import { isoDateInZone, isValidTimeZone, todayIso } from "@/lib/plan/calendar";
-import { lifterTimeZone, lifterToday } from "@/lib/time/lifter-time-zone";
+import { accountToday, type Account } from "@/lib/data/account";
 import { formatGoalDate } from "@/lib/goals/queries";
-import { TIME_ZONE_COOKIE } from "@/lib/time/time-zone";
 
 /**
- * "Today" follows the lifter's own time zone (from the browser, via a
- * cookie); date arithmetic stays on UTC midnights. 2026-10-13T02:30Z is
- * Monday evening in Dallas and already Tuesday in UTC and Tokyo.
+ * "Today" follows the ACCOUNT's stored time zone (Profile.timeZone —
+ * Multi-User Foundation spec R18); date arithmetic stays on UTC midnights.
+ * 2026-10-13T02:30Z is Monday evening in Dallas and already Tuesday in UTC
+ * and Tokyo.
  */
 const MONDAY_EVENING_CDT = new Date("2026-10-13T02:30:00Z");
 
@@ -41,41 +42,51 @@ describe("calendar date in a time zone", () => {
   });
 });
 
-describe("the lifter's time zone (server)", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    cookiesMock.mockImplementation(async () => cookieStore);
-  });
+describe("today is the account's stored time zone (server)", () => {
+  const account = (timeZone: string) =>
+    ({ userId: "u", timeZone, db: {} }) as unknown as Account;
 
-  it("reads the zone the browser stored", async () => {
-    cookieStore.get.mockReturnValue({ value: "America%2FChicago" });
-    expect(await lifterTimeZone()).toBe("America/Chicago");
-    expect(cookieStore.get).toHaveBeenCalledWith(TIME_ZONE_COOKIE);
-  });
-
-  it("falls back to UTC with no cookie, a bad value, or no request", async () => {
-    cookieStore.get.mockReturnValue(undefined);
-    expect(await lifterTimeZone()).toBe("UTC");
-    cookieStore.get.mockReturnValue({ value: "Not/A_Zone" });
-    expect(await lifterTimeZone()).toBe("UTC");
-    cookieStore.get.mockReturnValue({ value: "%E0%A4%A" }); // malformed encoding
-    expect(await lifterTimeZone()).toBe("UTC");
-    cookiesMock.mockImplementation(async () => {
-      throw new Error("cookies was called outside a request scope");
-    });
-    expect(await lifterTimeZone()).toBe("UTC");
-  });
-
-  it("today is the lifter's calendar date", async () => {
+  it("today is the account's calendar date, not the server's", () => {
     jest.useFakeTimers().setSystemTime(MONDAY_EVENING_CDT);
     try {
-      cookieStore.get.mockReturnValue({ value: "America/Chicago" });
-      expect(await lifterToday()).toBe("2026-10-12");
-      cookieStore.get.mockReturnValue(undefined);
-      expect(await lifterToday()).toBe("2026-10-13");
+      expect(accountToday(account("America/Chicago"))).toBe("2026-10-12");
+      expect(accountToday(account("UTC"))).toBe("2026-10-13");
+      expect(accountToday(account("Asia/Tokyo"))).toBe("2026-10-13");
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it("11:30 pm Sunday in the account's zone is still Sunday", () => {
+    // 2026-10-19T04:30Z = Sunday 23:30 in America/Chicago (CDT, UTC-5).
+    jest.useFakeTimers().setSystemTime(new Date("2026-10-19T04:30:00Z"));
+    try {
+      expect(accountToday(account("America/Chicago"))).toBe("2026-10-18");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("the browser-cookie authority is gone", () => {
+    const root = path.resolve(__dirname, "..", "..");
+    expect(
+      fs.existsSync(path.join(root, "src/lib/time/lifter-time-zone.ts")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(root, "src/components/shell/time-zone-sync.tsx")),
+    ).toBe(false);
+    const walk = (d: string): string[] =>
+      fs
+        .readdirSync(d, { withFileTypes: true })
+        .flatMap((e) =>
+          e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)],
+        );
+    const offenders = walk(path.join(root, "src")).filter((f) =>
+      /overload-tz|lifterToday|lifterTimeZone|TimeZoneSync/.test(
+        fs.readFileSync(f, "utf8"),
+      ),
+    );
+    expect(offenders).toEqual([]);
   });
 });
 

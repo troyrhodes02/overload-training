@@ -1,5 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
+import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 
@@ -14,7 +16,7 @@ import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
  * exercise). It never rewrites a LoggedSet, and editing history never replays it.
  */
 
-type Db = Prisma.TransactionClient;
+type Db = AccountTx;
 
 /**
  * Bucket C tunable product default (NOT PRD-derived). Correct the baseline when
@@ -52,9 +54,12 @@ export function shouldCorrect(
  * caller's transaction. No-op unless the PERFORMED exercise is gym-variable, the
  * workout has a gym, and every planned working set is present. The first
  * collection at a gym ESTABLISHES (never a "correction"); later ones correct
- * only at/above the threshold. Scoped to this (gymId, exerciseId) only.
+ * only at/above the threshold. Scoped to this (gymId, exerciseId) only — and,
+ * because it runs on the acting account's scoped transaction, to that
+ * account's own gym (Multi-User Foundation).
  */
 export async function applyBaselineOnCompletion(
+  account: Account,
   loggedExerciseId: string,
   tx: Db,
 ): Promise<void> {
@@ -83,7 +88,12 @@ export async function applyBaselineOnCompletion(
   if (!existing) {
     // First log at this gym establishes the baseline; not a correction.
     await tx.gymExerciseBaseline.create({
-      data: { gymId: le.gymId, exerciseId: le.exerciseId, weightLbs: median },
+      data: {
+        userId: account.userId,
+        gymId: le.gymId,
+        exerciseId: le.exerciseId,
+        weightLbs: median,
+      },
     });
     return;
   }

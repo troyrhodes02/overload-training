@@ -62,7 +62,9 @@ async function makePlan(opts: {
     targetRepMin: opts.repMin ?? 6,
     targetRepMax: opts.repMax ?? 12,
   });
-  const gym = await db().gym.create({ data: { name: "Downtown Gym" } });
+  const gym = await db().gym.create({
+    data: { userId: account.userId, name: "Downtown Gym" },
+  });
   return { sessionId: session.id, exerciseId: exercise.id, gymId: gym.id };
 }
 
@@ -70,7 +72,7 @@ async function start(
   plan: { sessionId: string; gymId: string },
   scheduledFor: string,
 ) {
-  const { loggedSessionId } = await startOrResumeWorkout({
+  const { loggedSessionId } = await startOrResumeWorkout(account, {
     sessionId: plan.sessionId,
     scheduledFor,
     gymId: plan.gymId,
@@ -89,13 +91,13 @@ async function pullUpSession(
 ) {
   const w = await start(plan, scheduledFor);
   for (let i = 0; i < reps.length; i++) {
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: w.loggedExerciseId,
       setNumber: i + 1,
       reps: reps[i],
     });
   }
-  await completeWorkout({ loggedSessionId: w.loggedSessionId });
+  await completeWorkout(account, { loggedSessionId: w.loggedSessionId });
   return w;
 }
 
@@ -106,7 +108,11 @@ describe("bodyweight set validation and storage", () => {
     const plan = await makePlan(PULL_UPS);
     const { loggedExerciseId } = await start(plan, "2026-11-02");
 
-    const set = await logSet({ loggedExerciseId, setNumber: 1, reps: 15 });
+    const set = await logSet(account, {
+      loggedExerciseId,
+      setNumber: 1,
+      reps: 15,
+    });
 
     expect(set.weightLbs).toBeNull();
     expect(set.reps).toBe(15);
@@ -118,7 +124,7 @@ describe("bodyweight set validation and storage", () => {
   it("accepts an explicit null weight the same as an omitted one", async () => {
     const plan = await makePlan(PULL_UPS);
     const { loggedExerciseId } = await start(plan, "2026-11-02");
-    const set = await logSet({
+    const set = await logSet(account, {
       loggedExerciseId,
       setNumber: 1,
       weightLbs: null,
@@ -135,7 +141,7 @@ describe("bodyweight set validation and storage", () => {
     const plan = await makePlan(PULL_UPS);
     const { loggedExerciseId } = await start(plan, "2026-11-02");
     await expect(
-      logSet({ loggedExerciseId, setNumber: 1, reps }),
+      logSet(account, { loggedExerciseId, setNumber: 1, reps }),
     ).rejects.toMatchObject({ code: "validation_error" });
     expect(await db().loggedSet.count()).toBe(0);
   });
@@ -150,7 +156,12 @@ describe("bodyweight set validation and storage", () => {
       const plan = await makePlan(PULL_UPS);
       const { loggedExerciseId } = await start(plan, "2026-11-02");
       await expect(
-        logSet({ loggedExerciseId, setNumber: 1, weightLbs, reps: 15 }),
+        logSet(account, {
+          loggedExerciseId,
+          setNumber: 1,
+          weightLbs,
+          reps: 15,
+        }),
       ).rejects.toMatchObject({
         code: "validation_error",
         details: { weightLbs: expect.any(String) },
@@ -162,11 +173,19 @@ describe("bodyweight set validation and storage", () => {
   it("an identical reps-only retry is idempotent; a different one conflicts", async () => {
     const plan = await makePlan(PULL_UPS);
     const { loggedExerciseId } = await start(plan, "2026-11-02");
-    const first = await logSet({ loggedExerciseId, setNumber: 1, reps: 15 });
-    const again = await logSet({ loggedExerciseId, setNumber: 1, reps: 15 });
+    const first = await logSet(account, {
+      loggedExerciseId,
+      setNumber: 1,
+      reps: 15,
+    });
+    const again = await logSet(account, {
+      loggedExerciseId,
+      setNumber: 1,
+      reps: 15,
+    });
     expect(again.id).toBe(first.id);
     await expect(
-      logSet({ loggedExerciseId, setNumber: 1, reps: 14 }),
+      logSet(account, { loggedExerciseId, setNumber: 1, reps: 14 }),
     ).rejects.toMatchObject({ code: "conflict" });
     expect(await db().loggedSet.count()).toBe(1);
   });
@@ -176,7 +195,13 @@ describe("bodyweight set validation and storage", () => {
     const { loggedExerciseId } = await start(plan, "2026-11-02");
     await expect(
       db().loggedSet.create({
-        data: { loggedExerciseId, setNumber: 1, weightLbs: 0, reps: 15 },
+        data: {
+          userId: account.userId,
+          loggedExerciseId,
+          setNumber: 1,
+          weightLbs: 0,
+          reps: 15,
+        },
       }),
     ).rejects.toThrow(/logged_sets_weight_positive_or_null/);
   });
@@ -194,7 +219,7 @@ describe("external-load validation is unchanged", () => {
     const plan = await makePlan(BENCH);
     const { loggedExerciseId } = await start(plan, "2026-11-02");
     await expect(
-      logSet({ loggedExerciseId, setNumber: 1, weightLbs, reps: 8 }),
+      logSet(account, { loggedExerciseId, setNumber: 1, weightLbs, reps: 8 }),
     ).rejects.toMatchObject({
       code: "validation_error",
       details: { weightLbs: "Enter a weight above 0." },
@@ -205,7 +230,7 @@ describe("external-load validation is unchanged", () => {
   it("stores a positive weight + reps exactly as entered", async () => {
     const plan = await makePlan(BENCH);
     const { loggedExerciseId } = await start(plan, "2026-11-02");
-    const set = await logSet({
+    const set = await logSet(account, {
       loggedExerciseId,
       setNumber: 1,
       weightLbs: 185,
@@ -222,9 +247,9 @@ describe("external-load validation is unchanged", () => {
     });
     const { loggedExerciseId } = await start(plan, "2026-11-02");
     await expect(
-      logSet({ loggedExerciseId, setNumber: 1, reps: 8 }),
+      logSet(account, { loggedExerciseId, setNumber: 1, reps: 8 }),
     ).rejects.toMatchObject({ code: "validation_error" });
-    const set = await logSet({
+    const set = await logSet(account, {
       loggedExerciseId,
       setNumber: 1,
       weightLbs: 25,
@@ -241,16 +266,16 @@ describe("external-load validation is unchanged", () => {
     for (const date of ["2026-11-02", "2026-11-09"]) {
       const w = await start(plan, date);
       for (const n of [1, 2]) {
-        await logSet({
+        await logSet(account, {
           loggedExerciseId: w.loggedExerciseId,
           setNumber: n,
           weightLbs: 25,
           reps: 12,
         });
       }
-      await completeWorkout({ loggedSessionId: w.loggedSessionId });
+      await completeWorkout(account, { loggedSessionId: w.loggedSessionId });
     }
-    const dto = (await getExerciseProgression(plan.exerciseId))!;
+    const dto = (await getExerciseProgression(account, plan.exerciseId))!;
     expect(dto.requiresExternalWeight).toBe(true);
     expect(dto.tag).toBe("progress");
     expect(dto.suggestion).toEqual({ lbs: 30, kind: "progress_increment" });
@@ -264,10 +289,10 @@ describe("bodyweight progression: rep-range rule, no load math", () => {
     const plan = await makePlan(PULL_UPS);
     const w = await pullUpSession(plan, "2026-11-02", [15, 15]);
 
-    const dto = (await getExerciseProgression(plan.exerciseId))!;
+    const dto = (await getExerciseProgression(account, plan.exerciseId))!;
     expect(dto.state).toBe("insufficient");
     expect(dto.tag).toBeNull();
-    const occ = (await getOccurrenceProgression(w.loggedExerciseId))!;
+    const occ = (await getOccurrenceProgression(account, w.loggedExerciseId))!;
     expect(occ.tag).toBeNull();
   });
 
@@ -276,7 +301,7 @@ describe("bodyweight progression: rep-range rule, no load math", () => {
     await pullUpSession(plan, "2026-11-02", [15, 15]);
     const w2 = await pullUpSession(plan, "2026-11-09", [15, 15]);
 
-    const dto = (await getExerciseProgression(plan.exerciseId))!;
+    const dto = (await getExerciseProgression(account, plan.exerciseId))!;
     expect(dto.requiresExternalWeight).toBe(false);
     expect(dto.state).toBe("progress");
     expect(dto.tag).toBe("progress");
@@ -284,12 +309,14 @@ describe("bodyweight progression: rep-range rule, no load math", () => {
     expect(dto.points).toEqual([]); // no fake e1RM point
     expect(dto.currentE1rm).toBeNull();
 
-    const occ = (await getOccurrenceProgression(w2.loggedExerciseId))!;
+    const occ = (await getOccurrenceProgression(account, w2.loggedExerciseId))!;
     expect(occ.tag).toBe("progress");
     expect(occ.suggestion).toBeNull();
     expect(occ.hasTrend).toBe(false);
 
-    expect(await getQualifyingSessionE1rms(plan.exerciseId, null)).toEqual([]);
+    expect(
+      await getQualifyingSessionE1rms(account, plan.exerciseId, null),
+    ).toEqual([]);
   });
 
   it("a third all-top session still progresses (no e1RM stall gate on a missing weight)", async () => {
@@ -297,7 +324,7 @@ describe("bodyweight progression: rep-range rule, no load math", () => {
     await pullUpSession(plan, "2026-11-02", [15, 15]);
     await pullUpSession(plan, "2026-11-09", [15, 15]);
     await pullUpSession(plan, "2026-11-16", [15, 15]);
-    const dto = (await getExerciseProgression(plan.exerciseId))!;
+    const dto = (await getExerciseProgression(account, plan.exerciseId))!;
     expect(dto.tag).toBe("progress"); // not "stalled" from 0 → 0
   });
 
@@ -305,7 +332,7 @@ describe("bodyweight progression: rep-range rule, no load math", () => {
     const plan = await makePlan(PULL_UPS);
     await pullUpSession(plan, "2026-11-02", [5, 4]);
     await pullUpSession(plan, "2026-11-09", [5, 4]);
-    const dto = (await getExerciseProgression(plan.exerciseId))!;
+    const dto = (await getExerciseProgression(account, plan.exerciseId))!;
     expect(dto.tag).toBe("deload");
     expect(dto.suggestion).toBeNull();
   });
@@ -314,7 +341,7 @@ describe("bodyweight progression: rep-range rule, no load math", () => {
     const plan = await makePlan(PULL_UPS);
     await pullUpSession(plan, "2026-11-02", [15, 15]);
     const w = await start(plan, "2026-11-30"); // week 5 = scheduled deload
-    const occ = (await getOccurrenceProgression(w.loggedExerciseId))!;
+    const occ = (await getOccurrenceProgression(account, w.loggedExerciseId))!;
     expect(occ.scheduledDeloadWeek).toBe(true);
     expect(occ.tag).toBeNull();
     expect(occ.suggestion).toBeNull();
@@ -332,7 +359,12 @@ describe("bodyweight logging never touches gym baselines", () => {
     // Defensive: even a stray pre-existing row is never read or rewritten.
     const plan = await makePlan(PULL_UPS);
     const before = await db().gymExerciseBaseline.create({
-      data: { gymId: plan.gymId, exerciseId: plan.exerciseId, weightLbs: 50 },
+      data: {
+        userId: account.userId,
+        gymId: plan.gymId,
+        exerciseId: plan.exerciseId,
+        weightLbs: 50,
+      },
     });
     await pullUpSession(plan, "2026-11-02", [15, 15]);
     const after = await db().gymExerciseBaseline.findUniqueOrThrow({
@@ -347,13 +379,13 @@ describe("bodyweight reads and history render truthfully", () => {
   it("the logging card has no weight requirement or 'last weight' for pull-ups", async () => {
     const plan = await makePlan(PULL_UPS);
     const w = await start(plan, "2026-11-02");
-    await logSet({
+    await logSet(account, {
       loggedExerciseId: w.loggedExerciseId,
       setNumber: 1,
       reps: 15,
     });
 
-    const workout = (await getWorkout(w.loggedSessionId))!;
+    const workout = (await getWorkout(account, w.loggedSessionId))!;
     const card = workout.exercises[0];
     expect(card.requiresExternalWeight).toBe(false);
     expect(card.suggestedWeightLbs).toBeNull();
@@ -364,7 +396,12 @@ describe("bodyweight reads and history render truthfully", () => {
       saved: true,
     });
     expect(
-      await currentWorkingWeightLbs(plan.exerciseId, plan.gymId, false),
+      await currentWorkingWeightLbs(
+        account,
+        plan.exerciseId,
+        plan.gymId,
+        false,
+      ),
     ).toBeNull(); // a NULL set is never read back as 0
   });
 
@@ -372,7 +409,7 @@ describe("bodyweight reads and history render truthfully", () => {
     const plan = await makePlan(PULL_UPS);
     const w = await pullUpSession(plan, "2026-11-02", [15, 15]);
 
-    const detail = (await getLoggedWorkoutDetail(w.loggedSessionId))!;
+    const detail = (await getLoggedWorkoutDetail(account, w.loggedSessionId))!;
     const ex = detail.exercises[0];
     expect(ex.requiresExternalWeight).toBe(false);
     expect(ex.sets.map((s) => [s.weightLbs, s.reps])).toEqual([
@@ -380,14 +417,14 @@ describe("bodyweight reads and history render truthfully", () => {
       [null, 15],
     ]);
 
-    const edited = await editLoggedSet({
+    const edited = await editLoggedSet(account, {
       loggedSetId: ex.sets[0].loggedSetId,
       reps: 14,
     });
     expect(edited.weightLbs).toBeNull();
     expect(edited.reps).toBe(14);
     await expect(
-      editLoggedSet({
+      editLoggedSet(account, {
         loggedSetId: ex.sets[0].loggedSetId,
         weightLbs: 0,
         reps: 14,
@@ -401,14 +438,14 @@ describe("bodyweight reads and history render truthfully", () => {
       equipment: "barbell",
     });
     const w = await start(plan, "2026-11-02");
-    const set = await logSet({
+    const set = await logSet(account, {
       loggedExerciseId: w.loggedExerciseId,
       setNumber: 1,
       weightLbs: 185,
       reps: 8,
     });
     await expect(
-      editLoggedSet({ loggedSetId: set.id, reps: 8 }),
+      editLoggedSet(account, { loggedSetId: set.id, reps: 8 }),
     ).rejects.toMatchObject({ code: "validation_error" });
     const unchanged = await db().loggedSet.findUniqueOrThrow({
       where: { id: set.id },
@@ -421,7 +458,7 @@ describe("goals: bodyweight lifts have no valid goal math", () => {
   it("refuses a new goal on a bodyweight exercise and the form says why", async () => {
     const plan = await makePlan(PULL_UPS);
     await expect(
-      createGoal({
+      createGoal(account, {
         exerciseId: plan.exerciseId,
         targetWeightLbs: "10",
         targetReps: "15",

@@ -7,6 +7,7 @@ import {
 } from "@/lib/logging/queries";
 import type { CardioOccurrenceDto } from "@/lib/cardio/queries";
 import { CardioHistoryLine } from "@/components/cardio/cardio-history-line";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "History · Overload" };
 
@@ -84,9 +85,11 @@ export default async function HistoryPage({
 }: {
   searchParams: Promise<{ week?: string }>;
 }) {
+  const account = await requireAccount();
   const sp = await searchParams;
   const requested = sp.week ? Number(sp.week) : undefined;
   const week = await getWeekSchedule(
+    account,
     requested && Number.isFinite(requested) ? requested : undefined,
   );
 

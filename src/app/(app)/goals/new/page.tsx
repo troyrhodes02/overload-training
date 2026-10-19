@@ -37,10 +37,10 @@ export default async function NewGoalPickerPage({ searchParams }: PageProps) {
   // Reconcile first (request time only) so a goal history has already met is
   // never presented as the "active goal" blocking a new one (R54).
   await connection();
-  await reconcileGoalCompletionsSafely();
+  await reconcileGoalCompletionsSafely(account);
   const [list, activeGoals] = await Promise.all([
     listExercises(account, filters),
-    activeGoalExerciseMap(),
+    activeGoalExerciseMap(account),
   ]);
   const href = (f: Partial<LibraryFilters>) =>
     `${BASE}${libraryQueryString(f)}`;
