@@ -351,7 +351,7 @@ describe("exercise identity: swaps and incomplete work", () => {
     expect(plannedDto.points).toHaveLength(0);
   });
 
-  it("excludes partial and in-progress occurrences from the sequence", async () => {
+  it("keeps partial and in-progress occurrences out of the tag sequence; a finished partial still charts", async () => {
     const meso = await createTestMesocycle({ status: "active" });
     const bench = await createTestExercise({ equipmentType: "barbell" });
     await logPerf({
@@ -365,7 +365,7 @@ describe("exercise identity: swaps and incomplete work", () => {
       exerciseId: bench.id,
       scheduledFor: "2026-11-09",
       plannedSets: 3,
-      reps: [8, 8], // only 2 of 3 planned sets → not completed
+      reps: [8, 8], // only 2 of 3 planned sets → never counts toward the tag
       status: "complete",
     });
     await logPerf({
@@ -379,7 +379,9 @@ describe("exercise identity: swaps and incomplete work", () => {
     const dto = (await getExerciseProgression(account, bench.id))!;
     expect(dto.qualifyingCount).toBe(1); // only the first
     expect(dto.state).toBe("insufficient");
-    expect(dto.points).toHaveLength(1); // only completed performances charted
+    // Strength reads count every finished session: the partial one is charted,
+    // the in-progress one is not.
+    expect(dto.points).toHaveLength(2);
   });
 });
 

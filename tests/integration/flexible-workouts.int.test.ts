@@ -248,8 +248,8 @@ describe("finishing early", () => {
     const detail = (await getLoggedWorkoutDetail(account, w.loggedSessionId))!;
     expect(detail.exercises.map((e) => e.skipped)).toEqual([false, true]);
 
-    // The skipped lift gets no summary row; the partial one is not a
-    // qualifying performance (no call, no chart point).
+    // The skipped lift gets no summary row; the partial one gives no tag call
+    // (not a qualifying performance) but its set still shows on the e1RM chart.
     const summary = (await getSessionProgressionSummary(
       account,
       w.loggedSessionId,
@@ -259,7 +259,7 @@ describe("finishing early", () => {
     ]);
     const p = (await getExerciseProgression(account, w.bench.id))!;
     expect(p.qualifyingCount).toBe(0);
-    expect(p.points).toEqual([]);
+    expect(p.points).toHaveLength(1);
   });
 
   it("an archived exercise no longer blocks finishing — it is recorded as not done", async () => {

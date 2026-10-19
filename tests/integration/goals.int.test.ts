@@ -554,17 +554,29 @@ describe("goal progress — scope and current best (R13–R20)", () => {
     expect(g.best).toBeNull();
   });
 
-  it("incomplete, in-progress, and scheduled-deload performances do not count", async () => {
+  it("a finished workout counts even when fewer than the planned sets were done", async () => {
     const { meso, bench } = await setup();
-    // Partial: 2 of 3 planned sets.
+    // Partial: 2 of 3 planned sets, session finished.
     await logPerf({
       mesocycleId: meso.id,
       exerciseId: bench.id,
       scheduledFor: "2026-11-02",
       plannedSets: 3,
       reps: [5, 5],
-      weights: [300, 300],
+      weights: [200, 200],
     });
+    await createGoal(account, {
+      exerciseId: bench.id,
+      targetWeightLbs: 315,
+      targetReps: 1,
+    });
+    const [g] = await listActiveGoals(account);
+    expect(g.best?.weightLbs).toBe(200);
+    expect(g.percent).not.toBeNull();
+  });
+
+  it("in-progress and scheduled-deload performances do not count", async () => {
+    const { meso, bench } = await setup();
     // Session still in progress.
     await logPerf({
       mesocycleId: meso.id,
