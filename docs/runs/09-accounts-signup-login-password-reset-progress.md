@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-45** (OVE-41 → #57, OVE-42 → #58, OVE-43 → #59, OVE-44 → #60).
+**Step 12 — code review** (steps 1–11 done; feature branch `8fc1816` + progress commit).
 
 ## Authority used (read before resuming)
 
@@ -36,10 +36,10 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 5. Resolved Decisions recorded in spec (R1–R22)
 - [x] 6. Linear milestone + issues (blockedBy chain)
 - [x] 7. Feature PR into `main` (do not merge) — **#56** (draft)
-- [ ] 8. Implement tickets (ticket worker, stacked branches)
-- [ ] 9. Production runbook
-- [ ] 10. Squash-merge ticket PRs into feature branch, in order
-- [ ] 11. Full verification
+- [x] 8. Implement tickets (ticket worker, stacked branches) — OVE-41…45 → PRs #57–#61, all In Review
+- [x] 9. Production runbook — `docs/runs/09-accounts-signup-login-password-reset-runbook.md` + `docs/runs/09-sql/` (committed `b98c9ea`)
+- [x] 10. Squash-merge ticket PRs into feature branch, in order — #57 `d93cc99`, #58 `c0c2c92`, #59 `49b37e0`, #60 `91a3b07`, #61 `8fc1816`. Method: retarget child to the feature branch, merge the feature branch into the child resolving conflicts with the child's superset, require the only delta vs the child tip to be files identical to the feature branch (always just the runbook + 09-sql), push, wait for the Vercel check, squash. Final feature tree == OVE-45 tip.
+- [x] 11. Full verification on `8fc1816`: format, lint, typecheck, prisma validate, unit 40/627, integration 33/406, build (local env, invite + service key set) + client-bundle OK, e2e 28, accounts lifecycle e2e 7/7 (local DB unchanged after: 1 profile, 1 auth user, 463 sets)
 - [ ] 12. Code review → inline comments on feature PR
 - [ ] 13. Review audit + fixes
 - [ ] 14. Final verification — STOP (no merge to `main`)
@@ -61,7 +61,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - OVE-42 → branch `feat/ove-42-invite-signup` → **PR #58** (base `feat/ove-41-…`) · In Review · verified: lint, typecheck, format, unit 38/607, integration 32/398, build + client-bundle (invite + service key set), e2e 26; local-stack signup check (wrong code → 0 users; profile names + browser zone)
 - OVE-43 → branch `feat/ove-43-password-recovery` → **PR #59** (base `feat/ove-42-…`) · In Review · verified: lint, typecheck, format, unit 39/617, integration 32/398, build, e2e 28; local-stack recovery flow via Mailpit (identical copy known/unknown, ≥1.5 s both, subject + /auth/confirm link, same-password rejected, other device signed out, reused link → expired, old pw fails/new works). Local stack restarted once to load the recovery template (data intact: 463 sets, 1 user).
 - OVE-44 → branch `feat/ove-44-account-deletion` → **PR #60** (base `feat/ove-43-…`) · In Review · verified: lint, typecheck, format, unit 40/627, integration 33/406 (new `isolation/account-deletion.int.test.ts` 8/8: two full accounts, A deleted → B + library byte-identical; injected mid-tx failure → nothing deleted; auth failure → retry finishes; lazy-profile sweep), build, client-bundle, e2e 28; live local deletion (wrong pw → nothing; right pw → profile/gym/auth user gone; original account 463 sets + 876 library rows untouched).
-- OVE-45 → branch `feat/ove-45-accounts-e2e` → PR (pending) · verified: lint, typecheck, format, unit 40/627, integration 33/406, default e2e 28 (server now forced to an unroutable DB URL), **accounts lifecycle e2e 7/7 on the local stack** (`npm run test:e2e:accounts`), client-bundle. Local DB left as before (1 profile, 1 auth user, 463 sets). Orphaned test profiles from earlier ad-hoc checks found and removed (3 + 1, all test-created, owning nothing else but 1 gym).
+- OVE-45 → branch `feat/ove-45-accounts-e2e` → **PR #61** (base `feat/ove-44-…`) · In Review · verified: lint, typecheck, format, unit 40/627, integration 33/406, default e2e 28 (server now forced to an unroutable DB URL), **accounts lifecycle e2e 7/7 on the local stack** (`npm run test:e2e:accounts`), client-bundle. Local DB left as before (1 profile, 1 auth user, 463 sets). Orphaned test profiles from earlier ad-hoc checks found and removed (3 + 1, all test-created, owning nothing else but 1 gym).
 
 
 ## Resolved Decisions so far
