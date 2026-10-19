@@ -88,6 +88,13 @@ type Row = {
   loggedSessionId: string;
   gymName: string | null;
   completed: boolean; // session complete AND all planned working sets present
+  /**
+   * Session complete, regardless of how many planned sets were logged. Strength
+   * reads (e1RM trend, goal progress) use this: a set the lifter actually did
+   * demonstrates strength even when they stopped short of the plan. The
+   * reactive tag keeps the strict `completed` flag.
+   */
+  finished: boolean;
 };
 
 /**
@@ -155,6 +162,7 @@ async function gatherRows(
       loggedSessionId: le.loggedSessionId,
       gymName: le.gym?.name ?? null,
       completed,
+      finished: le.loggedSession.status === "complete",
     };
   });
 }
@@ -173,8 +181,10 @@ export type QualifyingE1rm = {
 
 /**
  * Qualifying session-level e1RMs for one PERFORMED exercise, chronological —
- * the same qualifying semantics as the reactive engine (complete session, all
- * planned working sets, not a scheduled-deload week; R9, R38, R44). Scope:
+ * a finished session with at least one loaded set, not a scheduled-deload
+ * week (R38). Unlike the reactive engine this does NOT require every planned
+ * working set: demonstrated strength counts even when the lifter did fewer
+ * sets than planned. Scope:
  * `gymId` null → every gym (gym-consistent); an id → that gym only
  * (gym-variable; nominal machine pounds never cross gyms, R12). Read-only;
  * consumed by Goals (Pitch 6) so goal progress shares this module's notion of
@@ -190,12 +200,25 @@ export async function getQualifyingSessionE1rms(
   db: AccountDb = account.db,
 ): Promise<QualifyingE1rm[]> {
   const rows = await gatherRows(account, exerciseId, db);
-  const scoped = gymId ? rows.filter((r) => r.perf.gymId === gymId) : rows;
+  const scoped = (
+    gymId ? rows.filter((r) => r.perf.gymId === gymId) : rows
+  ).filter((r) => r.finished && !r.perf.scheduledDeload);
   const sessionOf = new Map(
     scoped.map((r) => [r.perf.loggedExerciseId, r.loggedSessionId]),
   );
   const out: QualifyingE1rm[] = [];
-  for (const p of qualifyingSequence(scoped.map((r) => r.perf))) {
+  const chronological = scoped
+    .map((r) => r.perf)
+    .sort((a, b) =>
+      a.dateIso !== b.dateIso
+        ? a.dateIso < b.dateIso
+          ? -1
+          : 1
+        : a.loggedExerciseId < b.loggedExerciseId
+          ? -1
+          : 1,
+    );
+  for (const p of chronological) {
     // Only sets with an external load have an e1RM (bodyweight sets never do).
     const loaded = loadedSets(p.workingSets);
     const best = bestWorkingSet(loaded);
@@ -212,14 +235,14 @@ export async function getQualifyingSessionE1rms(
   return out;
 }
 
-/** Chronological chart points: one per COMPLETED performance (R49), scheduled-
- *  deload points included and marked (R39). */
+/** Chronological chart points: one per FINISHED performance with a loaded set,
+ *  scheduled-deload points included and marked (R39). */
 function toPoints(
   rows: Row[],
   gymNameOverride?: string | null,
 ): E1rmPointDto[] {
   return rows
-    .filter((r) => r.completed && loadedSets(r.perf.workingSets).length > 0)
+    .filter((r) => r.finished && loadedSets(r.perf.workingSets).length > 0)
     .slice()
     .sort((a, b) => (a.perf.dateIso < b.perf.dateIso ? -1 : 1))
     .map((r) => ({
@@ -231,12 +254,12 @@ function toPoints(
     }));
 }
 
-/** Most recent NON-deload completed e1RM point in scope (R42); null if none. */
+/** Most recent NON-deload finished e1RM point in scope (R42); null if none. */
 function currentE1rm(rows: Row[]): number | null {
   const pts = rows
     .filter(
       (r) =>
-        r.completed &&
+        r.finished &&
         !r.perf.scheduledDeload &&
         loadedSets(r.perf.workingSets).length > 0,
     )
@@ -340,7 +363,7 @@ export async function getExerciseProgression(
 
   // Gym-variable: scope to a single gym (R12–R14). List gyms that have at least
   // one completed performance, most-recent first.
-  const gymRows = rows.filter((r) => r.completed && r.perf.gymId);
+  const gymRows = rows.filter((r) => r.finished && r.perf.gymId);
   const latestByGym = new Map<string, { name: string; dateIso: string }>();
   for (const r of gymRows) {
     const id = r.perf.gymId as string;
@@ -488,7 +511,7 @@ export async function getOccurrenceProgression(
     ? rows.filter((r) => r.perf.gymId === le.gymId)
     : rows;
   // A bodyweight exercise has no e1RM trend to link to.
-  const hasTrend = externalLoad && scopeRows.some((r) => r.completed);
+  const hasTrend = externalLoad && scopeRows.some((r) => r.finished);
 
   if (scheduledDeloadWeek) {
     // Reactive evaluation is suppressed entirely during a scheduled-deload week
