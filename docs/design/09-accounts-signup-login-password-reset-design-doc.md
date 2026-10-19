@@ -1,10 +1,12 @@
 # Accounts: Signup, Login & Password Reset — Design Document
 
-**Version:** 1.0
+**Version:** 1.1
 **Pitch Source:** Overload — Pitch 9: Accounts — Signup, Login & Password Reset
 **Focus:** How an invited friend creates an account, how any lifter signs in, signs out, and gets back in after forgetting a password, and how a lifter edits their name and timezone or permanently deletes their own account — with every screen plain, private, and impossible to use as a way to learn who else has an account.
 
 > All styling inherits from Overload's Tailwind and shadcn/ui theme and design system. This design doc only defines feature-specific usage, variants, and states.
+
+> **v1.1 (code review, spec R25/R26):** after a successful reset every session ends and the lifter lands on **Login** with the notice "Password updated. Sign in with your new password." (not Today with a toast); while a reset link's session is open, every app screen sends back to "Set a new password"; and `/forgot-password` stays reachable when signed in. The expired-link state's "Back to sign in" signs out first.
 
 > **Authority note.** The `overload-ui-design` skill still describes Overload as single-user, and its Login guidance says "no sign-up link, no forgot flourish". The approved multi-user planning set, `.claude/CLAUDE.md`, and this pitch supersede that line: the login screen now links to signup (for people holding an invite) and to password recovery. Everything else in that skill (direction, palette, type, states) governs unchanged. Recorded as an upstream amendment.
 
@@ -95,14 +97,14 @@ Light, dark, system (default). This pitch adds **no** appearance control — Set
 │ Reset email → link            │                                   ▼
 │        ▼                      │                              /login ("Your account was deleted.")
 │ /reset-password               │
-│   [Set new password] ─────────┼──────→ Today ("Password updated." toast)
+│   [Set new password] ─────────┼──────→ /login ("Password updated. Sign in…")
 │   (expired link → request new)│
 └───────────────────────────────┘
  Bottom bar (mobile) / left rail (md+) unchanged: Today · Plan · History · Goals · Exercises · Gyms
 ```
 
 - **No new primary navigation item.** Settings is reached from the existing account menu in the header (the pitch rules out a navigation redesign). The menu gains one item above Sign out.
-- Signed-in lifters who open `/login`, `/signup`, or `/forgot-password` go straight to Today.
+- Signed-in lifters who open `/login` or `/signup` go straight to Today. `/forgot-password` stays reachable (v1.1).
 - `/reset-password` is reachable only from the email link (it needs the recovery sign-in the link creates); opened any other way it shows the expired-link state.
 
 ---
@@ -461,7 +463,7 @@ Button "Saving…", disabled.
 - The recovery sign-in timed out between opening the page and submitting: the link-not-usable state.
 
 ### Behavior
-- Success → Today, with toast "Password updated." The lifter is signed in to the same account with the same plan and history. Other devices signed in to this account are signed out (they'll need the new password).
+- Success → every session of the account ends (this one included) → Login with the notice "Password updated. Sign in with your new password." The lifter signs in with the new password and finds the same plan and history. *(v1.1: a reset link's session never reaches the app itself, so a link opened by someone else can't sign them into its owner's account.)*
 - The email shown is the signed-in recovery account's own address — never anyone else's, and never one taken from the URL.
 
 ---
@@ -689,7 +691,7 @@ Journey B — returning lifter
 
 Journey C — forgotten password
   /login ─Forgot password?→ /forgot-password?email=… ─[Send reset link]→ "Check your email"
-  email link → Overload verifies → /reset-password ─[Set new password]→ /  (toast)
+  email link → Overload verifies → /reset-password ─[Set new password]→ /login?notice=password-updated
   email link expired/used → /forgot-password?link=expired
   /reset-password opened directly → "This link has expired" → /forgot-password
 
@@ -735,7 +737,6 @@ Plain-English, inline, with the next action. No error ever repeats or reveals an
 | Action | Message | Severity | Duration |
 | ------ | ------- | -------- | -------- |
 | Settings saved | `Settings saved` | success | 4s |
-| Password reset completed | `Password updated.` | success | 4s |
 | Settings save failed | `Couldn't save. Your changes are still here.` | error | until dismissed |
 
 Signup success, sign out, and deletion produce no toast (navigation itself is the confirmation; deletion uses the login-page notice).

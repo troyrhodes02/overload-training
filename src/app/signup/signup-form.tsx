@@ -7,13 +7,13 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type FormEvent,
   type RefObject,
 } from "react";
 import { signUpAction, type SignUpState } from "./actions";
 import type { SignUpField } from "@/lib/accounts/signup";
 import { PasswordInput } from "@/components/auth/password-input";
+import { useDeviceTimeZone } from "@/lib/accounts/use-device-time-zone";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,15 +40,6 @@ const FIELD_ORDER: SignUpField[] = [
   "password",
 ];
 
-const noSubscribe = () => () => {};
-function deviceTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
-  } catch {
-    return "";
-  }
-}
-
 /**
  * Invite code first, then name, email, password (Accounts design doc Screen
  * 2). Presence is checked here for quick feedback; the invite code is checked
@@ -59,7 +50,7 @@ export function SignupForm() {
   const [clientErrors, setClientErrors] = useState<
     Partial<Record<SignUpField, string>>
   >({});
-  const timeZone = useSyncExternalStore(noSubscribe, deviceTimeZone, () => "");
+  const timeZone = useDeviceTimeZone() ?? "";
   const inviteCodeRef = useRef<HTMLInputElement>(null);
   const firstNameRef = useRef<HTMLInputElement>(null);
   const lastNameRef = useRef<HTMLInputElement>(null);

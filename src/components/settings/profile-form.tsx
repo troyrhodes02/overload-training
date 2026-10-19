@@ -6,7 +6,6 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type FormEvent,
 } from "react";
 import { toast } from "sonner";
@@ -20,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { useDeviceTimeZone } from "@/lib/accounts/use-device-time-zone";
 import {
   parseProfileInput,
   PROFILE_NAME_MAX,
@@ -29,15 +29,6 @@ import {
 type Props = ProfileInput & { email: string; timeZones: string[] };
 type Field = keyof ProfileInput;
 type Errors = Partial<Record<Field, string>>;
-
-const noSubscribe = () => () => {};
-function deviceTimeZone(): string | null {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Name and timezone for the signed-in account (Accounts design doc Screen 6).
@@ -61,7 +52,7 @@ export function ProfileForm({
   const [clientErrors, setClientErrors] = useState<Errors>({});
   // Fields edited since the last submit hide that submit's server error.
   const [edited, setEdited] = useState<ReadonlySet<Field>>(new Set());
-  const device = useSyncExternalStore(noSubscribe, deviceTimeZone, () => null);
+  const device = useDeviceTimeZone();
   const toasted = useRef<ProfileFormState | null>(null);
   const firstRef = useRef<HTMLInputElement>(null);
   const lastRef = useRef<HTMLInputElement>(null);
@@ -87,9 +78,10 @@ export function ProfileForm({
     state.result && !state.result.ok && !state.result.error.details,
   );
   const saved = state.saved;
+  // Saved names are stored trimmed, so compare trimmed input.
   const dirty =
-    values.firstName !== saved.firstName ||
-    values.lastName !== saved.lastName ||
+    values.firstName.trim() !== saved.firstName ||
+    values.lastName.trim() !== saved.lastName ||
     values.timeZone !== saved.timeZone;
 
   function set(field: Field, value: string) {

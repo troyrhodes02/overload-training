@@ -46,7 +46,8 @@ export async function signInAction(
 
 export async function signOutAction(): Promise<void> {
   // Server actions re-check auth independently, never relying only on routing.
-  await requireUser();
+  // A recovery-only session may sign out too (it can do nothing else).
+  await requireUser({ allowRecovery: true });
   const supabase = await createServerSupabase();
   await supabase.auth.signOut();
   redirect("/login");

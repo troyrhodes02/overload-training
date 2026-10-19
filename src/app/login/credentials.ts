@@ -1,3 +1,5 @@
+import { classifySignInError } from "@/lib/accounts/auth-errors";
+
 /** Pure input parsing for the login form, unit-testable without Supabase. */
 export type ParsedCredentials =
   | { ok: true; email: string; password: string }
@@ -27,15 +29,8 @@ export function signInErrorMessage(error: {
   code?: string;
   status?: number;
 }): string {
-  if (error.status === 429 || /rate_limit/.test(error.code ?? "")) {
-    return TOO_MANY_ATTEMPTS;
-  }
-  if (
-    error.code === "invalid_credentials" ||
-    error.status === 400 ||
-    error.status === 422
-  ) {
-    return WRONG_CREDENTIALS;
-  }
+  const kind = classifySignInError(error);
+  if (kind === "rate_limited") return TOO_MANY_ATTEMPTS;
+  if (kind === "wrong") return WRONG_CREDENTIALS;
   return SIGN_IN_UNAVAILABLE;
 }

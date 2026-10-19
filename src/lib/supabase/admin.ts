@@ -26,7 +26,8 @@ function adminAuth() {
 }
 
 export type CreateUserResult =
-  { ok: true; user: { id: string } } | { ok: false; code: string };
+  | { ok: true; user: { id: string } }
+  | { ok: false; code: string; reasons?: string[] };
 
 /** A confirmed email/password user (no confirmation email is sent). */
 export async function createConfirmedUser(input: {
@@ -39,7 +40,12 @@ export async function createConfirmedUser(input: {
     email_confirm: true,
   });
   if (error || !data.user) {
-    return { ok: false, code: error?.code ?? "unexpected_failure" };
+    const reasons = (error as { reasons?: unknown } | null)?.reasons;
+    return {
+      ok: false,
+      code: error?.code ?? "unexpected_failure",
+      ...(Array.isArray(reasons) ? { reasons: reasons.map(String) } : {}),
+    };
   }
   return { ok: true, user: { id: data.user.id } };
 }

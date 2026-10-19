@@ -20,7 +20,8 @@ const UNEXPECTED = "Couldn't set your password. Try again, or send a new link.";
  * Sets a new password from a recovery auth session (Accounts spec §11, R8).
  * The session is re-checked here, not only on the page: an ordinary
  * password session can never change the password without the old one.
- * Afterwards every other auth session of the account is signed out.
+ * Afterwards every auth session of the account, this one included, is
+ * signed out and the lifter signs in with the new password.
  */
 export async function setNewPasswordAction(
   _prev: ResetState,
@@ -43,7 +44,12 @@ export async function setNewPasswordAction(
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
-    const fieldError = newPasswordErrorFor(error.code);
+    const fieldError = newPasswordErrorFor(
+      error as {
+        code?: string;
+        reasons?: readonly string[];
+      },
+    );
     if (!fieldError) {
       console.error(`password reset failed (${error.code ?? "unknown"})`);
     }
@@ -54,13 +60,16 @@ export async function setNewPasswordAction(
     };
   }
 
+  // Every session ends, this one included (spec R26): the lifter signs in
+  // again with the new password. A reset link opened by someone else can
+  // therefore never leave them signed in to its owner's account.
   const { error: signOutError } = await supabase.auth.signOut({
-    scope: "others",
+    scope: "global",
   });
   if (signOutError) {
     console.error(
-      `signing out other sessions failed (${signOutError.code ?? "unknown"})`,
+      `signing out after a reset failed (${signOutError.code ?? "unknown"})`,
     );
   }
-  redirect("/?notice=password-updated");
+  redirect("/login?notice=password-updated");
 }

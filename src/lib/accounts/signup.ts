@@ -6,8 +6,8 @@ import {
 } from "@/lib/data/account";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
-import { checkInviteCode, isSignupOpen } from "./invite";
-import { checkEmail, checkName, PASSWORD_MIN_LENGTH } from "./validation";
+import { checkInviteCode } from "./invite";
+import { checkEmail, checkName, weakPasswordMessage } from "./validation";
 
 /**
  * Invite-gated signup (Accounts spec §6, §11; R2, R3, R9). Order matters:
@@ -70,15 +70,12 @@ const defaultDeps: SignUpDeps = {
 };
 
 export const INVALID_INVITE = "That invite code isn't valid.";
-export const SHORT_PASSWORD = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
 
 export async function signUp(
   raw: RawSignUp,
   deps: SignUpDeps = defaultDeps,
   env: Record<string, string | undefined> = process.env,
 ): Promise<SignUpOutcome> {
-  if (!isSignupOpen(env)) return { kind: "closed" };
-
   const invite = checkInviteCode(raw.inviteCode, env);
   if (invite === "closed") return { kind: "closed" };
   if (invite === "invalid") {
@@ -95,11 +92,14 @@ export async function signUp(
   if (!last.ok) fieldErrors.lastName = last.message;
   if (!email.ok) fieldErrors.email = email.message;
   if (!password) fieldErrors.password = "Enter a password.";
+  // The parse results narrow the types; fieldErrors also holds the
+  // invite-code and password presence errors.
   if (
-    Object.keys(fieldErrors).length > 0 ||
     !first.ok ||
     !last.ok ||
-    !email.ok
+    !email.ok ||
+    fieldErrors.inviteCode ||
+    !password
   ) {
     return { kind: "invalid", fieldErrors };
   }
@@ -116,7 +116,10 @@ export async function signUp(
       return { kind: "email_taken" };
     }
     if (created.code === "weak_password") {
-      return { kind: "invalid", fieldErrors: { password: SHORT_PASSWORD } };
+      return {
+        kind: "invalid",
+        fieldErrors: { password: weakPasswordMessage(created.reasons) },
+      };
     }
     if (
       created.code === "email_address_invalid" ||

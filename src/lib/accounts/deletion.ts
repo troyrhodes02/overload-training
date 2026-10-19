@@ -20,8 +20,9 @@ import { deleteAuthUser } from "@/lib/supabase/admin";
  *     no-op on data and finishes the identity. Data first, so the worst case
  *     is an empty account its owner can still remove — never personal data
  *     without an owner able to remove it.
- *  3. Then a profile sweep, for a profile a concurrent request may have
- *     lazily recreated between 1 and 2.
+ *  3. Then a best-effort profile sweep, for a profile a concurrent request
+ *     may have lazily recreated between 1 and 2. Only step 1 can make this
+ *     function throw, so a throw always means "nothing was deleted".
  *
  * Guard tests keep every LoggedSet / Exercise / Gym / Profile delete in the
  * application inside this file.
@@ -107,7 +108,17 @@ export async function deleteAccount(
   }
 
   if (identityRemoved) {
-    await account.db.profile.deleteMany({});
+    // Best effort: by now the data and the identity are gone, so a failure
+    // here must not be reported as "nothing was deleted". A leftover profile
+    // owns no rows; docs/runs/09-sql/orphans.sql finds it.
+    try {
+      await account.db.profile.deleteMany({});
+    } catch (error) {
+      console.error(
+        "account deletion: profile sweep failed after the identity was removed",
+        error instanceof Error ? error.name : "unknown",
+      );
+    }
   }
   return { deleted, identityRemoved };
 }

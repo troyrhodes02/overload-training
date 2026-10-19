@@ -1,7 +1,12 @@
 import Link from "next/link";
+import { signOutAction } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 
-/** A reset link that can't be used (opened directly, expired, or too old). */
+/**
+ * A reset link that can't be used (opened directly, expired, or too old).
+ * "Back to sign in" signs out first: a stale recovery auth session can do
+ * nothing else, and /login would otherwise send it straight back here.
+ */
 export function ResetLinkExpired() {
   return (
     <div className="space-y-4">
@@ -12,6 +17,11 @@ export function ResetLinkExpired() {
       <Button asChild className="h-11 w-full">
         <Link href="/forgot-password">Send a new link</Link>
       </Button>
+      <form action={signOutAction}>
+        <Button type="submit" variant="ghost" className="h-11 w-full">
+          Back to sign in
+        </Button>
+      </form>
     </div>
   );
 }

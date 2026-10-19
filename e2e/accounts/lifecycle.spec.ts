@@ -217,10 +217,21 @@ test("password recovery by email: same answer for every address, link works once
   await page.goto(link);
   await expect(page).toHaveURL(/\/reset-password$/);
   await expect(page.getByText(`For ${A.email}`)).toBeVisible();
+  // A reset link's session can set a password and nothing else (login CSRF
+  // guard, R26): the app and its actions send it back here.
+  for (const route of ["/", "/gyms", "/settings"]) {
+    await page.goto(route);
+    await expect(page).toHaveURL(/\/reset-password$/);
+  }
   await page.getByLabel("New password").fill(A_NEW_PASSWORD);
   await page.getByRole("button", { name: "Set new password" }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText("Password updated.")).toBeVisible();
+  // Every session ends; the lifter signs in with the new password.
+  await expect(page).toHaveURL(/\/login\?notice=password-updated$/);
+  await expect(
+    page.getByText("Password updated. Sign in with your new password."),
+  ).toBeVisible();
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/login$/);
 
   expect(await canSignIn(A.email, A.password)).toBe(false);
   expect(await canSignIn(A.email, A_NEW_PASSWORD)).toBe(true);

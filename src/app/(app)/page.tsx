@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { CreatedToast } from "@/components/feedback/created-toast";
 import { formatPlanDate } from "@/lib/plan/calendar";
 import { MissedDayPrompt } from "@/components/logging/missed-day-prompt";
 import {
@@ -165,25 +164,7 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
   );
 }
 
-type PageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
-
-/** `?notice=password-updated` comes from a completed password reset (Accounts). */
-export default async function TodayPage({ searchParams }: PageProps) {
-  const { notice } = await searchParams;
-  return (
-    <>
-      <CreatedToast
-        show={notice === "password-updated"}
-        message="Password updated."
-      />
-      <TodayContent />
-    </>
-  );
-}
-
-async function TodayContent() {
+export default async function TodayPage() {
   const account = await requireAccount();
   const dash = await getTodayDashboard(account);
   const today = formatPlanDate(accountToday(account));

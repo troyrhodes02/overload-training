@@ -1,8 +1,8 @@
 "use server";
 
+import { after } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { checkEmail } from "@/lib/accounts/validation";
-import { RESET_REQUEST_MIN_MS } from "@/lib/accounts/recovery";
 
 export type ForgotState = {
   status: "idle" | "sent" | "invalid";
@@ -10,14 +10,14 @@ export type ForgotState = {
   error: string | null;
 };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
- * Starts recovery (Accounts spec §11, R14). For ANY well-formed email the
- * answer is the same "sent" state, in at least RESET_REQUEST_MIN_MS: whether
- * the address has an account, the auth service rate-limited it (it only does
- * that for known addresses), or the service failed. Failures are logged by
- * code only — never the address.
+ * Starts recovery (Accounts spec §11, R14, R23). For ANY well-formed email the
+ * answer is the same "sent" state, returned BEFORE the auth service is asked:
+ * the request runs after the response (`after`), so neither the wording nor
+ * the timing depends on whether the address has an account, whether the
+ * service rate-limited it (it only does that for known addresses), or how
+ * long the email takes to send. Failures are logged by code only — never the
+ * address.
  */
 export async function requestPasswordResetAction(
   _prev: ForgotState,
@@ -33,9 +33,11 @@ export async function requestPasswordResetAction(
     };
   }
 
-  const request = (async () => {
+  // The auth client is built now (it reads the request's cookies); the
+  // request itself goes out once the response has been sent.
+  const supabase = await createServerSupabase();
+  after(async () => {
     try {
-      const supabase = await createServerSupabase();
       // The recovery email template links to /auth/confirm on the Site URL.
       const { error } = await supabase.auth.resetPasswordForEmail(email.value);
       if (error) {
@@ -46,8 +48,7 @@ export async function requestPasswordResetAction(
     } catch {
       console.error("password reset request not sent (unreachable)");
     }
-  })();
-  await Promise.all([request, sleep(RESET_REQUEST_MIN_MS)]);
+  });
 
   return { status: "sent", email: email.value, error: null };
 }

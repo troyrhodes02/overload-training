@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
+import { classifySignInError } from "./auth-errors";
 
 /**
  * Re-checks the signed-in lifter's password before account deletion
@@ -24,13 +25,7 @@ export async function verifyCurrentPassword(
       password,
     });
     if (error) {
-      if (error.status === 429 || /rate_limit/.test(error.code ?? "")) {
-        return "rate_limited";
-      }
-      if (error.code === "invalid_credentials" || error.status === 400) {
-        return "wrong";
-      }
-      return "unavailable";
+      return classifySignInError(error);
     }
     if (data.session) {
       await client.auth.signOut({ scope: "local" }).catch(() => {});

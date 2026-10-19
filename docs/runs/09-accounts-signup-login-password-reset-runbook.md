@@ -125,7 +125,7 @@ Authentication → **URL Configuration**:
 | Confirm email | Email provider | irrelevant (accounts are created confirmed) — leave as is |
 | Minimum password length | Email provider / Password settings | **6** (the app's helper text says "At least 6 characters"; if you change it, change `PASSWORD_MIN_LENGTH` in `src/lib/accounts/validation.ts` to match) |
 | Email OTP expiration | Email provider | **3600** seconds (the email says the link expires in 1 hour) |
-| Secure password change | Email provider | off (reset uses the recovery session) |
+| Secure password change | Email provider | **ON** (spec R27): the auth service itself then refuses a password change from a session that didn't sign in recently, so a stolen or unattended session can't change the password by calling Supabase directly. A reset link's sign-in is always recent, so recovery still works. |
 
 ---
 
@@ -185,11 +185,14 @@ custom SMTP).
 4. The email arrives at the non-team address — **in the inbox, not spam**
    (if spam, fix DMARC/DKIM before inviting anyone). From `Overload
    <no-reply@…>`, subject "Reset your Overload password", one button.
-5. Open the link (try it on your phone) → "Set a new password" → set one →
-   Today shows "Password updated."
+5. Open the link (try it on your phone) → "Set a new password". While that
+   page is open, try opening `/` — it sends you back to "Set a new password"
+   (a reset link's session can do nothing else). Set a password → you land on
+   **Login** with "Password updated. Sign in with your new password." (every
+   session of the account was signed out).
 6. Open the same link again → "That reset link has expired or was already
    used."
-7. Sign out, sign in with the new password. Keep this account for §8.
+7. Sign in with the new password. Keep this account for §8.
 
 If the email never arrives: Resend → **Logs** shows whether Supabase handed
 it over; Supabase → **Logs → Auth** shows SMTP errors. The app always shows

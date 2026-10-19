@@ -15,6 +15,18 @@ export const EMAIL_MAX = 254;
  */
 export const PASSWORD_MIN_LENGTH = 6;
 
+/**
+ * The message for an auth-service "weak password" refusal, from its reasons
+ * (Supabase reports "length", "characters", "pwned"). Shared by signup and
+ * reset so the copy can never drift from PASSWORD_MIN_LENGTH.
+ */
+export function weakPasswordMessage(reasons?: readonly string[]): string {
+  if (!reasons || reasons.length === 0 || reasons.includes("length")) {
+    return `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
+  }
+  return "Choose a stronger password.";
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type NameField = "firstName" | "lastName";

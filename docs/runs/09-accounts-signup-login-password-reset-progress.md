@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 12 — code review** (steps 1–11 done; feature branch `8fc1816` + progress commit).
+**Step 15 — run report** (review fixes committed; final verification green).
 
 ## Authority used (read before resuming)
 
@@ -40,9 +40,9 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 9. Production runbook — `docs/runs/09-accounts-signup-login-password-reset-runbook.md` + `docs/runs/09-sql/` (committed `b98c9ea`)
 - [x] 10. Squash-merge ticket PRs into feature branch, in order — #57 `d93cc99`, #58 `c0c2c92`, #59 `49b37e0`, #60 `91a3b07`, #61 `8fc1816`. Method: retarget child to the feature branch, merge the feature branch into the child resolving conflicts with the child's superset, require the only delta vs the child tip to be files identical to the feature branch (always just the runbook + 09-sql), push, wait for the Vercel check, squash. Final feature tree == OVE-45 tip.
 - [x] 11. Full verification on `8fc1816`: format, lint, typecheck, prisma validate, unit 40/627, integration 33/406, build (local env, invite + service key set) + client-bundle OK, e2e 28, accounts lifecycle e2e 7/7 (local DB unchanged after: 1 profile, 1 auth user, 463 sets)
-- [ ] 12. Code review → inline comments on feature PR
-- [ ] 13. Review audit + fixes
-- [ ] 14. Final verification — STOP (no merge to `main`)
+- [x] 12. Code review → `code-review` skill (high) posted 10 inline comments on #56
+- [x] 13. Review audit + fixes — audit posted (https://github.com/troyrhodes02/overload-training/pull/56#issuecomment-6278021014): 10 implement, 0 defer/skip/discuss; new decisions R25–R27, R23 amended, R24 retired; design doc v1.1; preview v1.1; runbook updated; local stack restarted to load `secure_password_change`
+- [x] 14. Final verification — STOP (no merge to `main`): format, lint, typecheck, prisma validate, unit 40/631, integration 33/407, build + client-bundle, e2e 28, accounts lifecycle e2e 7/7 (local DB unchanged)
 - [ ] 15. Run report
 
 ## Linear
@@ -79,4 +79,4 @@ Empirical (local stack, 2026-10-19): admin dup → `email_exists`; anon signUp �
 
 ## Deferred / flagged
 
-- Known limitation (OVE-43): for up to 30 min after following a reset link, that same browser's recovery session can set a password again without the old one (the device that proved email possession). Report it; not fixed (would need extra state).
+- ~~Known limitation (OVE-43, R24)~~ — retired by review fix R26 (every session ends after a reset).

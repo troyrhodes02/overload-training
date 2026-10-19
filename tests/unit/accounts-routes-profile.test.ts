@@ -26,10 +26,12 @@ describe("proxy routing (Accounts spec §9)", () => {
     },
   );
 
-  it("sends a signed-in visitor away from login, signup and forgot only", () => {
+  it("sends a signed-in visitor away from login and signup only", () => {
     expect(routeRedirect("/login", true)).toBe("/");
     expect(routeRedirect("/signup", true)).toBe("/");
-    expect(routeRedirect("/forgot-password", true)).toBe("/");
+    // An expired link / stale recovery session must still reach a new link.
+    expect(routeRedirect("/forgot-password", true)).toBeNull();
+    expect(routeRedirect("/forgot-password?link=expired", true)).toBeNull();
     // A reset link signs the lifter in first; these must stay reachable.
     expect(routeRedirect("/reset-password", true)).toBeNull();
     expect(routeRedirect("/auth/confirm", true)).toBeNull();

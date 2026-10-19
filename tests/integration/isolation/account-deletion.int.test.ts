@@ -267,3 +267,33 @@ it("an account with no data deletes cleanly", async () => {
   expect(result.deleted.Profile).toBe(1);
   expect(await ownedRowCount(empty.userId)).toBe(0);
 });
+
+it("a failed final sweep never turns a completed deletion into an error", async () => {
+  const log = jest.spyOn(console, "error").mockImplementation(() => {});
+  // Only the post-identity sweep (outside the transaction) fails.
+  const flaky: Account = {
+    ...a,
+    db: new Proxy(a.db, {
+      get(target, prop, receiver) {
+        if (prop === "profile") {
+          return {
+            deleteMany: async () => {
+              throw new Error("pooler hiccup");
+            },
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as Account["db"],
+  };
+  const result = await deleteAccount(flaky, {
+    deleteAuthUser: async () => "deleted",
+  });
+  expect(result.identityRemoved).toBe(true);
+  // The transaction already removed everything, the profile included.
+  expect(await ownedRowCount(a.userId)).toBe(0);
+  expect(
+    await getTestPrisma().profile.findUnique({ where: { userId: a.userId } }),
+  ).toBeNull();
+  log.mockRestore();
+});

@@ -45,6 +45,11 @@ enable_signup = true
 enable_confirmations = false
 # A reset link works once and expires after an hour (the email says so).
 otp_expiry = 3600
+# Accounts (review fix): the auth service itself refuses a password change
+# from a session that didn't sign in recently, so a stolen or unattended
+# ordinary session can't change the password by calling Supabase directly.
+# A reset link's recovery sign-in is always recent, so recovery still works.
+secure_password_change = true
 
 # Accounts: the password-reset email. Its link goes to Overload's
 # /auth/confirm (server-verified token_hash; works on any device). Production

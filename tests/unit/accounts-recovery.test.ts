@@ -9,6 +9,18 @@ jest.mock("@/lib/supabase/server", () => ({
     auth: { resetPasswordForEmail, verifyOtp, getClaims, updateUser, signOut },
   })),
 }));
+// Work scheduled with after() is captured here and run by the test, so it is
+// observable that the reply never waits for the auth service.
+const deferred: (() => Promise<void> | void)[] = [];
+jest.mock("next/server", () => ({
+  ...jest.requireActual("next/server"),
+  after: jest.fn((task: () => Promise<void> | void) => {
+    deferred.push(task);
+  }),
+}));
+async function runDeferred() {
+  while (deferred.length) await deferred.shift()!();
+}
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -17,9 +29,11 @@ jest.mock("next/navigation", () => ({
 
 import { NextRequest } from "next/server";
 import {
+  isRecoveryOnlySession,
   isRecoverySession,
+  jwtPayload,
+  newPasswordErrorFor,
   RECOVERY_SESSION_MAX_AGE_SECONDS,
-  RESET_REQUEST_MIN_MS,
 } from "@/lib/accounts/recovery";
 import {
   requestPasswordResetAction,
@@ -78,34 +92,86 @@ describe("isRecoverySession (spec R8)", () => {
   });
 });
 
+describe("isRecoveryOnlySession / jwtPayload (spec R26)", () => {
+  it("only an otp/recovery sign-in without a password sign-in is recovery-only", () => {
+    expect(isRecoveryOnlySession({ amr: [{ method: "otp" }] })).toBe(true);
+    expect(isRecoveryOnlySession({ amr: [{ method: "recovery" }] })).toBe(true);
+    expect(isRecoveryOnlySession({ amr: [{ method: "password" }] })).toBe(
+      false,
+    );
+    expect(
+      isRecoveryOnlySession({
+        amr: [{ method: "password" }, { method: "otp" }],
+      }),
+    ).toBe(false);
+    expect(isRecoveryOnlySession(null)).toBe(false);
+  });
+
+  it("reads a token's payload (base64url, no padding) and tolerates junk", () => {
+    const payload = Buffer.from(
+      JSON.stringify({ amr: [{ method: "otp" }], sub: "ü-x" }),
+    ).toString("base64url");
+    expect(jwtPayload(`h.${payload}.s`)).toEqual({
+      amr: [{ method: "otp" }],
+      sub: "ü-x".normalize(),
+    });
+    expect(jwtPayload("not-a-jwt")).toBeNull();
+    expect(jwtPayload(undefined)).toBeNull();
+    expect(jwtPayload("h.%%%.s")).toBeNull();
+  });
+});
+
+describe("newPasswordErrorFor", () => {
+  it("words weak-password refusals from their reasons", () => {
+    expect(
+      newPasswordErrorFor({ code: "weak_password", reasons: ["length"] }),
+    ).toBe("Use at least 6 characters.");
+    expect(
+      newPasswordErrorFor({ code: "weak_password", reasons: ["characters"] }),
+    ).toBe("Choose a stronger password.");
+    expect(
+      newPasswordErrorFor({ code: "weak_password", reasons: ["pwned"] }),
+    ).toBe("Choose a stronger password.");
+    expect(newPasswordErrorFor({ code: "same_password" })).toBe(
+      "Choose a password you haven't used here.",
+    );
+    expect(newPasswordErrorFor({ code: "other" })).toBeNull();
+  });
+});
+
 describe("requestPasswordResetAction — same answer for every address (PRD)", () => {
   const idle: ForgotState = { status: "idle", email: "", error: null };
   beforeEach(() => {
-    jest.useFakeTimers();
     jest.clearAllMocks();
+    deferred.length = 0;
   });
-  afterEach(() => jest.useRealTimers());
 
-  async function submit(email: string) {
-    const pending = requestPasswordResetAction(idle, form({ email }));
-    await jest.advanceTimersByTimeAsync(RESET_REQUEST_MIN_MS);
-    return pending;
-  }
-
-  it("known, unknown, rate-limited, and failing requests are indistinguishable", async () => {
+  it("answers BEFORE asking the auth service, identically for every outcome (R23)", async () => {
     const log = jest.spyOn(console, "error").mockImplementation(() => {});
     const outcomes = [];
-    resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error: null });
-    outcomes.push(await submit("will@example.com")); // known
-    resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error: null });
-    outcomes.push(await submit("will@example.com")); // unknown (same reply)
-    resetPasswordForEmail.mockResolvedValueOnce({
-      data: null,
-      error: { code: "over_email_send_rate_limit", status: 429 },
-    });
-    outcomes.push(await submit("will@example.com")); // only known emails get this
-    resetPasswordForEmail.mockRejectedValueOnce(new Error("fetch failed"));
-    outcomes.push(await submit("will@example.com"));
+    for (const service of [
+      async () => ({ data: {}, error: null }), // known
+      async () => ({ data: {}, error: null }), // unknown (same reply)
+      async () => ({
+        data: null,
+        error: { code: "over_email_send_rate_limit", status: 429 },
+      }), // only known emails get this
+      async () => {
+        throw new Error("fetch failed");
+      },
+    ]) {
+      resetPasswordForEmail.mockImplementationOnce(service);
+      const state = await requestPasswordResetAction(
+        idle,
+        form({ email: "will@example.com" }),
+      );
+      // The reply exists before the request was even made.
+      expect(resetPasswordForEmail).not.toHaveBeenCalled();
+      outcomes.push(state);
+      await runDeferred();
+      expect(resetPasswordForEmail).toHaveBeenCalledTimes(1);
+      resetPasswordForEmail.mockClear();
+    }
     for (const o of outcomes) {
       expect(o).toEqual({
         status: "sent",
@@ -117,27 +183,17 @@ describe("requestPasswordResetAction — same answer for every address (PRD)", (
     log.mockRestore();
   });
 
-  it("never answers faster than the floor, so timing can't tell them apart", async () => {
-    resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
-    let settled = false;
-    const pending = requestPasswordResetAction(
-      idle,
-      form({ email: "a@b.co" }),
-    ).then(() => (settled = true));
-    await jest.advanceTimersByTimeAsync(RESET_REQUEST_MIN_MS - 1);
-    expect(settled).toBe(false);
-    await jest.advanceTimersByTimeAsync(1);
-    await pending;
-    expect(settled).toBe(true);
-  });
-
   it("asks the auth service with the normalized email", async () => {
     resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
-    await submit("  Will@Example.com ");
+    await requestPasswordResetAction(
+      idle,
+      form({ email: "  Will@Example.com " }),
+    );
+    await runDeferred();
     expect(resetPasswordForEmail).toHaveBeenCalledWith("will@example.com");
   });
 
-  it("only shape problems are reported, before any request", async () => {
+  it("only shape problems are reported, and nothing is scheduled", async () => {
     expect(
       await requestPasswordResetAction(idle, form({ email: "" })),
     ).toMatchObject({ status: "invalid", error: "Enter your email." });
@@ -147,6 +203,7 @@ describe("requestPasswordResetAction — same answer for every address (PRD)", (
       status: "invalid",
       error: "Enter a valid email address.",
     });
+    expect(deferred).toHaveLength(0);
     expect(resetPasswordForEmail).not.toHaveBeenCalled();
   });
 });
@@ -222,7 +279,9 @@ describe("setNewPasswordAction (spec R8)", () => {
   it("maps weak, same, and unexpected refusals", async () => {
     getClaims.mockResolvedValue(fresh());
     const log = jest.spyOn(console, "error").mockImplementation(() => {});
-    updateUser.mockResolvedValueOnce({ error: { code: "weak_password" } });
+    updateUser.mockResolvedValueOnce({
+      error: { code: "weak_password", reasons: ["length"] },
+    });
     expect(
       (await setNewPasswordAction(idle, form({ password: "x" }))).fieldError,
     ).toBe("Use at least 6 characters.");
@@ -241,14 +300,14 @@ describe("setNewPasswordAction (spec R8)", () => {
     log.mockRestore();
   });
 
-  it("on success signs out every other session, then goes to Today", async () => {
+  it("on success signs out EVERY session, this one included, and asks for a fresh sign-in (R26)", async () => {
     getClaims.mockResolvedValue(fresh());
     updateUser.mockResolvedValue({ error: null });
     signOut.mockResolvedValue({ error: null });
     await expect(
       setNewPasswordAction(idle, form({ password: "new-pass-1" })),
-    ).rejects.toThrow("NEXT_REDIRECT:/?notice=password-updated");
+    ).rejects.toThrow("NEXT_REDIRECT:/login?notice=password-updated");
     expect(updateUser).toHaveBeenCalledWith({ password: "new-pass-1" });
-    expect(signOut).toHaveBeenCalledWith({ scope: "others" });
+    expect(signOut).toHaveBeenCalledWith({ scope: "global" });
   });
 });
