@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 9 — production runbook (all five tickets implemented; PRs open, not yet integrated).
+Step 11 — full verification on the integrated feature branch.
 
 ## Authority used (read before resuming)
 
@@ -39,8 +39,8 @@ Step 9 — production runbook (all five tickets implemented; PRs open, not yet i
 - [x] 6. Linear milestone + issues (blockedBy chain)
 - [x] 7. Feature PR into `main` (do not merge) — **#49**
 - [x] 8. Implement tickets (ticket worker, stacked branches)
-- [ ] 9. Production runbook — `docs/runs/08-multi-user-foundation-runbook.md`
-- [ ] 10. Squash-merge ticket PRs into feature branch, in order
+- [x] 9. Production runbook — `docs/runs/08-multi-user-foundation-runbook.md`
+- [x] 10. Squash-merge ticket PRs into feature branch, in order
 - [ ] 11. Full verification
 - [ ] 12. Code review → inline comments on feature PR
 - [ ] 13. Review audit + fixes
@@ -63,7 +63,14 @@ Step 9 — production runbook (all five tickets implemented; PRs open, not yet i
 - OVE-37 → branch `feat/ove-37-ownership-backfill` → **PR #51** (base `feat/ove-36-…`) · In Review · verified: lint, typecheck, format, unit 554, integration 340, build
 - OVE-38 → branch `feat/ove-38-scope-plan-library-gyms` → **PR #52** (base `feat/ove-37-…`) · In Review · verified: lint, typecheck, format, unit 561, integration 358, build
 - OVE-39 → branch `feat/ove-39-scope-logging-goals-cardio-progression` → **PR #53** (base `feat/ove-38-…`) · In Review · verified: lint, typecheck, format, unit 561, integration 375, build
-- OVE-40 → branch `feat/ove-40-enforce-ownership` → PR (base `feat/ove-39-…`) · verified: lint, typecheck, format, unit 563, integration 390, build
+- OVE-40 → branch `feat/ove-40-enforce-ownership` → **PR #54** (base `feat/ove-39-…`) · verified: lint, typecheck, format, unit 563, integration 390, build
+
+### Integration (step 10) — all squash-merged into `feat/08-multi-user-foundation`, in order
+- #50 → `945982d` · #51 → `b5509a0` · #52 → `02bfccd` · #53 → `9d4f3fb` · #54 → `873af2c`
+- Method: merge the updated feature branch into each child, resolve conflicts with the child's superset version, require zero content delta vs the child tip, push, retarget, squash. No force-push. On #54 the merge resurrected the pre-rename `9_account_ownership_expand` dir from #50's squash (caught by the zero-delta check) and it was removed before merging.
+
+### Local-stack rehearsal (2026-10-19) — evidence in the runbook §9
+- Backup → Stage 1 (db execute + resolve) → Stage 2 dry run/execute/rerun → Stage 3 (migrate deploy): counts and per-table value fingerprints identical; verify.sql all green; browser smoke 23/23 with the migrated account + two temporary accounts (removed; original credentials restored). The local dev DB is now at the enforced schema; pre-ownership dump kept in the session scratchpad.
 
 ## Resolved Decisions so far
 
