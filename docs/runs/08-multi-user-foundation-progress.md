@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 2 — design doc.
+Step 7 — feature PR.
 
 ## Authority used (read before resuming)
 
@@ -32,11 +32,11 @@ Step 2 — design doc.
 ## Pipeline status
 
 - [x] 1. Pitch pulled + authority read
-- [ ] 2. Design doc — `docs/design/08-multi-user-foundation-design-doc.md`
+- [x] 2. Design doc — `docs/design/08-multi-user-foundation-design-doc.md`
 - [x] 3. UI design gate — **Skipped — no UI surface in this pitch** (run prompt; no preview created)
-- [ ] 4. Spec — `docs/specs/08-multi-user-foundation-spec.md`
-- [ ] 5. Resolved Decisions recorded in spec
-- [ ] 6. Linear milestone + issues (blockedBy chain)
+- [x] 4. Spec — `docs/specs/08-multi-user-foundation-spec.md`
+- [x] 5. Resolved Decisions recorded in spec
+- [x] 6. Linear milestone + issues (blockedBy chain)
 - [ ] 7. Feature PR into `main` (do not merge)
 - [ ] 8. Implement tickets (ticket worker, stacked branches)
 - [ ] 9. Production runbook — `docs/runs/08-multi-user-foundation-runbook.md`
@@ -49,11 +49,20 @@ Step 2 — design doc.
 
 ## Linear
 
-(not yet created)
+- Milestone: **Multi-User Foundation** (`5360bfec-73cb-4dbc-aabf-7a5829305606`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-36** — 1: Ownership expand migration + account-scoped data layer core
+  - **OVE-37** — 2: Ownership backfill operator (Stage 2) + rehearsal harness (blockedBy OVE-36)
+  - **OVE-38** — 3: Scope plan, library, gyms (+ real-plan import) (blockedBy OVE-37)
+  - **OVE-39** — 4: Scope logging, cardio, goals, progression + profile timezone (blockedBy OVE-38)
+  - **OVE-40** — 5: Enforce ownership: migration 10, DB second layer, coverage, e2e rehearsal (blockedBy OVE-39)
+
+### Ticket branches / PRs
+(stacked: OVE-36 branches from the feature branch; each next from the previous)
 
 ## Resolved Decisions so far
 
-- **R1** — Controlling planning docs are the owner's multi-user set in Downloads (see above), not the stale repo copies. Authority: the approved pitch traces to them; `.claude/CLAUDE.md` (byte-identical to the same download batch) names them.
+R1–R24 are recorded in `docs/specs/08-multi-user-foundation-spec.md` → Resolved Decisions. Highlights: R1 planning-doc authority; R3 scoped layer = DMMF-driven Prisma query extension in `src/lib/data` behind `requireAccount()`; R12 favorites → `ExerciseFavorite`, `is_favorite` kept unused (no destructive drop); R13 library read-only, legacy library archives untouched; R14 DB triggers/CHECKs as layer 2; R15 staged apply (db execute + resolve for 9 → backfill → migrate deploy for 10); R18 profile zone = sole today authority, cookie retired; R21 local-stack rehearsal, prod-copy rehearsal is human.
 
 ## Deferred / flagged
 
