@@ -61,6 +61,7 @@ describe("gym management", () => {
         primaryMuscle: "chest",
         equipmentType: "machine",
         isCustom: true,
+        userId: account.userId,
       },
     });
     await createGym(account, { name: "Downtown Gym" });
@@ -103,13 +104,19 @@ describe("gym management", () => {
         primaryMuscle: "chest",
         equipmentType: "machine",
         isCustom: true,
+        userId: account.userId,
       },
     });
     const loggedSession = await prisma.loggedSession.create({
-      data: { performedOn: new Date(), scheduledFor: new Date() },
+      data: {
+        userId: account.userId,
+        performedOn: new Date(),
+        scheduledFor: new Date(),
+      },
     });
     const loggedExercise = await prisma.loggedExercise.create({
       data: {
+        userId: account.userId,
         loggedSessionId: loggedSession.id,
         exerciseId: exercise.id,
         plannedExerciseId: exercise.id,

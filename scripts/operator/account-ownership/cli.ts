@@ -109,7 +109,7 @@ async function main() {
       );
     }
     console.log(
-      "\nDone. Next: Stage 3 (npx prisma migrate deploy applies 10_account_ownership_enforce).",
+      "\nDone. Next: Stage 3 (npx prisma migrate deploy applies 9_account_ownership_2_enforce).",
     );
   } catch (error) {
     if (error instanceof BackfillRefused)

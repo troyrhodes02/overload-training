@@ -296,7 +296,7 @@ describe("plan writes with another account's ids behave like missing ids and cha
 
 describe("per-account plan rules", () => {
   // "Each account may have its own active mesocycle" needs the per-account
-  // unique index from 10_account_ownership_enforce; it lives in
+  // unique index from 9_account_ownership_2_enforce; it lives in
   // ownership-enforce.int.test.ts (OVE-40).
 
   it("rows a second account creates are owned by it, never by the first", async () => {

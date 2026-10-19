@@ -36,7 +36,7 @@ import {
  * Second accounts here log against a DRAFT block (starting a workout needs a
  * session, not an active block); two accounts each holding an active block
  * is proven in ownership-enforce.int.test.ts, which needs the per-account
- * index from migration 10.
+ * index from 9_account_ownership_2_enforce.
  *
  * Cross-account isolation — logged history, gym baselines, missed days,
  * cardio, and the progression reads derived from them (LoggedSession,

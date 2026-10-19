@@ -29,7 +29,9 @@ describe("account-scoped client", () => {
   it("stamps creates with the acting account and hides them from others", async () => {
     const a = await createTestAccount();
     const b = await createTestAccount();
-    const gym = await a.db.gym.create({ data: { name: "Downtown" } });
+    const gym = await a.db.gym.create({
+      data: { userId: a.userId, name: "Downtown" },
+    });
     expect(gym.userId).toBe(a.userId);
 
     expect(await b.db.gym.findMany()).toEqual([]);
@@ -44,7 +46,9 @@ describe("account-scoped client", () => {
   it("a foreign row is indistinguishable from a nonexistent one on writes", async () => {
     const a = await createTestAccount();
     const b = await createTestAccount();
-    const gym = await a.db.gym.create({ data: { name: "Downtown" } });
+    const gym = await a.db.gym.create({
+      data: { userId: a.userId, name: "Downtown" },
+    });
 
     const foreign = await b.db.gym
       .update({ where: { id: gym.id }, data: { name: "x" } })
@@ -74,11 +78,11 @@ describe("account-scoped client", () => {
   it("interactive transactions keep the scope", async () => {
     const a = await createTestAccount();
     const b = await createTestAccount();
-    await a.db.gym.create({ data: { name: "A gym" } });
+    await a.db.gym.create({ data: { userId: a.userId, name: "A gym" } });
     expect(await b.db.$transaction((tx) => tx.gym.findMany())).toEqual([]);
     expect(await inAccountTx(a, undefined, (tx) => tx.gym.count())).toBe(1);
     const created = await inAccountTx(b, undefined, (tx) =>
-      tx.gym.create({ data: { name: "B gym" } }),
+      tx.gym.create({ data: { userId: b.userId, name: "B gym" } }),
     );
     expect(created.userId).toBe(b.userId);
   });
@@ -87,9 +91,13 @@ describe("account-scoped client", () => {
     const a = await createTestAccount();
     const b = await createTestAccount();
     await expect(
-      b.db.gym.create({ data: { name: "spoof", userId: a.userId } }),
+      b.db.gym.create({
+        data: { name: "spoof", userId: a.userId },
+      }),
     ).rejects.toBeInstanceOf(AccountScopeError);
-    const g = await b.db.gym.create({ data: { name: "mine" } });
+    const g = await b.db.gym.create({
+      data: { userId: b.userId, name: "mine" },
+    });
     await expect(
       b.db.gym.update({ where: { id: g.id }, data: { userId: a.userId } }),
     ).rejects.toBeInstanceOf(AccountScopeError);
@@ -101,11 +109,12 @@ describe("account-scoped client", () => {
     await expect(
       a.db.mesocycle.create({
         data: {
+          userId: a.userId,
           name: "Block",
           lengthWeeks: 5,
           deloadEveryWeeks: 5,
           splitType: "custom",
-          sessions: { create: [{ name: "Push" }] },
+          sessions: { create: [{ name: "Push", userId: a.userId }] },
         },
       }),
     ).rejects.toBeInstanceOf(AccountScopeError);
@@ -124,6 +133,7 @@ describe("Exercise: the shared library and private custom exercises", () => {
         primaryMuscle: "shoulders",
         equipmentType: "other",
         isCustom: true,
+        userId: a.userId,
       },
     });
     expect(custom.userId).toBe(a.userId);
@@ -239,6 +249,7 @@ describe("scoped row lock", () => {
     const b = await createTestAccount();
     const meso = await a.db.mesocycle.create({
       data: {
+        userId: a.userId,
         name: "Block",
         lengthWeeks: 5,
         deloadEveryWeeks: 5,

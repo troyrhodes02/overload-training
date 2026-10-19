@@ -2,6 +2,14 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { getTestPrisma } from "./support/db";
 import { assertTestDatabaseUrl } from "./support/assert-test-db";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Library & Gyms Setup — the database layer of the exercise classification
@@ -20,14 +28,20 @@ describe("exercise classification constraints", () => {
   it("stores one primary muscle, optional secondaries, and canonical equipment", async () => {
     const prisma = getTestPrisma();
     const created = await prisma.exercise.create({
-      data: { ...base, secondaryMuscles: ["triceps", "chest"] },
+      data: {
+        ...base,
+        userId: account.userId,
+        secondaryMuscles: ["triceps", "chest"],
+      },
     });
     expect(created.primaryMuscle).toBe("shoulders");
     expect(created.secondaryMuscles).toEqual(["triceps", "chest"]);
     expect(created.equipmentType).toBe("barbell");
     expect(created.isFavorite).toBe(false);
 
-    const noSecondaries = await prisma.exercise.create({ data: base });
+    const noSecondaries = await prisma.exercise.create({
+      data: { ...base, userId: account.userId },
+    });
     expect(noSecondaries.secondaryMuscles).toEqual([]);
   });
 
@@ -35,8 +49,8 @@ describe("exercise classification constraints", () => {
     const prisma = getTestPrisma();
     await expect(
       prisma.$executeRawUnsafe(
-        `INSERT INTO exercises (id, name, equipment_type, is_custom, updated_at)
-         VALUES (gen_random_uuid(), 'No Primary', 'barbell', true, now())`,
+        `INSERT INTO exercises (id, name, equipment_type, is_custom, user_id, updated_at)
+         VALUES (gen_random_uuid(), 'No Primary', 'barbell', true, '${account.userId}', now())`,
       ),
     ).rejects.toThrow();
   });
@@ -45,14 +59,14 @@ describe("exercise classification constraints", () => {
     const prisma = getTestPrisma();
     await expect(
       prisma.$executeRawUnsafe(
-        `INSERT INTO exercises (id, name, muscle_group, equipment_type, is_custom, updated_at)
-         VALUES (gen_random_uuid(), 'Bad', 'lats', 'barbell', true, now())`,
+        `INSERT INTO exercises (id, name, muscle_group, equipment_type, is_custom, user_id, updated_at)
+         VALUES (gen_random_uuid(), 'Bad', 'lats', 'barbell', true, '${account.userId}', now())`,
       ),
     ).rejects.toThrow();
     await expect(
       prisma.$executeRawUnsafe(
-        `INSERT INTO exercises (id, name, muscle_group, equipment_type, is_custom, updated_at)
-         VALUES (gen_random_uuid(), 'Bad', 'chest', 'smith machine', true, now())`,
+        `INSERT INTO exercises (id, name, muscle_group, equipment_type, is_custom, user_id, updated_at)
+         VALUES (gen_random_uuid(), 'Bad', 'chest', 'smith machine', true, '${account.userId}', now())`,
       ),
     ).rejects.toThrow();
   });
@@ -61,7 +75,11 @@ describe("exercise classification constraints", () => {
     const prisma = getTestPrisma();
     await expect(
       prisma.exercise.create({
-        data: { ...base, secondaryMuscles: ["triceps", "shoulders"] },
+        data: {
+          ...base,
+          userId: account.userId,
+          secondaryMuscles: ["triceps", "shoulders"],
+        },
       }),
     ).rejects.toThrow();
     expect(await prisma.exercise.count()).toBe(0);
@@ -71,7 +89,11 @@ describe("exercise classification constraints", () => {
     const prisma = getTestPrisma();
     await expect(
       prisma.exercise.create({
-        data: { ...base, secondaryMuscles: ["triceps", "triceps"] },
+        data: {
+          ...base,
+          userId: account.userId,
+          secondaryMuscles: ["triceps", "triceps"],
+        },
       }),
     ).rejects.toThrow();
     expect(await prisma.exercise.count()).toBe(0);
@@ -80,7 +102,9 @@ describe("exercise classification constraints", () => {
   it("enforces provenance: custom rows have no source id, imported rows require one", async () => {
     const prisma = getTestPrisma();
     await expect(
-      prisma.exercise.create({ data: { ...base, sourceId: "Some_Source" } }),
+      prisma.exercise.create({
+        data: { ...base, userId: account.userId, sourceId: "Some_Source" },
+      }),
     ).rejects.toThrow();
     await expect(
       prisma.exercise.create({ data: { ...base, isCustom: false } }),
@@ -104,8 +128,12 @@ describe("exercise classification constraints", () => {
     ).rejects.toThrow();
 
     // Same display name is fine (custom/custom and custom/imported).
-    await prisma.exercise.create({ data: base });
-    await prisma.exercise.create({ data: base });
+    await prisma.exercise.create({
+      data: { ...base, userId: account.userId },
+    });
+    await prisma.exercise.create({
+      data: { ...base, userId: account.userId },
+    });
     expect(await prisma.exercise.count({ where: { name: base.name } })).toBe(3);
   });
 
@@ -113,7 +141,11 @@ describe("exercise classification constraints", () => {
     const prisma = getTestPrisma();
     await expect(
       prisma.exercise.create({
-        data: { ...base, imageRef: "free-exercise-db/Anything/0.jpg" },
+        data: {
+          ...base,
+          userId: account.userId,
+          imageRef: "free-exercise-db/Anything/0.jpg",
+        },
       }),
     ).rejects.toThrow();
   });
@@ -121,14 +153,24 @@ describe("exercise classification constraints", () => {
   it("rejects blank exercise and gym names", async () => {
     const prisma = getTestPrisma();
     await expect(
-      prisma.exercise.create({ data: { ...base, name: "   " } }),
+      prisma.exercise.create({
+        data: { ...base, userId: account.userId, name: "   " },
+      }),
     ).rejects.toThrow();
-    await expect(prisma.gym.create({ data: { name: "  " } })).rejects.toThrow();
+    await expect(
+      prisma.gym.create({ data: { userId: account.userId, name: "  " } }),
+    ).rejects.toThrow();
 
     // Duplicate gym names are allowed; the address is optional.
-    await prisma.gym.create({ data: { name: "Downtown Gym" } });
     await prisma.gym.create({
-      data: { name: "Downtown Gym", address: "5th & Main" },
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
+    await prisma.gym.create({
+      data: {
+        userId: account.userId,
+        name: "Downtown Gym",
+        address: "5th & Main",
+      },
     });
     expect(await prisma.gym.count({ where: { name: "Downtown Gym" } })).toBe(2);
   });

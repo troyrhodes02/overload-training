@@ -43,7 +43,7 @@ This blocks Accounts (Pitch 9): signup must never open while data is unscoped.
 5. Per-account uniqueness (active mesocycle, active goal per exercise); review of all other constraints.
 6. Library read-only enforcement (no archive/restore/edit of library rows; Archive control rendered only for custom exercises); favorites moved to the per-account table.
 7. Per-account timezone: profile-stored IANA zone is the only authority for today/weekday/past-date; cookie authority and `TimeZoneSync` retired.
-8. Staged migration: `9_account_ownership_expand`, the ownership backfill operator (Stage 2), `10_account_ownership_enforce` with a completeness guard; database second layer (triggers, CHECKs, FKs).
+8. Staged migration: `9_account_ownership_1_expand`, the ownership backfill operator (Stage 2), `9_account_ownership_2_enforce` with a completeness guard; database second layer (triggers, CHECKs, FKs).
 9. The permanent cross-account isolation suite, DB-layer isolation tests, migration rehearsal tests, RLS coverage for new tables.
 10. Rehearsal on the local development stack; the production runbook (human-applied).
 
@@ -217,7 +217,7 @@ model Exercise {
 | `exercises_source_id_key` | unique | unchanged | library identity (custom rows have null) |
 | `exercises` CHECKs (custom has no source/image) | unchanged | + `exercises_custom_is_owned`: `(is_custom AND user_id IS NOT NULL) OR (NOT is_custom AND user_id IS NULL)` | library ownerless, custom owned |
 
-### Database second layer (migration 10)
+### Database second layer (migration 10 = `9_account_ownership_2_enforce`, R25)
 
 - `overload_assert_same_owner()` — `BEFORE INSERT OR UPDATE` trigger function (generic, `TG_ARGV` = parent table, FK column, `allow_shared`). If the FK is non-null and the parent row exists, raises `check_violation` (`23514`) unless `parent.user_id = NEW.user_id` (or, with `allow_shared`, `parent.user_id IS NULL`). Installed for:
 
@@ -357,7 +357,7 @@ npx tsx scripts/operator/account-ownership/cli.ts \
 ```
 
 - Connects with `DIRECT_URL`; refuses a non-local host on `--execute` unless `--confirm-host` equals it exactly (prints host only, never secrets).
-- Requires migration `9_account_ownership_expand` applied and `10_account_ownership_enforce` not applied.
+- Requires migration `9_account_ownership_1_expand` applied and `9_account_ownership_2_enforce` not applied.
 - Resolves `auth.users` by case-insensitive email: exactly one match **and** exactly one auth user in total, else refuses.
 - Validates the zone with `isValidTimeZone`.
 - Dry run (default): read-only; prints resolved account, zone, per-table unowned counts, custom exercises, favorites to copy, library count (and archived library count), and every refusal reason.
@@ -545,7 +545,7 @@ Existing Playwright auth-boundary tests stay green (no route change).
 | R12 | Favorites move to `ExerciseFavorite`. `exercises.is_favorite` is kept, unread and unwritten, marked deprecated; dropping it is a later human-approved migration. | A shared flag lets one account change another's library; dropping a data-holding column is a destructive operation the pitch does not name (stop condition 4). | Pitch §3, CLAUDE.md "application code never writes library rows"; Pipeline policy |
 | R13 | Library exercises are read-only: archive/restore of a library row returns `not_found`; the Archive control renders only for custom exercises. Library rows archived in the single-user era are left as they are (no library row is modified by the migration). | PRD: "Library exercises cannot be edited or archived by any account." Preservation forbids side-effect data changes; un-archiving is a product decision (flagged). | PRD edge case; pitch no-gos |
 | R14 | Second layer in the database: generic same-owner trigger, ownership-immutability trigger, custom ⇔ owned CHECK, `NOT NULL`, FKs to `profiles`; trigger functions revoked from PUBLIC/anon/authenticated. Composite FKs were rejected because two relations use `ON DELETE SET NULL`, which would null the shared `user_id`. | Mirrors the logged-history Layer 2: a bug in layer 1 fails loudly instead of silently mixing accounts. | CLAUDE.md layered enforcement; Pitch §1 |
-| R15 | Staging: `9_account_ownership_expand` (additive, nullable) → Stage 2 operator backfill → `10_account_ownership_enforce` (completeness guard first; atomic). In production, 9 is applied with `prisma db execute` + `prisma migrate resolve --applied`, then the backfill, then `prisma migrate deploy` applies 10. An accidental single `migrate deploy` of both fails safe at 10's guard (9 applied, nothing else changed). | Prisma deploy has no "apply up to"; a data step between schema steps needs an explicit split; the guard makes the wrong order harmless. | Pitch §4 staged shape; Architecture Environments |
+| R15 | Staging: `9_account_ownership_1_expand` (additive, nullable) → Stage 2 operator backfill → `9_account_ownership_2_enforce` (completeness guard first; atomic). In production, 9 is applied with `prisma db execute` + `prisma migrate resolve --applied`, then the backfill, then `prisma migrate deploy` applies 10. An accidental single `migrate deploy` of both fails safe at 10's guard (9 applied, nothing else changed). | Prisma deploy has no "apply up to"; a data step between schema steps needs an explicit split; the guard makes the wrong order harmless. | Pitch §4 staged shape; Architecture Environments |
 | R16 | The backfill is an operator script (not migration SQL): explicit `--email`, single-auth-user requirement, required `--time-zone`, dry run by default, `--execute` with `--confirm-host` for remote, one transaction, create/assign only, verified counts, idempotent. | Migrations contain no `INSERT` (standing guard) and cannot know the account or zone; operator-task rules in CLAUDE.md. | CLAUDE.md Operator tasks |
 | R17 | `Profile.timeZone` required; `firstName`/`lastName` nullable until Accounts. An authenticated account without a profile gets one on first `requireAccount()` with `"UTC"`. | Accounts owns name and zone capture; hand-provisioned verification accounts must work; production's profile comes from Stage 2. | Architecture Profile; Pitch §5 |
 | R18 | `Profile.timeZone` is the sole authority for today/weekday/past-date; the `overload-tz` cookie reader and `TimeZoneSync` are removed. The existing account's zone is the value of its current `overload-tz` cookie (the zone its days already follow), supplied by the operator. Consequence: travel no longer shifts "today" until Settings can edit the zone. | "Today is per account… not the browser's alone"; preserves the existing account's days at home. | CLAUDE.md "Today is per account"; Pitch §5 |
@@ -555,6 +555,7 @@ Existing Playwright auth-boundary tests stay green (no route change).
 | R22 | Integration tests that need `auth.users` create a minimal stand-in table in their own throwaway database. | Embedded Postgres has no Supabase auth schema. | Existing test harness |
 | R23 | Migration 10 runs in one transaction (verified against Prisma's runner in rehearsal tests; explicit transaction control added only if the runner does not already provide it). | A half-enforced schema is worse than either end state. | CLAUDE.md atomic multi-step writes (by analogy) |
 | R24 | The run stops before merging the feature PR into `main`. | Run prompt. | Run prompt |
+| R25 | The two schema stages are named `9_account_ownership_1_expand` ("migration 9" in this spec) and `9_account_ownership_2_enforce` ("migration 10"). *Amended during OVE-40: originally `9_account_ownership_expand` / `10_account_ownership_enforce`.* | Prisma applies migration directories in lexicographic order, so `10_…` sorts before `1_…` and would run second on every fresh database (found in OVE-40's runner check). The new names sort after `8_bodyweight_logging` and in stage order. Upstream note: later pitches must keep names sorting after these (e.g. `9a_…`) or adopt a timestamp scheme. | Prisma Migrate behavior; R15 |
 
 ## 17. Open questions
 

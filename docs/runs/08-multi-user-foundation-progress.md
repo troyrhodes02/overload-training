@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — implementing tickets (OVE-40 next).
+Step 9 — production runbook (all five tickets implemented; PRs open, not yet integrated).
 
 ## Authority used (read before resuming)
 
@@ -38,7 +38,7 @@ Step 8 — implementing tickets (OVE-40 next).
 - [x] 5. Resolved Decisions recorded in spec
 - [x] 6. Linear milestone + issues (blockedBy chain)
 - [x] 7. Feature PR into `main` (do not merge) — **#49**
-- [ ] 8. Implement tickets (ticket worker, stacked branches)
+- [x] 8. Implement tickets (ticket worker, stacked branches)
 - [ ] 9. Production runbook — `docs/runs/08-multi-user-foundation-runbook.md`
 - [ ] 10. Squash-merge ticket PRs into feature branch, in order
 - [ ] 11. Full verification
@@ -62,7 +62,8 @@ Step 8 — implementing tickets (OVE-40 next).
 - OVE-36 → branch `feat/ove-36-ownership-expand-scoped-layer` → **PR #50** (base `feat/08-multi-user-foundation`) · In Review · verified: lint, typecheck, format, unit 549, integration 327, build
 - OVE-37 → branch `feat/ove-37-ownership-backfill` → **PR #51** (base `feat/ove-36-…`) · In Review · verified: lint, typecheck, format, unit 554, integration 340, build
 - OVE-38 → branch `feat/ove-38-scope-plan-library-gyms` → **PR #52** (base `feat/ove-37-…`) · In Review · verified: lint, typecheck, format, unit 561, integration 358, build
-- OVE-39 → branch `feat/ove-39-scope-logging-goals-cardio-progression` → PR (base `feat/ove-38-…`) · verified: lint, typecheck, format, unit 561, integration 375, build
+- OVE-39 → branch `feat/ove-39-scope-logging-goals-cardio-progression` → **PR #53** (base `feat/ove-38-…`) · In Review · verified: lint, typecheck, format, unit 561, integration 375, build
+- OVE-40 → branch `feat/ove-40-enforce-ownership` → PR (base `feat/ove-39-…`) · verified: lint, typecheck, format, unit 563, integration 390, build
 
 ## Resolved Decisions so far
 
@@ -79,6 +80,9 @@ R1–R24 are recorded in `docs/specs/08-multi-user-foundation-spec.md` → Resol
 
 - Integration runs: use the scratchpad `itest.sh` pattern — kill orphaned embedded postgres, set a random `TEST_PG_PORT`, wrap in `timeout`.
 - OVE-39 → OVE-40 hand-offs: (1) two accounts each with an ACTIVE mesocycle and (2) two accounts each with an active goal on the same library exercise both need migration 10's per-account indexes. Until then the global goal index lets B's createGoal hit P2002 on A's goal and answer "already has an active goal" — a transitional cross-account detection that OVE-40 removes (test lives in ownership-enforce). The logging isolation tests use a DRAFT plan for B for the same reason.
+
+- **OVE-40 findings (both fixed before any non-throwaway apply):** (1) Prisma orders migration dirs lexicographically, so `10_…` would run before `1_…` on fresh DBs → stages renamed `9_account_ownership_1_expand` / `9_account_ownership_2_enforce` (spec R25); the rehearsal harness now sorts like Prisma. (2) The same-owner trigger used `FOUND` after `EXECUTE … INTO`, which PL/pgSQL never sets → triggers silently allowed everything; caught by the data-driven every-relation test; fixed with `GET DIAGNOSTICS … ROW_COUNT`.
+- Prisma's runner applies a migration atomically (verified: a failure at the very end of enforce left no NOT NULL, CHECK, trigger, or index change, and recorded the migration as failed → recovery is `prisma migrate resolve --rolled-back 9_account_ownership_2_enforce`).
 
 ## Deferred / flagged
 

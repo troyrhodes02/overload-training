@@ -221,7 +221,7 @@ export async function createGoal(
     });
   } catch (error) {
     // A concurrent create racing past the pre-check hits the partial unique
-    // index goals_one_active_per_exercise: same answer, never a replacement.
+    // index goals_one_active_per_exercise_per_user: same answer, never a replacement.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"

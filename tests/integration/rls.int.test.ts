@@ -1,4 +1,12 @@
 import { getTestPrisma, APP_TABLES } from "./support/db";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Security / privacy — the deny-all RLS posture that closes the Supabase Data
@@ -73,6 +81,7 @@ describe("row-level security posture", () => {
         primaryMuscle: "chest",
         equipmentType: "barbell",
         isCustom: true,
+        userId: account.userId,
       },
     });
 

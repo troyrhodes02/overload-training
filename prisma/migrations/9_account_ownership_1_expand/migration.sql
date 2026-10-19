@@ -14,7 +14,7 @@
 --
 -- Nothing is backfilled, dropped, renamed, inserted, or made NOT NULL here.
 -- Stage 2 (scripts/operator/account-ownership) assigns every existing row to
--- the named account; Stage 3 (10_account_ownership_enforce) makes ownership
+-- the named account; Stage 3 (9_account_ownership_2_enforce) makes ownership
 -- mandatory only after that is proven complete. Both new tables get
 -- row-level security with no policy (deny-all), like every other table.
 

@@ -51,6 +51,7 @@ const strengthCounts = async () => ({
 async function seedCardioLog(mesocycleId: string, scheduledFor = "2026-11-03") {
   return prisma().cardioLog.create({
     data: {
+      userId: account.userId,
       mesocycleId,
       scheduledFor: new Date(`${scheduledFor}T00:00:00Z`),
       plannedType: "Incline Walk",
@@ -130,6 +131,7 @@ describe("adding planned cardio", () => {
     await expect(
       prisma().plannedCardio.create({
         data: {
+          userId: account.userId,
           mesocycleId: m.id,
           dayOfWeek: 2,
           type: "Bike",
@@ -181,7 +183,9 @@ describe("adding planned cardio", () => {
       { dayOfWeek: 1, type: " Bike", durationMin: 20 },
     ]) {
       await expect(
-        prisma().plannedCardio.create({ data: { mesocycleId: m.id, ...data } }),
+        prisma().plannedCardio.create({
+          data: { userId: account.userId, mesocycleId: m.id, ...data },
+        }),
       ).rejects.toThrow();
     }
   });

@@ -35,7 +35,8 @@ import {
  *    activateMesocycle, which re-checks readiness inside its transaction and
  *    archives the previous active block in the same transaction (spec D1–D3).
  *  - At most one active mesocycle: enforced here AND by the partial unique
- *    index `mesocycles_single_active` (spec D49).
+ *    per-account index `mesocycles_single_active_per_user` (spec D49;
+ *    Multi-User Foundation).
  *  - Status checks happen under a row lock (write-support lockMesocycle), so a
  *    check and the write it guards can't interleave with another tab's
  *    activation, archive, or edit of the same block.

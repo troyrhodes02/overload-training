@@ -365,7 +365,7 @@ describe("one active goal per exercise (R6, R7, R18)", () => {
 describe("database constraints on the goal lifecycle", () => {
   it("rejects inconsistent lifecycle, non-positive targets, and acks on non-completed goals", async () => {
     const { bench } = await setup();
-    const bad: Prisma.GoalUncheckedCreateInput[] = [
+    const bad: Omit<Prisma.GoalUncheckedCreateInput, "userId">[] = [
       { exerciseId: bench.id, targetWeightLbs: 0, targetReps: 1 },
       { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 0 },
       {
