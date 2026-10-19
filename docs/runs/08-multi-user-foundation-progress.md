@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 12 — code review of PR #49 (code-review skill, `--comment`, running).
+**COMPLETE — stopped before merge to `main` (run prompt).** Feature PR #49 open at `11a6824` with all ticket PRs integrated and review findings addressed. Remaining steps are human: see the run report §9 (`docs/runs/08-multi-user-foundation-report.md`) and the runbook.
 
 ## Authority used (read before resuming)
 
@@ -42,10 +42,10 @@ Step 12 — code review of PR #49 (code-review skill, `--comment`, running).
 - [x] 9. Production runbook — `docs/runs/08-multi-user-foundation-runbook.md`
 - [x] 10. Squash-merge ticket PRs into feature branch, in order
 - [x] 11. Full verification — `f92b2c3`: lint, format, typecheck, prisma validate, fresh-DB migrate deploy (11), no drift, unit 34/563, integration 32/390, build, client-bundle, e2e 22
-- [ ] 12. Code review → inline comments on feature PR
-- [ ] 13. Review audit + fixes
-- [ ] 14. Final verification — STOP (no merge to `main`)
-- [ ] 15. Run report — `docs/runs/08-multi-user-foundation-report.md`
+- [x] 12. Code review → inline comments on feature PR (review 5573493056: 9 inline + 1 body)
+- [x] 13. Review audit + fixes (7 implement → `11a6824`, 2 defer upstream, 1 skip; audit posted on #49)
+- [x] 14. Final verification — STOP (no merge to `main`): `11a6824` lint, format, typecheck, prisma validate, fresh-DB deploy (11), no drift, unit 35/571, integration 32/391, build, client-bundle, e2e 22
+- [x] 15. Run report — `docs/runs/08-multi-user-foundation-report.md`
 
 ## Linear
 
