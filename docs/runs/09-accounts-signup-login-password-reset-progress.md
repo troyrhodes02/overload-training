@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-45** (OVE-41 → #57, OVE-42 → #58, OVE-43 → #59, OVE-44 → see below).
+**Step 8 — implementing OVE-45** (OVE-41 → #57, OVE-42 → #58, OVE-43 → #59, OVE-44 → #60).
 
 ## Authority used (read before resuming)
 
@@ -60,7 +60,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - OVE-41 → branch `feat/ove-41-auth-surfaces-settings` → **PR #57** (base feature branch) · In Review · verified: lint, typecheck, format, unit 36/588, integration 32/395, build, e2e 25
 - OVE-42 → branch `feat/ove-42-invite-signup` → **PR #58** (base `feat/ove-41-…`) · In Review · verified: lint, typecheck, format, unit 38/607, integration 32/398, build + client-bundle (invite + service key set), e2e 26; local-stack signup check (wrong code → 0 users; profile names + browser zone)
 - OVE-43 → branch `feat/ove-43-password-recovery` → **PR #59** (base `feat/ove-42-…`) · In Review · verified: lint, typecheck, format, unit 39/617, integration 32/398, build, e2e 28; local-stack recovery flow via Mailpit (identical copy known/unknown, ≥1.5 s both, subject + /auth/confirm link, same-password rejected, other device signed out, reused link → expired, old pw fails/new works). Local stack restarted once to load the recovery template (data intact: 463 sets, 1 user).
-- OVE-44 → branch `feat/ove-44-account-deletion` → PR (pending) · verified: lint, typecheck, format, unit 40/627, integration 33/406 (new `isolation/account-deletion.int.test.ts` 8/8: two full accounts, A deleted → B + library byte-identical; injected mid-tx failure → nothing deleted; auth failure → retry finishes; lazy-profile sweep), build, client-bundle, e2e 28; live local deletion (wrong pw → nothing; right pw → profile/gym/auth user gone; original account 463 sets + 876 library rows untouched).
+- OVE-44 → branch `feat/ove-44-account-deletion` → **PR #60** (base `feat/ove-43-…`) · In Review · verified: lint, typecheck, format, unit 40/627, integration 33/406 (new `isolation/account-deletion.int.test.ts` 8/8: two full accounts, A deleted → B + library byte-identical; injected mid-tx failure → nothing deleted; auth failure → retry finishes; lazy-profile sweep), build, client-bundle, e2e 28; live local deletion (wrong pw → nothing; right pw → profile/gym/auth user gone; original account 463 sets + 876 library rows untouched).
+- OVE-45 → branch `feat/ove-45-accounts-e2e` → PR (pending) · verified: lint, typecheck, format, unit 40/627, integration 33/406, default e2e 28 (server now forced to an unroutable DB URL), **accounts lifecycle e2e 7/7 on the local stack** (`npm run test:e2e:accounts`), client-bundle. Local DB left as before (1 profile, 1 auth user, 463 sets). Orphaned test profiles from earlier ad-hoc checks found and removed (3 + 1, all test-created, owning nothing else but 1 gym).
 
 
 ## Resolved Decisions so far
