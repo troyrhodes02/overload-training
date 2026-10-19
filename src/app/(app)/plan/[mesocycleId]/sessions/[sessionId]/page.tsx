@@ -15,6 +15,7 @@ import {
 } from "@/components/plan/session-controls";
 import { dayName } from "@/lib/plan/calendar";
 import { getSessionDetail } from "@/lib/plan/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Session · Overload" };
 
@@ -23,8 +24,9 @@ type PageProps = {
 };
 
 export default async function SessionPage({ params }: PageProps) {
+  const account = await requireAccount();
   const { mesocycleId, sessionId } = await params;
-  const s = await getSessionDetail(mesocycleId, sessionId);
+  const s = await getSessionDetail(account, mesocycleId, sessionId);
   if (!s) notFound();
 
   const readOnly = s.mesocycle.status === "archived";

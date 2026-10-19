@@ -1,35 +1,40 @@
 import "server-only";
-import type { Exercise, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import type { Exercise } from "@prisma/client";
 import { DomainError, isUuid } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
 import {
   parseCustomExerciseInput,
   type RawCustomExerciseInput,
 } from "./validation";
 
 /**
- * The Exercise write module (Library & Gyms Setup). Outside the catalog
- * import, Exercise rows are created and changed only here.
+ * The Exercise write module (Library & Gyms Setup; Multi-User Foundation).
+ * Outside the catalog import, Exercise and ExerciseFavorite rows are created
+ * and changed only here.
  *
  * Invariants:
  *  - No hard delete, ever. Archive sets `deletedAt`; logged history keeps
  *    referencing the row (FKs are onDelete: Restrict).
+ *  - Library exercises are shared reference data and are NEVER written by the
+ *    app: archive/restore reach only the acting account's custom exercises
+ *    (a library or another account's id is "not found"; spec R13).
+ *  - Favorites are per account (ExerciseFavorite); the shared
+ *    Exercise.isFavorite column is never read or written (spec R12).
  *  - Archive/restore touch ONLY `deletedAt`; favorite state is kept (spec D11).
  *  - Custom exercises are created with no source id and no image (spec D7).
- *  - Every function accepts an optional transaction client so callers compose.
+ *  - Every function takes the acting Account and accepts an optional
+ *    transaction client so callers compose.
  */
 
-type Db = Prisma.TransactionClient;
-
-function db(tx?: Db): Db {
-  return tx ?? prisma;
-}
+type Db = AccountTx;
 
 const NOT_FOUND = "That exercise doesn't exist.";
 
-async function requireExists(id: string, tx?: Db) {
+/** A library or own custom exercise (whatever the account can see). */
+async function requireVisible(account: Account, id: string, tx?: Db) {
   const row = isUuid(id)
-    ? await db(tx).exercise.findUnique({
+    ? await (tx ?? account.db).exercise.findUnique({
         where: { id },
         select: { id: true, deletedAt: true },
       })
@@ -38,7 +43,21 @@ async function requireExists(id: string, tx?: Db) {
   return row;
 }
 
+/** One of the acting account's custom exercises; library rows are read-only. */
+async function requireOwnCustom(account: Account, id: string, tx?: Db) {
+  const row = isUuid(id)
+    ? await (tx ?? account.db).exercise.findFirst({
+        // The scoped client only shows custom rows that belong to the account.
+        where: { id, isCustom: true },
+        select: { id: true, deletedAt: true },
+      })
+    : null;
+  if (!row) throw new DomainError("not_found", NOT_FOUND);
+  return row;
+}
+
 export async function createCustomExercise(
+  account: Account,
   input: RawCustomExerciseInput,
   tx?: Db,
 ): Promise<Exercise> {
@@ -50,8 +69,9 @@ export async function createCustomExercise(
       parsed.details,
     );
   }
-  return db(tx).exercise.create({
+  return (tx ?? account.db).exercise.create({
     data: {
+      userId: account.userId,
       name: parsed.value.name,
       primaryMuscle: parsed.value.primaryMuscle,
       secondaryMuscles: parsed.value.secondaryMuscles,
@@ -62,53 +82,70 @@ export async function createCustomExercise(
   });
 }
 
-/** Manual favorite toggle. Only active exercises can change favorite state. */
+/**
+ * Manual favorite toggle for the acting account. Only active exercises can
+ * change favorite state. Starring writes the account's ExerciseFavorite row,
+ * never the shared exercise.
+ */
 export async function setExerciseFavorite(
+  account: Account,
   input: { exerciseId: string; isFavorite: boolean },
   tx?: Db,
 ): Promise<{ id: string; isFavorite: boolean }> {
   if (typeof input.isFavorite !== "boolean") {
     throw new DomainError("validation_error", "Choose favorite or not.");
   }
-  const { count } = isUuid(input.exerciseId)
-    ? await db(tx).exercise.updateMany({
-        where: { id: input.exerciseId, deletedAt: null },
-        data: { isFavorite: input.isFavorite },
-      })
-    : { count: 0 };
-  if (count === 0) {
-    // Nothing active matched: say whether it's missing or archived.
-    await requireExists(input.exerciseId, tx);
+  const db = tx ?? account.db;
+  const exercise = await requireVisible(account, input.exerciseId, tx);
+  if (exercise.deletedAt !== null) {
     throw new DomainError(
       "invalid_state_transition",
       "Archived exercises can't be favorited.",
     );
   }
-  return { id: input.exerciseId, isFavorite: input.isFavorite };
+  if (input.isFavorite) {
+    await db.exerciseFavorite.upsert({
+      where: {
+        userId_exerciseId: {
+          userId: account.userId,
+          exerciseId: exercise.id,
+        },
+      },
+      create: { userId: account.userId, exerciseId: exercise.id },
+      update: {},
+    });
+  } else {
+    await db.exerciseFavorite.deleteMany({
+      where: { exerciseId: exercise.id },
+    });
+  }
+  return { id: exercise.id, isFavorite: input.isFavorite };
 }
 
-/** Archive (soft delete). Idempotent. Never deletes; never touches favorites. */
+/** Archive (soft delete) a custom exercise. Idempotent. Never deletes. */
 export async function archiveExercise(
+  account: Account,
   input: { exerciseId: string },
   tx?: Db,
 ): Promise<{ id: string }> {
-  await requireExists(input.exerciseId, tx);
-  await db(tx).exercise.updateMany({
-    where: { id: input.exerciseId, deletedAt: null },
+  const row = await requireOwnCustom(account, input.exerciseId, tx);
+  await (tx ?? account.db).exercise.updateMany({
+    where: { id: row.id, deletedAt: null },
     data: { deletedAt: new Date() },
   });
-  return { id: input.exerciseId };
+  return { id: row.id };
 }
 
 /** Undo of an archive (the archive toast's Undo, spec D30). Idempotent. */
 export async function restoreExercise(
+  account: Account,
   input: { exerciseId: string },
   tx?: Db,
 ): Promise<{ id: string }> {
-  await requireExists(input.exerciseId, tx);
-  await db(tx).exercise.updateMany({
-    where: { id: input.exerciseId, deletedAt: { not: null } },
+  const row = await requireOwnCustom(account, input.exerciseId, tx);
+  await (tx ?? account.db).exercise.updateMany({
+    where: { id: row.id, deletedAt: { not: null } },
     data: { deletedAt: null },
   });
-  return { id: input.exerciseId };
+  return { id: row.id };
 }

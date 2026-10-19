@@ -5,12 +5,14 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { BackLink, MesocycleStatusBadge } from "@/components/plan/plan-bits";
 import { formatPlanRange } from "@/lib/plan/calendar";
 import { listCloneSources } from "@/lib/plan/queries";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Clone a mesocycle · Overload" };
 
 /** Choose which prior block to carry forward (active or archived; spec D47). */
 export default async function CloneSourcePage() {
-  const sources = await listCloneSources();
+  const account = await requireAccount();
+  const sources = await listCloneSources(account);
 
   return (
     <section className="space-y-4">

@@ -9,7 +9,7 @@ jest.mock("@/lib/exercises/exercises", () => ({
   archiveExercise,
   restoreExercise,
 }));
-jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
+jest.mock("@/lib/data/account", () => ({ requireAccount: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -17,7 +17,7 @@ jest.mock("next/navigation", () => ({
 }));
 jest.mock("next/cache", () => ({ refresh: jest.fn() }));
 
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import {
   archiveExerciseAction,
   createCustomExerciseAction,
@@ -36,6 +36,9 @@ import {
   parseCustomExerciseInput,
 } from "@/lib/exercises/validation";
 
+/** The acting account the mocked requireAccount() resolves (Multi-User Foundation). */
+const TEST_ACCOUNT = { userId: "a0000000-0000-4000-8000-000000000001" };
+
 const ID = "3f2c1d1e-8a7b-4c6d-9e0f-112233445566";
 const initial: CustomExerciseFormState = {
   result: null,
@@ -53,10 +56,10 @@ function form(entries: [string, string][]): FormData {
   return fd;
 }
 
-describe("exercise server actions re-check auth before doing anything", () => {
+describe("exercise server actions resolve the acting account before doing anything", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockImplementation(() => {
+    (requireAccount as jest.Mock).mockImplementation(() => {
       throw new Error("NEXT_REDIRECT:/login");
     });
   });
@@ -96,7 +99,7 @@ describe("exercise server actions re-check auth before doing anything", () => {
 describe("exercise server actions (authenticated)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockResolvedValue({ id: "user" });
+    (requireAccount as jest.Mock).mockResolvedValue(TEST_ACCOUNT);
   });
 
   it("create redirects to the new exercise on success", async () => {
@@ -112,7 +115,7 @@ describe("exercise server actions (authenticated)", () => {
         ]),
       ),
     ).rejects.toThrow(`NEXT_REDIRECT:/exercises/${ID}?created=1`);
-    expect(createCustomExercise).toHaveBeenCalledWith({
+    expect(createCustomExercise).toHaveBeenCalledWith(TEST_ACCOUNT, {
       name: "Landmine Press",
       primaryMuscle: "shoulders",
       equipmentType: "barbell",

@@ -20,7 +20,7 @@ const writeModule = () =>
 jest.mock("@/lib/plan/mesocycles", () => writeModule());
 jest.mock("@/lib/plan/sessions", () => writeModule());
 jest.mock("@/lib/plan/cardio", () => writeModule());
-jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
+jest.mock("@/lib/data/account", () => ({ requireAccount: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -28,8 +28,11 @@ jest.mock("next/navigation", () => ({
 }));
 jest.mock("next/cache", () => ({ refresh: jest.fn() }));
 
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import * as actions from "@/app/(app)/plan/actions";
+
+/** The acting account the mocked requireAccount() resolves (Multi-User Foundation). */
+const TEST_ACCOUNT = { userId: "a0000000-0000-4000-8000-000000000001" };
 
 const ID = "3f2c1d1e-8a7b-4c6d-9e0f-112233445566";
 
@@ -37,10 +40,10 @@ const callable = Object.entries(actions).filter(
   ([, v]) => typeof v === "function",
 ) as [string, (...args: unknown[]) => Promise<unknown>][];
 
-describe("plan server actions re-check auth before doing anything", () => {
+describe("plan server actions resolve the acting account before doing anything", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockImplementation(() => {
+    (requireAccount as jest.Mock).mockImplementation(() => {
       throw new Error("NEXT_REDIRECT:/login");
     });
   });
@@ -90,7 +93,7 @@ describe("plan server actions re-check auth before doing anything", () => {
 describe("plan server actions (authenticated)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireUser as jest.Mock).mockResolvedValue({ id: "user" });
+    (requireAccount as jest.Mock).mockResolvedValue(TEST_ACCOUNT);
   });
 
   it("create passes only the form's fields and lands on the new draft", async () => {
@@ -117,7 +120,7 @@ describe("plan server actions (authenticated)", () => {
         fd,
       ),
     ).rejects.toThrow(`NEXT_REDIRECT:/plan/${ID}?created=1`);
-    expect(mockWrite("createMesocycle")).toHaveBeenCalledWith({
+    expect(mockWrite("createMesocycle")).toHaveBeenCalledWith(TEST_ACCOUNT, {
       name: "Strength Block",
       startDate: "",
       lengthWeeks: "5",
@@ -136,7 +139,7 @@ describe("plan server actions (authenticated)", () => {
       expectedActiveId: null,
     });
     expect(result).toEqual({ ok: true, data: { id: ID, archivedId: null } });
-    expect(mockWrite("activateMesocycle")).toHaveBeenCalledWith({
+    expect(mockWrite("activateMesocycle")).toHaveBeenCalledWith(TEST_ACCOUNT, {
       mesocycleId: ID,
       expectedActiveId: null,
     });

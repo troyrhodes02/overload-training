@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import {
   archiveExercise,
@@ -21,11 +21,11 @@ export async function setExerciseFavoriteAction(
   exerciseId: string,
   isFavorite: boolean,
 ): Promise<ActionResult<{ id: string; isFavorite: boolean }>> {
-  await requireUser();
+  const account = await requireAccount();
   // No refresh: the button updates optimistically, and an unstarred row stays
   // put in the Favorites view until the next navigation (design doc Screen 1).
   return toActionResult(
-    () => setExerciseFavorite({ exerciseId, isFavorite }),
+    () => setExerciseFavorite(account, { exerciseId, isFavorite }),
     "Couldn't update favorites. Try again.",
   );
 }
@@ -44,10 +44,10 @@ export async function createCustomExerciseAction(
   _prev: CustomExerciseFormState,
   formData: FormData,
 ): Promise<CustomExerciseFormState> {
-  await requireUser();
+  const account = await requireAccount();
   const raw = customExerciseInputFromFormData(formData);
   const result = await toActionResult(
-    async () => ({ id: (await createCustomExercise(raw)).id }),
+    async () => ({ id: (await createCustomExercise(account, raw)).id }),
     "Couldn't add the exercise. Your entries are still here.",
   );
   if (result.ok) {
@@ -69,11 +69,11 @@ export async function createCustomExerciseAction(
 export async function archiveExerciseAction(
   exerciseId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   // No refresh(): archiving happens on the detail page, and the client
   // navigates back to the library, which renders fresh.
   return toActionResult(
-    () => archiveExercise({ exerciseId }),
+    () => archiveExercise(account, { exerciseId }),
     "Couldn't archive. Nothing changed.",
   );
 }
@@ -81,9 +81,9 @@ export async function archiveExerciseAction(
 export async function restoreExerciseAction(
   exerciseId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => restoreExercise({ exerciseId }),
+    () => restoreExercise(account, { exerciseId }),
     "Couldn't restore. Try again.",
   );
   if (result.ok) refresh();

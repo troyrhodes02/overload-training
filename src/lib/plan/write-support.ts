@@ -1,7 +1,9 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { DomainError, isUuid } from "@/lib/actions/result";
+import { DomainError } from "@/lib/actions/result";
+import { inAccountTx, type Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
+import { lockMesocycleForUpdate, type LockedMesocycle } from "@/lib/data/locks";
 
 /**
  * Shared plumbing for the plan write modules (./mesocycles.ts, ./sessions.ts).
@@ -11,14 +13,16 @@ import { DomainError, isUuid } from "@/lib/actions/result";
  * of a planned exercise used by both duplicate and clone.
  */
 
-export type Db = Prisma.TransactionClient;
+/** The acting account's scoped transaction client (Multi-User Foundation). */
+export type Db = AccountTx;
 
-/** Run in the caller's transaction, or open one. */
+/** Run in the caller's (account-scoped) transaction, or open one. */
 export function inTx<T>(
+  account: Account,
   tx: Db | undefined,
   run: (t: Db) => Promise<T>,
 ): Promise<T> {
-  return tx ? run(tx) : prisma.$transaction(run);
+  return inAccountTx(account, tx, run);
 }
 
 export function invalid(details: Record<string, string>): DomainError {
@@ -66,30 +70,25 @@ export async function mapDbErrors<T>(
   }
 }
 
-export type LockedMesocycle = {
-  id: string;
-  status: "draft" | "active" | "archived";
-};
+export type { LockedMesocycle };
 
 /**
- * Reads a mesocycle's status under a row lock (SELECT … FOR UPDATE), so a
- * status check and the write that depends on it can't interleave with an
- * activation, an archive, or another edit of the same block in another tab:
- * the second transaction waits, then sees the committed status.
+ * Reads one of the acting account's mesocycles under a row lock (SELECT …
+ * FOR UPDATE, src/lib/data/locks.ts), so a status check and the write that
+ * depends on it can't interleave with an activation, an archive, or another
+ * edit of the same block in another tab. Another account's mesocycle is "not
+ * found", exactly like a missing one.
  */
 export async function lockMesocycle(
+  account: Account,
   mesocycleId: string,
   tx: Db,
 ): Promise<LockedMesocycle> {
-  const rows = isUuid(mesocycleId)
-    ? await tx.$queryRaw<LockedMesocycle[]>`
-        SELECT "id", "status"::text AS "status" FROM "mesocycles"
-        WHERE "id" = ${mesocycleId}::uuid FOR UPDATE`
-    : [];
-  if (rows.length === 0) {
+  const row = await lockMesocycleForUpdate(account, tx, mesocycleId);
+  if (!row) {
     throw new DomainError("not_found", "That mesocycle doesn't exist.");
   }
-  return rows[0];
+  return row;
 }
 
 const READ_ONLY =
@@ -97,10 +96,11 @@ const READ_ONLY =
 
 /** Locks a mesocycle for writing; archived ones are rejected. */
 export async function requireEditableMesocycle(
+  account: Account,
   mesocycleId: string,
   tx: Db,
 ): Promise<LockedMesocycle> {
-  const row = await lockMesocycle(mesocycleId, tx);
+  const row = await lockMesocycle(account, mesocycleId, tx);
   if (row.status === "archived") {
     throw new DomainError("invalid_state_transition", READ_ONLY);
   }
@@ -124,10 +124,12 @@ export type PlannedExerciseSource = {
  * 0..n-1 in the given order.
  */
 export function plannedExerciseCopies(
+  account: Account,
   sessionId: string,
   sources: PlannedExerciseSource[],
 ): Prisma.SessionExerciseCreateManyInput[] {
   return sources.map((s, i) => ({
+    userId: account.userId,
     sessionId,
     exerciseId: s.exerciseId,
     position: i,

@@ -14,6 +14,14 @@ import {
   createTestSession,
   createTestSessionExercise,
 } from "./support/plan-factories";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Split & Mesocycle Builder — lifecycle, presets, configuration, and the DB
@@ -39,7 +47,10 @@ const base = {
 
 describe("creating a mesocycle", () => {
   it("is a draft, with the 5 / 5 pre-fill accepted and no start date inferred", async () => {
-    const { id } = await createMesocycle({ ...base, splitType: "custom" });
+    const { id } = await createMesocycle(account, {
+      ...base,
+      splitType: "custom",
+    });
     const row = await prisma().mesocycle.findUniqueOrThrow({ where: { id } });
     expect(row).toMatchObject({
       status: "draft",
@@ -51,7 +62,7 @@ describe("creating a mesocycle", () => {
   });
 
   it("accepts any valid length and deload cadence (the default is not a rule)", async () => {
-    const { id } = await createMesocycle({
+    const { id } = await createMesocycle(account, {
       name: "Short Block",
       startDate: "2026-11-02",
       lengthWeeks: "3",
@@ -64,14 +75,14 @@ describe("creating a mesocycle", () => {
   });
 
   it("allows duplicate names (identity is the record)", async () => {
-    await createMesocycle({ ...base, splitType: "custom" });
-    await createMesocycle({ ...base, splitType: "custom" });
+    await createMesocycle(account, { ...base, splitType: "custom" });
+    await createMesocycle(account, { ...base, splitType: "custom" });
     expect(await prisma().mesocycle.count()).toBe(2);
   });
 
   it("rejects invalid input and writes nothing", async () => {
     const err = await fails(
-      createMesocycle({
+      createMesocycle(account, {
         name: " ",
         lengthWeeks: "0",
         deloadEveryWeeks: "5",
@@ -88,13 +99,13 @@ describe("creating a mesocycle", () => {
   });
 
   it("can save a cadence longer than the block in a draft (surfaced, not moved)", async () => {
-    const { id } = await createMesocycle({
+    const { id } = await createMesocycle(account, {
       ...base,
       lengthWeeks: "4",
       deloadEveryWeeks: "5",
       splitType: "custom",
     });
-    const week = await getMesocycleWeek(id);
+    const week = await getMesocycleWeek(account, id);
     expect(week?.deloadEveryWeeks).toBe(5);
     expect(week?.readiness.issues).toContainEqual({
       code: "deload_exceeds_length",
@@ -132,8 +143,8 @@ describe("presets create structure only (spec D8–D13)", () => {
     "%s creates exactly the approved sessions and no exercises, sets, or reps",
     async (splitType) => {
       await createTestExercise({ isFavorite: true }); // must not be picked up
-      const { id } = await createMesocycle({ ...base, splitType });
-      const week = await getMesocycleWeek(id);
+      const { id } = await createMesocycle(account, { ...base, splitType });
+      const week = await getMesocycleWeek(account, id);
       expect(week?.week.map((s) => s?.name ?? null)).toEqual(
         expected[splitType],
       );
@@ -151,9 +162,12 @@ describe("presets create structure only (spec D8–D13)", () => {
 
 describe("readiness and activation", () => {
   it("an incomplete draft saves but cannot activate", async () => {
-    const { id } = await createMesocycle({ ...base, splitType: "ppl" });
+    const { id } = await createMesocycle(account, {
+      ...base,
+      splitType: "ppl",
+    });
     const err = await fails(
-      activateMesocycle({ mesocycleId: id, expectedActiveId: null }),
+      activateMesocycle(account, { mesocycleId: id, expectedActiveId: null }),
     );
     expect(err.code).toBe("invalid_state_transition");
     expect(err.message).toBe("This plan isn't ready: Add a start date.");
@@ -168,14 +182,20 @@ describe("readiness and activation", () => {
       dayOfWeek: 3,
     });
     await fails(
-      activateMesocycle({ mesocycleId: mesocycle.id, expectedActiveId: null }),
+      activateMesocycle(account, {
+        mesocycleId: mesocycle.id,
+        expectedActiveId: null,
+      }),
     );
     await prisma().session.update({
       where: { id: empty.id },
       data: { dayOfWeek: null },
     });
     await expect(
-      activateMesocycle({ mesocycleId: mesocycle.id, expectedActiveId: null }),
+      activateMesocycle(account, {
+        mesocycleId: mesocycle.id,
+        expectedActiveId: null,
+      }),
     ).resolves.toEqual({ id: mesocycle.id, archivedId: null });
   });
 
@@ -186,7 +206,10 @@ describe("readiness and activation", () => {
       data: { deletedAt: new Date() },
     });
     const err = await fails(
-      activateMesocycle({ mesocycleId: mesocycle.id, expectedActiveId: null }),
+      activateMesocycle(account, {
+        mesocycleId: mesocycle.id,
+        expectedActiveId: null,
+      }),
     );
     expect(err.message).toBe(
       "This plan isn't ready: Barbell Bench Press in Push Day 1 is archived. Replace or remove it.",
@@ -195,7 +218,7 @@ describe("readiness and activation", () => {
 
   it("a valid draft activates", async () => {
     const { mesocycle } = await createReadyDraft();
-    await activateMesocycle({
+    await activateMesocycle(account, {
       mesocycleId: mesocycle.id,
       expectedActiveId: null,
     });
@@ -207,12 +230,12 @@ describe("readiness and activation", () => {
 
   it("activating archives the previous active block in the same step", async () => {
     const a = await createReadyDraft({ name: "Hypertrophy Block 3" });
-    await activateMesocycle({
+    await activateMesocycle(account, {
       mesocycleId: a.mesocycle.id,
       expectedActiveId: null,
     });
     const b = await createReadyDraft({ name: "Strength Block" });
-    const result = await activateMesocycle({
+    const result = await activateMesocycle(account, {
       mesocycleId: b.mesocycle.id,
       expectedActiveId: a.mesocycle.id,
     });
@@ -225,20 +248,20 @@ describe("readiness and activation", () => {
       { name: "Hypertrophy Block 3", status: "archived" },
       { name: "Strength Block", status: "active" },
     ]);
-    const home = await listMesocyclesForHome();
+    const home = await listMesocyclesForHome(account);
     expect(home.active?.id).toBe(b.mesocycle.id);
     expect(home.previous.map((m) => m.id)).toEqual([a.mesocycle.id]);
   });
 
   it("refuses when the active block is not the one the lifter confirmed", async () => {
     const a = await createReadyDraft({ name: "A" });
-    await activateMesocycle({
+    await activateMesocycle(account, {
       mesocycleId: a.mesocycle.id,
       expectedActiveId: null,
     });
     const b = await createReadyDraft({ name: "B" });
     const err = await fails(
-      activateMesocycle({
+      activateMesocycle(account, {
         mesocycleId: b.mesocycle.id,
         expectedActiveId: null,
       }),
@@ -287,7 +310,7 @@ describe("readiness and activation", () => {
   it("only drafts activate", async () => {
     const m = await createTestMesocycle({ status: "archived" });
     const err = await fails(
-      activateMesocycle({ mesocycleId: m.id, expectedActiveId: null }),
+      activateMesocycle(account, { mesocycleId: m.id, expectedActiveId: null }),
     );
     expect(err.code).toBe("invalid_state_transition");
   });
@@ -296,7 +319,7 @@ describe("readiness and activation", () => {
 describe("editing details", () => {
   it("a draft may save an incomplete configuration; length never moves deload", async () => {
     const { mesocycle } = await createReadyDraft();
-    await updateMesocycleDetails({
+    await updateMesocycleDetails(account, {
       mesocycleId: mesocycle.id,
       name: "Strength Block",
       startDate: "",
@@ -315,12 +338,12 @@ describe("editing details", () => {
 
   it("an active block must keep a start date and a cadence that fits", async () => {
     const { mesocycle } = await createReadyDraft();
-    await activateMesocycle({
+    await activateMesocycle(account, {
       mesocycleId: mesocycle.id,
       expectedActiveId: null,
     });
     const err = await fails(
-      updateMesocycleDetails({
+      updateMesocycleDetails(account, {
         mesocycleId: mesocycle.id,
         name: "Strength Block",
         startDate: "",
@@ -334,7 +357,7 @@ describe("editing details", () => {
       deloadEveryWeeks:
         "An active block needs its deload to happen at least once.",
     });
-    await updateMesocycleDetails({
+    await updateMesocycleDetails(account, {
       mesocycleId: mesocycle.id,
       name: "Strength Block II",
       startDate: "2026-11-09",
@@ -350,7 +373,7 @@ describe("editing details", () => {
   it("archived mesocycles are read-only but readable", async () => {
     const { mesocycle } = await createReadyDraft({ status: "archived" });
     const err = await fails(
-      updateMesocycleDetails({
+      updateMesocycleDetails(account, {
         mesocycleId: mesocycle.id,
         name: "Changed",
         startDate: "2026-11-02",
@@ -359,7 +382,7 @@ describe("editing details", () => {
       }),
     );
     expect(err.code).toBe("invalid_state_transition");
-    const week = await getMesocycleWeek(mesocycle.id);
+    const week = await getMesocycleWeek(account, mesocycle.id);
     expect(week?.name).toBe("Strength Block");
     expect(week?.week[0]?.exerciseCount).toBe(1);
   });
@@ -368,7 +391,7 @@ describe("editing details", () => {
 describe("archiving a draft", () => {
   it("moves a draft to archived, never deletes it", async () => {
     const m = await createTestMesocycle();
-    await archiveDraftMesocycle({ mesocycleId: m.id });
+    await archiveDraftMesocycle(account, { mesocycleId: m.id });
     const row = await prisma().mesocycle.findUniqueOrThrow({
       where: { id: m.id },
     });
@@ -378,7 +401,7 @@ describe("archiving a draft", () => {
   it("only from draft", async () => {
     const m = await createTestMesocycle({ status: "archived" });
     expect(
-      (await fails(archiveDraftMesocycle({ mesocycleId: m.id }))).code,
+      (await fails(archiveDraftMesocycle(account, { mesocycleId: m.id }))).code,
     ).toBe("invalid_state_transition");
   });
 });

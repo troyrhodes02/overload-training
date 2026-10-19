@@ -7,6 +7,7 @@ import { MesocycleForm } from "@/components/plan/mesocycle-form";
 import { formatPlanDate } from "@/lib/plan/calendar";
 import { getCloneSetup } from "@/lib/plan/queries";
 import { cloneMesocycleAction } from "../../actions";
+import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Clone setup · Overload" };
 
@@ -20,8 +21,9 @@ const MAX_LISTED = 5;
  * after the source ends, the same length and deload cadence — all editable.
  */
 export default async function CloneSetupPage({ params }: PageProps) {
+  const account = await requireAccount();
   const { sourceId } = await params;
-  const setup = await getCloneSetup(sourceId);
+  const setup = await getCloneSetup(account, sourceId);
 
   if (!setup) {
     return (

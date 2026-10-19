@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import {
   activateMesocycle,
@@ -63,10 +63,10 @@ export async function createMesocycleAction(
   _prev: MesocycleFormState,
   formData: FormData,
 ): Promise<MesocycleFormState> {
-  await requireUser();
+  const account = await requireAccount();
   const values = formValues(formData);
   const result = await toActionResult(
-    () => createMesocycle(values),
+    () => createMesocycle(account, values),
     "Couldn't create the mesocycle. Your entries are still here.",
   );
   if (result.ok) redirect(`/plan/${result.data.id}?created=1`);
@@ -78,10 +78,10 @@ export async function updateMesocycleDetailsAction(
   _prev: MesocycleFormState,
   formData: FormData,
 ): Promise<MesocycleFormState> {
-  await requireUser();
+  const account = await requireAccount();
   const values = formValues(formData);
   const result = await toActionResult(
-    () => updateMesocycleDetails({ mesocycleId, ...values }),
+    () => updateMesocycleDetails(account, { mesocycleId, ...values }),
     "Couldn't save. Your entries are still here.",
   );
   if (result.ok) redirect(`/plan/${result.data.id}?saved=1`);
@@ -92,9 +92,9 @@ export async function activateMesocycleAction(input: {
   mesocycleId: string;
   expectedActiveId: string | null;
 }): Promise<ActionResult<{ id: string; archivedId: string | null }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => activateMesocycle(input),
+    () => activateMesocycle(account, input),
     "Couldn't activate. Nothing changed.",
   );
   // Also refresh when refused for a state reason (the active block changed,
@@ -113,10 +113,10 @@ export async function activateMesocycleAction(input: {
 export async function archiveDraftMesocycleAction(
   mesocycleId: string,
 ): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   // No refresh(): the client navigates to /plan, which renders fresh.
   return toActionResult(
-    () => archiveDraftMesocycle({ mesocycleId }),
+    () => archiveDraftMesocycle(account, { mesocycleId }),
     "Couldn't archive. Nothing changed.",
   );
 }
@@ -127,9 +127,9 @@ export async function addSessionAction(input: {
   dayOfWeek: number | null;
   replace?: boolean;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => addSession(input),
+    () => addSession(account, input),
     "Couldn't add the session. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -140,9 +140,9 @@ export async function renameSessionAction(input: {
   sessionId: string;
   name: string;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => renameSession(input),
+    () => renameSession(account, input),
     "Couldn't rename. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -154,9 +154,9 @@ export async function moveSessionAction(input: {
   dayOfWeek: number | null;
   replace?: boolean;
 }): Promise<ActionResult<{ id: string; displacedId: string | null }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => moveSession(input),
+    () => moveSession(account, input),
     "Couldn't move the session. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -166,9 +166,9 @@ export async function moveSessionAction(input: {
 export async function removeSessionAction(
   sessionId: string,
 ): Promise<ActionResult<{ id: string; mesocycleId: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => removeSession({ sessionId }),
+    () => removeSession(account, { sessionId }),
     "Couldn't remove the session. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -182,9 +182,9 @@ export async function addSessionExerciseAction(input: {
   targetRepMin: string;
   targetRepMax: string;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => addSessionExercise(input),
+    () => addSessionExercise(account, input),
     "Couldn't add the exercise. Your numbers are still here.",
   );
   if (result.ok) refresh();
@@ -197,9 +197,9 @@ export async function updateSessionExerciseAction(input: {
   targetRepMin: string;
   targetRepMax: string;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => updateSessionExercise(input),
+    () => updateSessionExercise(account, input),
     "Couldn't save. Your numbers are still here.",
   );
   if (result.ok) refresh();
@@ -210,9 +210,9 @@ export async function replaceSessionExerciseAction(input: {
   sessionExerciseId: string;
   exerciseId: string;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => replaceSessionExercise(input),
+    () => replaceSessionExercise(account, input),
     "Couldn't replace. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -222,9 +222,9 @@ export async function replaceSessionExerciseAction(input: {
 export async function removeSessionExerciseAction(
   sessionExerciseId: string,
 ): Promise<ActionResult<{ id: string; sessionId: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => removeSessionExercise({ sessionExerciseId }),
+    () => removeSessionExercise(account, { sessionExerciseId }),
     "Couldn't remove. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -235,9 +235,9 @@ export async function moveSessionExerciseAction(input: {
   sessionExerciseId: string;
   direction: "up" | "down";
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => moveSessionExercise(input),
+    () => moveSessionExercise(account, input),
     "Couldn't reorder. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -249,9 +249,9 @@ export async function duplicateSessionAction(input: {
   dayOfWeek: number | null;
   replace?: boolean;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => duplicateSession(input),
+    () => duplicateSession(account, input),
     "Couldn't duplicate the session. Nothing changed.",
   );
   if (result.ok) refresh();
@@ -263,10 +263,10 @@ export async function cloneMesocycleAction(
   _prev: MesocycleFormState,
   formData: FormData,
 ): Promise<MesocycleFormState> {
-  await requireUser();
+  const account = await requireAccount();
   const values = formValues(formData);
   const result = await toActionResult(
-    () => cloneMesocycle({ sourceMesocycleId, ...values }),
+    () => cloneMesocycle(account, { sourceMesocycleId, ...values }),
     "Couldn't create the clone. Your entries are still here.",
   );
   if (result.ok) redirect(`/plan/${result.data.id}?cloned=1`);
@@ -284,9 +284,9 @@ export async function addPlannedCardioAction(input: {
   type: string;
   durationMin: string;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => addPlannedCardio(input),
+    () => addPlannedCardio(account, input),
     "Couldn't add cardio. Your entries are still here.",
   );
   if (result.ok) refresh();
@@ -299,9 +299,9 @@ export async function updatePlannedCardioAction(input: {
   type: string;
   durationMin: string;
 }): Promise<ActionResult<{ id: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => updatePlannedCardio(input),
+    () => updatePlannedCardio(account, input),
     "Couldn't save. Your entries are still here.",
   );
   if (result.ok) refresh();
@@ -311,9 +311,9 @@ export async function updatePlannedCardioAction(input: {
 export async function removePlannedCardioAction(
   plannedCardioId: string,
 ): Promise<ActionResult<{ id: string; mesocycleId: string }>> {
-  await requireUser();
+  const account = await requireAccount();
   const result = await toActionResult(
-    () => removePlannedCardio({ plannedCardioId }),
+    () => removePlannedCardio(account, { plannedCardioId }),
     "Couldn't remove. Nothing changed.",
   );
   if (result.ok) refresh();

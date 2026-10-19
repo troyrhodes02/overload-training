@@ -11,7 +11,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — implementing tickets (OVE-38 next).
+Step 8 — implementing tickets (OVE-39 next).
 
 ## Authority used (read before resuming)
 
@@ -60,7 +60,8 @@ Step 8 — implementing tickets (OVE-38 next).
 ### Ticket branches / PRs
 (stacked: OVE-36 branches from the feature branch; each next from the previous)
 - OVE-36 → branch `feat/ove-36-ownership-expand-scoped-layer` → **PR #50** (base `feat/08-multi-user-foundation`) · In Review · verified: lint, typecheck, format, unit 549, integration 327, build
-- OVE-37 → branch `feat/ove-37-ownership-backfill` → PR (base `feat/ove-36-…`) · verified: lint, typecheck, format, unit 554, integration 340, build
+- OVE-37 → branch `feat/ove-37-ownership-backfill` → **PR #51** (base `feat/ove-36-…`) · In Review · verified: lint, typecheck, format, unit 554, integration 340, build
+- OVE-38 → branch `feat/ove-38-scope-plan-library-gyms` → PR (base `feat/ove-37-…`) · verified: lint, typecheck, format, unit 561, integration 358, build
 
 ## Resolved Decisions so far
 
@@ -71,6 +72,9 @@ R1–R24 are recorded in `docs/specs/08-multi-user-foundation-spec.md` → Resol
 - Embedded test Postgres is WIN1252: migration SQL must be ASCII-only.
 - If an integration run is killed, an orphaned embedded `postgres.exe --forkchild` can hold port 5433; find it with `Get-CimInstance Win32_Process -Filter "name='postgres.exe'"` and stop it.
 - Spec R9 amended in OVE-36: creates pass `userId: account.userId` (Prisma's create input requires the owner once NOT NULL).
+
+- Wrap jest runs in `timeout` — one isolation run stalled once without reproducing.
+- OVE-38 left for OVE-39: swap-picker favorite ordering still reads the deprecated `exercises.is_favorite` column (logging queries); the per-account active-mesocycle test moves to OVE-40 (needs the per-user index from migration 10).
 
 ## Deferred / flagged
 
