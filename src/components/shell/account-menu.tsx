@@ -1,6 +1,7 @@
 "use client";
 
-import { EllipsisVertical, LogOut } from "lucide-react";
+import Link from "next/link";
+import { EllipsisVertical, LogOut, Settings } from "lucide-react";
 import { signOutAction } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,12 @@ export function AccountMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href="/settings" className="flex w-full items-center gap-2">
+            <Settings className="size-4" />
+            Settings
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <form action={signOutAction}>
             <button type="submit" className="flex w-full items-center gap-2">

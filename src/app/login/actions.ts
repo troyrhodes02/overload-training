@@ -3,7 +3,11 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
-import { parseCredentials } from "./credentials";
+import {
+  parseCredentials,
+  SIGN_IN_UNAVAILABLE,
+  signInErrorMessage,
+} from "./credentials";
 
 export type SignInState = {
   error: string | null;
@@ -19,15 +23,22 @@ export async function signInAction(
     return { error: parsed.message, email: parsed.email };
   }
 
-  const supabase = await createServerSupabase();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: parsed.email,
-    password: parsed.password,
-  });
+  let failure: string | null = null;
+  try {
+    const supabase = await createServerSupabase();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: parsed.email,
+      password: parsed.password,
+    });
+    if (error) failure = signInErrorMessage(error);
+  } catch {
+    // The auth service was unreachable; nothing about the account is known.
+    failure = SIGN_IN_UNAVAILABLE;
+  }
 
-  if (error) {
-    // Do not leak Supabase internals; one plain message.
-    return { error: "Wrong email or password.", email: parsed.email };
+  if (failure) {
+    // Do not leak Supabase internals; one plain message per failure class.
+    return { error: failure, email: parsed.email };
   }
 
   redirect("/");

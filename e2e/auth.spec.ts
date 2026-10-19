@@ -9,34 +9,49 @@ test.describe("authentication boundary", () => {
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
   });
 
-  test("login page shows email + password and NO registration affordance", async ({
-    page,
-  }) => {
-    await page.goto("/login");
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
-
-    // No sign-up / register / create-account link anywhere on the login screen.
-    await expect(
-      page.getByRole("link", { name: /sign ?up|register|create account/i }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByText(/create an account|don't have an account/i),
-    ).toHaveCount(0);
+  test("settings needs an auth session", async ({ page }) => {
+    await page.goto("/settings");
+    await expect(page).toHaveURL(/\/login$/);
   });
 
-  test("there is no public registration surface (/register, /signup)", async ({
+  test("login shows email, password, recovery, and the invite-only signup link", async ({
     page,
   }) => {
-    // The app has no registration route. An unauthenticated request for one is
-    // bounced to /login by the proxy — it never renders a sign-up form.
-    for (const route of ["/register", "/signup"]) {
-      await page.goto(route);
-      await expect(page).toHaveURL(/\/login$/);
-      await expect(
-        page.getByRole("button", { name: /create account|sign ?up/i }),
-      ).toHaveCount(0);
-    }
+    // Accounts (Pitch 9, spec R17) supersedes Foundation's "no registration
+    // affordance": signup exists, but only behind a server-checked invite code.
+    await page.goto("/login");
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Forgot password?" }),
+    ).toHaveAttribute("href", "/forgot-password");
+    await expect(
+      page.getByRole("link", { name: "Create an account" }),
+    ).toHaveAttribute("href", "/signup");
+  });
+
+  test("the forgot link carries the typed email", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("will@example.com");
+    await expect(
+      page.getByRole("link", { name: "Forgot password?" }),
+    ).toHaveAttribute("href", "/forgot-password?email=will%40example.com");
+  });
+
+  test("an unknown notice is ignored; the deletion notice is plain", async ({
+    page,
+  }) => {
+    await page.goto("/login?notice=deleted");
+    await expect(page.getByText("Your account was deleted.")).toBeVisible();
+    await page.goto("/login?notice=<b>hi</b>");
+    await expect(page.getByRole("status")).toHaveCount(0);
+  });
+
+  test("there is no other registration surface (/register)", async ({
+    page,
+  }) => {
+    await page.goto("/register");
+    await expect(page).toHaveURL(/\/login$/);
   });
 });
