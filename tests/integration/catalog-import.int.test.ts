@@ -8,6 +8,14 @@ import {
   type SourceExercise,
 } from "../../prisma/seed/free-exercise-db/source";
 import { getTestPrisma } from "./support/db";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Library & Gyms Setup — the catalog import against a real (throwaway)
@@ -174,6 +182,7 @@ describe("free-exercise-db catalog import", () => {
         primaryMuscle: "glutes",
         equipmentType: "plate_loaded",
         isCustom: true,
+        userId: account.userId,
         isFavorite: true,
       },
     });

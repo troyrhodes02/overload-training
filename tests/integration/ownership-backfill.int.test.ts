@@ -13,7 +13,7 @@ import {
   createAuthUsers,
   createRehearsalDatabase,
   LEGACY,
-  migrationsThrough,
+  migrationsUpTo,
   snapshot,
   type RehearsalDb,
 } from "./support/rehearsal";
@@ -235,7 +235,7 @@ describe("refusals change nothing", () => {
     ).rejects.toBeInstanceOf(BackfillRefused);
   });
 
-  it("after migration 10 (enforce) is recorded as applied", async () => {
+  it("after the enforce migration is recorded as applied", async () => {
     const db = await legacyCopy();
     await db.sql(
       `INSERT INTO "_prisma_migrations" (id, checksum, finished_at, migration_name, applied_steps_count)
@@ -285,8 +285,114 @@ describe("refusals change nothing", () => {
   it("a database with no auth schema", async () => {
     const db = await createRehearsalDatabase();
     open.push(db);
-    await db.applyMigrations(migrationsThrough(9));
+    await db.applyMigrations(migrationsUpTo(EXPAND_MIGRATION));
     const plan = await planOwnershipBackfill(db.prisma, input);
     expect(plan.refusals.join("\n")).toMatch(/not a Supabase database/);
+  });
+});
+
+/**
+ * Stage 3 (ENFORCE) at the end of the rehearsal: the whole staged conversion,
+ * legacy data → expand → assign → enforce, exactly as the runbook performs it.
+ */
+describe("the full staged conversion (expand → assign → enforce)", () => {
+  async function schemaState(db: RehearsalDb) {
+    const [nullable] = await db.sql(
+      `SELECT is_nullable FROM information_schema.columns
+        WHERE table_name = 'logged_sets' AND column_name = 'user_id'`,
+    );
+    const [triggers] = await db.sql(
+      `SELECT count(*)::int AS n FROM pg_trigger WHERE NOT tgisinternal`,
+    );
+    const indexes = (
+      await db.sql(
+        `SELECT indexname FROM pg_indexes
+          WHERE indexname IN ('mesocycles_single_active', 'mesocycles_single_active_per_user',
+                              'goals_one_active_per_exercise', 'goals_one_active_per_exercise_per_user')
+          ORDER BY 1`,
+      )
+    ).map((r) => r.indexname);
+    const [enforced] = await db.sql(
+      `SELECT count(*)::int AS n FROM "_prisma_migrations" WHERE migration_name = $1`,
+      [ENFORCE_MIGRATION],
+    );
+    return {
+      nullable: nullable.is_nullable,
+      triggers: triggers.n,
+      indexes,
+      enforced: enforced.n,
+    };
+  }
+
+  it("preserves every row and value end to end and leaves ownership mandatory", async () => {
+    const db = await legacyCopy();
+    const before = await snapshot(db);
+    await executeOwnershipBackfill(db.prisma, input);
+    await db.applyMigrations([ENFORCE_MIGRATION]);
+
+    expect(await snapshot(db)).toEqual(before);
+    expect(await schemaState(db)).toEqual({
+      nullable: "NO",
+      triggers: 35,
+      indexes: [
+        "goals_one_active_per_exercise_per_user",
+        "mesocycles_single_active_per_user",
+      ],
+      enforced: 1,
+    });
+    // Library rows remain shared and untouched (incl. the archived one).
+    expect(
+      await db.sql(
+        `SELECT count(*)::int AS n FROM exercises WHERE NOT is_custom AND user_id IS NULL`,
+      ),
+    ).toEqual([{ n: 6 }]);
+    // Ownership is now immutable at the database.
+    await expect(
+      db.sql(`UPDATE gyms SET user_id = NULL WHERE id = $1`, [
+        LEGACY.gym.downtown,
+      ]),
+    ).rejects.toThrow();
+  });
+
+  it("refuses to enforce while anything is unassigned — and changes nothing", async () => {
+    const db = await legacyCopy();
+    const before = await snapshot(db);
+    const state = await schemaState(db);
+    await expect(db.applyMigrations([ENFORCE_MIGRATION])).rejects.toThrow(
+      /Ownership backfill incomplete: mesocycles has 2 row\(s\) without an owner/,
+    );
+    expect(await schemaState(db)).toEqual(state);
+    expect(state).toMatchObject({ nullable: "YES", triggers: 0, enforced: 0 });
+    expect(await snapshot(db)).toEqual(before);
+  });
+
+  it("refuses to enforce over a cross-account reference — and changes nothing", async () => {
+    const db = await legacyCopy();
+    await executeOwnershipBackfill(db.prisma, input);
+    const other = randomUUID();
+    await db.sql(
+      `INSERT INTO profiles (user_id, time_zone, created_at, updated_at) VALUES ($1, 'UTC', now(), now())`,
+      [other],
+    );
+    await db.sql(`UPDATE gyms SET user_id = $1 WHERE id = $2`, [
+      other,
+      LEGACY.gym.downtown,
+    ]);
+    const state = await schemaState(db);
+    await expect(db.applyMigrations([ENFORCE_MIGRATION])).rejects.toThrow(
+      /reference a gyms row of a different account/,
+    );
+    expect(await schemaState(db)).toEqual(state);
+  });
+
+  it("applies cleanly to an empty database (fresh environments)", async () => {
+    const db = await createRehearsalDatabase();
+    open.push(db);
+    await db.applyMigrations(migrationsUpTo(ENFORCE_MIGRATION));
+    expect(await schemaState(db)).toMatchObject({
+      nullable: "NO",
+      triggers: 35,
+      enforced: 1,
+    });
   });
 });

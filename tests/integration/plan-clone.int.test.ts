@@ -272,12 +272,24 @@ describe("clone-forward never copies performed data (spec D32)", () => {
       sessionId: push.id,
       exerciseId: bench.id,
     });
-    const gym = await prisma().gym.create({ data: { name: "Downtown Gym" } });
+    const gym = await prisma().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
     await prisma().gymExerciseBaseline.create({
-      data: { gymId: gym.id, exerciseId: bench.id, weightLbs: 185 },
+      data: {
+        userId: account.userId,
+        gymId: gym.id,
+        exerciseId: bench.id,
+        weightLbs: 185,
+      },
     });
     await prisma().goal.create({
-      data: { exerciseId: bench.id, targetWeightLbs: 315, targetReps: 1 },
+      data: {
+        userId: account.userId,
+        exerciseId: bench.id,
+        targetWeightLbs: 315,
+        targetReps: 1,
+      },
     });
     const before = await historyCounts();
     const { id } = await cloneMesocycle(account, cloneInput(m.id));

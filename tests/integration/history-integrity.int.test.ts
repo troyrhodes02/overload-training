@@ -1,4 +1,12 @@
 import { getTestPrisma } from "./support/db";
+import type { Account } from "@/lib/data/account";
+import { defaultAccount } from "./support/accounts";
+
+// Multi-User Foundation: these suites act as the default test account.
+let account: Account;
+beforeEach(async () => {
+  account = await defaultAccount();
+});
 
 /**
  * Logged-history integrity (schema layer). CLAUDE.md Layer 2: foreign keys from
@@ -14,16 +22,26 @@ describe("logged-history referential integrity", () => {
         primaryMuscle: "chest",
         equipmentType: "machine",
         isCustom: true,
+        userId: account.userId,
       },
     });
     const gym = await prisma.gym.create({
-      data: { name: "Downtown Gym", address: "Downtown, near the river" },
+      data: {
+        userId: account.userId,
+        name: "Downtown Gym",
+        address: "Downtown, near the river",
+      },
     });
     const loggedSession = await prisma.loggedSession.create({
-      data: { performedOn: new Date(), scheduledFor: new Date() },
+      data: {
+        userId: account.userId,
+        performedOn: new Date(),
+        scheduledFor: new Date(),
+      },
     });
     const loggedExercise = await prisma.loggedExercise.create({
       data: {
+        userId: account.userId,
         loggedSessionId: loggedSession.id,
         exerciseId: exercise.id,
         plannedExerciseId: exercise.id,

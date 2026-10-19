@@ -4,7 +4,7 @@
  * no browser surface.
  *
  * Assigns every pre-ownership row to ONE explicitly named account, after
- * migration 9_account_ownership_expand and before 10_account_ownership_enforce:
+ * migration 9_account_ownership_1_expand and before 9_account_ownership_2_enforce:
  *   - creates that account's profile with the operator-supplied IANA zone,
  *   - sets user_id on every unowned row of every owned table (and on custom
  *     exercises; library exercises stay ownerless),
@@ -21,8 +21,8 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { isValidTimeZone } from "@/lib/plan/calendar";
 
-export const EXPAND_MIGRATION = "9_account_ownership_expand";
-export const ENFORCE_MIGRATION = "10_account_ownership_enforce";
+export const EXPAND_MIGRATION = "9_account_ownership_1_expand";
+export const ENFORCE_MIGRATION = "9_account_ownership_2_enforce";
 
 /**
  * Every owned table that existed before ownership (everything that can hold

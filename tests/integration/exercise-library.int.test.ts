@@ -543,12 +543,19 @@ describe("exercise archival never destroys or detaches history", () => {
   it("historical references to an archived exercise remain readable", async () => {
     const prisma = getTestPrisma();
     const s = await seedLibrary();
-    const gym = await prisma.gym.create({ data: { name: "Downtown Gym" } });
+    const gym = await prisma.gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
     const loggedSession = await prisma.loggedSession.create({
-      data: { performedOn: new Date(), scheduledFor: new Date() },
+      data: {
+        userId: account.userId,
+        performedOn: new Date(),
+        scheduledFor: new Date(),
+      },
     });
     const loggedExercise = await prisma.loggedExercise.create({
       data: {
+        userId: account.userId,
         loggedSessionId: loggedSession.id,
         exerciseId: s.banded.id,
         plannedExerciseId: s.banded.id,

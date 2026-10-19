@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { assertTestDatabaseUrl } from "./assert-test-db";
 
@@ -24,17 +24,25 @@ const MIGRATIONS_DIR = path.resolve(
   "migrations",
 );
 
-/** Migration directory names in apply order (numeric prefix). */
+/**
+ * Migration directory names in the order Prisma applies them: plain
+ * lexicographic (byte) order of the directory name - NOT numeric. (A
+ * "10_..." directory would sort before "1_..."; see the run report.)
+ */
 export function migrationNames(): string[] {
   return fs
     .readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
-    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    .sort();
 }
 
-export function migrationsThrough(lastPrefix: number): string[] {
-  return migrationNames().filter((m) => parseInt(m, 10) <= lastPrefix);
+/** Every migration up to and including `last`, in Prisma's apply order. */
+export function migrationsUpTo(last: string): string[] {
+  const names = migrationNames();
+  const end = names.indexOf(last);
+  if (end < 0) throw new Error(`No migration named ${last}`);
+  return names.slice(0, end + 1);
 }
 
 function urlFor(database: string): string {
@@ -223,8 +231,51 @@ function day(iso: string): Date {
 }
 
 /** Seeds the pre-ownership dataset with createMany (no RETURNING → no user_id). */
+type LegacyModel = {
+  createMany: (args: { data: Record<string, unknown>[] }) => Promise<void>;
+};
+
+/** createMany-shaped raw INSERTs for a pre-ownership database. */
+function legacyWriter(db: RehearsalDb): Record<string, LegacyModel> {
+  const models = new Map(
+    Prisma.dmmf.datamodel.models.map((m) => [
+      m.name.charAt(0).toLowerCase() + m.name.slice(1),
+      m,
+    ]),
+  );
+  return new Proxy({} as Record<string, LegacyModel>, {
+    get: (_target, key: string) => ({
+      createMany: async ({ data }: { data: Record<string, unknown>[] }) => {
+        const model = models.get(key);
+        if (!model) throw new Error(`Unknown model ${key}`);
+        await withClient(db.url, async (c) => {
+          for (const row of data) {
+            const cols: string[] = [];
+            const vals: unknown[] = [];
+            for (const [field, value] of Object.entries(row)) {
+              const f = model.fields.find((x) => x.name === field);
+              if (!f) throw new Error(`Unknown field ${model.name}.${field}`);
+              cols.push(`"${f.dbName ?? f.name}"`);
+              vals.push(value instanceof Date ? value.toISOString() : value);
+            }
+            await c.query(
+              `INSERT INTO "${model.dbName ?? model.name}" (${cols.join(", ")})
+               VALUES (${vals.map((_, i) => `$${i + 1}`).join(", ")})`,
+              vals,
+            );
+          }
+        });
+      },
+    }),
+  });
+}
+
 export async function seedLegacyData(db: RehearsalDb): Promise<void> {
-  const p = db.prisma;
+  // A legacy (pre-ownership) database: rows have no owner column at all, so
+  // the generated client (which now requires userId) can't write them. Plain
+  // INSERTs of exactly the given columns, named through Prisma's own field ->
+  // column mapping, are what a single-user-era database actually contains.
+  const p = legacyWriter(db);
   const { ex, gym, meso, session } = LEGACY;
   const lib = (
     id: string,
@@ -716,7 +767,7 @@ export async function seedLegacyData(db: RehearsalDb): Promise<void> {
  */
 export async function buildLegacyTemplate(): Promise<RehearsalDb> {
   const tmpl = await createRehearsalDatabase();
-  await tmpl.applyMigrations(migrationsThrough(8));
+  await tmpl.applyMigrations(migrationsUpTo("8_bodyweight_logging"));
   await createAuthUsers(tmpl, [LEGACY.owner]);
   await seedLegacyData(tmpl);
   await tmpl.prisma.$disconnect();
