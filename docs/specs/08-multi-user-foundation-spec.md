@@ -335,6 +335,7 @@ export function lockMesocycleForUpdate(account: Account, tx: AccountTx, mesocycl
 
 - Write modules: `export async function fn(account: Account, input: In, tx?: AccountTx): Promise<Out>` — `inAccountTx(account, tx, run)` replaces `inTx(tx, run)`/`prisma.$transaction`. CLAUDE.md's "every write function accepts an optional transaction client" is preserved.
 - Reads: `fn(account, args)`. Helpers that previously took `db: Prisma.TransactionClient` take `db: AccountDb`.
+- Creates of owned rows pass `userId: account.userId` explicitly (Prisma's create input requires the non-null owner); the scoped client verifies it and would stamp it anyway.
 - Server actions keep their existing names, inputs, and `ActionResult` outputs. Each begins `const account = await requireAccount();`. No action gains an account parameter.
 
 ### Changed operations
@@ -370,7 +371,7 @@ npx tsx scripts/operator/account-ownership/cli.ts \
 | ----- | ---------- | ----- |
 | `Profile.timeZone` (backfill, lazy create) | `isValidTimeZone` (IANA); lazy create uses `"UTC"` | operator refuses |
 | `--email` | exactly one auth user, case-insensitive; exactly one auth user total | operator refuses |
-| any `userId` in feature input | not accepted anywhere; static guard forbids the identifier outside `src/lib/data` | — |
+| any `userId` in feature input | not accepted anywhere; outside `src/lib/data` the identifier appears only as `account.userId` (static guard) | — |
 | `userId` in scoped `create` data ≠ acting | refused | `AccountScopeError` → `internal_error` |
 | any `userId` in scoped update data | refused | `AccountScopeError` → `internal_error` |
 | foreign or nonexistent id | identical | `not_found` (or the path's existing "isn't available" validation message) |
@@ -478,7 +479,7 @@ TEST: new_account_gets_profile_with_utc_on_first_requireAccount
 TEST: only_src_lib_data_imports_lib_db
 TEST: no_raw_sql_outside_src_lib_data
 TEST: account_constructors_not_imported_by_app_code   (accountFor/createAccountClient only from src/lib/data, scripts, tests)
-TEST: no_userId_identifier_outside_src_lib_data      (src/app, src/components, other src/lib)
+TEST: userId_only_as_account_userId_outside_data     (src/app, src/components, other src/lib)
 TEST: no_supabase_client_query_of_app_tables         (existing posture)
 TEST: TimeZoneSync_and_cookie_authority_removed
 TEST: migration_safety                               (existing: no DROP TABLE/COLUMN, RENAME, INSERT, DELETE, CASCADE, policy) for 9 and 10
@@ -538,7 +539,7 @@ Existing Playwright auth-boundary tests stay green (no route change).
 | R6 | Nested relation writes are refused by the scoped client; the one existing nested create (`startOrResumeWorkout`) becomes an explicit `createMany`. | Nested creates bypass per-operation stamping; refusing keeps every write visible to the scope. | R3; CLAUDE.md |
 | R7 | Raw SQL is allowed only inside `src/lib/data/`; the mesocycle row lock moves there and filters `user_id`. | Raw SQL bypasses the extension. | CLAUDE.md first invariant |
 | R8 | The "static check in CI" is an ESLint `no-restricted-imports` rule plus guard tests in the unit suite. There is no CI service in the repository; lint and unit tests are mandatory per-commit checks under the pipeline policy. | Enforces at the same gate every commit already passes. Upstream note: add a CI workflow if desired. | CLAUDE.md; pipeline Verification honesty |
-| R9 | Identity comes only from `requireAccount()` (session). `accountFor(userId)`/`createAccountClient` are importable only by `src/lib/data`, `scripts/`, and `tests/`; the `userId` identifier may not appear in `src/` outside `src/lib/data`. | Makes "never from client input" checkable. Operator tasks name the account explicitly (R16, R19). | CLAUDE.md; Architecture Auth & Identity |
+| R9 | Identity comes only from `requireAccount()` (session). `accountFor(userId)`/`createAccountClient`/`resolveAccount` are importable only by `src/lib/data`, `scripts/`, and `tests/`. Outside `src/lib/data`, the `userId` identifier may appear only as the session-derived `account.userId` (creates pass `userId: account.userId`, because Prisma's create types require the non-null owner; the scoped client still verifies it equals the acting account). *Amended during OVE-36: originally "no `userId` outside `src/lib/data`", which Prisma's required create input makes impossible without a schema/DB mismatch.* | Makes "never from client input" checkable and keeps ownership visible at every create. Operator tasks name the account explicitly (R16, R19). | CLAUDE.md; Architecture Auth & Identity |
 | R10 | Foreign ⇒ exactly the nonexistent-id result on every path (deep-equal), including paths whose nonexistent result is a validation message. | Not-found, never forbidden. | PRD edge case; CLAUDE.md |
 | R11 | Re-scope `mesocycles_single_active` → per `user_id` and `goals_one_active_per_exercise` → per (`user_id`, `exercise_id`); all other uniques are keyed by an owned parent and need no change; `source_id` stays global (library only). | Constraint review required by the pitch. | Pitch §3; PRD AC 3 |
 | R12 | Favorites move to `ExerciseFavorite`. `exercises.is_favorite` is kept, unread and unwritten, marked deprecated; dropping it is a later human-approved migration. | A shared flag lets one account change another's library; dropping a data-holding column is a destructive operation the pitch does not name (stop condition 4). | Pitch §3, CLAUDE.md "application code never writes library rows"; Pipeline policy |

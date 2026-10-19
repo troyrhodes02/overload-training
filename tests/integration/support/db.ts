@@ -21,6 +21,9 @@ export const APP_TABLES = [
   "cardio_logs",
   "planned_cardio",
   "missed_day_resolutions",
+  // Multi-User Foundation
+  "exercise_favorites",
+  "profiles",
 ] as const;
 
 let client: PrismaClient | undefined;
