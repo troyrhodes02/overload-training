@@ -23,12 +23,12 @@ export function MesocycleStatusBadge({
 }
 
 /**
- * The thumb-reach action bar: fixed above the bottom nav on phones, inline at
+ * The thumb-reach action bar: fixed to the bottom edge on phones, inline at
  * md+. Pages that use it add bottom padding so content clears it.
  */
 export function StickyActions({ children }: { children: ReactNode }) {
   return (
-    <div className="fixed inset-x-0 bottom-16 z-10 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
+    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:static md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
       <div className="mx-auto w-full max-w-screen-sm md:max-w-none">
         {children}
       </div>
