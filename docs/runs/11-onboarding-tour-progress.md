@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-51.**
+**Step 8 — implementing OVE-52** (OVE-51 done → PR #69).
 
 ## Authority used (read before resuming)
 
@@ -40,7 +40,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 4. Spec — `docs/specs/11-onboarding-tour-spec.md` (v1.0.0; migration `9d_tour_progress`)
 - [x] 5. Resolved Decisions recorded in spec (R1–R32). Key: R3 stop before merge (new owned table + backfill + deletion module; production migration must precede deploy, guide D1)
 - [x] 6. Linear milestone + issues (blockedBy chain)
-- [ ] 7. Feature PR
+- [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#68** https://github.com/troyrhodes02/overload-training/pull/68
 - [ ] 8. Tickets implemented
 - [ ] 9. Runbook
 - [ ] 10. Ticket PRs integrated
@@ -60,7 +60,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ### Ticket branches / PRs
 
-(none yet)
+- **OVE-51** — `feat/ove-51-tour-progress` (off the feature branch) → PR **#69** (base: feature branch), commit `f495858`. In Review. Verified: prettier, lint, tsc, prisma validate, unit 44/768, integration 37/453, build (local env) + client-bundle, migration 9d applied to the LOCAL stack only (tour_progress 0 rows, RLS on, 0 policies, 463 sets unchanged, anon Data API refused). **Spec amended to v1.1.0 (R6):** backfill INSERT dropped (invariant-guards forbids INSERT in migrations) → new accounts made due by `establishProfile`; older accounts have no row.
 
 ## Resolved Decisions so far
 
@@ -68,4 +68,5 @@ See spec `## Resolved Decisions` R1–R32. Headline: R3 stop before merge; R4 To
 
 ## Deferred / notes
 
-- none yet
+- Layout wiring of `getTourAutoStart` moved from OVE-51 to OVE-52 (an unused prop would fail lint).
+- Scratchpad helpers: `localenv.sh` (local-stack env; refuses non-127.0.0.1), `preview/*`.
