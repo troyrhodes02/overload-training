@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved (autonomous run — decisions recorded below)
 author: Claude Code (autonomous pipeline run)
 last_updated: 2026-10-19
@@ -12,6 +12,8 @@ linear_issue: milestone "Accounts: Signup, Login & Password Reset" (tickets list
 ---
 
 # Accounts: Signup, Login & Password Reset
+
+> **v1.1 amendment (R28, owner direction, 2026-10-19): password reset was removed** after the run, so the release needs no email provider. Every reset, recovery, `/forgot-password`, `/auth/confirm`, `/reset-password`, and SMTP requirement below is superseded by R28 and kept for the record only. A forgotten password is handled by the owner (runbook §8).
 
 ## 2. Summary
 
@@ -527,11 +529,12 @@ GIVEN the source tree THEN no file outside src/lib/accounts/deletion.ts calls a 
 | R25 | *(review)* `/forgot-password` stays reachable while signed in (only `/login` and `/signup` redirect a signed-in visitor to Today). | An expired reset link and a stale recovery session both send the lifter to `/forgot-password` for a new link; redirecting would dead-end them at Today. | Design doc Screens 3, 5; review finding 3 |
 | R26 | *(review)* A **recovery-only** auth session (JWT `amr` has `otp`/`recovery` and no `password`) may set a password and nothing else: `requireUser()` redirects it to `/reset-password` from every app route and server action (sign-out excepted). After a successful reset, **every** session of the account ends (`signOut({ scope: "global" })`) and the lifter signs in again: `/login?notice=password-updated` "Password updated. Sign in with your new password." *(Design change from "lands on Today with a toast".)* | Login CSRF: otherwise an attacker's own reset link, opened by a victim, signs the victim into the attacker's account, and anything they log would land there — one account's data visible to another. | CLAUDE.md first invariant; review finding 5 |
 | R27 | *(review)* Supabase "Secure password change" is ON (`[auth.email] secure_password_change = true` locally; a required production setting in the runbook). | The app's recovery gate only governs Overload's own action; without this the auth service accepts a password change from any valid session called directly. A recovery sign-in is always recent, so resets still work (verified on the local stack). | Spec R8; review finding 2 |
+| R28 | *(owner direction, after the run, 2026-10-19)* **Password reset is removed from this release.** No "Forgot password?" link, no `/forgot-password`, `/auth/confirm`, or `/reset-password`, no recovery email template, no recovery-only session gate in `requireUser()`, no `password-updated` login notice. Signup's "email already exists" message links to Sign in only. A forgotten password is an operator task (runbook §8: the owner sets a temporary password in `overload-prod`). R7, R8, R14, R15, R23, R24, R25, and R26 no longer apply and are kept for the record; R27 stays (it hardens the auth API itself). | Reset is the only feature that needs a transactional email provider (Resend + Supabase custom SMTP), which the owner chose not to set up now. Removing it removes the recovery-session attack surface (R26) and the membership-leak risks (R14, R23) with it. Signup, login, Settings, and deletion need no email. | Owner instruction; supersedes pitch §4.5 and the `.claude/CLAUDE.md` reset rule for this release (upstream amendment flagged) |
 
 ## 17. Open questions
 
 1. *(non-blocking)* **Server-side rate limiting.** Login and password checks are made from the server, so Supabase's per-IP limits see Vercel's IPs. Default: rely on Supabase's limits and the long invite code; revisit (e.g. Vercel Firewall rule on `/signup`, `/login`) if abuse appears. Listed in the run report.
-2. *(non-blocking)* **Production sending domain.** Which domain the owner verifies with Resend is an operator choice (runbook); the template uses the sender configured in Supabase.
+2. *(moot since R28: no email is sent)* **Production sending domain.** Which domain the owner verifies with Resend is an operator choice (runbook); the template uses the sender configured in Supabase.
 
 ## 18. Future considerations
 

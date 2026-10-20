@@ -1,10 +1,12 @@
 # Accounts: Signup, Login & Password Reset — Design Document
 
-**Version:** 1.1
+**Version:** 1.2
 **Pitch Source:** Overload — Pitch 9: Accounts — Signup, Login & Password Reset
 **Focus:** How an invited friend creates an account, how any lifter signs in, signs out, and gets back in after forgetting a password, and how a lifter edits their name and timezone or permanently deletes their own account — with every screen plain, private, and impossible to use as a way to learn who else has an account.
 
 > All styling inherits from Overload's Tailwind and shadcn/ui theme and design system. This design doc only defines feature-specific usage, variants, and states.
+
+> **v1.2 (owner direction, spec R28): password reset is removed from this release**, because it needs an email provider Overload doesn't have. Login has no "Forgot password?" link; the forgot-password, check-your-email, set-new-password, and expired-link screens are not built, and the preview's frames for them are superseded. Signup's "an account with this email already exists" message offers Sign in only. The screens and v1.1 notes about reset below are kept for the record.
 
 > **v1.1 (code review, spec R25/R26):** after a successful reset every session ends and the lifter lands on **Login** with the notice "Password updated. Sign in with your new password." (not Today with a toast); while a reset link's session is open, every app screen sends back to "Set a new password"; and `/forgot-password` stays reachable when signed in. The expired-link state's "Back to sign in" signs out first.
 

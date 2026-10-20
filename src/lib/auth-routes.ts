@@ -2,24 +2,10 @@
  * Which paths need no auth session, and where a signed-in visitor is sent
  * instead (Accounts spec §9). Pure, so the proxy's routing is unit-testable.
  *
- * Public: the unauthenticated doors. `/forgot-password`, `/reset-password`
- * and `/auth/confirm` stay reachable while signed in, because following a
- * reset link signs the lifter in with a recovery auth session first.
+ * Public: the two unauthenticated doors. A signed-in lifter has no reason to
+ * see either, so both send them to Today.
  */
-export const PUBLIC_PATHS = [
-  "/login",
-  "/signup",
-  "/forgot-password",
-  "/reset-password",
-  "/auth/confirm",
-] as const;
-
-/**
- * Public pages a signed-in lifter has no reason to see: they go to Today.
- * /forgot-password is NOT one of them (spec R25): an expired reset link and a
- * stale recovery auth session both send the lifter there for a new link.
- */
-const SIGNED_IN_REDIRECTS = ["/login", "/signup"];
+export const PUBLIC_PATHS = ["/login", "/signup"] as const;
 
 function matches(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
@@ -35,5 +21,5 @@ export function routeRedirect(
   signedIn: boolean,
 ): string | null {
   if (!signedIn) return isPublicPath(pathname) ? null : "/login";
-  return SIGNED_IN_REDIRECTS.some((p) => matches(pathname, p)) ? "/" : null;
+  return isPublicPath(pathname) ? "/" : null;
 }

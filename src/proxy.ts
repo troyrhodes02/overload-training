@@ -6,7 +6,7 @@ import { routeRedirect } from "@/lib/auth-routes";
  * Next.js 16 Proxy (formerly Middleware). Two jobs:
  *  1. Refresh the Supabase auth session cookie on every request.
  *  2. OPTIMISTICALLY redirect unauthenticated requests away from protected
- *     routes to /login (and signed-in visitors away from login/signup/forgot).
+ *     routes to /login (and signed-in visitors away from login and signup).
  *     This is defense-in-depth only — the protected layout's requireAccount()
  *     and every server action re-check the session authoritatively.
  */

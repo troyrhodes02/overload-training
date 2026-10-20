@@ -6,6 +6,17 @@
 
 ---
 
+## 0. Post-run amendment — password reset removed (owner direction, 2026-10-19)
+
+After the run, the owner chose not to set up a transactional email provider yet, so everything that needs one was removed from the feature branch (spec **R28**, design doc v1.2). Sections 1–11 below describe the run as it finished and are kept for the record; where they mention recovery, Resend, SMTP, Mailpit, or `/forgot-password`, this section wins.
+
+- **Removed:** the "Forgot password?" link on Login, `/forgot-password`, `GET /auth/confirm`, `/reset-password`, `src/lib/accounts/recovery.ts`, the recovery email template and `otp_expiry` in `supabase/config.toml`, the recovery-only session gate in `requireUser()` (back to `main`'s version), the `password-updated` login notice, the "reset your password" link in signup's "already exists" message, the recovery unit tests, and the reset e2e (default and lifecycle). Signup was the only other feature that could have needed email; it creates accounts already confirmed, so it needs none.
+- **Kept:** invite-gated signup, login/logout, Settings, account deletion, and `secure_password_change = true` (R27 hardens the auth API itself).
+- **Added:** an e2e check that the old reset routes redirect to Login; runbook §8, a tested operator procedure for a forgotten password (the owner sets a temporary password with SQL in `overload-prod`).
+- **Known gap:** no in-app password change, so a lifter keeps a password the owner set until a "Change password" form exists. That needs no email provider and would be a small follow-up pitch.
+- **Verification after the removal** (all run, all passing): format, lint, typecheck; unit 39 suites / 617 tests; integration 33 / 407; build (no reset routes) + `verify:client-bundle`; default e2e 26; Accounts lifecycle e2e 6/6 on the local stack (restarted to load the trimmed config). The runbook §8 SQL was rehearsed on a throwaway local user that was then deleted. Local data unchanged: 1 profile, 1 auth user, 463 sets.
+- **Linear:** OVE-43 (Password recovery) shipped into the feature branch and was then removed; it no longer describes anything that will reach `main`.
+
 ## 1. What shipped (on the feature branch)
 
 | Area | Result |
@@ -120,25 +131,26 @@ Review: `code-review` skill (high) on #56 — 10 inline comments. Audit: [posted
 6. **`overload-ui-design` skill:** Login guidance ("no sign-up link, no forgot flourish") and single-user wording are stale (R19); its preview template's token block predates the electric-blue brand refresh (the preview re-copied tokens from `globals.css`).
 7. **Skills still describe a single-user product** (`overload-spec`, `overload-design-doc`, `overload-ticket-worker`, `overload-review-audit`) — from Pitch 8, still open.
 8. **Root `CLAUDE.md`** is single-user and says previews deploy against a dev project; `.claude/CLAUDE.md` governs (Pitch 8 §9, still open). `.claude/CLAUDE.md` names the preview path `-preview.tsx`; the skill and owner feedback say `.html`.
+9a. **Password reset removed (R28):** `.claude/CLAUDE.md` still says reset email goes through a custom SMTP provider and that a reset request gets the same response for every email (Stack → Email; Access and registration model; Testing item 6). The pitch, the PRD's Accounts feature and acceptance criteria, and the Roadmap's Pitch 9 still include password reset. They need to say reset is deferred until an email provider is chosen, and that a forgotten password is an owner operator task.
 9. **CLAUDE.md "verify on a preview deployment with real-shaped data"** for history-deleting changes: there are no DB-backed previews; the run verified on the local stack, and the runbook §8 proves deletion in production on a throwaway account.
 
 ## 8. Outstanding human steps
 
-Follow `docs/runs/09-accounts-signup-login-password-reset-runbook.md`:
+Follow `docs/runs/09-accounts-signup-login-password-reset-runbook.md` (updated for the reset removal; no email setup remains):
 
 1. **§1 gate:** finish and record the Multi-User Foundation production verification (runbook 08 §7.4). **Not recorded as of this run.**
-2. Commit the owner's uncommitted `.claude/CLAUDE.md`; decide on the root `CLAUDE.md`. (The run never staged it, nor `backup-pre-ownership-20261019-1119.dump` in the repo root — consider moving that backup out of the working tree.)
-3. **§2** Resend domain + DNS, Supabase custom SMTP, the Overload reset template, Site URL / redirect URLs.
-4. **§3** Auth settings: project signup **OFF**, OTP expiry 3600, min password 6, **secure password change ON**.
-5. **§4** Vercel Production: `SUPABASE_SERVICE_ROLE_KEY` (server only). Review **R4** first.
-6. **§5** Review and merge #56 (deploys). Move OVE-41…45 to Done when it merges.
-7. **§6–§8** own-account check, non-team recovery delivery, throwaway-account deletion with before/after counts.
-8. **§9** only then: set `OVERLOAD_INVITE_CODE` and redeploy to open invite-only signup.
+2. Commit the owner's uncommitted `.claude/CLAUDE.md` (and amend its reset/email lines, §7 item 9a); decide on the root `CLAUDE.md`. (The run never staged it, nor `backup-pre-ownership-20261019-1119.dump` in the repo root — consider moving that backup out of the working tree.)
+3. **§2** Auth settings: project signup **OFF**, email provider enabled (it is the login method), min password 6, **secure password change ON**.
+4. **§3** Vercel Production: `SUPABASE_SERVICE_ROLE_KEY` (server only). Review **R4** first.
+5. **§4** Review and merge #56 (deploys). Move OVE-41, 42, 44, 45 to Done when it merges; decide what to do with OVE-43 (removed).
+6. **§5–§6** own-account check, then throwaway-account deletion with before/after counts.
+7. **§7** only then: set `OVERLOAD_INVITE_CODE` and redeploy to open invite-only signup. Tell friends there is no self-service reset.
+8. **§8** as needed: a forgotten password.
 
 ## 9. Open questions (undecidable by the run)
 
 1. **Server-side rate limiting** (spec Open Question 1): login/password checks reach Supabase from Vercel's IPs, so Supabase's per-IP limits are shared. Default: rely on Supabase limits + a long invite code; add a Vercel Firewall rule if abuse appears.
-2. **Production sending domain** — your choice (runbook §2.1).
+2. ~~**Production sending domain**~~ — moot since R28 (no email is sent).
 3. **Multi-User Foundation production status** — the run could not determine it (§8.1).
 
 ## 10. Halt conditions

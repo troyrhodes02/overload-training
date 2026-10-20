@@ -17,8 +17,8 @@ export const PASSWORD_MIN_LENGTH = 6;
 
 /**
  * The message for an auth-service "weak password" refusal, from its reasons
- * (Supabase reports "length", "characters", "pwned"). Shared by signup and
- * reset so the copy can never drift from PASSWORD_MIN_LENGTH.
+ * (Supabase reports "length", "characters", "pwned"), worded from
+ * PASSWORD_MIN_LENGTH so the copy can never drift from it.
  */
 export function weakPasswordMessage(reasons?: readonly string[]): string {
   if (!reasons || reasons.length === 0 || reasons.includes("length")) {

@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import {
   startTransition,
   useActionState,
   useEffect,
   useRef,
-  useState,
   type FormEvent,
 } from "react";
 import { signInAction, type SignInState } from "./actions";
@@ -19,7 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const initialState: SignInState = { error: null, email: "" };
 
 /**
- * Email + password, one primary action, and the way to recovery. Submitted
+ * Email + password and one primary action. Submitted
  * manually (not via `<form action>`) so React 19 keeps the typed email after a
  * failed attempt; the password is cleared on purpose.
  */
@@ -28,7 +26,6 @@ export function LoginForm({ notice }: { notice: string | null }) {
     signInAction,
     initialState,
   );
-  const [email, setEmail] = useState("");
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -43,10 +40,6 @@ export function LoginForm({ notice }: { notice: string | null }) {
     const data = new FormData(event.currentTarget);
     startTransition(() => formAction(data));
   }
-
-  const forgotHref = email
-    ? `/forgot-password?email=${encodeURIComponent(email)}`
-    : "/forgot-password";
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
@@ -67,21 +60,12 @@ export function LoginForm({ notice }: { notice: string | null }) {
           autoComplete="email"
           className="h-11"
           defaultValue={state.email}
-          onChange={(e) => setEmail(e.target.value.trim())}
           required
           autoFocus
         />
       </div>
       <div className="space-y-2">
-        <div className="flex items-baseline justify-between">
-          <Label htmlFor="password">Password</Label>
-          <Link
-            href={forgotHref}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Forgot password?
-          </Link>
-        </div>
+        <Label htmlFor="password">Password</Label>
         <PasswordInput
           ref={passwordRef}
           id="password"

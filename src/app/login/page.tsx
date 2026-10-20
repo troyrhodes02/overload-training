@@ -14,7 +14,6 @@ export const instant = false;
 /** The only notices the login screen shows; anything else is ignored. */
 const NOTICES: Record<string, string> = {
   deleted: "Your account was deleted.",
-  "password-updated": "Password updated. Sign in with your new password.",
 };
 
 type PageProps = {

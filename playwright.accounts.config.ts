@@ -3,8 +3,8 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * Accounts lifecycle e2e (Pitch 9, spec §14.8): signup with the invite gate,
- * isolation between two new accounts, sign out/in, password recovery through
- * Mailpit, Settings, and account deletion — in a real browser against the
+ * isolation between two new accounts, sign out/in, Settings, and account
+ * deletion — in a real browser against the
  * LOCAL Supabase CLI stack only.
  *
  * Every Supabase/DB value is taken from `npx supabase status` and forced on
@@ -48,11 +48,8 @@ for (const [name, value] of Object.entries(LOCAL)) {
     throw new Error(`Refusing: ${name} is not the local stack.`);
   }
 }
-// The spec reads these (admin cleanup, Mailpit) from its own process.
-Object.assign(process.env, LOCAL, {
-  MAILPIT_URL: stack.MAILPIT_URL ?? "http://127.0.0.1:54324",
-  E2E_INVITE_CODE,
-});
+// The spec reads these (admin cleanup) from its own process.
+Object.assign(process.env, LOCAL, { E2E_INVITE_CODE });
 
 export default defineConfig({
   testDir: "./e2e/accounts",

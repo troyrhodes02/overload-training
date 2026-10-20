@@ -43,33 +43,12 @@ enable_signup = false
 # `[auth] enable_signup = false` above.
 enable_signup = true
 enable_confirmations = false
-# A reset link works once and expires after an hour (the email says so).
-otp_expiry = 3600
 # Accounts (review fix): the auth service itself refuses a password change
 # from a session that didn't sign in recently, so a stolen or unattended
-# ordinary session can't change the password by calling Supabase directly.
-# A reset link's recovery sign-in is always recent, so recovery still works.
+# auth session can't change the password by calling Supabase directly. The
+# app has no password change of its own (password reset was removed: it needs
+# an email provider, and Overload sends no email).
 secure_password_change = true
-
-# Accounts: the password-reset email. Its link goes to Overload's
-# /auth/confirm (server-verified token_hash; works on any device). Production
-# pastes the same body into overload-prod → Authentication → Emails.
-[auth.email.template.recovery]
-subject = "Reset your Overload password"
-content_path = "./supabase/templates/recovery.html"
-
-# Local mail is caught by Mailpit (http://127.0.0.1:54324); nothing leaves the
-# machine. PRODUCTION sends through custom SMTP (Resend, verified domain),
-# configured by a human in the overload-prod dashboard — never here, never in
-# the repo (Accounts runbook). For reference only:
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.resend.com"
-# port = 465
-# user = "resend"
-# pass = "env(RESEND_API_KEY)"
-# admin_email = "no-reply@<verified sending domain>"
-# sender_name = "Overload"
 
 # Library & Gyms Setup: the exercise-image bucket. PUBLIC-READ (imported,
 # public-domain free-exercise-db images only). Written ONLY by the catalog

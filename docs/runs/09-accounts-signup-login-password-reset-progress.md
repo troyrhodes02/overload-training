@@ -13,6 +13,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 **COMPLETE — stopped before merge to `main` (run prompt).** Feature PR #56 open with all ticket PRs integrated and review findings addressed. Remaining steps are human: run report §8 + runbook.
 
+**Post-run (owner direction, 2026-10-19):** password reset removed from the feature branch so no email provider is needed (spec R28; report §0). Runbook rewritten without Resend/SMTP, plus §8 (owner sets a temporary password). Verified after the removal: format, lint, typecheck, unit 39/617, integration 33/407, build + client-bundle, e2e 26, accounts e2e 6/6.
+
 ## Authority used (read before resuming)
 
 - Controlling planning docs: the owner's approved multi-user set (standing resolution R1 of Pitch 8), which exists only in `C:\Users\wtrho\Downloads\` dated 2026-10-13: `architecture (1).md`, `prd (1).md`, `pitch-roadmap (1).md`, `product-brief (1).md`. `docs/planning/` in the repo is still the single-user set (pending upstream amendment) and is not edited.

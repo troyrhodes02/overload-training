@@ -11,7 +11,6 @@ import { createClient } from "@supabase/supabase-js";
 test.describe.configure({ mode: "serial" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const MAILPIT = process.env.MAILPIT_URL ?? "http://127.0.0.1:54324";
 const INVITE = process.env.E2E_INVITE_CODE ?? "";
 if (!/^http:\/\/127\.0\.0\.1:/.test(URL_)) {
   throw new Error(
@@ -29,7 +28,6 @@ const anon = () =>
 const stamp = Date.now();
 const A = { email: `e2e-${stamp}-a@example.test`, password: "first-pass-123" };
 const B = { email: `e2e-${stamp}-b@example.test`, password: "second-pass-456" };
-const A_NEW_PASSWORD = "reset-pass-789";
 const A_GYM = `A Gym ${stamp}`;
 
 async function userExists(email: string): Promise<boolean> {
@@ -71,49 +69,21 @@ async function newPage(browser: Browser) {
   return ctx.newPage();
 }
 
-async function resetLinkFor(email: string): Promise<string> {
-  for (let i = 0; i < 40; i++) {
-    const list = await (
-      await fetch(`${MAILPIT}/api/v1/messages?limit=50`)
-    ).json();
-    const mine = list.messages.filter((m: { To: { Address: string }[] }) =>
-      m.To.some((t) => t.Address === email),
-    );
-    if (mine.length > 0) {
-      const msg = await (
-        await fetch(`${MAILPIT}/api/v1/message/${mine[0].ID}`)
-      ).json();
-      expect(msg.Subject).toBe("Reset your Overload password");
-      const href = /href="([^"]*\/auth\/confirm[^"]*)"/
-        .exec(msg.HTML)?.[1]
-        ?.replace(/&amp;/g, "&");
-      expect(href).toBeTruthy();
-      const url = new URL(href!);
-      return `${url.pathname}${url.search}`; // same route on this server
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error("No reset email arrived in Mailpit.");
-}
-
 test.afterAll(async ({ browser }) => {
   // Fallback for a failed run: remove any account still present through the
   // app's own deletion flow (never a bare identity delete, which would orphan
   // its rows in the local database).
   for (const who of [A, B]) {
     if (!(await userExists(who.email))) continue;
-    for (const password of [who.password, A_NEW_PASSWORD]) {
-      if (!(await canSignIn(who.email, password))) continue;
-      const page = await newPage(browser);
-      await signIn(page, who.email, password);
-      await page.goto("/settings/delete-account");
-      await page.getByLabel("Password", { exact: true }).fill(password);
-      await page
-        .getByRole("button", { name: "Delete account permanently" })
-        .click();
-      await expect(page).toHaveURL(/\/login\?notice=deleted$/);
-      break;
-    }
+    if (!(await canSignIn(who.email, who.password))) continue;
+    const page = await newPage(browser);
+    await signIn(page, who.email, who.password);
+    await page.goto("/settings/delete-account");
+    await page.getByLabel("Password", { exact: true }).fill(who.password);
+    await page
+      .getByRole("button", { name: "Delete account permanently" })
+      .click();
+    await expect(page).toHaveURL(/\/login\?notice=deleted$/);
   }
 });
 
@@ -180,75 +150,11 @@ test("sign out ends access; signing back in returns the same account", async ({
   await expect(signedOut.getByText("Wrong email or password.")).toBeVisible();
 });
 
-test("password recovery by email: same answer for every address, link works once", async ({
-  browser,
-}) => {
-  const other = await newPage(browser);
-  await signIn(other, A.email, A.password);
-  await expect(other).toHaveURL(/\/$/);
-
-  const page = await newPage(browser);
-  await page.goto("/forgot-password");
-  await page.getByLabel("Email").fill(A.email);
-  await page.getByRole("button", { name: "Send reset link" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Check your email" }),
-  ).toBeVisible();
-  const known = (await page.locator("main:visible").innerText()).replace(
-    A.email,
-    "<email>",
-  );
-
-  const stranger = await newPage(browser);
-  const unknownEmail = `nobody-${stamp}@example.test`;
-  await stranger.goto("/forgot-password");
-  await stranger.getByLabel("Email").fill(unknownEmail);
-  await stranger.getByRole("button", { name: "Send reset link" }).click();
-  await expect(
-    stranger.getByRole("heading", { name: "Check your email" }),
-  ).toBeVisible();
-  const unknown = (await stranger.locator("main:visible").innerText()).replace(
-    unknownEmail,
-    "<email>",
-  );
-  expect(unknown).toBe(known);
-
-  const link = await resetLinkFor(A.email);
-  await page.goto(link);
-  await expect(page).toHaveURL(/\/reset-password$/);
-  await expect(page.getByText(`For ${A.email}`)).toBeVisible();
-  // A reset link's session can set a password and nothing else (login CSRF
-  // guard, R26): the app and its actions send it back here.
-  for (const route of ["/", "/gyms", "/settings"]) {
-    await page.goto(route);
-    await expect(page).toHaveURL(/\/reset-password$/);
-  }
-  await page.getByLabel("New password").fill(A_NEW_PASSWORD);
-  await page.getByRole("button", { name: "Set new password" }).click();
-  // Every session ends; the lifter signs in with the new password.
-  await expect(page).toHaveURL(/\/login\?notice=password-updated$/);
-  await expect(
-    page.getByText("Password updated. Sign in with your new password."),
-  ).toBeVisible();
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/login$/);
-
-  expect(await canSignIn(A.email, A.password)).toBe(false);
-  expect(await canSignIn(A.email, A_NEW_PASSWORD)).toBe(true);
-  // The device signed in before the reset is signed out.
-  await other.goto("/settings");
-  await expect(other).toHaveURL(/\/login$/);
-  // The link works once.
-  const reuse = await newPage(browser);
-  await reuse.goto(link);
-  await expect(reuse).toHaveURL(/\/forgot-password\?link=expired$/);
-});
-
 test("Settings edits the name and timezone of this account only", async ({
   browser,
 }) => {
   const page = await newPage(browser);
-  await signIn(page, A.email, A_NEW_PASSWORD);
+  await signIn(page, A.email, A.password);
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("menuitem", { name: "Settings" }).click();
   await expect(page).toHaveURL(/\/settings$/);
@@ -274,7 +180,7 @@ test("deletion needs the password and removes only this account", async ({
   browser,
 }) => {
   const page = await newPage(browser);
-  await signIn(page, A.email, A_NEW_PASSWORD);
+  await signIn(page, A.email, A.password);
   await page.goto("/settings/delete-account");
   await expect(
     page.getByRole("main").getByRole("listitem").filter({ hasText: "Gyms" }),
@@ -288,12 +194,12 @@ test("deletion needs the password and removes only this account", async ({
   await expect(page.getByText("That password isn't right.")).toBeVisible();
   expect(await userExists(A.email)).toBe(true);
 
-  await page.getByLabel("Password", { exact: true }).fill(A_NEW_PASSWORD);
+  await page.getByLabel("Password", { exact: true }).fill(A.password);
   await confirm.click();
   await expect(page).toHaveURL(/\/login\?notice=deleted$/);
   await expect(page.getByText("Your account was deleted.")).toBeVisible();
   expect(await userExists(A.email)).toBe(false);
-  expect(await canSignIn(A.email, A_NEW_PASSWORD)).toBe(false);
+  expect(await canSignIn(A.email, A.password)).toBe(false);
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/login$/);
 

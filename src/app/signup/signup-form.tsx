@@ -206,14 +206,7 @@ export function SignupForm() {
               <Link href="/login" className="font-medium underline">
                 Sign in
               </Link>{" "}
-              or{" "}
-              <Link
-                href={`/forgot-password?email=${encodeURIComponent(state.values.email.trim())}`}
-                className="font-medium underline"
-              >
-                reset your password
-              </Link>
-              .
+              instead.
             </span>
           </AlertDescription>
         </Alert>

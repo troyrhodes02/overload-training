@@ -8,33 +8,31 @@ import {
 } from "@/lib/accounts/validation";
 
 describe("proxy routing (Accounts spec §9)", () => {
+  it.each(["/login", "/signup"])(
+    "%s is reachable without an auth session",
+    (path) => {
+      expect(isPublicPath(path)).toBe(true);
+      expect(routeRedirect(path, false)).toBeNull();
+    },
+  );
+
   it.each([
-    "/login",
-    "/signup",
+    "/",
+    "/settings",
+    "/settings/delete-account",
+    "/plan",
+    "/loginx",
+    // Password reset was removed (no email provider): these are not doors.
     "/forgot-password",
     "/reset-password",
     "/auth/confirm",
-  ])("%s is reachable without an auth session", (path) => {
-    expect(isPublicPath(path)).toBe(true);
-    expect(routeRedirect(path, false)).toBeNull();
+  ])("%s needs an auth session", (path) => {
+    expect(routeRedirect(path, false)).toBe("/login");
   });
-
-  it.each(["/", "/settings", "/settings/delete-account", "/plan", "/loginx"])(
-    "%s needs an auth session",
-    (path) => {
-      expect(routeRedirect(path, false)).toBe("/login");
-    },
-  );
 
   it("sends a signed-in visitor away from login and signup only", () => {
     expect(routeRedirect("/login", true)).toBe("/");
     expect(routeRedirect("/signup", true)).toBe("/");
-    // An expired link / stale recovery session must still reach a new link.
-    expect(routeRedirect("/forgot-password", true)).toBeNull();
-    expect(routeRedirect("/forgot-password?link=expired", true)).toBeNull();
-    // A reset link signs the lifter in first; these must stay reachable.
-    expect(routeRedirect("/reset-password", true)).toBeNull();
-    expect(routeRedirect("/auth/confirm", true)).toBeNull();
     expect(routeRedirect("/settings", true)).toBeNull();
   });
 });
