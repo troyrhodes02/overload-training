@@ -500,12 +500,6 @@ model CardioLog {
   @@map("cardio_logs")
 }
 
-/// Multi-User Foundation (Pitch 8): one row per account, keyed by the Supabase
-/// auth user id (the account's userId). The ownership root — every owned row's
-/// userId references it (Restrict) — and the home of the account's IANA
-/// timezone, the ONLY authority for "today" (src/lib/data/account.ts).
-/// Email and password live in Supabase Auth, never here. Names stay nullable
-/// until Accounts (Pitch 9) collects them at signup. RLS deny-all (migration 9).
 /// The account's appearance preference. System follows the device.
 enum Appearance {
   system
@@ -515,6 +509,12 @@ enum Appearance {
   @@map("appearance")
 }
 
+/// Multi-User Foundation (Pitch 8): one row per account, keyed by the Supabase
+/// auth user id (the account's userId). The ownership root — every owned row's
+/// userId references it (Restrict) — and the home of the account's IANA
+/// timezone, the ONLY authority for "today" (src/lib/data/account.ts).
+/// Email and password live in Supabase Auth, never here. Names stay nullable
+/// until Accounts (Pitch 9) collects them at signup. RLS deny-all (migration 9).
 model Profile {
   userId     String     @id @map("user_id") @db.Uuid
   firstName  String?    @map("first_name")

@@ -49,6 +49,24 @@ describe("first visit", () => {
     expect((await getGreetingFacts(a)).firstVisit).toBe(false);
   });
 
+  it("is false once cardio is logged, even with no lifting", async () => {
+    const a = await createTestAccount("America/Chicago");
+    const m = await createTestMesocycle({ userId: a.userId });
+    await getTestPrisma().cardioLog.create({
+      data: {
+        userId: a.userId,
+        mesocycleId: m.id,
+        scheduledFor: new Date("2026-10-05T00:00:00Z"),
+        plannedType: "Incline Walk",
+        plannedDurationMin: 20,
+        type: "Incline Walk",
+        durationMin: 20,
+        performedOn: new Date("2026-10-05T12:00:00Z"),
+      },
+    });
+    expect((await getGreetingFacts(a)).firstVisit).toBe(false);
+  });
+
   it("follows the account's zone across midnight", async () => {
     const a = await createTestAccount("America/Chicago");
     // Created 23:30 Chicago on Oct 18 (04:30 UTC Oct 19).

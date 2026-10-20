@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb, AccountTx } from "@/lib/data/account-db";
@@ -15,7 +16,11 @@ import {
  * so one account can never read or change another's.
  */
 
-export async function getAccountAppearance(
+/**
+ * Memoized per request (React cache): the (app) layout and the Settings page
+ * share one read of the acting profile.
+ */
+export const getAccountAppearance = cache(async function getAccountAppearance(
   account: Account,
   db: AccountDb = account.db,
 ): Promise<Appearance> {
@@ -25,7 +30,7 @@ export async function getAccountAppearance(
   });
   // requireAccount() always creates the profile; this is only defensive.
   return profile?.appearance ?? DEFAULT_APPEARANCE;
-}
+});
 
 /** Saves the appearance for the acting account only. */
 export async function updateAppearance(

@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 10 — integrate ticket PRs into the feature branch** (in progress). Method (as Pitch 9): for each PR in order, retarget base to the feature branch, merge the feature branch into the ticket branch (only delta = feature-branch docs), push, wait for Vercel, squash-merge.
+**Step 14 — final verification + merge gate** (in progress). Expected outcome: STOP before merge (R3).
 
 ## Authority used (read before resuming)
 
@@ -41,10 +41,10 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#62** https://github.com/troyrhodes02/overload-training/pull/62
 - [x] 8. Tickets implemented — OVE-46…49 → PRs #63–#66 (stacked), all In Review
 - [x] 9. Runbook — `docs/runs/10-personalization-navigation-polish-runbook.md` + `docs/runs/10-sql/verify-appearance.sql` (rehearsed on the local stack)
-- [ ] 10. Ticket PRs integrated
-- [ ] 11. Full verification
-- [ ] 12. Code review
-- [ ] 13. Review audit
+- [x] 10. Ticket PRs squash-merged into the feature branch in order — #63 `d4e3a79`, #64 `953485d`, #65 `ac55966`, #66 `63a4cfb`. Each: retarget → merge feature branch into ticket branch (one conflict, app-shell.tsx on #64, resolved with the ticket superset) → delta vs ticket tip = runbook/progress/10-sql only → Vercel pass → squash. Final feature tree == OVE-49 tip. (#63 was squashed before its Vercel check finished — a wait-loop bug; the check then passed.)
+- [x] 11. Full verification on `63a4cfb`: prettier, lint, tsc, prisma validate + local migrate status up to date; unit 42/727 (clean env; 12 consecutive green runs); integration 34/422 (isolation, history integrity, RLS, schema, guards); build (local env + invite code + service key) + verify:client-bundle OK; accounts e2e 13/13 (local DB unchanged 1/1/463); default e2e 26/26. Visual vs preview done on code identical to the final tree (only tests changed after OVE-48). Pre-existing env-sensitive test: tests/unit/import-target-and-images.test.ts:108 fails only when NEXT_PUBLIC_SUPABASE_URL is exported in the shell (not a regression; deferred note).
+- [x] 12. Code review — `code-review` skill (high) posted 9 inline comments on #62
+- [x] 13. Review audit — posted https://github.com/troyrhodes02/overload-training/pull/62#issuecomment-6282779205 : 7 implement (save ordering ×2 via src/lib/appearance/choices.ts, thrown action = failure, schema doc placement, getAccountAppearance React cache, isoDateInZone reuse, first visit = no LoggedSession AND no CardioLog via existence checks), 1 defer (fold profile fields into Account — protected chokepoint, R27), 1 skip (rail classes not dead at md+, R28). Spec v1.1.0: R7 + R17 amended, R27–R29 added. Rerun after fixes: unit 43/735, integration 34/423, build + client-bundle, accounts e2e 13/13, default e2e 26/26, local DB 1/1/463.
 - [ ] 14. Final verification + merge gate
 - [ ] 15. Run report
 

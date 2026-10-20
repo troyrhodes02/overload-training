@@ -16,8 +16,8 @@ export type GreetingFacts = {
    */
   timeZoneValid: boolean;
   /**
-   * The account's first local day with no workouts logged yet (R17): derived
-   * from existing data, never stored.
+   * The account's first local day with nothing logged yet — no workout and no
+   * cardio (R17): derived from existing data, never stored.
    */
   firstVisit: boolean;
 };
@@ -26,12 +26,14 @@ export async function getGreetingFacts(
   account: Account,
   now: Date = new Date(),
 ): Promise<GreetingFacts> {
-  const [profile, loggedSessions] = await Promise.all([
+  const [profile, loggedSession, cardioLog] = await Promise.all([
     account.db.profile.findUnique({
       where: { userId: account.userId },
       select: { firstName: true, timeZone: true, createdAt: true },
     }),
-    account.db.loggedSession.count(),
+    // Existence only: any one row ends the first visit.
+    account.db.loggedSession.findFirst({ select: { id: true } }),
+    account.db.cardioLog.findFirst({ select: { id: true } }),
   ]);
   const timeZoneValid = isValidTimeZone(profile?.timeZone);
   const zone = timeZoneValid ? (profile?.timeZone ?? "UTC") : "UTC";
@@ -40,7 +42,8 @@ export async function getGreetingFacts(
     timeZoneValid,
     firstVisit:
       profile !== null &&
-      loggedSessions === 0 &&
+      loggedSession === null &&
+      cardioLog === null &&
       isoDateInZone(profile.createdAt, zone) === todayIso(zone, now),
   };
 }

@@ -1,4 +1,5 @@
 import type { DashboardDto } from "@/lib/logging/queries";
+import { isoDateInZone } from "@/lib/plan/calendar";
 
 /**
  * The Today greeting (Personalization & Navigation Polish, spec §11; design
@@ -158,18 +159,6 @@ function localHour(now: Date, timeZone: string | null): number | null {
   }
 }
 
-/** The local calendar date ("YYYY-MM-DD") — the seed's day. */
-function localDate(now: Date, timeZone: string | null): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timeZone ?? "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value;
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
-
 /** Account-local time band (R15); `unknown` without a usable zone. */
 export function timeBand(now: Date, timeZone: string | null): TimeBand {
   const h = localHour(now, timeZone);
@@ -231,7 +220,7 @@ export function composeGreeting(input: GreetingInput): string {
     (situation === "planned" || situation === "underway") &&
     isLateNight(now, timeZone);
   const family = late ? `late_${situation}` : situation;
-  const seed = `${accountKey}|${localDate(now, timeZone)}|${firstVisit ? "first:" : ""}${family}`;
+  const seed = `${accountKey}|${isoDateInZone(now, timeZone ?? "UTC")}|${firstVisit ? "first:" : ""}${family}`;
   const { session, cardio } = subject(dashboard);
   const values = {
     sal: SALUTATIONS[timeBand(now, timeZone)],

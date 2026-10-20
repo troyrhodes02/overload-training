@@ -1,12 +1,13 @@
 "use client";
 
-import { startTransition, useRef, useState } from "react";
+import { startTransition, useState } from "react";
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { updateAppearanceAction } from "@/app/(app)/settings/actions";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { applyAppearance } from "@/lib/appearance/apply";
 import { isAppearance, type Appearance } from "@/lib/appearance/appearance";
+import { createChoiceTracker } from "@/lib/appearance/choices";
 import { cn } from "@/lib/utils";
 
 const OPTIONS: { value: Appearance; label: string; icon: typeof Sun }[] = [
@@ -25,33 +26,38 @@ const SPOKEN: Record<Appearance, string> = {
  * Settings → Appearance (Personalization & Navigation Polish, design doc
  * Screen 2). Choosing a tile is the commit: the whole app switches at once,
  * then the choice is saved to the account in the background. The last choice
- * wins — a slower response for an earlier tap never overrides it — and a
- * failed save puts the screen and the tile back to the last saved value with
- * an inline error. No Save button, no toast.
+ * wins — an earlier tap's response never overrides a newer choice — and a
+ * failed save puts the screen and the tile back to the value the account
+ * actually holds, with an inline error. No Save button, no toast. Ordering
+ * lives in createChoiceTracker (unit-tested).
  */
 export function AppearanceSetting({ initial }: { initial: Appearance }) {
   const [selected, setSelected] = useState<Appearance>(initial);
   const [failed, setFailed] = useState(false);
   const [spoken, setSpoken] = useState("");
-  const confirmed = useRef<Appearance>(initial);
-  const latest = useRef(0);
+  const [choices] = useState(() => createChoiceTracker(initial));
 
   function choose(value: string) {
     if (!isAppearance(value)) return;
-    const seq = ++latest.current;
+    const seq = choices.begin();
     setSelected(value);
     setFailed(false);
     applyAppearance(value);
     startTransition(async () => {
-      const result = await updateAppearanceAction(value);
-      if (seq !== latest.current) return; // a newer choice is in flight
-      if (result.ok) {
-        confirmed.current = value;
-        setSpoken(SPOKEN[value]);
-      } else {
-        setSelected(confirmed.current);
-        applyAppearance(confirmed.current);
+      let ok = false;
+      try {
+        ok = (await updateAppearanceAction(value)).ok;
+      } catch {
+        ok = false; // the request itself failed (offline, server down)
+      }
+      const { isLatest, revertTo } = choices.settle(seq, value, ok);
+      if (!isLatest) return; // a newer choice decides what the screen shows
+      if (revertTo) {
+        setSelected(revertTo);
+        applyAppearance(revertTo);
         setFailed(true);
+      } else {
+        setSpoken(SPOKEN[value]);
       }
     });
   }
