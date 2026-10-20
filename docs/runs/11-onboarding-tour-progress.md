@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-52** (OVE-51 done → PR #69).
+**Step 8 — implementing OVE-53** (OVE-51 → PR #69, OVE-52 → PR #70).
 
 ## Authority used (read before resuming)
 
@@ -61,6 +61,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 ### Ticket branches / PRs
 
 - **OVE-51** — `feat/ove-51-tour-progress` (off the feature branch) → PR **#69** (base: feature branch), commit `f495858`. In Review. Verified: prettier, lint, tsc, prisma validate, unit 44/768, integration 37/453, build (local env) + client-bundle, migration 9d applied to the LOCAL stack only (tour_progress 0 rows, RLS on, 0 policies, 463 sets unchanged, anon Data API refused). **Spec amended to v1.1.0 (R6):** backfill INSERT dropped (invariant-guards forbids INSERT in migrations) → new accounts made due by `establishProfile`; older accounts have no row.
+- **OVE-52** — `feat/ove-52-tour-ui` (off OVE-51) → PR **#70** (base: OVE-51 branch), commit `c3d3640`. In Review. Verified: prettier, lint, tsc, unit 47/813, integration 37/453, build + client-bundle; local-stack browser walk-through (scratchpad `tourcheck.mjs`, `tourcheck2.mjs`, dev server on 3317): 375 light 8 steps / 1280 dark 7 steps, Escape, Skip, Replay (focus back on Replay tour), Done→origin, browser Back ends it, 0 page errors; local DB back to 1/1/0 tour rows/463. **Spec v1.2.0:** R10 (aria-hidden dropped from availability — Radix modal marks outside aria-hidden), R14 (modal scroll lock), SVG scrim (box-shadow scrim unreliable; node order).
 
 ## Resolved Decisions so far
 
