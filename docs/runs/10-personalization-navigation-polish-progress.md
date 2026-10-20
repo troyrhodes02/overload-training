@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 6 — Linear milestone + tickets** (in progress).
+**Step 10 — integrate ticket PRs into the feature branch** (in progress). Method (as Pitch 9): for each PR in order, retarget base to the feature branch, merge the feature branch into the ticket branch (only delta = feature-branch docs), push, wait for Vercel, squash-merge.
 
 ## Authority used (read before resuming)
 
@@ -37,10 +37,10 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 3. UI preview — `docs/previews/10-personalization-navigation-polish-preview.html` (.html not the run prompt .tsx; 34 frames; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs`.
 - [x] 4. Spec — `docs/specs/10-personalization-navigation-polish-spec.md` (v1.0.0; migration `9b_profile_appearance`)
 - [x] 5. Resolved Decisions recorded in spec (R1–R26). Key: R3 stop before merge (profiles schema change, guide D1)
-- [ ] 6. Linear milestone + issues
-- [ ] 7. Feature PR
-- [ ] 8. Tickets implemented
-- [ ] 9. Runbook
+- [x] 6. Linear milestone + issues (blockedBy chain)
+- [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#62** https://github.com/troyrhodes02/overload-training/pull/62
+- [x] 8. Tickets implemented — OVE-46…49 → PRs #63–#66 (stacked), all In Review
+- [x] 9. Runbook — `docs/runs/10-personalization-navigation-polish-runbook.md` + `docs/runs/10-sql/verify-appearance.sql` (rehearsed on the local stack)
 - [ ] 10. Ticket PRs integrated
 - [ ] 11. Full verification
 - [ ] 12. Code review
@@ -50,12 +50,27 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Linear
 
-(not created yet)
+- Milestone: **Personalization & Navigation Polish** (`c5f6a455-b36b-4701-8ff8-feef07490425`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-46** — 1: Phone navigation: header menu button + sheet, bottom bar removed, desktop rail unchanged
+- **OVE-47** — `feat/ove-47-appearance` (off OVE-46) → PR **#64** (base: OVE-46 branch), commit `37c124d`. In Review. Verified: lint, typecheck, format, unit 41/669, integration 33/414, prisma validate, migration 9b applied to the LOCAL stack only (2→1 profiles see near-miss; 463 sets unchanged), build, browser appearance sequence (default System, Dark instant + reload + fresh device, System live, Light over dark device, focus back to menu button after Escape), 0 console errors.
+- **OVE-48** — `feat/ove-48-greeting` (off OVE-47) → PR **#65** (base: OVE-47 branch), commit `f21349c`. In Review. Verified: lint, typecheck, format, unit 42/727, integration 34/422, build, browser first-visit greeting 375/1280 light+dark (temp account deleted; local DB 1 user / 1 profile). Note: isolation guard forbids `userId` outside the data layer except `account.userId` → greeting seed field named `accountKey` (guard not weakened).
+- **OVE-49** — `feat/ove-49-personalization-e2e` (off OVE-48) → PR **#66** (base: OVE-48 branch), commit `d9d4a71`. In Review. Verified: accounts e2e 13/13 (lifecycle 7 + personalization 6; local DB unchanged 1/1/463), default e2e 26/26, lint/typecheck/format. Found a Radix timing quirk: scrim tap within ~300 ms of re-opening right after a quick close can be ignored (× and links fine; 12/12 with 300 ms wait) — test waits for the slide-in; recorded for the audit/report.
+  - **OVE-47** — 2: Appearance preference: Profile.appearance + migration, Settings section, no-flash application (blockedBy OVE-46)
+  - **OVE-48** — 3: Dashboard greeting (blockedBy OVE-47)
+  - **OVE-49** — 4: Local-stack Personalization e2e + visual verification (blockedBy OVE-48)
+
+### Ticket branches / PRs
+
+- **OVE-46** — `feat/ove-46-phone-navigation` (off the feature branch) → PR **#63** (base: feature branch), commit `50dbc36`. In Review. Verified: lint, typecheck, format, unit 40/631, integration 33/407, build (local env), local-stack browser check 375/1280 light+dark with a temporary account (deleted), 0 console errors. Summary: shared nav-items.ts, shadcn Sheet, MobileNav, sticky phone header, rail classes verbatim behind `hidden md:block`, thumb bars bottom-0.
 
 ## Resolved Decisions so far
 
-(recorded in the spec once written)
+See spec `## Resolved Decisions` R1–R26. Headline: R3 stop before merge; R4 Profile.appearance enum; R6 localStorage first-paint mirror + boot script; R9 bottom bar = the pitch's "persistent sidebar"; R17 first visit derived; R23 four tickets.
 
 ## Deferred / notes
 
-- none yet
+- Visual comparison vs preview (OVE-46..49): first-visit Today 375/1280 light+dark; Settings System/Dark/Light; sheet open (Today active, focus on Today); Gyms thumb bar at edge; desktop rail. All match hierarchy/copy/controls/tokens. Populated pending-workout greeting not rendered in a browser (needs an active plan on a temp account) — covered by unit tests over real DashboardDto shapes.
+- **Near-miss (fixed):** a visual-check run piped to `head` was killed before its cleanup, leaving one temporary local account (`visual-1792464713703@example.test`, no data). Removed through the app's own deletion flow; local DB back to 1 auth user / 1 profile / 463 sets. Never pipe the visual scripts; capture to a log file.
+- Local stack now has migration `9b_profile_appearance` applied (local only).
+- Visual-check harness: scratchpad `visual.mjs` (signs up a temporary local account via invite `local-visual-check-invite-2026`, screenshots, deletes it through the app). Server: `next start -p 3317` with scratchpad `localenv.sh` sourced. Note: emulateMedia flips mid-transition (sheet uses shadcn `transition`) — set the scheme before opening the sheet for honest screenshots.
