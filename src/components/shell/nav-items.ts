@@ -7,6 +7,7 @@ import {
   Settings,
   Target,
 } from "lucide-react";
+import type { TourAnchor } from "@/lib/tour/steps";
 
 /**
  * The app's primary destinations — one list, rendered two ways: the left rail
@@ -19,15 +20,22 @@ export type NavItem = {
   href: string;
   label: string;
   icon: typeof House;
+  /** The rail item's onboarding-tour anchor (desktop rail only). */
+  tourAnchor?: TourAnchor;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", label: "Today", icon: House },
-  { href: "/plan", label: "Plan", icon: CalendarRange },
-  { href: "/history", label: "History", icon: History },
-  { href: "/goals", label: "Goals", icon: Target },
+  { href: "/plan", label: "Plan", icon: CalendarRange, tourAnchor: "nav-plan" },
+  {
+    href: "/history",
+    label: "History",
+    icon: History,
+    tourAnchor: "nav-history",
+  },
+  { href: "/goals", label: "Goals", icon: Target, tourAnchor: "nav-goals" },
   { href: "/exercises", label: "Exercises", icon: Dumbbell },
-  { href: "/gyms", label: "Gyms", icon: Building2 },
+  { href: "/gyms", label: "Gyms", icon: Building2, tourAnchor: "nav-gyms" },
 ];
 
 /**

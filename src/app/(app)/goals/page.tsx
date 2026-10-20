@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/feedback/empty-state";
+import { tourAnchor } from "@/lib/tour/steps";
 import { GoalList } from "@/components/goals/goal-list";
 import { GoalReachedCard } from "@/components/goals/goal-reached-card";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
@@ -37,7 +38,9 @@ export default async function GoalsPage() {
   return (
     <section className="space-y-4 pb-20 md:pb-0">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Goals</h1>
+        <h1 className="text-lg font-semibold" {...tourAnchor("page-goals")}>
+          Goals
+        </h1>
         <Button asChild variant="outline" className="hidden md:inline-flex">
           <Link href="/goals/new">
             <Plus aria-hidden />

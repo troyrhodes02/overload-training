@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { tourAnchor } from "@/lib/tour/steps";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
 /**
@@ -36,6 +37,7 @@ export function AppNav() {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                {...(item.tourAnchor ? tourAnchor(item.tourAnchor) : {})}
                 className={cn(
                   "flex flex-col items-center gap-1 py-3 text-xs font-medium",
                   "md:flex-row md:gap-3 md:rounded-md md:px-3 md:py-2 md:text-sm",

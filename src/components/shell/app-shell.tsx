@@ -5,6 +5,7 @@ import { AppearanceSync } from "./appearance-sync";
 import { MobileNav } from "./mobile-nav";
 import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { Toaster } from "@/components/ui/sonner";
+import { TourProvider } from "@/components/tour/tour-provider";
 import type { Appearance } from "@/lib/appearance/appearance";
 
 /**
@@ -18,37 +19,43 @@ import type { Appearance } from "@/lib/appearance/appearance";
  * (Personalization & Navigation Polish).
  *
  * `appearance` is the account's stored preference (read by the layout): the
- * shell keeps the document and the toasts on it.
+ * shell keeps the document and the toasts on it. `tourAutoStart` says the
+ * account is due its first onboarding tour (Onboarding Tour); the provider
+ * opens it once and lets Settings replay it.
  */
 export function AppShell({
   appearance,
+  tourAutoStart,
   children,
 }: {
   appearance: Appearance;
+  tourAutoStart: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col md:flex-row">
-      <AppearanceSync appearance={appearance} />
-      {/* Left rail at md+; renders nothing below md. */}
-      <AppNav />
+    <TourProvider autoStart={tourAutoStart}>
+      <div className="flex min-h-dvh flex-col md:flex-row">
+        <AppearanceSync appearance={appearance} />
+        {/* Left rail at md+; renders nothing below md. */}
+        <AppNav />
 
-      <div className="flex min-h-dvh flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-border bg-background/95 px-2 backdrop-blur md:static md:z-auto md:h-auto md:justify-between md:gap-0 md:bg-transparent md:px-4 md:py-3 md:backdrop-blur-none">
-          <MobileNav />
-          <OverloadLockup size="sm" />
-          <div className="ml-auto md:ml-0">
-            <AccountMenu />
-          </div>
-        </header>
+        <div className="flex min-h-dvh flex-1 flex-col">
+          <header className="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-border bg-background/95 px-2 backdrop-blur md:static md:z-auto md:h-auto md:justify-between md:gap-0 md:bg-transparent md:px-4 md:py-3 md:backdrop-blur-none">
+            <MobileNav />
+            <OverloadLockup size="sm" />
+            <div className="ml-auto md:ml-0">
+              <AccountMenu />
+            </div>
+          </header>
 
-        <main className="mx-auto w-full max-w-screen-sm flex-1 px-4 py-6">
-          {children}
-        </main>
+          <main className="mx-auto w-full max-w-screen-sm flex-1 px-4 py-6">
+            {children}
+          </main>
+        </div>
+
+        {/* One toaster for the whole authenticated app (archive/undo, saves). */}
+        <Toaster theme={appearance} />
       </div>
-
-      {/* One toaster for the whole authenticated app (archive/undo, saves). */}
-      <Toaster theme={appearance} />
-    </div>
+    </TourProvider>
   );
 }

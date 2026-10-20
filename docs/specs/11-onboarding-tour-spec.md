@@ -1,5 +1,5 @@
 ---
-version: 1.1.0
+version: 1.2.0
 status: approved
 author: Autonomous pipeline run (Claude Code), 2026-10-20
 last_updated: 2026-10-20
@@ -62,7 +62,7 @@ Per-account state is a new owned model, `TourProgress` (one row per account, the
 | Outcome | `completed` when the lifter presses Done on the last shown step (or the last step is skipped for a missing target); `skipped` on Skip tour, Escape, or a browser navigation the tour did not make. Latest run wins. |
 | Tour step | Registry entry: `id` (stable), `route`, optional `layout` (`phone` / `desktop`), `targets` (ordered anchor candidates, each with an optional body override), `title`, `body`. Pure data. |
 | Anchor | A `data-tour="<name>"` attribute on an existing element. Names are the `TourAnchor` union in the registry file. |
-| Available anchor | An element with that attribute that is connected, has a non-empty client rect, is not `visibility:hidden`, and is not inside an `[inert]` or `[aria-hidden="true"]` subtree. First available candidate wins. |
+| Available anchor | An element with that attribute that is connected, has a non-empty client rect, is not `visibility:hidden`, and is not inside an `[inert]` or `[hidden]` subtree (R10, amended in OVE-52: **not** `aria-hidden`, which the tour's own modal dialog puts on everything outside it). First available candidate wins. |
 | Layout | `phone` below 768px (Tailwind `md`), else `desktop`. Steps with a `layout` are offered only at that layout. |
 | Origin | The pathname when the tour started. Done navigates back to it. |
 
@@ -123,8 +123,8 @@ The design doc and the **preview are binding** for hierarchy, copy, controls, st
 | `TourProvider` | `src/components/tour/tour-provider.tsx` (client) | Props `{ autoStart: boolean; steps?: readonly TourStep[]; children }` (`steps` defaults to `TOUR_STEPS`; injectable for tests). Context `useTour(): { start(opts?: { from?: string }): void; active: boolean }`. Auto-starts once per mount when `autoStart` is true (a ref guards repeat renders). Owns the client state machine (§6). Calls the two server actions. |
 | `TourOverlay` | `src/components/tour/tour-overlay.tsx` (client) | Renders nothing when closed. Open: shadcn `Dialog` (`modal`), `DialogContent` with `showCloseButton={false}`, a transparent overlay, and the `Spotlight`. `onInteractOutside` / `onPointerDownOutside` → `preventDefault()` (a scrim click does nothing). `onEscapeKeyDown` → skip. |
 | `TourCard` | inside the overlay | Counter (`{position} of {total}`, `sr-only` "Step "), `DialogTitle`, `DialogDescription` (or a one-line `Skeleton` while navigating), Skip tour (`variant="ghost"`, `mr-auto`), Back (`variant="outline"`, hidden at position 1), Next/Done (default). Buttons `h-11 md:h-9`. Phone: `fixed inset-x-4 bottom-4`; desktop: `w-80`, `style={{ top, left }}` from `placeCard`. Below 360px: Skip tour on its own row (`basis-full`), Back/Next right-aligned (preview §05 "Narrow phone"). |
-| `Spotlight` | inside the overlay | `fixed`, `aria-hidden`, `pointer-events-none`, the target rect inflated by `TOUR_SPOTLIGHT_PADDING_PX` (6), `rounded-lg ring-2 ring-primary`, `box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.5)` for the scrim. Hidden while navigating (a plain `bg-black/50` layer instead). `transition-[top,left,width,height] duration-200 motion-reduce:transition-none`. |
-| `ReplayTourButton` | `src/components/tour/replay-tour-button.tsx` (client) | `Button variant="outline" className="h-11 md:h-9"`, Lucide `RotateCcw` `size-4`, label "Replay tour", `data-tour="settings-replay"`. Calls `useTour().start()`. Focus returns to it when a replay it started closes. |
+| Scrim + spotlight | inside the overlay | One stable `fixed inset-0 z-50 pointer-events-none aria-hidden` wrapper, always rendered before the card so the card stays on top. Showing: a full-viewport SVG path with an even-odd rounded-rect hole (fill black, 0.5 opacity) cut around the target inflated by `TOUR_SPOTLIGHT_PADDING_PX` (6), plus a `rounded-lg ring-2 ring-primary` outline (`data-tour-spotlight`). Navigating: a plain `bg-black/50` layer. (Amended in OVE-52: a `box-shadow: 0 0 0 9999px` scrim is not painted reliably across the viewport, and swapping scrim nodes reordered them after the card.) |
+| `ReplayTourButton` | `src/components/settings/replay-tour-button.tsx` (client; with the other Settings controls, so the mechanism folder carries no anchor name) | `Button variant="outline" className="h-11 md:h-9"`, Lucide `RotateCcw` `size-4`, label "Replay tour", `tourAnchor("settings-replay")`. Calls `useTour().start()`. When a replay it started closes, focus returns to it (re-found by its own `data-tour` attribute if Done re-rendered it). |
 
 ### Anchors placed on existing elements (no visual change)
 
@@ -377,7 +377,7 @@ export const TOUR_DESKTOP_QUERY = "(min-width: 768px)";
 ```ts
 // src/lib/tour/dom.ts — browser helpers (no React)
 export function findAvailableAnchor(name: TourAnchor, doc?: Document): HTMLElement | null;
-export function isAvailable(el: Element): boolean; // connected, rect > 0, not visibility:hidden, not in [inert]/[aria-hidden=true]
+export function isAvailable(el: Element): boolean; // connected, rect > 0, not visibility:hidden, not in [inert]/[hidden]
 export function waitForTarget(step: TourStep, opts: { timeoutMs: number; signal: AbortSignal }):
   Promise<{ el: HTMLElement; anchor: TourAnchor; body: string } | null>; // polls every 50ms (requestAnimationFrame-throttled)
 ```
@@ -548,11 +548,11 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R7 | The outcome is the latest run's (`completed` on Done or a missing last step; `skipped` on Skip/Escape/foreign navigation), and replays update it. | The PRD asks for "whether finished or skipped, and when". The latest is the only answer anyone will want. It never affects eligibility. | PRD data object; pitch Journey C |
 | R8 | The offer is spent when the tour first appears (`markTourOfferedAction` sets `offeredAt`), so abandoning (reload, close tab) never re-opens it. | Pitch §9.6: a tour that reappears because the lifter didn't finish is intrusive. Design doc Screen 3 decision. | Pitch §9.6; design doc |
 | R9 | The registry is `src/lib/tour/steps.ts` (`TOUR_STEPS`, `TOUR_ANCHORS`, `tourAnchor`). Adding a step = editing that file + putting `tourAnchor(name)` on the target element. | Architecture open question "shape and location of the tour step registry", settled here for the `overload-onboarding` skill | Architecture open question; roadmap; pitch §4.8 |
-| R10 | Target availability: connected, non-empty rect, not `visibility:hidden`, not inside `[inert]`/`[aria-hidden=true]`. First available candidate wins. | Makes "a control that exists on the current screen size" structural. `inert` covers the dimmed workout under a missed-day prompt. | PRD AC-3; guide D4 |
+| R10 | Target availability: connected, non-empty rect, not `visibility:hidden`, not inside `[inert]`/`[hidden]`. First available candidate wins. *(Amended in OVE-52: the first draft also excluded `[aria-hidden=true]`, but the Radix modal dialog marks everything outside itself `aria-hidden` while open, which would make every target unavailable. `display:none` ancestors still leave no box, so the rail below md and the menu button at md+ are still unavailable.)* | Makes "a control that exists on the current screen size" structural; `inert` covers the dimmed workout under a missed-day prompt | PRD AC-3; guide D4 |
 | R11 | An optional `layout` on a step (`phone`/`desktop`) filters it before the tour starts. Below 768px is phone. | Stable counter ("1 of 8" / "1 of 7"). The visibility rule still applies as a safety net. | Design doc Screen 1/2; codebase `md` breakpoint (`MobileNav` DESKTOP_QUERY) |
 | R12 | The tour navigates with `router.push(step.route)` and waits up to `TOUR_TARGET_TIMEOUT_MS` = 5000 for an available target (polling at 50 ms). After that the step is skipped. | Server-rendered pages can take a moment on a phone network. 5 s is long enough not to skip a slow page and short enough not to hang. | Judgment |
 | R13 | A missing target skips silently in the direction of travel. A missing last step finishes as `completed`. Nothing showable closes the tour without recording an outcome. | Design doc Screen 1 error state | PRD edge case; design doc |
-| R14 | Presentation is shadcn `Dialog` (Radix, modal) + a spotlight `div` + `Button`/`Skeleton`. No new dependency, no Popover component. | Focus trap, Escape, and aria-modal for free. Standing "shadcn primitives, not a tour library". | Guide D2 (bucket B); pitch §4.9 |
+| R14 | Presentation: the Radix `Dialog` primitive (modal, from the installed `radix-ui`, as `components/ui/dialog.tsx` uses it) + the scrim/spotlight + shadcn `Button`/`Skeleton`. No new dependency, no Popover component. The modal locks page scrolling while open; the tour scrolls each target into view itself. | Focus trap, Escape, and aria-modal for free; standing "shadcn primitives, not a tour library" | Guide D2 (bucket B); pitch §4.9 |
 | R15 | Card placement: docked at the bottom on phones. On desktop the pure `placeCard()` places it right of rail targets, otherwise below or above, clamped 16 px inside the viewport. | Thumb-first on phones (design doc). A pure function is unit-testable and needs no floating-UI dependency. | Design doc Screen 1; preview |
 | R16 | The tour never opens the phone navigation sheet. Area steps use page headings below md, and step 3 points at the menu button. | Two stacked modals would fight for focus and dismissal. Pitch §12 says nothing may leave the sheet stuck open. | Design doc Screen 2; pitch §4.7/§12 |
 | R17 | A pathname change the tour didn't make (browser Back/Forward) ends the tour as `skipped`. | The tour never fights the browser. Treated as a deliberate exit. | Design doc Screen 1 |
