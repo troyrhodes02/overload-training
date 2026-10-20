@@ -25,9 +25,10 @@ major_version = 17
 enabled = true
 port = 54323
 
-# Auth mirrors production: public signups are OFF. The single local user is
-# created by hand in local Studio (http://127.0.0.1:54323 → Authentication →
-# Add user), exactly as the production user is created in overload-prod.
+# Auth mirrors production: Supabase's own public signups are OFF, always.
+# Accounts (Pitch 9) creates invite-gated accounts on the server with the
+# admin API, so the anon key can never create one. (A local user can still be
+# added by hand in Studio, http://127.0.0.1:54323 → Authentication → Add user.)
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
@@ -42,6 +43,12 @@ enable_signup = false
 # `[auth] enable_signup = false` above.
 enable_signup = true
 enable_confirmations = false
+# Accounts (review fix): the auth service itself refuses a password change
+# from a session that didn't sign in recently, so a stolen or unattended
+# auth session can't change the password by calling Supabase directly. The
+# app has no password change of its own (password reset was removed: it needs
+# an email provider, and Overload sends no email).
+secure_password_change = true
 
 # Library & Gyms Setup: the exercise-image bucket. PUBLIC-READ (imported,
 # public-domain free-exercise-db images only). Written ONLY by the catalog

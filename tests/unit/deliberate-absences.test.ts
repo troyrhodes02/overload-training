@@ -28,6 +28,17 @@ function offenders(re: RegExp): string[] {
   return files.filter((f) => re.test(f.src)).map((f) => f.rel);
 }
 
+/**
+ * Write-path guards exempt the account-deletion module (Accounts, Pitch 9),
+ * the one sanctioned destroyer of an account's rows. It may only deleteMany
+ * through the scoped client — invariant-guards proves it never creates or
+ * updates anything.
+ */
+const ACCOUNT_DELETION = "src/lib/accounts/deletion.ts";
+function writersOutsideDeletion(re: RegExp): string[] {
+  return offenders(re).filter((f) => f !== ACCOUNT_DELETION);
+}
+
 const pkg = JSON.parse(
   fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"),
 ) as {
@@ -44,20 +55,20 @@ describe("no workout logging, plan building, or progression", () => {
   it("writes cardio logs only in the cardio write module, goal rows only in the Goal write module, and logged-history/baseline rows only in the logging modules", () => {
     // Cardio Logging (Pitch 7): CardioLog rows are written only through
     // src/lib/cardio/cardio-logs.ts (and never deleted — see invariant-guards).
-    for (const file of offenders(
+    for (const file of writersOutsideDeletion(
       /\.\s*cardioLog\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
     )) {
       expect(file).toBe("src/lib/cardio/cardio-logs.ts");
     }
     // Goals (Pitch 6) are written only through src/lib/goals/goals.ts.
-    for (const file of offenders(
+    for (const file of writersOutsideDeletion(
       /\.\s*goal\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
     )) {
       expect(file).toBe("src/lib/goals/goals.ts");
     }
     // Guided Workout Logging (Pitch 4) introduces logged-history/baseline writes,
     // but only inside the controlled logging modules.
-    const loggedWriters = offenders(
+    const loggedWriters = writersOutsideDeletion(
       /\.\s*(loggedSession|loggedExercise|loggedSet|gymExerciseBaseline)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
     );
     for (const file of loggedWriters) {
@@ -68,7 +79,7 @@ describe("no workout logging, plan building, or progression", () => {
   });
 
   it("writes planned cardio only through the plan cardio module and clone-forward (Cardio Logging)", () => {
-    const writers = offenders(
+    const writers = writersOutsideDeletion(
       /\.\s*plannedCardio\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
     );
     expect(writers.length).toBeGreaterThan(0);
@@ -78,7 +89,7 @@ describe("no workout logging, plan building, or progression", () => {
   });
 
   it("writes plan rows only through the plan write modules (Split & Mesocycle Builder)", () => {
-    const writers = offenders(
+    const writers = writersOutsideDeletion(
       /\.\s*(mesocycle|session|sessionExercise)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
     );
     expect(writers.length).toBeGreaterThan(0);
@@ -104,14 +115,15 @@ describe("no workout logging, plan building, or progression", () => {
   // tests/unit/invariant-guards.test.ts: no progression/e1RM column, a single
   // e1RM formula, and read-only progression modules.)
 
-  it("has exactly the app routes shipped so far (Goals adds `goals`, Pitch 6)", () => {
+  it("has exactly the app routes shipped so far (Accounts adds `settings`, Pitch 9)", () => {
     const appDir = path.join(SRC, "app", "(app)");
     const routes = fs
       .readdirSync(appDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name)
       .sort();
-    // Guided Workout Logging adds `log` and `history`; Goals adds `goals`.
+    // Guided Workout Logging adds `log` and `history`; Goals adds `goals`;
+    // Accounts adds `settings` (profile + account deletion).
     expect(routes).toEqual([
       "exercises",
       "goals",
@@ -119,6 +131,7 @@ describe("no workout logging, plan building, or progression", () => {
       "history",
       "log",
       "plan",
+      "settings",
     ]);
   });
 });
@@ -221,7 +234,7 @@ describe("no automatic personalization or recommendations", () => {
     expect(offenders(/data\s*:\s*\{[^}]*isFavorite\s*:/)).toEqual([]);
     // The only favorite writes are the toggle's, in the exercise write module.
     expect(
-      offenders(
+      writersOutsideDeletion(
         /exerciseFavorite\s*\.\s*(create|createMany|upsert|update|updateMany|delete|deleteMany)\b/,
       ),
     ).toEqual(["src/lib/exercises/exercises.ts"]);

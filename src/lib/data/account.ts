@@ -59,6 +59,34 @@ export async function resolveAccount(userId: string): Promise<Account> {
 }
 
 /**
+ * Writes a brand-new account's profile at signup (Accounts spec R9): names and
+ * the browser's timezone. `user` is the user the auth service itself returned
+ * from signing in, in the same server request — never client input. If a lazy
+ * profile raced in (a concurrent first request), it is completed, not
+ * duplicated. Only the signup module calls this (guard tests).
+ */
+export async function establishProfile(
+  user: { id: string },
+  input: { firstName: string; lastName: string; timeZone: string },
+): Promise<void> {
+  const db = createAccountClient(user.id);
+  const timeZone = isValidTimeZone(input.timeZone)
+    ? input.timeZone
+    : DEFAULT_PROFILE_TIME_ZONE;
+  const data = {
+    firstName: input.firstName,
+    lastName: input.lastName,
+    timeZone,
+  };
+  try {
+    await db.profile.create({ data: { userId: user.id, ...data } });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    await db.profile.updateMany({ where: { userId: user.id }, data });
+  }
+}
+
+/**
  * The acting account for this request, or a redirect to /login. Memoized per
  * request (React cache), so a page and its children share one resolution.
  */

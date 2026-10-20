@@ -1,8 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useRef,
+  type FormEvent,
+} from "react";
 import { signInAction, type SignInState } from "./actions";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,28 +16,49 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const initialState: SignInState = { error: null, email: "" };
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? "Signing in…" : "Sign in"}
-    </Button>
+/**
+ * Email + password and one primary action. Submitted
+ * manually (not via `<form action>`) so React 19 keeps the typed email after a
+ * failed attempt; the password is cleared on purpose.
+ */
+export function LoginForm({ notice }: { notice: string | null }) {
+  const [state, formAction, isPending] = useActionState(
+    signInAction,
+    initialState,
   );
-}
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
-export function LoginForm() {
-  const [state, formAction] = useActionState(signInAction, initialState);
+  useEffect(() => {
+    if (!state.error) return;
+    if (passwordRef.current) passwordRef.current.value = "";
+    (state.email ? passwordRef : emailRef).current?.focus();
+  }, [state]);
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    startTransition(() => formAction(data));
+  }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <h1 className="text-lg font-semibold">Sign in</h1>
+      {notice ? (
+        <Alert role="status">
+          <AlertDescription>{notice}</AlertDescription>
+        </Alert>
+      ) : null}
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input
+          ref={emailRef}
           id="email"
           name="email"
           type="email"
           inputMode="email"
           autoComplete="email"
+          className="h-11"
           defaultValue={state.email}
           required
           autoFocus
@@ -39,10 +66,10 @@ export function LoginForm() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Password</Label>
-        <Input
+        <PasswordInput
+          ref={passwordRef}
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
         />
@@ -52,7 +79,9 @@ export function LoginForm() {
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       ) : null}
-      <SubmitButton />
+      <Button type="submit" className="h-11 w-full" disabled={isPending}>
+        {isPending ? "Signing in…" : "Sign in"}
+      </Button>
     </form>
   );
 }

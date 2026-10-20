@@ -14,19 +14,55 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+/**
+ * The account-deletion module (Accounts, Pitch 9): the ONE sanctioned
+ * destroyer of logged history (CLAUDE.md). Every "never deleted" guard below
+ * exempts exactly this file, and only for deletes.
+ */
+const ACCOUNT_DELETION = "src/lib/accounts/deletion.ts";
+const relPath = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
+const notDeletion = (f: string) => relPath(f) !== ACCOUNT_DELETION;
+
 describe("logged-history write guard", () => {
   it("has no LoggedSet write outside lib/logging/logged-sets.ts", () => {
     const offenders: string[] = [];
     // Any receiver: the raw client, account.db, or a (scoped) transaction.
     const writeRe =
       /\.\s*loggedSet\s*\.\s*(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\b/;
+    const createOrUpdateRe =
+      /\.\s*loggedSet\s*\.\s*(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert)\b/;
     for (const file of walk(SRC)) {
-      const rel = path.relative(REPO_ROOT, file);
-      if (rel.replace(/\\/g, "/") === "src/lib/logging/logged-sets.ts")
-        continue;
+      const rel = relPath(file);
+      if (rel === "src/lib/logging/logged-sets.ts") continue;
       const contents = fs.readFileSync(file, "utf8");
-      if (writeRe.test(contents)) offenders.push(rel);
+      // Account deletion may DELETE logged sets — never create or alter one.
+      const re = rel === ACCOUNT_DELETION ? createOrUpdateRe : writeRe;
+      if (re.test(contents)) offenders.push(rel);
     }
+    expect(offenders).toEqual([]);
+  });
+
+  it("account deletion deletes only through the account-scoped client, in one transaction", () => {
+    const src = fs.readFileSync(path.join(REPO_ROOT, ACCOUNT_DELETION), "utf8");
+    // No raw client, no raw SQL, no single-row deletes: only scoped deleteMany.
+    expect(src).not.toMatch(/@\/lib\/db["']|\$executeRaw|\$queryRaw/);
+    expect(src).not.toMatch(/\.\s*delete\s*\(/);
+    expect(src).toMatch(/account\.db\.\$transaction\(/);
+    // It only ever deletes: no create, update, or upsert of any model.
+    expect(src).not.toMatch(
+      /\.\s*(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert)\s*\(/,
+    );
+  });
+
+  it("no code outside the deletion module deletes a Profile or any logged-history row", () => {
+    // (Plan authoring deleting a draft session/slot/planned cardio, and the
+    // library un-starring a favorite, are their own reviewed paths.)
+    const del =
+      /\.\s*(profile|loggedExercise|loggedSession|missedDayResolution|gymExerciseBaseline|mesocycle)\s*\.\s*(delete|deleteMany)\s*\(/;
+    const offenders = walk(SRC)
+      .filter(notDeletion)
+      .filter((f) => del.test(fs.readFileSync(f, "utf8")))
+      .map(relPath);
     expect(offenders).toEqual([]);
   });
 });
@@ -105,11 +141,11 @@ describe("progression is derived, never stored (Progressive Overload Engine)", (
 describe("exercise and gym write guards (Library & Gyms Setup)", () => {
   const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
 
-  it("never hard-deletes an Exercise or Gym anywhere in application code", () => {
+  it("never hard-deletes an Exercise or Gym outside the account-deletion module", () => {
     const hardDelete = /\.\s*(exercise|gym)\s*\.\s*(delete|deleteMany)\s*\(/;
-    const offenders = walk(SRC).filter((f) =>
-      hardDelete.test(fs.readFileSync(f, "utf8")),
-    );
+    const offenders = walk(SRC)
+      .filter(notDeletion)
+      .filter((f) => hardDelete.test(fs.readFileSync(f, "utf8")));
     expect(offenders.map(rel)).toEqual([]);
   });
 
@@ -125,7 +161,7 @@ describe("exercise and gym write guards (Library & Gyms Setup)", () => {
 
 describe("secret hygiene", () => {
   const dbSecretRe =
-    /NEXT_PUBLIC_[A-Z0-9_]*(DATABASE_URL|DIRECT_URL|SERVICE_ROLE|SERVICE_KEY)/;
+    /NEXT_PUBLIC_[A-Z0-9_]*(DATABASE_URL|DIRECT_URL|SERVICE_ROLE|SERVICE_KEY|INVITE|SMTP|SECRET)/;
 
   it("references no NEXT_PUBLIC_ database/service-role secret in source", () => {
     const offenders: string[] = [];
@@ -191,13 +227,75 @@ describe("free-exercise-db is an ingest dependency, never a runtime one", () => 
     expect(offenders.map((f) => path.relative(REPO_ROOT, f))).toEqual([]);
   });
 
-  it("no application source references the service-role key", () => {
-    const offenders = walk(SRC).filter((f) =>
-      /SUPABASE_SERVICE_ROLE_KEY|service_role|serviceRole/.test(
-        fs.readFileSync(f, "utf8"),
-      ),
-    );
-    expect(offenders.map((f) => path.relative(REPO_ROOT, f))).toEqual([]);
+  it("only the auth-admin facade references the service-role key (Accounts R4)", () => {
+    // Library & Gyms kept the key out of src/ entirely. Accounts needs it on
+    // the server for exactly two auth operations (create an invite-gated user,
+    // delete an account's identity), so it is allowed in ONE server-only file.
+    const offenders = walk(SRC)
+      .filter((f) =>
+        /SUPABASE_SERVICE_ROLE_KEY|service_role|serviceRole/.test(
+          fs.readFileSync(f, "utf8"),
+        ),
+      )
+      .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, "/"));
+    expect(offenders).toEqual(["src/lib/supabase/admin.ts"]);
+  });
+});
+
+describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)", () => {
+  const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
+  const read = (f: string) => fs.readFileSync(f, "utf8");
+  const ADMIN = "src/lib/supabase/admin.ts";
+  const INVITE = "src/lib/accounts/invite.ts";
+
+  it("the admin facade and the invite gate are server-only modules", () => {
+    for (const file of [ADMIN, INVITE]) {
+      expect([file, read(path.join(REPO_ROOT, file))]).toEqual([
+        file,
+        expect.stringMatching(/^import "server-only";/),
+      ]);
+    }
+  });
+
+  it("the admin facade is imported only by signup and account deletion", () => {
+    const importers = walk(SRC)
+      .filter((f) => /["']@\/lib\/supabase\/admin["']/.test(read(f)))
+      .map(rel)
+      .sort();
+    for (const file of importers) {
+      expect([
+        "src/lib/accounts/deletion.ts",
+        "src/lib/accounts/signup.ts",
+      ]).toContain(file);
+    }
+    expect(importers).toContain("src/lib/accounts/signup.ts");
+  });
+
+  it("only the invite gate reads the invite code", () => {
+    const readers = walk(SRC)
+      .filter((f) => /OVERLOAD_INVITE_CODE/.test(read(f)))
+      .map(rel);
+    expect(readers).toEqual([INVITE]);
+  });
+
+  it("only signup establishes a new account's profile", () => {
+    const callers = walk(SRC)
+      .filter((f) => !rel(f).startsWith("src/lib/data/"))
+      .filter((f) => /\bestablishProfile\b/.test(read(f)))
+      .map(rel);
+    expect(callers).toEqual(["src/lib/accounts/signup.ts"]);
+  });
+
+  it("no client component imports the admin facade or the invite gate", () => {
+    const offenders = walk(SRC)
+      .filter((f) => /^["']use client["']/m.test(read(f)))
+      .filter((f) =>
+        /@\/lib\/(supabase\/admin|accounts\/(invite|signup|deletion))["']/.test(
+          read(f).replace(/import type[^;]+;/g, ""),
+        ),
+      )
+      .map(rel);
+    expect(offenders).toEqual([]);
   });
 });
 
@@ -284,14 +382,16 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
       /\.\s*goal\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/;
     const offenders = walk(SRC)
       .filter((f) => rel(f) !== "src/lib/goals/goals.ts")
+      .filter(notDeletion)
       .filter((f) => write.test(read(f)));
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("never deletes a goal anywhere (archive only)", () => {
+  it("never deletes a goal outside account deletion (archive only)", () => {
     const del = /\.\s*goal\s*\.\s*(delete|deleteMany)\s*\(/;
     expect(
       walk(SRC)
+        .filter(notDeletion)
         .filter((f) => del.test(read(f)))
         .map(rel),
     ).toEqual([]);
@@ -413,10 +513,11 @@ describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () =
     return start < 0 ? "" : schema.slice(start, schema.indexOf("\n}", start));
   };
 
-  it("never deletes a cardio log anywhere (correction only, R33)", () => {
+  it("never deletes a cardio log outside account deletion (correction only, R33)", () => {
     const del = /\.\s*cardioLog\s*\.\s*(delete|deleteMany)\s*\(/;
     expect(
       walk(SRC)
+        .filter(notDeletion)
         .filter((f) => del.test(read(f)))
         .map(rel),
     ).toEqual([]);
