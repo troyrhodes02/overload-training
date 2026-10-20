@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-56** (OVE-54 #73 and OVE-55 #74 In Review).
+**Step 9 — runbook** (OVE-54 #73, OVE-55 #74, OVE-56 #75 all In Review).
 
 ## Authority used (read before resuming)
 
@@ -41,8 +41,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 4. Spec — `docs/specs/12-whats-new-spec.md` (v1.0.0; migration `9e_release_seen`); `docs/planning/method-note.md` gains the release-note content contract
 - [x] 5. Resolved Decisions recorded in spec (R1–R30). Key: R3 stop before merge; R8 no entry ships; R9 existing accounts = no row = shown nothing; R10 signup row; R12 account floor; R13 seen on open
 - [x] 6. Linear milestone + issues (blockedBy chain)
-- [ ] 7. Feature PR into `main`
-- [ ] 8. Tickets implemented
+- [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#72** https://github.com/troyrhodes02/overload-training/pull/72
+- [x] 8. Tickets implemented — OVE-54…56 → PRs #73–#75 (stacked), all In Review
 - [ ] 9. Runbook — `docs/runs/12-whats-new-runbook.md`
 - [ ] 10. Ticket PRs squash-merged into the feature branch in order
 - [ ] 11. Full verification
@@ -63,6 +63,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 - **OVE-54** — `feat/ove-54-release-notes-seen` (off the feature branch) → PR **#73** (base: feature branch). In Review. Verified: prettier, lint, tsc, prisma validate, unit 51/873, integration 40/481 (release-notes, isolation/release-notes, release-seen-migration, deletion, ownership-enforce, RLS, schema), build (local env) + client-bundle OK; migration 9e applied to the LOCAL stack only (release_seen 0 rows, RLS on, 0 policies, migrate diff local→schema empty, anon Data API refused, 463 sets unchanged). **Spec v1.1.0 (R10):** the signup write moved into `establishProfile` (`initialReleaseSeen()` supplies the start) because the isolation guard forbids a bare `userId` outside src/lib/data; guard not weakened. Two standing guards caught this and a comment naming establishProfile — both fixed in code.
 - **OVE-55** — `feat/ove-55-whats-new-ui` (off OVE-54) → PR **#74** (base: OVE-54 branch). In Review. Verified: prettier, lint, tsc, unit 53/879, integration 40/481, build (local env) + client-bundle OK. **Browser walkthrough** (scratchpad `walk.mjs`; dev server on 3317 against the local stack; temporary uncommitted entries; `git diff --exit-code src/lib/release-notes/entries.ts` clean afterwards): 3 accounts signed up with an empty catalog had no row and no dialog; after 1 significant entry: one-entry dialog, focus on Got it, row moved on open, reload without closing → none; after 3 significant + 1 ordinary: a fresh account got exactly [Exercise history, Clearer recommendations, Logging is faster] ("3 updates since you were last here"), Got it + reload → none; desktop light/dark and phone dark renders; See all updates → page with dialog closed; 375×568 with 5 entries: Got it fully in viewport at 44px, list scrolls, Escape + reload → none; a new account signed up with entries present: tour on first load, no dialog, row = newest id, no dialog after skipping the tour; Settings section + page at 375/1280 light/dark, no horizontal scroll; empty state + back link. All 4 temporary accounts deleted through the app's deletion flow. Screenshots in scratchpad `walk/` compared with preview §01–§05 — hierarchy, copy, controls, tokens match.
+- **OVE-56** — `feat/ove-56-whats-new-e2e` (off OVE-55) → PR **#75** (base: OVE-55 branch). Adds `e2e/accounts/whats-new.spec.ts`. Verified: accounts e2e **26/26** (lifecycle 6, personalization 8, tour 8 — the tour regression with the dialog mounted — whats-new 4: auth gate, new account = tour and no dialog incl. after reload and no release_seen row with the empty catalog, Settings → page → back at 375 (44px) and 1280 (36px), empty state, no horizontal scroll, training counts unchanged); default e2e 26/26; prettier, lint, tsc. The dialog walkthrough evidence is OVE-55's run (above); it is a scratch script by design (R22). Local DB afterwards: 3 pre-existing auth users, 2 profiles, 1 tour row, 0 release_seen rows, 463 logged sets — no temporary account left. Hidden previous routes stay mounted in this Next version (route preservation), so page-text assertions are scoped to visible elements.
 
 ## Resolved Decisions so far
 
