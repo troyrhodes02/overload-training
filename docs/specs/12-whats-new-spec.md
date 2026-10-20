@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved
 author: Autonomous pipeline run (Claude Code), 2026-10-20
 last_updated: 2026-10-20
@@ -349,13 +349,15 @@ export async function markReleaseNotesSeen(
 ): Promise<{ moved: boolean }>;
 
 /**
- * A brand-new account starts with the newest entry seen (guide D2). Called by
- * establishProfile with its scoped client. Empty catalog -> no row. Idempotent
- * (createMany skipDuplicates). Throws; the caller catches and logs.
+ * Where a brand-new account's seen point starts (guide D2): the newest entry,
+ * already seen, or null when the catalog is empty (no row). Throws
+ * ReleaseNotesError on an invalid catalog. (Amended in OVE-54, R10: the write
+ * itself lives in establishProfile, in the data layer, because the standing
+ * guard allows a bare userId only inside src/lib/data.)
  */
-export async function initializeReleaseSeen(
-  db: AccountDb, userId: string, catalog?: readonly ReleaseNoteEntry[],
-): Promise<void>;
+export function initialReleaseSeen(
+  catalog?: readonly ReleaseNoteEntry[],
+): { lastSeenReleaseId: string; lastSeenAt: Date } | null;
 ```
 
 `markReleaseNotesSeen` concurrency: in one `account.db.$transaction`, read the row, then either `createMany({ skipDuplicates: true })` (if `count === 0`, a concurrent create won: re-read and apply the update rule once) or `updateMany({ where: { userId, lastSeenReleaseId: current }, data })` (compare-and-set on the value read; `count === 0` means a concurrent mark moved it: re-read and apply the rule once). There's no raw SQL and no lock. The architecture's single-writer model makes a second race practically impossible, and its worst case is one repeat appearance (R14).
@@ -396,7 +398,10 @@ return <AppShell appearance={appearance} tourAutoStart={tourAutoStart} whatsNew=
 
 ```ts
 try {
-  await initializeReleaseSeen(db, user.id);
+  const start = initialReleaseSeen(); // null: no entries yet, no row
+  if (start) {
+    await db.releaseSeen.createMany({ data: [{ userId: user.id, ...start }], skipDuplicates: true });
+  }
 } catch (error) {
   console.error("signup: could not start the new account's release notes", error instanceof Error ? error.name : "unknown");
 }
@@ -597,7 +602,7 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R7 | Stable ids are permanent kebab-case slugs (`YYYY-MM-DD-short-name` by convention, ≤ 64), unique, never reused. The DB CHECK mirrors the format. | The seen point refers to an id, so ids must outlive copy edits. | Pitch §13 "stable release identifiers"; judgment |
 | R8 | **No entry ships with this pitch.** The page launches empty (design doc empty state), and nobody gets a dialog at rollout. Pitch 13's guidance ticket writes the first entry. If the owner wants an introductory entry, it's a one-object addition dated the deploy day (runbook §6). | The run prompt says "do not … create a premature release entry". Pitch §4.8 / §9.8 forbid synthetic or backdated history. The ship date is a human step after this run, so any date written now would be a planned date, which the skill forbids. | Run prompt; pitch §4.8, §9.8; `overload-onboarding` |
 | R9 | **Existing accounts at rollout:** no row = shown nothing, so every entry in the catalog is unseen for them (subject to the floor). Because the catalog is empty at rollout and every later entry ships after rollout, that's exactly "genuinely new updates, no fabricated backlog". No backfill and no migration `INSERT`. | Resolves pitch §4.8 / §13 without touching unrelated account state. It differs from the tour's "treated as already offered" because here an absent row must still let *future* entries reach existing lifters. | Pitch §4.8, §13; architecture; migration-safety guard; bucket C (owner review) |
-| R10 | **New accounts:** `establishProfile` calls `initializeReleaseSeen` last, best effort (logged by error name, never thrown), creating the row at the newest entry, or no row if the catalog is empty. | Guide D2 standing resolution, implemented like the tour row (Pitch 11 R6). | Guide D2 (bucket B); codebase pattern |
+| R10 | *(Amended in OVE-54.)* **New accounts:** `establishProfile` writes the row last, best effort (logged by error name, never thrown), at the starting point `initialReleaseSeen()` returns (the newest entry), or writes no row if the catalog is empty. The first draft had `seen.ts` do the write with a `userId` parameter. The standing isolation guard (outside `src/lib/data`, `userId` appears only as `account.userId`) forbids that, so the write sits in the data layer like the tour row. The guard was not weakened. | Guide D2 standing resolution, implemented like the tour row (Pitch 11 R6). | Guide D2 (bucket B); codebase pattern |
 | R11 | Selection rules: no row → all significant entries are candidates. Known id → only entries above it. Unknown id (content rule 6 broken) → entries dated after the row's `lastSeenAt` UTC date. | Defends against a removed or renamed entry without freezing the account forever and without showing a backlog. | Judgment; pitch §12 |
 | R12 | **Account floor:** an entry dated before the account's profile creation date (UTC) is never unseen, whatever the row says. | AC-3 must hold even when the best-effort signup write fails (or for a lazily created profile). Same-date entries fall to the seen point. | PRD AC-3; guide D4; judgment |
 | R13 | "Seen" is recorded **when the dialog opens**, through the catalog's newest id at render time (`throughId`, returned by the client and validated). Closing records nothing more. | Architecture: "the latest release-notes entry shown". It makes "once" hold through reloads, closed tabs, and sign-outs (pitch §9.1, D4), and a render-time id can't mark an entry that shipped after the page loaded. Same idea as Pitch 11 R8. | Architecture; pitch §4.4, §9.1; design doc Screen 1 |

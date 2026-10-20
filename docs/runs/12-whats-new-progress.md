@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-54.**
+**Step 8 — implementing OVE-55** (OVE-54 done, PR #73 In Review).
 
 ## Authority used (read before resuming)
 
@@ -61,7 +61,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ### Ticket branches / PRs
 
-(none yet)
+- **OVE-54** — `feat/ove-54-release-notes-seen` (off the feature branch) → PR **#73** (base: feature branch). In Review. Verified: prettier, lint, tsc, prisma validate, unit 51/873, integration 40/481 (release-notes, isolation/release-notes, release-seen-migration, deletion, ownership-enforce, RLS, schema), build (local env) + client-bundle OK; migration 9e applied to the LOCAL stack only (release_seen 0 rows, RLS on, 0 policies, migrate diff local→schema empty, anon Data API refused, 463 sets unchanged). **Spec v1.1.0 (R10):** the signup write moved into `establishProfile` (`initialReleaseSeen()` supplies the start) because the isolation guard forbids a bare `userId` outside src/lib/data; guard not weakened. Two standing guards caught this and a comment naming establishProfile — both fixed in code.
 
 ## Resolved Decisions so far
 
