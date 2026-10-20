@@ -4,6 +4,8 @@ import { refresh } from "next/cache";
 import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { updateProfile } from "@/lib/accounts/profile";
+import { updateAppearance } from "@/lib/accounts/appearance";
+import type { Appearance } from "@/lib/appearance/appearance";
 
 /*
  * Settings server actions (Accounts spec §11). The acting account comes from
@@ -42,4 +44,22 @@ export async function updateProfileAction(
     },
     saved: stored ?? prev.saved,
   };
+}
+
+/**
+ * Saves the acting account's appearance (Personalization & Navigation Polish,
+ * spec §11). The client has already applied the choice; this persists it. The
+ * only input is the value — the account comes from the auth session. On
+ * success the layout re-renders so the shell receives the stored value.
+ */
+export async function updateAppearanceAction(
+  appearance: unknown,
+): Promise<ActionResult<{ appearance: Appearance }>> {
+  const account = await requireAccount();
+  const result = await toActionResult(
+    async () => ({ appearance: await updateAppearance(account, appearance) }),
+    "Couldn't save your appearance. Try again.",
+  );
+  if (result.ok) refresh();
+  return result;
 }

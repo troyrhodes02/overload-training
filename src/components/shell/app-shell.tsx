@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 import { AppNav } from "./app-nav";
 import { AccountMenu } from "./account-menu";
+import { AppearanceSync } from "./appearance-sync";
 import { MobileNav } from "./mobile-nav";
 import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { Toaster } from "@/components/ui/sonner";
+import type { Appearance } from "@/lib/appearance/appearance";
 
 /**
  * The authenticated application shell: a top app bar, a content region, and the
@@ -14,10 +16,20 @@ import { Toaster } from "@/components/ui/sonner";
  * navigation sheet; nothing is pinned to the bottom except a screen's own
  * thumb-reach action bar. md+: the left rail and the static header, unchanged
  * (Personalization & Navigation Polish).
+ *
+ * `appearance` is the account's stored preference (read by the layout): the
+ * shell keeps the document and the toasts on it.
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  appearance,
+  children,
+}: {
+  appearance: Appearance;
+  children: ReactNode;
+}) {
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
+      <AppearanceSync appearance={appearance} />
       {/* Left rail at md+; renders nothing below md. */}
       <AppNav />
 
@@ -36,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       {/* One toaster for the whole authenticated app (archive/undo, saves). */}
-      <Toaster />
+      <Toaster theme={appearance} />
     </div>
   );
 }
