@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 12 — code review of feature PR #68.**
+**COMPLETE — stopped before merge to `main` (spec R3, guide D1).** Feature PR #68 is open and ready for review, with all ticket PRs integrated and review findings addressed. The remaining steps are human: runbook §1–§6 (production migration BEFORE merging), then move OVE-51…53 to Done.
 
 ## Authority used (read before resuming)
 
@@ -45,10 +45,10 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 9. Runbook — `docs/runs/11-onboarding-tour-runbook.md` + `docs/runs/11-sql/verify-tour-progress.sql` (rehearsed on the local stack: columns, enum, RLS t/0, trigger + constraints, 0 rows, 463 sets)
 - [x] 10. Ticket PRs squash-merged into the feature branch in order — #69 `aa808c4`, #70 `722c3ed`, #71 `bfa7798`. Each: retarget → merge feature branch into ticket branch (conflicts only in docs: spec kept the ticket's superset, progress took the feature's; #71 overlay kept the ticket's superset) → delta vs ticket tip = runbook/progress/11-sql only → Vercel pass (`gh pr checks --watch`) → squash. Final feature tree == OVE-53 tip.
 - [x] 11. Full verification on `bfa7798`: prettier, lint, tsc, prisma validate + local migrate status up to date; unit 47/813; integration 37/453 (isolation incl. tour, history integrity, RLS deny-all, schema, ownership enforce, 9d rehearsal, guards); accounts e2e 21/21 (build via webServer, local env); verify:client-bundle OK; default e2e 26/26; local DB unchanged 1/1/0/463. Visual vs preview done on the OVE-52/53 code (identical tree).
-- [ ] 12. Code review
-- [ ] 13. Review audit
-- [ ] 14. Final verification + merge gate
-- [ ] 15. Run report
+- [x] 12. Code review: the `code-review` skill (high) posted 9 inline comments on #68 (+1 off-PR note)
+- [x] 13. Review audit, posted at https://github.com/troyrhodes02/overload-training/pull/68#issuecomment-6293831981: 6 implement (first page off Today recorded skipped (AC-1 bug), offer spent when the card opens, Back-during-load guard, stale spotlight frame, origin query, single anchor scan), 2 skip (offer failure by design R22; rAF loop R33), 1 defer (fold tour read into Account, R34), 1 discuss (owner's dump, R35). Fixes in `a1d066d`; spec v1.3.0; new e2e regression test.
+- [x] 14. Final verification on `a1d066d`: STOP before merge (R3). prettier, lint, tsc, prisma validate, local migrate status; unit 47/813; integration 37/453; accounts e2e 22/22 (build); client-bundle OK; default e2e 26/26; Vercel pass on #68; local DB 1/1/0/463. #68 marked ready for review (open, not merged).
+- [x] 15. Run report: `docs/runs/11-onboarding-tour-report.md`
 
 ## Linear
 
