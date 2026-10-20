@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 9 — runbook** (OVE-54 #73, OVE-55 #74, OVE-56 #75 all In Review).
+**Step 12 — code review of #72** (steps 9–11 done).
 
 ## Authority used (read before resuming)
 
@@ -43,9 +43,9 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 6. Linear milestone + issues (blockedBy chain)
 - [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#72** https://github.com/troyrhodes02/overload-training/pull/72
 - [x] 8. Tickets implemented — OVE-54…56 → PRs #73–#75 (stacked), all In Review
-- [ ] 9. Runbook — `docs/runs/12-whats-new-runbook.md`
-- [ ] 10. Ticket PRs squash-merged into the feature branch in order
-- [ ] 11. Full verification
+- [x] 9. Runbook — `docs/runs/12-whats-new-runbook.md` + `docs/runs/12-sql/verify-release-seen.sql` (rehearsed on the local stack: columns, RLS t/0, trigger + 3 constraints, 0 rows, history counts)
+- [x] 10. Ticket PRs squash-merged into the feature branch in order — #73 `0f44907`, #74 `8589e45`, #75 `7bb4a83`. Each: (retarget) → merge feature branch into ticket branch (conflicts only in progress / guard test; kept the ticket's superset) → delta vs ticket tip = runbook + SQL only → Vercel pass → squash. Final feature tree == OVE-56 tip.
+- [x] 11. Full verification on `7bb4a83`: prettier, lint, tsc, prisma validate, local migrate status up to date; unit 53/879; integration 40/481; accounts e2e 26/26 (build via webServer, local env); verify:client-bundle OK; default e2e 26/26; local DB 3 users / 2 profiles / 1 tour row / 0 release_seen / 463 sets (unchanged). Visual vs preview: OVE-55 walkthrough on identical UI code (OVE-56 added e2e only).
 - [ ] 12. Code review (inline comments on the feature PR)
 - [ ] 13. Review audit
 - [ ] 14. Final verification + merge gate
