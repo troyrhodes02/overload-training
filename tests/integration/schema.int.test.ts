@@ -52,6 +52,27 @@ describe("schema invariants", () => {
     expect(rows.map((r) => r.table_name)).toEqual([...APP_TABLES].sort());
   });
 
+  it("profiles.appearance is the account's appearance: NOT NULL, default 'system', exactly three values", async () => {
+    const prisma = getTestPrisma();
+    const [col] = await prisma.$queryRawUnsafe<
+      { is_nullable: string; column_default: string; udt_name: string }[]
+    >(
+      `SELECT is_nullable, column_default, udt_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'profiles'
+          AND column_name = 'appearance'`,
+    );
+    expect(col).toEqual({
+      is_nullable: "NO",
+      column_default: "'system'::appearance",
+      udt_name: "appearance",
+    });
+    const labels = await prisma.$queryRawUnsafe<{ enumlabel: string }[]>(
+      `SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'appearance' ORDER BY e.enumsortorder`,
+    );
+    expect(labels.map((l) => l.enumlabel)).toEqual(["system", "light", "dark"]);
+  });
+
   it("seeds no training data (every application table is empty on a clean migrate)", async () => {
     const prisma = getTestPrisma();
     // after-env truncates before each test; this asserts the baseline is empty.

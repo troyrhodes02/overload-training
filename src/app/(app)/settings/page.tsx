@@ -2,18 +2,25 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { requireAccount } from "@/lib/data/account";
 import { getSettingsProfile, timeZoneOptions } from "@/lib/accounts/profile";
+import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { ProfileForm } from "@/components/settings/profile-form";
+import { AppearanceSetting } from "@/components/settings/appearance-setting";
 import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Settings · Overload" };
 
 /**
  * Settings (Accounts design doc Screen 6): routine profile editing above, the
- * one irreversible action set apart below, behind its own page.
+ * appearance preference (Personalization & Navigation Polish — the only place
+ * it can be changed), and the one irreversible action set apart below, behind
+ * its own page.
  */
 export default async function SettingsPage() {
   const [account, user] = await Promise.all([requireAccount(), requireUser()]);
-  const profile = await getSettingsProfile(account);
+  const [profile, appearance] = await Promise.all([
+    getSettingsProfile(account),
+    getAccountAppearance(account),
+  ]);
 
   return (
     <section className="space-y-6 pb-20 md:pb-0">
@@ -25,6 +32,7 @@ export default async function SettingsPage() {
         timeZone={profile.timeZone}
         timeZones={timeZoneOptions(profile.timeZone)}
       />
+      <AppearanceSetting initial={appearance} />
       <div className="space-y-2 border-t border-border pt-6">
         <h2 className="text-base font-semibold">Delete account</h2>
         <p className="text-sm text-muted-foreground">

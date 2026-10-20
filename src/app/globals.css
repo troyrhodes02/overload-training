@@ -1,7 +1,22 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+  `dark:` utilities apply in dark mode whichever way it is chosen: the explicit
+  Dark appearance (.dark on <html>) or System on a dark device (no .light
+  class). Without the second half, shadcn's dark: tweaks would be skipped for
+  System-dark surfaces (Personalization & Navigation Polish, spec R8).
+*/
+@custom-variant dark {
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not(.light), :root:not(.light) *) {
+      @slot;
+    }
+  }
+}
 
 /*
   Overload theme tokens — industrial, technical, minimal; a serious strength
@@ -12,12 +27,14 @@
   Brand electric blue (sampled from the Overload mark): #0159fd. The primary
   token is tuned per theme so white labels on it and the accent on near-black
   both stay legible. Light is the :root default; dark applies via the .dark
-  class (explicit selection) and, with no toggle yet, via the OS preference.
+  class (the account chose Dark) and, under System, via the OS preference.
+  The .light class (the account chose Light) blocks the OS preference.
   Semantic green/amber/red (progress/deload/destructive) are preserved — blue
   never replaces them.
 */
 
 :root {
+  color-scheme: light;
   --radius: 0.5rem;
 
   --background: #f7f7f8;
@@ -47,6 +64,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #0b0b0c;
   --foreground: #f2f2f3;
   --card: #141416;
@@ -76,6 +94,7 @@
 /* System default: follow the OS when no explicit mode class is set. */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
+    color-scheme: dark;
     --background: #0b0b0c;
     --foreground: #f2f2f3;
     --card: #141416;

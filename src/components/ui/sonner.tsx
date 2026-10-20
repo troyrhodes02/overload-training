@@ -3,9 +3,9 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 /**
- * shadcn/ui's toast (Sonner), themed from Overload's tokens. Follows the system
- * appearance (Overload has no in-app theme toggle yet), so no theme provider
- * dependency is needed.
+ * shadcn/ui's toast (Sonner), themed from Overload's tokens. The app shell
+ * passes the account's appearance as `theme` (Light, Dark, or System); without
+ * one it follows the device. No theme provider dependency is needed.
  */
 export function Toaster(props: ToasterProps) {
   return (
