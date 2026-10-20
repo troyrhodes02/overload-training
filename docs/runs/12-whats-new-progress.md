@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 12 — code review of #72** (steps 9–11 done).
+**COMPLETE — stopped before merge to `main` (spec R3, guide D1).** Feature PR #72 is open and ready for review, with every ticket PR integrated and the review findings addressed. The remaining steps are human: runbook §1–§6 (apply the production migration 9e BEFORE merging), then move OVE-54…56 to Done.
 
 ## Authority used (read before resuming)
 
@@ -46,10 +46,10 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 9. Runbook — `docs/runs/12-whats-new-runbook.md` + `docs/runs/12-sql/verify-release-seen.sql` (rehearsed on the local stack: columns, RLS t/0, trigger + 3 constraints, 0 rows, history counts)
 - [x] 10. Ticket PRs squash-merged into the feature branch in order — #73 `0f44907`, #74 `8589e45`, #75 `7bb4a83`. Each: (retarget) → merge feature branch into ticket branch (conflicts only in progress / guard test; kept the ticket's superset) → delta vs ticket tip = runbook + SQL only → Vercel pass → squash. Final feature tree == OVE-56 tip.
 - [x] 11. Full verification on `7bb4a83`: prettier, lint, tsc, prisma validate, local migrate status up to date; unit 53/879; integration 40/481; accounts e2e 26/26 (build via webServer, local env); verify:client-bundle OK; default e2e 26/26; local DB 3 users / 2 profiles / 1 tour row / 0 release_seen / 463 sets (unchanged). Visual vs preview: OVE-55 walkthrough on identical UI code (OVE-56 added e2e only).
-- [ ] 12. Code review (inline comments on the feature PR)
-- [ ] 13. Review audit
-- [ ] 14. Final verification + merge gate
-- [ ] 15. Run report — `docs/runs/12-whats-new-report.md`
+- [x] 12. Code review: the `code-review` skill (high) posted 8 inline comments on #72
+- [x] 13. Review audit posted at https://github.com/troyrhodes02/overload-training/pull/72#issuecomment-6304206992, with a reply on each comment: 6 implement (dialog only from the visit's first render, so a mid-visit refresh() can't open it; account-timezone floor; guarded reads; calendar.ts reuse; non-object entry reported; id must start with its date), 1 implement-part/defer (parallel read now; Account createdAt fold → Pitch 11 R34, R32), 1 skip (strict unknown-id fallback, R31). Fixes in `c4634fe`; spec v1.2.0. Finding 1 was browser-verified both ways: without the fix the dialog opened mid-visit; with it, it doesn't.
+- [x] 14. Final verification on `c4634fe`: STOP before merge (R3). prettier, lint, tsc, prisma validate, local migrate status; unit 54/885; integration 40/482; accounts e2e 26/26 (build); client-bundle OK; default e2e 26/26; Vercel pass on #72; local DB 3/2/1/0/463; entries.ts clean. #72 marked ready for review (open, not merged).
+- [x] 15. Run report — `docs/runs/12-whats-new-report.md`
 
 ## Linear
 
@@ -67,7 +67,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Resolved Decisions so far
 
-See spec `## Resolved Decisions` R1–R30.
+See spec `## Resolved Decisions` R1–R33. Headline: R3 stop before merge; R8 no entry ships; R9 existing accounts = no row = shown nothing; R10 signup row in establishProfile; R12 account-timezone floor; R13 seen on open; R17 the tour owns its load, and the dialog opens only from a visit's first render.
 
 ## Deferred / notes
 
