@@ -229,7 +229,7 @@ describe("free-exercise-db is an ingest dependency, never a runtime one", () => 
 
   it("only the auth-admin facade references the service-role key (Accounts R4)", () => {
     // Library & Gyms kept the key out of src/ entirely. Accounts needs it on
-    // the server for exactly two auth operations (create an invite-gated user,
+    // the server for exactly two auth operations (create a signed-up user,
     // delete an account's identity), so it is allowed in ONE server-only file.
     const offenders = walk(SRC)
       .filter((f) =>
@@ -246,10 +246,11 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
   const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
   const read = (f: string) => fs.readFileSync(f, "utf8");
   const ADMIN = "src/lib/supabase/admin.ts";
-  const INVITE = "src/lib/accounts/invite.ts";
+  const GATE = "src/lib/accounts/signup-gate.ts";
+  const USERNAMES = "src/lib/data/usernames.ts";
 
-  it("the admin facade and the invite gate are server-only modules", () => {
-    for (const file of [ADMIN, INVITE]) {
+  it("the admin facade, the signup switch, and the username check are server-only modules", () => {
+    for (const file of [ADMIN, GATE, USERNAMES]) {
       expect([file, read(path.join(REPO_ROOT, file))]).toEqual([
         file,
         expect.stringMatching(/^import "server-only";/),
@@ -271,11 +272,28 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
     expect(importers).toContain("src/lib/accounts/signup.ts");
   });
 
-  it("only the invite gate reads the invite code", () => {
+  it("only the signup gate reads the signup switch (OVE-50)", () => {
     const readers = walk(SRC)
-      .filter((f) => /OVERLOAD_INVITE_CODE/.test(read(f)))
+      .filter((f) => /OVERLOAD_SIGNUP_OPEN/.test(read(f)))
       .map(rel);
-    expect(readers).toEqual([INVITE]);
+    expect(readers).toEqual([GATE]);
+  });
+
+  it("the invite gate is gone: nothing reads an invite code", () => {
+    const readers = walk(SRC)
+      .filter((f) => /OVERLOAD_INVITE_CODE|inviteCode/.test(read(f)))
+      .map(rel);
+    expect(readers).toEqual([]);
+  });
+
+  it("only signup asks whether a username is free (the one cross-account question)", () => {
+    const callers = walk(SRC)
+      .filter((f) => rel(f) !== USERNAMES)
+      .filter((f) =>
+        /isUsernameAvailable|@\/lib\/data\/usernames/.test(read(f)),
+      )
+      .map(rel);
+    expect(callers).toEqual(["src/lib/accounts/signup.ts"]);
   });
 
   it("only signup establishes a new account's profile", () => {
@@ -286,11 +304,11 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
     expect(callers).toEqual(["src/lib/accounts/signup.ts"]);
   });
 
-  it("no client component imports the admin facade or the invite gate", () => {
+  it("no client component imports the admin facade or the signup gate", () => {
     const offenders = walk(SRC)
       .filter((f) => /^["']use client["']/m.test(read(f)))
       .filter((f) =>
-        /@\/lib\/(supabase\/admin|accounts\/(invite|signup|deletion))["']/.test(
+        /@\/lib\/(supabase\/admin|accounts\/(signup-gate|signup|deletion))["']/.test(
           read(f).replace(/import type[^;]+;/g, ""),
         ),
       )

@@ -1,19 +1,22 @@
 import "server-only";
-import { DomainError } from "@/lib/actions/result";
-import type { Account } from "@/lib/data/account";
+import { DomainError, isUniqueViolation } from "@/lib/actions/result";
+import { usernameTaken, type Account } from "@/lib/data/account";
 import type { AccountDb, AccountTx } from "@/lib/data/account-db";
 import { parseProfileInput, type ProfileInput } from "./validation";
 
 /**
- * The acting account's profile (Accounts spec §11): first name, last name, and
- * the IANA timezone that is the only authority for "today". Reached only
- * through the account-scoped client, so another account's profile cannot be
- * read or written from here. Email and password live in Supabase Auth.
+ * The acting account's profile (Accounts spec §11; OVE-50): first name, last
+ * name, username, and the IANA timezone that is the only authority for
+ * "today". Reached only through the account-scoped client, so another
+ * account's profile cannot be read or written from here. Email and password
+ * live in Supabase Auth.
  */
 
 export type SettingsProfile = {
   firstName: string;
   lastName: string;
+  /** "" for an account made before usernames: it picks one in Settings. */
+  username: string;
   timeZone: string;
 };
 
@@ -23,20 +26,30 @@ export async function getSettingsProfile(
 ): Promise<SettingsProfile> {
   const profile = await db.profile.findUnique({
     where: { userId: account.userId },
-    select: { firstName: true, lastName: true },
+    select: { firstName: true, lastName: true, username: true },
   });
   return {
     firstName: profile?.firstName ?? "",
     lastName: profile?.lastName ?? "",
+    username: profile?.username ?? "",
     // The validated zone requireAccount() resolved (falls back to UTC).
     timeZone: account.timeZone,
   };
 }
 
-/** Saves names and timezone for the acting account only. */
+/**
+ * Saves names, username, and timezone for the acting account only. A username
+ * another account holds is refused by the unique index and reported as
+ * "taken" — which says that the name is in use and nothing else.
+ */
 export async function updateProfile(
   account: Account,
-  raw: { firstName: unknown; lastName: unknown; timeZone: unknown },
+  raw: {
+    firstName: unknown;
+    lastName: unknown;
+    username: unknown;
+    timeZone: unknown;
+  },
   tx?: AccountTx,
 ): Promise<ProfileInput> {
   const parsed = parseProfileInput(raw);
@@ -47,10 +60,15 @@ export async function updateProfile(
       parsed.details,
     );
   }
-  const { count } = await (tx ?? account.db).profile.updateMany({
-    where: { userId: account.userId },
-    data: parsed.value,
-  });
+  let count: number;
+  try {
+    ({ count } = await (tx ?? account.db).profile.updateMany({
+      where: { userId: account.userId },
+      data: parsed.value,
+    }));
+  } catch (error) {
+    throw isUniqueViolation(error) ? usernameTaken() : error;
+  }
   if (count !== 1) throw new DomainError("not_found", "Profile not found.");
   return parsed.value;
 }

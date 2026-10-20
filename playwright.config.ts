@@ -34,7 +34,7 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
       // Signup stays closed here (production's default until the runbook
       // opens it); the open path is proven by playwright.accounts.config.ts.
-      OVERLOAD_INVITE_CODE: "",
+      OVERLOAD_SIGNUP_OPEN: "",
       // Never let the e2e server fall back to `.env` (which may hold
       // production values): an unroutable database it never needs.
       DATABASE_URL: "postgresql://e2e:e2e@127.0.0.1:1/unused",

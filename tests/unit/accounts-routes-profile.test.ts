@@ -3,8 +3,11 @@ import { signInErrorMessage } from "@/app/login/credentials";
 import {
   checkEmail,
   checkName,
+  checkUsername,
+  normalizeUsername,
   parseProfileInput,
   PROFILE_NAME_MAX,
+  RESERVED_USERNAMES,
 } from "@/lib/accounts/validation";
 
 describe("proxy routing (Accounts spec §9)", () => {
@@ -89,11 +92,12 @@ describe("account form validation", () => {
     });
   });
 
-  it("a profile needs both names and a real IANA zone", () => {
+  it("a profile needs both names, a username, and a real IANA zone", () => {
     expect(
       parseProfileInput({
         firstName: " William ",
         lastName: "Rhodes",
+        username: " @Will_R ",
         timeZone: "America/Chicago",
       }),
     ).toEqual({
@@ -101,18 +105,76 @@ describe("account form validation", () => {
       value: {
         firstName: "William",
         lastName: "Rhodes",
+        username: "will_r",
         timeZone: "America/Chicago",
       },
     });
     expect(
-      parseProfileInput({ firstName: "", lastName: "", timeZone: "Mars/Base" }),
+      parseProfileInput({
+        firstName: "",
+        lastName: "",
+        username: "",
+        timeZone: "Mars/Base",
+      }),
     ).toEqual({
       ok: false,
       details: {
         firstName: "Enter your first name.",
         lastName: "Enter your last name.",
+        username: "Choose a username.",
         timeZone: "Choose a timezone.",
       },
     });
+  });
+});
+
+describe("usernames (OVE-50)", () => {
+  const LENGTH = "Use 3 to 20 characters.";
+  const CHARS = "Use only letters, numbers, and underscores.";
+
+  it("are stored trimmed, without a leading @, and lowercase", () => {
+    expect(normalizeUsername("  @Will_R ")).toBe("will_r");
+    expect(normalizeUsername(undefined)).toBe("");
+    expect(checkUsername("SAM")).toEqual({ ok: true, value: "sam" });
+  });
+
+  it("are 3–20 of a–z, 0–9, and _ (the database CHECK constraint's shape)", () => {
+    expect(checkUsername("abc").ok).toBe(true);
+    expect(checkUsername("a".repeat(20)).ok).toBe(true);
+    expect(checkUsername("lifter_2026").ok).toBe(true);
+    expect(checkUsername("")).toEqual({
+      ok: false,
+      message: "Choose a username.",
+    });
+    for (const [bad, message] of [
+      ["ab", LENGTH],
+      ["a".repeat(21), LENGTH],
+      ["has space", CHARS],
+      ["dash-ed", CHARS],
+      ["dot.ted", CHARS],
+      ["émile", CHARS],
+      ["@@sam", CHARS],
+      ["sam!", CHARS],
+    ]) {
+      expect([bad, checkUsername(bad)]).toEqual([bad, { ok: false, message }]);
+    }
+  });
+
+  it("every accepted username matches the database constraint", () => {
+    const DB_CHECK = /^[a-z0-9_]{3,20}$/;
+    for (const raw of ["Sam", "@will", " lifter_2026 ", "ABC_123"]) {
+      const result = checkUsername(raw);
+      expect(result.ok && DB_CHECK.test(result.value)).toBe(true);
+    }
+  });
+
+  it("reserved names are refused regardless of case", () => {
+    expect(RESERVED_USERNAMES.has("admin")).toBe(true);
+    for (const name of ["admin", "Overload", "@Support", "ROOT"]) {
+      expect(checkUsername(name)).toEqual({
+        ok: false,
+        message: "That username isn't available.",
+      });
+    }
   });
 });

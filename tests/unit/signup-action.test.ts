@@ -12,7 +12,7 @@ const initial: SignUpState = {
   status: "idle",
   fieldErrors: {},
   formError: null,
-  values: { inviteCode: "", firstName: "", lastName: "", email: "" },
+  values: { firstName: "", lastName: "", username: "", email: "" },
 };
 
 function form(fields: Record<string, string>): FormData {
@@ -22,11 +22,12 @@ function form(fields: Record<string, string>): FormData {
 }
 
 const filled = {
-  inviteCode: "k7Qm-2xVr-9pLw",
   firstName: "Sam",
   lastName: "Ortiz",
+  username: "sam_lifts",
   email: "sam@example.com",
   password: "barbell-315",
+  confirmPassword: "barbell-315",
   timeZone: "America/Chicago",
   // A client can post anything; it must be ignored.
   userId: "a0000000-0000-4000-8000-000000000001",
@@ -41,16 +42,17 @@ describe("signUpAction", () => {
       "NEXT_REDIRECT:/",
     );
     expect(signUp).toHaveBeenCalledWith({
-      inviteCode: filled.inviteCode,
       firstName: "Sam",
       lastName: "Ortiz",
+      username: "sam_lifts",
       email: "sam@example.com",
       password: "barbell-315",
+      confirmPassword: "barbell-315",
       timeZone: "America/Chicago",
     });
   });
 
-  it("keeps typed values but never echoes the password", async () => {
+  it("keeps typed values but never echoes either password field", async () => {
     (signUp as jest.Mock).mockResolvedValue({ kind: "email_taken" });
     const state = await signUpAction(initial, form(filled));
     expect(state).toEqual({
@@ -58,9 +60,9 @@ describe("signUpAction", () => {
       fieldErrors: {},
       formError: "email_taken",
       values: {
-        inviteCode: filled.inviteCode,
         firstName: "Sam",
         lastName: "Ortiz",
+        username: "sam_lifts",
         email: "sam@example.com",
       },
     });
@@ -70,10 +72,10 @@ describe("signUpAction", () => {
   it("surfaces field errors, closed, and unexpected outcomes", async () => {
     (signUp as jest.Mock).mockResolvedValueOnce({
       kind: "invalid",
-      fieldErrors: { inviteCode: "That invite code isn't valid." },
+      fieldErrors: { username: "That username is taken." },
     });
     expect((await signUpAction(initial, form(filled))).fieldErrors).toEqual({
-      inviteCode: "That invite code isn't valid.",
+      username: "That username is taken.",
     });
     (signUp as jest.Mock).mockResolvedValueOnce({ kind: "closed" });
     expect((await signUpAction(initial, form(filled))).status).toBe("closed");

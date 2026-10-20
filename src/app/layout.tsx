@@ -14,14 +14,14 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
   title: "Overload",
-  description: "An invite-only strength training tracker.",
+  description: "A strength training tracker.",
   applicationName: "Overload",
   // icon.png / apple-icon.png / opengraph-image.png in this directory are
   // picked up automatically by Next's file conventions and wired into the
   // favicon, Apple touch icon, and social preview — no manual <link> config.
   openGraph: {
     title: "Overload",
-    description: "An invite-only strength training tracker.",
+    description: "A strength training tracker.",
     siteName: "Overload",
     type: "website",
   },

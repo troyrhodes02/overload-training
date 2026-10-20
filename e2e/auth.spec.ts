@@ -18,11 +18,9 @@ test.describe("authentication boundary", () => {
     }
   });
 
-  test("login shows email, password, and the invite-only signup link", async ({
-    page,
-  }) => {
+  test("login shows email, password, and the signup link", async ({ page }) => {
     // Accounts (Pitch 9, spec R17) supersedes Foundation's "no registration
-    // affordance": signup exists, but only behind a server-checked invite code.
+    // affordance": signup exists (OVE-50: open, behind the server's switch).
     await page.goto("/login");
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
@@ -43,10 +41,8 @@ test.describe("authentication boundary", () => {
     await expect(page.getByRole("status")).toHaveCount(0);
   });
 
-  test("signup is closed when no invite code is configured", async ({
-    page,
-  }) => {
-    // The e2e server sets no OVERLOAD_INVITE_CODE: production's default.
+  test("signup is closed unless the signup switch is on", async ({ page }) => {
+    // The e2e server leaves OVERLOAD_SIGNUP_OPEN unset: production's default.
     await page.goto("/signup");
     await expect(page).toHaveURL(/\/signup$/);
     await expect(

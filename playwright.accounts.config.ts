@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { defineConfig } from "@playwright/test";
 
 /**
- * Accounts lifecycle e2e (Pitch 9, spec §14.8): signup with the invite gate,
+ * Accounts lifecycle e2e (Pitch 9, spec §14.8; OVE-50): open self-signup,
  * isolation between two new accounts, sign out/in, Settings, and account
  * deletion — in a real browser against the
  * LOCAL Supabase CLI stack only.
@@ -18,7 +18,6 @@ import { defineConfig } from "@playwright/test";
 
 const PORT = 3101;
 const BASE_URL = `http://localhost:${PORT}`;
-export const E2E_INVITE_CODE = "e2e-local-invite-code-2026";
 
 function localStack(): Record<string, string> {
   const out = execSync("npx supabase status -o env", {
@@ -49,7 +48,7 @@ for (const [name, value] of Object.entries(LOCAL)) {
   }
 }
 // The spec reads these (admin cleanup) from its own process.
-Object.assign(process.env, LOCAL, { E2E_INVITE_CODE });
+Object.assign(process.env, LOCAL);
 
 export default defineConfig({
   testDir: "./e2e/accounts",
@@ -65,6 +64,6 @@ export default defineConfig({
     url: `${BASE_URL}/login`,
     reuseExistingServer: false,
     timeout: 240_000,
-    env: { ...LOCAL, OVERLOAD_INVITE_CODE: E2E_INVITE_CODE },
+    env: { ...LOCAL, OVERLOAD_SIGNUP_OPEN: "true" },
   },
 });

@@ -1,28 +1,43 @@
 import "server-only";
+import { DomainError } from "@/lib/actions/result";
 import { isValidTimeZone } from "@/lib/plan/calendar";
 import {
   DEFAULT_PROFILE_TIME_ZONE,
   establishProfile,
 } from "@/lib/data/account";
+import { isUsernameAvailable } from "@/lib/data/usernames";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
-import { checkInviteCode } from "./invite";
-import { checkEmail, checkName, weakPasswordMessage } from "./validation";
+import { isSignupOpen } from "./signup-gate";
+import {
+  checkEmail,
+  checkName,
+  checkUsername,
+  PASSWORDS_DIFFER,
+  USERNAME_TAKEN,
+  weakPasswordMessage,
+} from "./validation";
 
 /**
- * Invite-gated signup (Accounts spec §6, §11; R2, R3, R9). Order matters:
+ * Self-signup (OVE-50, on the Accounts spec §6, §11; R3, R9). Order matters:
  *
- *   closed? → invite code (a wrong code is the ONLY thing reported — nothing
- *   about the email is looked up) → field rules → create a confirmed auth user
- *   (admin API) → sign in (sets the auth session cookie) → the profile, from
- *   the user the sign-in returned.
+ *   closed? → field rules (incl. the password typed twice) → username free?
+ *   → create a confirmed auth user (admin API) → sign in (sets the auth
+ *   session cookie) → the profile, from the user the sign-in returned.
  *
  * Anything that fails after the auth user exists is compensated: the user is
  * deleted and the auth session cleared, so a failed signup leaves nothing.
+ * That includes losing a race for the username, which the unique index
+ * decides.
  */
 
 export type SignUpField =
-  "inviteCode" | "firstName" | "lastName" | "email" | "password";
+  | "firstName"
+  | "lastName"
+  | "username"
+  | "email"
+  | "password"
+  | "confirmPassword";
 
 export type SignUpOutcome =
   | { kind: "created" }
@@ -32,15 +47,17 @@ export type SignUpOutcome =
   | { kind: "unexpected" };
 
 export type RawSignUp = {
-  inviteCode: unknown;
   firstName: unknown;
   lastName: unknown;
+  username: unknown;
   email: unknown;
   password: unknown;
+  confirmPassword: unknown;
   timeZone: unknown;
 };
 
 export type SignUpDeps = {
+  isUsernameAvailable: typeof isUsernameAvailable;
   createConfirmedUser: typeof createConfirmedUser;
   deleteAuthUser: typeof deleteAuthUser;
   signIn: (
@@ -52,6 +69,7 @@ export type SignUpDeps = {
 };
 
 const defaultDeps: SignUpDeps = {
+  isUsernameAvailable,
   createConfirmedUser,
   deleteAuthUser,
   async signIn(email, password) {
@@ -69,39 +87,43 @@ const defaultDeps: SignUpDeps = {
   establishProfile,
 };
 
-export const INVALID_INVITE = "That invite code isn't valid.";
-
 export async function signUp(
   raw: RawSignUp,
   deps: SignUpDeps = defaultDeps,
   env: Record<string, string | undefined> = process.env,
 ): Promise<SignUpOutcome> {
-  const invite = checkInviteCode(raw.inviteCode, env);
-  if (invite === "closed") return { kind: "closed" };
-  if (invite === "invalid") {
-    return { kind: "invalid", fieldErrors: { inviteCode: INVALID_INVITE } };
-  }
+  if (!isSignupOpen(env)) return { kind: "closed" };
 
   const fieldErrors: Partial<Record<SignUpField, string>> = {};
-  if (invite === "missing") fieldErrors.inviteCode = "Enter the invite code.";
   const first = checkName("firstName", raw.firstName);
   const last = checkName("lastName", raw.lastName);
+  const username = checkUsername(raw.username);
   const email = checkEmail(raw.email);
   const password = typeof raw.password === "string" ? raw.password : "";
+  const confirm =
+    typeof raw.confirmPassword === "string" ? raw.confirmPassword : "";
   if (!first.ok) fieldErrors.firstName = first.message;
   if (!last.ok) fieldErrors.lastName = last.message;
+  if (!username.ok) fieldErrors.username = username.message;
   if (!email.ok) fieldErrors.email = email.message;
   if (!password) fieldErrors.password = "Enter a password.";
-  // The parse results narrow the types; fieldErrors also holds the
-  // invite-code and password presence errors.
+  else if (!confirm) fieldErrors.confirmPassword = "Enter your password again.";
+  else if (confirm !== password) fieldErrors.confirmPassword = PASSWORDS_DIFFER;
+  // The parse results narrow the types; fieldErrors also holds the password
+  // presence and match errors.
   if (
     !first.ok ||
     !last.ok ||
+    !username.ok ||
     !email.ok ||
-    fieldErrors.inviteCode ||
-    !password
+    fieldErrors.password ||
+    fieldErrors.confirmPassword
   ) {
     return { kind: "invalid", fieldErrors };
+  }
+
+  if (!(await deps.isUsernameAvailable(username.value))) {
+    return { kind: "invalid", fieldErrors: { username: USERNAME_TAKEN } };
   }
 
   const created = await deps.createConfirmedUser({
@@ -146,9 +168,14 @@ export async function signUp(
     await deps.establishProfile(session.user, {
       firstName: first.value,
       lastName: last.value,
+      username: username.value,
       timeZone,
     });
   } catch (error) {
+    // The unique index refused the username: another signup took it between
+    // the availability check and the profile write.
+    const lostUsernameRace =
+      error instanceof DomainError && error.code === "conflict";
     console.error(
       "signup: compensating a partially created account",
       error instanceof Error ? error.name : "unknown",
@@ -160,7 +187,9 @@ export async function signUp(
       deps.deleteAuthUser(created.user.id),
       deps.signOut(),
     ]);
-    return { kind: "unexpected" };
+    return lostUsernameRace
+      ? { kind: "invalid", fieldErrors: { username: USERNAME_TAKEN } }
+      : { kind: "unexpected" };
   }
 
   return { kind: "created" };

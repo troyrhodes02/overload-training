@@ -9,6 +9,9 @@
  * Personalization & Navigation Polish (Pitch 10): greeting.int.test.ts proves
  * the greeting reads only the acting account's profile and logged sessions;
  * profile.int.test.ts covers the new Profile.appearance column.
+ * Open signup & usernames (OVE-50): profile.int.test.ts covers
+ * Profile.username — unique across accounts, never readable or changeable by
+ * another account, and the availability check answers yes/no only.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],

@@ -21,8 +21,11 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useDeviceTimeZone } from "@/lib/accounts/use-device-time-zone";
 import {
+  normalizeUsername,
   parseProfileInput,
   PROFILE_NAME_MAX,
+  USERNAME_HELP,
+  USERNAME_MAX,
   type ProfileInput,
 } from "@/lib/accounts/validation";
 
@@ -31,7 +34,9 @@ type Field = keyof ProfileInput;
 type Errors = Partial<Record<Field, string>>;
 
 /**
- * Name and timezone for the signed-in account (Accounts design doc Screen 6).
+ * Name, username, and timezone for the signed-in account (Accounts design doc
+ * Screen 6; OVE-50). An account made before usernames starts with the field
+ * empty and must choose one to save.
  * Save stays disabled until something differs from what is saved. The
  * device-zone hint is read only on the client (null on the server render, so
  * hydration matches) and only suggests: the saved zone changes only on Save.
@@ -39,11 +44,12 @@ type Errors = Partial<Record<Field, string>>;
 export function ProfileForm({
   firstName,
   lastName,
+  username,
   email,
   timeZone,
   timeZones,
 }: Props) {
-  const initial: ProfileInput = { firstName, lastName, timeZone };
+  const initial: ProfileInput = { firstName, lastName, username, timeZone };
   const [state, formAction, isPending] = useActionState<
     ProfileFormState,
     FormData
@@ -56,6 +62,7 @@ export function ProfileForm({
   const toasted = useRef<ProfileFormState | null>(null);
   const firstRef = useRef<HTMLInputElement>(null);
   const lastRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
 
   // Toasts are an external system: the effect only notifies, never sets state.
   useEffect(() => {
@@ -78,10 +85,11 @@ export function ProfileForm({
     state.result && !state.result.ok && !state.result.error.details,
   );
   const saved = state.saved;
-  // Saved names are stored trimmed, so compare trimmed input.
+  // Saved values are stored normalized, so compare normalized input.
   const dirty =
     values.firstName.trim() !== saved.firstName ||
     values.lastName.trim() !== saved.lastName ||
+    normalizeUsername(values.username) !== saved.username ||
     values.timeZone !== saved.timeZone;
 
   function set(field: Field, value: string) {
@@ -95,7 +103,12 @@ export function ProfileForm({
     const parsed = parseProfileInput(values);
     if (!parsed.ok) {
       setClientErrors(parsed.details);
-      (parsed.details.firstName ? firstRef : lastRef).current?.focus();
+      const firstBad = parsed.details.firstName
+        ? firstRef
+        : parsed.details.lastName
+          ? lastRef
+          : usernameRef;
+      firstBad.current?.focus();
       return;
     }
     setClientErrors({});
@@ -133,6 +146,41 @@ export function ProfileForm({
               error={errorFor("lastName")}
               onChange={(v) => set("lastName", v)}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              ref={usernameRef}
+              id="username"
+              name="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              // Room for a leading "@", which normalizeUsername drops.
+              maxLength={USERNAME_MAX + 1}
+              className="h-11 aria-invalid:border-destructive"
+              value={values.username}
+              // Shown as it will be stored: usernames are lowercase.
+              onChange={(e) => set("username", e.target.value.toLowerCase())}
+              aria-invalid={Boolean(errorFor("username"))}
+              aria-describedby={
+                errorFor("username")
+                  ? "username-help username-error"
+                  : "username-help"
+              }
+            />
+            <p id="username-help" className="text-sm text-muted-foreground">
+              {USERNAME_HELP}
+            </p>
+            {errorFor("username") && (
+              <p
+                id="username-error"
+                role="alert"
+                className="text-sm text-destructive"
+              >
+                {errorFor("username")}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <p className="text-sm leading-none font-medium">Email</p>
