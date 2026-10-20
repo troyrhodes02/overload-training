@@ -19,6 +19,8 @@ import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { dashboardShowsGoals } from "@/lib/goals/dashboard";
 import { CardioCards, CardioFocal } from "@/components/cardio/cardio-today";
 import { accountToday, requireAccount } from "@/lib/data/account";
+import { composeGreeting } from "@/lib/personalization/greeting";
+import { getGreetingFacts } from "@/lib/personalization/greeting-facts";
 
 export const metadata = { title: "Today · Overload" };
 
@@ -164,10 +166,46 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
   );
 }
 
+/**
+ * The page heading: one plain greeting line (Personalization & Navigation
+ * Polish, design doc Screen 1) above the date line, on every dashboard state.
+ */
+function TodayHeader({ greeting, today }: { greeting: string; today: string }) {
+  return (
+    <header>
+      <h1 className="text-xl font-semibold tracking-tight text-balance">
+        {greeting}
+      </h1>
+      <p className="mt-1 text-sm text-muted-foreground">Today · {today}</p>
+    </header>
+  );
+}
+
 export default async function TodayPage() {
   const account = await requireAccount();
-  const dash = await getTodayDashboard(account);
+  // One instant for the greeting's clock (read after the auth session, which
+  // makes this render request-time).
+  const now = new Date();
+  const [dash, facts] = await Promise.all([
+    getTodayDashboard(account),
+    getGreetingFacts(account, now),
+  ]);
   const today = formatPlanDate(accountToday(account));
+  // Server-rendered text, deterministic per account + local date + situation:
+  // it cannot change between renders or between server and browser.
+  const header = (
+    <TodayHeader
+      today={today}
+      greeting={composeGreeting({
+        dashboard: dash,
+        firstName: facts.firstName,
+        timeZone: facts.timeZoneValid ? account.timeZone : null,
+        firstVisit: facts.firstVisit,
+        accountKey: account.userId,
+        now,
+      })}
+    />
+  );
 
   // Goals fill the dashboard ONLY when no training action is pending (Goals
   // R42, R43). Completion is reconciled first (spec §11b, R54) so a just-met
@@ -178,7 +216,7 @@ export default async function TodayPage() {
   if (dash.kind === "no_plan") {
     return (
       <section className="space-y-6">
-        <p className="text-sm text-muted-foreground">Today · {today}</p>
+        {header}
         <div className="rounded-lg border border-border bg-card p-6">
           <p className="font-medium">No active plan.</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -197,7 +235,7 @@ export default async function TodayPage() {
     // Cardio-only day: a real training day, no fake workout (Cardio R16).
     return (
       <section className="space-y-6">
-        <p className="text-sm text-muted-foreground">Today · {today}</p>
+        {header}
         <CardioFocal entries={dash.cardio} week={dash.week} />
         <DashboardGoals />
       </section>
@@ -207,7 +245,7 @@ export default async function TodayPage() {
   if (dash.kind === "rest") {
     return (
       <section className="space-y-6">
-        <p className="text-sm text-muted-foreground">Today · {today}</p>
+        {header}
         <div className="rounded-lg border border-border bg-card p-6">
           <p className="font-medium">No lifting planned today.</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -225,7 +263,7 @@ export default async function TodayPage() {
   if (dash.kind === "missed_day") {
     return (
       <section className="space-y-6">
-        <p className="text-sm text-muted-foreground">Today · {today}</p>
+        {header}
         <MissedDayPrompt missed={dash.missed} />
         {dash.below ? (
           <div inert className="opacity-50">
@@ -244,7 +282,7 @@ export default async function TodayPage() {
 
   return (
     <section className="space-y-6">
-      <p className="text-sm text-muted-foreground">Today · {today}</p>
+      {header}
       <TodayBlock state={dash} />
       {showGoals ? <DashboardGoals /> : null}
     </section>
