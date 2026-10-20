@@ -8,6 +8,7 @@ import {
 import type { CardioOccurrenceDto } from "@/lib/cardio/queries";
 import { CardioHistoryLine } from "@/components/cardio/cardio-history-line";
 import { requireAccount } from "@/lib/data/account";
+import { tourAnchor } from "@/lib/tour/steps";
 
 export const metadata = { title: "History · Overload" };
 
@@ -95,7 +96,7 @@ export default async function HistoryPage({
 
   if (!week) {
     return (
-      <section className="space-y-4">
+      <section className="space-y-4" {...tourAnchor("page-history")}>
         <p className="font-medium">No active plan.</p>
         <p className="text-sm text-muted-foreground">
           Activate a mesocycle to see your training week.{" "}
@@ -113,7 +114,10 @@ export default async function HistoryPage({
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between text-sm">
+      <div
+        className="flex items-center justify-between text-sm"
+        {...tourAnchor("page-history")}
+      >
         {prev ? (
           <Link
             href={`/history?week=${prev}`}
