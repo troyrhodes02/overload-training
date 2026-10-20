@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 10 — integrating ticket PRs into the feature branch** (runbook written).
+**Step 12 — code review of feature PR #68.**
 
 ## Authority used (read before resuming)
 
@@ -43,8 +43,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#68** https://github.com/troyrhodes02/overload-training/pull/68
 - [x] 8. Tickets implemented — OVE-51…53 → PRs #69–#71 (stacked), all In Review
 - [x] 9. Runbook — `docs/runs/11-onboarding-tour-runbook.md` + `docs/runs/11-sql/verify-tour-progress.sql` (rehearsed on the local stack: columns, enum, RLS t/0, trigger + constraints, 0 rows, 463 sets)
-- [ ] 10. Ticket PRs integrated
-- [ ] 11. Verification
+- [x] 10. Ticket PRs squash-merged into the feature branch in order — #69 `aa808c4`, #70 `722c3ed`, #71 `bfa7798`. Each: retarget → merge feature branch into ticket branch (conflicts only in docs: spec kept the ticket's superset, progress took the feature's; #71 overlay kept the ticket's superset) → delta vs ticket tip = runbook/progress/11-sql only → Vercel pass (`gh pr checks --watch`) → squash. Final feature tree == OVE-53 tip.
+- [x] 11. Full verification on `bfa7798`: prettier, lint, tsc, prisma validate + local migrate status up to date; unit 47/813; integration 37/453 (isolation incl. tour, history integrity, RLS deny-all, schema, ownership enforce, 9d rehearsal, guards); accounts e2e 21/21 (build via webServer, local env); verify:client-bundle OK; default e2e 26/26; local DB unchanged 1/1/0/463. Visual vs preview done on the OVE-52/53 code (identical tree).
 - [ ] 12. Code review
 - [ ] 13. Review audit
 - [ ] 14. Final verification + merge gate
