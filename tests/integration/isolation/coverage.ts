@@ -6,6 +6,9 @@
  * so a later pitch that adds one must add its isolation tests too.
  * Accounts (Pitch 9): account-deletion.int.test.ts proves deletion removes
  * every owned model of the acting account and nothing of another's.
+ * Personalization & Navigation Polish (Pitch 10): greeting.int.test.ts proves
+ * the greeting reads only the acting account's profile and logged sessions;
+ * profile.int.test.ts covers the new Profile.appearance column.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],
@@ -16,11 +19,19 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
   ExerciseFavorite: ["library.int.test.ts", "account-deletion.int.test.ts"],
   Gym: ["gyms.int.test.ts", "account-deletion.int.test.ts"],
   GymExerciseBaseline: ["logging.int.test.ts", "account-deletion.int.test.ts"],
-  LoggedSession: ["logging.int.test.ts", "account-deletion.int.test.ts"],
+  LoggedSession: [
+    "logging.int.test.ts",
+    "account-deletion.int.test.ts",
+    "greeting.int.test.ts",
+  ],
   LoggedExercise: ["logging.int.test.ts", "account-deletion.int.test.ts"],
   LoggedSet: ["logging.int.test.ts", "account-deletion.int.test.ts"],
   MissedDayResolution: ["logging.int.test.ts", "account-deletion.int.test.ts"],
   CardioLog: ["logging.int.test.ts", "account-deletion.int.test.ts"],
   Goal: ["goals.int.test.ts", "account-deletion.int.test.ts"],
-  Profile: ["profile.int.test.ts", "account-deletion.int.test.ts"],
+  Profile: [
+    "profile.int.test.ts",
+    "account-deletion.int.test.ts",
+    "greeting.int.test.ts",
+  ],
 };
