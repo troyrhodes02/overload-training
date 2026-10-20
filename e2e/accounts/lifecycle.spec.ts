@@ -1,5 +1,6 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { skipFirstTour } from "./tour-support";
 
 /**
  * The whole Accounts lifecycle against the LOCAL Supabase stack (spec §14.8;
@@ -124,6 +125,8 @@ test("signup creates the account and lands on an empty Today", async ({
   // Typed with capitals: stored (and unique) lowercase.
   await signUp(page, A, { username: A.username.toUpperCase() });
   await expect(page).toHaveURL(/\/$/);
+  // A new account's first page opens the onboarding tour; dismiss it.
+  await skipFirstTour(page);
   await expect(page.getByText("No active plan.")).toBeVisible();
   expect(await userExists(A.email)).toBe(true);
   // A gym only A owns, for the isolation check.
@@ -149,6 +152,7 @@ test("a second account sees none of the first account's data", async ({
 }) => {
   const page = await newPage(browser);
   await signUp(page, B);
+  await skipFirstTour(page);
   await expect(page.getByText("No active plan.")).toBeVisible();
   await page.goto("/gyms");
   await expect(page.getByText("No gyms yet.")).toBeVisible();
