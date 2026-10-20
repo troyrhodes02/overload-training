@@ -500,6 +500,15 @@ model CardioLog {
   @@map("cardio_logs")
 }
 
+/// The account's appearance preference. System follows the device.
+enum Appearance {
+  system
+  light
+  dark
+
+  @@map("appearance")
+}
+
 /// Multi-User Foundation (Pitch 8): one row per account, keyed by the Supabase
 /// auth user id (the account's userId). The ownership root — every owned row's
 /// userId references it (Restrict) — and the home of the account's IANA
@@ -507,13 +516,16 @@ model CardioLog {
 /// Email and password live in Supabase Auth, never here. Names stay nullable
 /// until Accounts (Pitch 9) collects them at signup. RLS deny-all (migration 9).
 model Profile {
-  userId    String   @id @map("user_id") @db.Uuid
-  firstName String?  @map("first_name")
-  lastName  String?  @map("last_name")
+  userId     String     @id @map("user_id") @db.Uuid
+  firstName  String?    @map("first_name")
+  lastName   String?    @map("last_name")
   /// IANA zone name (e.g. "America/Chicago"), validated by isValidTimeZone on write.
-  timeZone  String   @map("time_zone")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  timeZone   String     @map("time_zone")
+  /// Appearance preference (Personalization & Navigation Polish); the only
+  /// authority — the browser's first-paint mirror is a copy.
+  appearance Appearance @default(system)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
   mesocycles           Mesocycle[]
   sessions             Session[]

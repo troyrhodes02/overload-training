@@ -2,46 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Building2,
-  CalendarRange,
-  Dumbbell,
-  History,
-  House,
-  Target,
-} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NAV_ITEMS, isActive } from "./nav-items";
 
 /**
- * The app's primary navigation. Built as an extensible list so later pitches add
- * destinations (History, Goals) without restructuring the shell. Library & Gyms
- * Setup adds Exercises and Gyms; Split & Mesocycle Builder adds Plan; Goals adds
- * Goals. Active state is derived from
- * the current path so adding items stays correct (one active item, correct
- * aria-current).
- *
- * Bottom bar on mobile (thumb reach); left rail at md+.
+ * The md+ left rail (Foundation; unchanged by Personalization & Navigation
+ * Polish). Below md it renders nothing — the phone navigation sheet
+ * (MobileNav) takes over. The destination list and active rule live in
+ * nav-items.ts so both presentations stay identical in content and order.
+ * The original classes are kept verbatim behind `hidden md:block` so the
+ * desktop rail's computed styles are exactly what they were.
  */
-type NavItem = {
-  href: string;
-  label: string;
-  icon: typeof House;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Today", icon: House },
-  { href: "/plan", label: "Plan", icon: CalendarRange },
-  { href: "/history", label: "History", icon: History },
-  { href: "/goals", label: "Goals", icon: Target },
-  { href: "/exercises", label: "Exercises", icon: Dumbbell },
-  { href: "/gyms", label: "Gyms", icon: Building2 },
-];
-
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 export function AppNav() {
   const pathname = usePathname();
 
@@ -49,7 +20,8 @@ export function AppNav() {
     <nav
       aria-label="Primary"
       className={cn(
-        // Mobile: fixed bottom bar.
+        // Below md: not rendered (MobileNav's sheet replaces the old bottom bar).
+        "hidden md:block",
         "fixed inset-x-0 bottom-0 z-10 border-t border-border bg-card",
         // md+: static left rail.
         "md:sticky md:top-0 md:h-dvh md:w-56 md:shrink-0 md:border-r md:border-t-0 md:bg-transparent",

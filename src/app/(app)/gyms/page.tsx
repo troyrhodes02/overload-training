@@ -64,8 +64,8 @@ export default async function GymsPage({ searchParams }: PageProps) {
         </ul>
       )}
 
-      {/* Thumb-reach primary action on phones, above the bottom nav. */}
-      <div className="fixed inset-x-0 bottom-16 z-10 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:hidden">
+      {/* Thumb-reach primary action on phones, at the bottom edge. */}
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:hidden">
         <Button asChild className="h-11 w-full">
           <Link href="/gyms/new">
             <Plus aria-hidden />
