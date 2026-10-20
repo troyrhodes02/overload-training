@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { requireAccount } from "@/lib/data/account";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { getTourAutoStart } from "@/lib/tour/progress";
+import { getWhatsNewDialog } from "@/lib/release-notes/seen";
 import { AppShell } from "@/components/shell/app-shell";
 
 // This segment reads the auth session at request time, so it blocks on the
@@ -20,8 +21,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     getAccountAppearance(account),
     getTourAutoStart(account),
   ]);
+  // Significant release notes this account hasn't seen (What's New). The
+  // tour owns a load on which it opens by itself; What's New waits (R17).
+  const whatsNew = tourAutoStart ? null : await getWhatsNewDialog(account);
   return (
-    <AppShell appearance={appearance} tourAutoStart={tourAutoStart}>
+    <AppShell
+      appearance={appearance}
+      tourAutoStart={tourAutoStart}
+      whatsNew={whatsNew}
+    >
       {children}
     </AppShell>
   );

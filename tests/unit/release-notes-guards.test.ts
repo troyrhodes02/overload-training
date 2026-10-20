@@ -36,6 +36,7 @@ export const PUBLIC_SAFE = [
   "src/lib/release-notes/types.ts",
   "src/lib/release-notes/entries.ts",
   "src/lib/release-notes/catalog.ts",
+  "src/components/release-notes/release-note.tsx",
 ];
 
 /** The What's New mechanism: none of it may name an entry. */
@@ -44,6 +45,12 @@ export const MECHANISM = [
   "src/lib/release-notes/catalog.ts",
   "src/lib/release-notes/seen.ts",
   "src/app/(app)/release-notes-actions.ts",
+  "src/components/release-notes/release-note.tsx",
+  "src/components/release-notes/whats-new-dialog.tsx",
+  "src/components/settings/whats-new-section.tsx",
+  "src/app/(app)/settings/whats-new/page.tsx",
+  "src/app/(app)/layout.tsx",
+  "src/components/shell/app-shell.tsx",
 ];
 
 it("entries.ts imports only the entry type", () => {
@@ -78,6 +85,12 @@ it("the public-safe modules import nothing private", () => {
       /\bprocess\.env\b|\bcookies\(|\bheaders\(/.test(read(file)),
     ]).toEqual([file, false]);
   }
+});
+
+it("the ReleaseNote component is presentational: no client hooks, no props about the reader", () => {
+  const src = read("src/components/release-notes/release-note.tsx");
+  expect(src).not.toMatch(/"use client"|use(State|Effect|Ref|Context)/);
+  expect(src).toMatch(/entry: ReleaseNoteView;\s*headingLevel: 2 \| 3;/);
 });
 
 it("seen state stays server-only and is the only module that touches it", () => {
