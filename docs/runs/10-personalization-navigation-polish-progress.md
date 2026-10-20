@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 14 — final verification + merge gate** (in progress). Expected outcome: STOP before merge (R3).
+**COMPLETE — stopped before merge to `main` (spec R3, guide D1).** Feature PR #62 open and ready for review with all ticket PRs integrated and review findings addressed. Remaining steps are human: runbook §1–§6 (production migration BEFORE merging), then move OVE-46…49 to Done.
 
 ## Authority used (read before resuming)
 
@@ -45,8 +45,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 11. Full verification on `63a4cfb`: prettier, lint, tsc, prisma validate + local migrate status up to date; unit 42/727 (clean env; 12 consecutive green runs); integration 34/422 (isolation, history integrity, RLS, schema, guards); build (local env + invite code + service key) + verify:client-bundle OK; accounts e2e 13/13 (local DB unchanged 1/1/463); default e2e 26/26. Visual vs preview done on code identical to the final tree (only tests changed after OVE-48). Pre-existing env-sensitive test: tests/unit/import-target-and-images.test.ts:108 fails only when NEXT_PUBLIC_SUPABASE_URL is exported in the shell (not a regression; deferred note).
 - [x] 12. Code review — `code-review` skill (high) posted 9 inline comments on #62
 - [x] 13. Review audit — posted https://github.com/troyrhodes02/overload-training/pull/62#issuecomment-6282779205 : 7 implement (save ordering ×2 via src/lib/appearance/choices.ts, thrown action = failure, schema doc placement, getAccountAppearance React cache, isoDateInZone reuse, first visit = no LoggedSession AND no CardioLog via existence checks), 1 defer (fold profile fields into Account — protected chokepoint, R27), 1 skip (rail classes not dead at md+, R28). Spec v1.1.0: R7 + R17 amended, R27–R29 added. Rerun after fixes: unit 43/735, integration 34/423, build + client-bundle, accounts e2e 13/13, default e2e 26/26, local DB 1/1/463.
-- [ ] 14. Final verification + merge gate
-- [ ] 15. Run report
+- [x] 14. Final verification on `4619197` — STOP before merge (R3: profiles schema change, guide D1; production migration must precede deploy). prettier, lint, tsc, prisma validate, unit 43/735, Vercel pass on #62; integration 34/423, build + client-bundle, accounts e2e 13/13, default e2e 26/26 on identical code. #62 marked ready for review (open, not merged).
+- [x] 15. Run report — `docs/runs/10-personalization-navigation-polish-report.md`
 
 ## Linear
 
