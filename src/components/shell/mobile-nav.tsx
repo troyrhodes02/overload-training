@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { tourAnchor } from "@/lib/tour/steps";
 import {
   NAV_ITEMS,
   SECONDARY_NAV_ITEMS,
@@ -88,6 +89,7 @@ export function MobileNav() {
           size="icon"
           className="size-11 md:hidden [&_svg]:size-5"
           aria-label="Open navigation"
+          {...tourAnchor("nav-menu")}
         >
           <Menu />
         </Button>

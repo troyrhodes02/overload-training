@@ -12,6 +12,8 @@
  * Open signup & usernames (OVE-50): profile.int.test.ts covers
  * Profile.username — unique across accounts, never readable or changeable by
  * another account, and the availability check answers yes/no only.
+ * Onboarding Tour (Pitch 11): tour.int.test.ts proves an account's
+ * TourProgress can't be read, changed, or detected by another.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],
@@ -37,4 +39,5 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
     "account-deletion.int.test.ts",
     "greeting.int.test.ts",
   ],
+  TourProgress: ["tour.int.test.ts", "account-deletion.int.test.ts"],
 };

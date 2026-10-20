@@ -9,6 +9,7 @@ import { logSet } from "@/lib/logging/logged-sets";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 import { setExerciseFavorite } from "@/lib/exercises/exercises";
+import { recordTourOutcome } from "@/lib/tour/progress";
 import { listMesocyclesForHome } from "@/lib/plan/queries";
 import { addDays } from "@/lib/plan/calendar";
 import { getTestPrisma } from "./support/db";
@@ -47,6 +48,7 @@ const OWNED_TABLES = [
   "cardio_logs",
   "exercise_favorites",
   "profiles",
+  "tour_progress",
 ];
 
 /** Everything an account can own, written through the real write modules. */
@@ -94,6 +96,7 @@ async function fullAccount(account: Account, lib: Lib, label: string) {
     exerciseId: lib.bench.id,
     isFavorite: true,
   });
+  await recordTourOutcome(account, "completed");
   return plan;
 }
 

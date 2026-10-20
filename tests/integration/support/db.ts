@@ -24,6 +24,8 @@ export const APP_TABLES = [
   // Multi-User Foundation
   "exercise_favorites",
   "profiles",
+  // Onboarding Tour
+  "tour_progress",
 ] as const;
 
 let client: PrismaClient | undefined;

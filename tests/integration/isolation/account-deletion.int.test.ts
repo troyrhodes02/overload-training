@@ -13,6 +13,7 @@ import { completeWorkout } from "@/lib/logging/sessions";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 import { createGoal } from "@/lib/goals/goals";
+import { markTourOffered, recordTourOutcome } from "@/lib/tour/progress";
 import { addDays } from "@/lib/plan/calendar";
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
@@ -85,6 +86,8 @@ async function populate(account: Account, lib: Lib, label: string) {
     type: "Incline walk",
     durationMin: "25",
   });
+  await markTourOffered(account);
+  await recordTourOutcome(account, "completed");
   return plan;
 }
 
@@ -111,6 +114,7 @@ const OWNED_TABLES = [
   "goals",
   "planned_cardio",
   "cardio_logs",
+  "tour_progress",
 ];
 
 let a: Account;

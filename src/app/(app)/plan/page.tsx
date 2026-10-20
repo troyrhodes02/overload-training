@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/feedback/empty-state";
+import { tourAnchor } from "@/lib/tour/steps";
 import {
   MesocycleStatusBadge,
   SectionHeading,
@@ -67,7 +68,9 @@ export default async function PlanHomePage() {
   if (nothing) {
     return (
       <section className="space-y-6">
-        <h1 className="text-lg font-semibold">Plan</h1>
+        <h1 className="text-lg font-semibold" {...tourAnchor("page-plan")}>
+          Plan
+        </h1>
         <EmptyState
           title="No mesocycle yet. Create your first one."
           action={
@@ -82,7 +85,9 @@ export default async function PlanHomePage() {
 
   return (
     <section className="space-y-6 pb-24 md:pb-0">
-      <h1 className="text-lg font-semibold">Plan</h1>
+      <h1 className="text-lg font-semibold" {...tourAnchor("page-plan")}>
+        Plan
+      </h1>
 
       {active ? (
         <Link

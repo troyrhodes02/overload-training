@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreatedToast } from "@/components/feedback/created-toast";
 import { EmptyState } from "@/components/feedback/empty-state";
+import { tourAnchor } from "@/lib/tour/steps";
 import { GymRowMenu } from "@/components/gyms/gym-row-menu";
 import { listActiveGyms } from "@/lib/gyms/queries";
 import { requireAccount } from "@/lib/data/account";
@@ -24,7 +25,9 @@ export default async function GymsPage({ searchParams }: PageProps) {
     <section className="space-y-4 pb-20 md:pb-0">
       <CreatedToast show={created === "1"} message="Gym added" />
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Gyms</h1>
+        <h1 className="text-lg font-semibold" {...tourAnchor("page-gyms")}>
+          Gyms
+        </h1>
         <Button asChild variant="outline" className="hidden md:inline-flex">
           <Link href="/gyms/new">
             <Plus aria-hidden />

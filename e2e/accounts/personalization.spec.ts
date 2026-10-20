@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
+import { skipFirstTour } from "./tour-support";
 
 /**
  * Personalization & Navigation Polish against the LOCAL Supabase stack
@@ -86,6 +87,8 @@ async function signUp(p: Page, who: typeof P, firstName: string) {
   await p.getByLabel("Confirm password", { exact: true }).fill(who.password);
   await p.getByRole("button", { name: "Create account" }).click();
   await expect(p).toHaveURL(/\/$/);
+  // A new account's first page opens the onboarding tour; dismiss it.
+  await skipFirstTour(p);
 }
 
 async function signIn(p: Page, who: typeof P) {

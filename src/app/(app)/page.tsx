@@ -21,6 +21,7 @@ import { CardioCards, CardioFocal } from "@/components/cardio/cardio-today";
 import { accountToday, requireAccount } from "@/lib/data/account";
 import { composeGreeting } from "@/lib/personalization/greeting";
 import { getGreetingFacts } from "@/lib/personalization/greeting-facts";
+import { tourAnchor } from "@/lib/tour/steps";
 
 export const metadata = { title: "Today · Overload" };
 
@@ -31,7 +32,10 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
     ? await getSessionProgressionSummary(account, state.loggedSessionId)
     : null;
   return (
-    <div className="rounded-lg border border-border bg-card p-6">
+    <div
+      className="rounded-lg border border-border bg-card p-6"
+      {...tourAnchor("today-day")}
+    >
       <p className="font-medium">✓ {state.sessionName} complete</p>
       <p className="mt-1 text-sm text-muted-foreground">
         {state.gymName ? `${state.gymName} · ` : ""}
@@ -157,7 +161,12 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
           })}
         </ul>
       </div>
-      <Button asChild size="lg" className="w-full">
+      <Button
+        asChild
+        size="lg"
+        className="w-full"
+        {...tourAnchor("today-start")}
+      >
         <Link href={href}>{resuming ? "Resume workout" : "Start workout"}</Link>
       </Button>
       {/* Cardio sits beneath the lifting workflow; lifting keeps the floor. */}
@@ -172,7 +181,7 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
  */
 function TodayHeader({ greeting, today }: { greeting: string; today: string }) {
   return (
-    <header>
+    <header {...tourAnchor("today-heading")}>
       <h1 className="text-xl font-semibold tracking-tight text-balance">
         {greeting}
       </h1>
@@ -217,7 +226,10 @@ export default async function TodayPage() {
     return (
       <section className="space-y-6">
         {header}
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div
+          className="rounded-lg border border-border bg-card p-6"
+          {...tourAnchor("today-day")}
+        >
           <p className="font-medium">No active plan.</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Build and activate a mesocycle to start training.{" "}
@@ -236,7 +248,9 @@ export default async function TodayPage() {
     return (
       <section className="space-y-6">
         {header}
-        <CardioFocal entries={dash.cardio} week={dash.week} />
+        <div {...tourAnchor("today-day")}>
+          <CardioFocal entries={dash.cardio} week={dash.week} />
+        </div>
         <DashboardGoals />
       </section>
     );
@@ -246,7 +260,10 @@ export default async function TodayPage() {
     return (
       <section className="space-y-6">
         {header}
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div
+          className="rounded-lg border border-border bg-card p-6"
+          {...tourAnchor("today-day")}
+        >
           <p className="font-medium">No lifting planned today.</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Rest up.{" "}
@@ -264,7 +281,9 @@ export default async function TodayPage() {
     return (
       <section className="space-y-6">
         {header}
-        <MissedDayPrompt missed={dash.missed} />
+        <div {...tourAnchor("today-day")}>
+          <MissedDayPrompt missed={dash.missed} />
+        </div>
         {dash.below ? (
           <div inert className="opacity-50">
             <TodayBlock state={dash.below} />
