@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 2 — design doc.**
+**Step 8 — implementing OVE-54.**
 
 ## Authority used (read before resuming)
 
@@ -36,11 +36,11 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 ## Pipeline status
 
 - [x] 1. Pitch pulled + authority read
-- [ ] 2. Design doc — `docs/design/12-whats-new-design-doc.md`
-- [ ] 3. UI preview — `docs/previews/12-whats-new-preview.html`
-- [ ] 4. Spec — `docs/specs/12-whats-new-spec.md`
-- [ ] 5. Resolved Decisions recorded in spec
-- [ ] 6. Linear milestone + issues (blockedBy chain)
+- [x] 2. Design doc — `docs/design/12-whats-new-design-doc.md` (v1.0)
+- [x] 3. UI preview — `docs/previews/12-whats-new-preview.html` (.html not the run prompt .tsx; 17 frames; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, Got it inside its frame in every dialog; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs` (+ `check.mjs`).
+- [x] 4. Spec — `docs/specs/12-whats-new-spec.md` (v1.0.0; migration `9e_release_seen`); `docs/planning/method-note.md` gains the release-note content contract
+- [x] 5. Resolved Decisions recorded in spec (R1–R30). Key: R3 stop before merge; R8 no entry ships; R9 existing accounts = no row = shown nothing; R10 signup row; R12 account floor; R13 seen on open
+- [x] 6. Linear milestone + issues (blockedBy chain)
 - [ ] 7. Feature PR into `main`
 - [ ] 8. Tickets implemented
 - [ ] 9. Runbook — `docs/runs/12-whats-new-runbook.md`
@@ -53,11 +53,19 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Linear
 
-(not yet created)
+- Milestone: **What's New** (`c6f5d6f2-e57a-414b-9172-5c555685830f`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-54** — 1: Release-note content + seen state (catalog, ReleaseSeen, migration 9e, action, signup/deletion/isolation)
+  - **OVE-55** — 2: What's New UI (ReleaseNote, dialog, layout + shell, Settings section, history page) (blockedBy OVE-54)
+  - **OVE-56** — 3: Local-stack e2e + dialog browser walkthrough + visual verification (blockedBy OVE-55)
+
+### Ticket branches / PRs
+
+(none yet)
 
 ## Resolved Decisions so far
 
-(recorded in the spec once written)
+See spec `## Resolved Decisions` R1–R30.
 
 ## Deferred / notes
 
