@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 2 — design doc.**
+**Step 8 — implementing OVE-51.**
 
 ## Authority used (read before resuming)
 
@@ -35,11 +35,11 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 ## Pipeline status
 
 - [x] 1. Pitch pulled + authority read
-- [ ] 2. Design doc
-- [ ] 3. UI preview
-- [ ] 4. Spec
-- [ ] 5. Resolved Decisions
-- [ ] 6. Linear milestone + issues
+- [x] 2. Design doc — `docs/design/11-onboarding-tour-design-doc.md` (v1.0)
+- [x] 3. UI preview — `docs/previews/11-onboarding-tour-preview.html` (.html not the run prompt .tsx; 23 frames; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 cards over their target; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs` (+ `check.mjs`, `measure.mjs`).
+- [x] 4. Spec — `docs/specs/11-onboarding-tour-spec.md` (v1.0.0; migration `9d_tour_progress`)
+- [x] 5. Resolved Decisions recorded in spec (R1–R32). Key: R3 stop before merge (new owned table + backfill + deletion module; production migration must precede deploy, guide D1)
+- [x] 6. Linear milestone + issues (blockedBy chain)
 - [ ] 7. Feature PR
 - [ ] 8. Tickets implemented
 - [ ] 9. Runbook
@@ -52,11 +52,19 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Linear
 
-(not yet created)
+- Milestone: **Onboarding Tour** (`5b7e781d-380b-44d9-a557-29373630d873`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-51** — 1: Tour progress persistence (model, migration 9d, progress module + actions, deletion + isolation)
+  - **OVE-52** — 2: Guided tour UI (registry, engine, provider/overlay, anchors, Settings replay) (blockedBy OVE-51)
+  - **OVE-53** — 3: Local-stack tour e2e + D4 anchors + visual verification (blockedBy OVE-52)
+
+### Ticket branches / PRs
+
+(none yet)
 
 ## Resolved Decisions so far
 
-(recorded in the spec once written)
+See spec `## Resolved Decisions` R1–R32. Headline: R3 stop before merge; R4 TourProgress PK userId; R5 auto-start = no row; R6 9d backfills NULL-outcome rows; R8 offer spent on first show; R9 registry `src/lib/tour/steps.ts`; R10 availability rule; R14 Dialog, no dependency; R16 sheet never opened.
 
 ## Deferred / notes
 
