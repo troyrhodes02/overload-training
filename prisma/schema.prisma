@@ -546,6 +546,7 @@ model Profile {
   plannedCardio        PlannedCardio[]
   cardioLogs           CardioLog[]
   tourProgress         TourProgress?
+  releaseSeen          ReleaseSeen?
 
   @@map("profiles")
 }
@@ -582,6 +583,29 @@ model TourProgress {
   profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   @@map("tour_progress")
+}
+
+/// Per-account record of the release notes shown (What's New, spec §8; the
+/// architecture's ReleaseSeen). One row per account: the newest release-note
+/// entry the account has been shown, or started at when it signed up. Entries
+/// themselves are repository content (src/lib/release-notes/entries.ts), never
+/// rows. The seen point only moves forward. No row = the account predates What's
+/// New and has been shown nothing. Never deleted except by account deletion.
+/// RLS deny-all; user_id immutable (trigger, 9e).
+model ReleaseSeen {
+  /// Owning account, also the key: one row per account.
+  userId            String   @id @map("user_id") @db.Uuid
+  /// A catalog entry id (kebab-case slug, CHECK in 9e). Not a foreign key:
+  /// the catalog lives in the repository.
+  lastSeenReleaseId String   @map("last_seen_release_id")
+  /// When the seen point last moved (signup, or a dialog shown).
+  lastSeenAt        DateTime @map("last_seen_at") @db.Timestamptz
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("release_seen")
 }
 
 /// Multi-User Foundation (Pitch 8, spec R12): account X starred exercise E (a

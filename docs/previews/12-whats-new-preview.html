@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overload · What's New — UI preview</title>
+<!-- Generated from docs/design/12-whats-new-design-doc.md v1.0.
+     A rendering of the design, not product code. Built on the overload-ui-design
+     preview template; product tokens re-copied from src/app/globals.css. -->
+<style>
+/* ============================================================
+   FONT — Inter (variable 100-900), the same latin file next/font
+   serves the app. Vendored for offline previews.
+   ============================================================ */
+@font-face{font-family:'Inter';src:url('assets/fonts/inter-latin-variable.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
+
+/* ============================================================
+   PREVIEW CHROME — achromatic studio scaffolding.
+   Eyebrows, letter-spacing, and pill shapes are permitted HERE
+   and are not a statement about the product.
+   ============================================================ */
+:root{
+  --pv-bg:#EDEEF1; --pv-panel:#FFFFFF; --pv-frame:#E3E4E9;
+  --pv-ink:#16171A; --pv-muted:#5B5D66; --pv-line:#DBDCE1; --pv-accent:#3A3B42;
+  --pv-sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --pv-mono:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--pv-bg:#0E0E10;--pv-panel:#161618;--pv-frame:#111113;--pv-ink:#E9E9EC;--pv-muted:#8B8B93;--pv-line:#242428;--pv-accent:#B4B4BD}
+}
+:root[data-pv="dark"]{--pv-bg:#0E0E10;--pv-panel:#161618;--pv-frame:#111113;--pv-ink:#E9E9EC;--pv-muted:#8B8B93;--pv-line:#242428;--pv-accent:#B4B4BD}
+:root[data-pv="light"]{--pv-bg:#EDEEF1;--pv-panel:#FFFFFF;--pv-frame:#E3E4E9;--pv-ink:#16171A;--pv-muted:#5B5D66;--pv-line:#DBDCE1;--pv-accent:#3A3B42}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--pv-bg);color:var(--pv-ink);font-family:var(--pv-sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--pv-accent);outline-offset:2px;border-radius:4px}
+
+.pv-head{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--pv-bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--pv-line)}
+.pv-head-in{max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.pv-brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+.pv-brand h1{font-size:15px;margin:0;font-weight:600;letter-spacing:-.01em}
+.pv-brand p{font-size:11.5px;margin:0;color:var(--pv-muted)}
+.pv-jump{display:flex;gap:2px;flex-wrap:wrap}
+.pv-jump a{font-size:12px;color:var(--pv-muted);text-decoration:none;padding:5px 9px;border-radius:6px;font-weight:500}
+.pv-jump a:hover{color:var(--pv-ink);background:var(--pv-frame)}
+.pv-toggle{display:flex;align-items:center;gap:9px}
+.pv-toggle .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--pv-muted);font-weight:600}
+.pv-seg{display:inline-flex;background:var(--pv-frame);border:1px solid var(--pv-line);border-radius:999px;padding:3px}
+.pv-seg button{font-family:inherit;border:0;background:transparent;color:var(--pv-muted);font-size:12.5px;font-weight:600;padding:5px 14px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.pv-seg button.on{background:var(--pv-panel);color:var(--pv-ink)}
+.pv-seg svg{width:14px;height:14px}
+
+.pv-wrap{max-width:1240px;margin:0 auto;padding:36px 24px 96px}
+.pv-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--pv-muted)}
+.pv-lead{max-width:780px}
+.pv-lead h2{font-size:26px;letter-spacing:-.02em;font-weight:600;margin:10px 0 8px;text-wrap:balance}
+.pv-lead p{color:var(--pv-muted);font-size:14.5px;margin:0}
+.pv-note{display:inline-flex;align-items:flex-start;gap:8px;margin-top:16px;font-size:12px;color:var(--pv-muted);background:var(--pv-panel);border:1px solid var(--pv-line);padding:7px 13px;border-radius:999px;max-width:700px}
+.pv-note b{color:var(--pv-ink);font-weight:600}
+
+.pv-section{margin-top:56px}
+.pv-sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.pv-sec-head h3{font-size:18px;font-weight:600;letter-spacing:-.01em;margin:0}
+.pv-sec-head .desc{font-size:13px;color:var(--pv-muted);max-width:680px}
+.pv-num{font-family:var(--pv-mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;color:var(--pv-accent);border:1px solid var(--pv-line);border-radius:6px;padding:2px 7px}
+
+.pv-frame{background:var(--pv-frame);border:1px solid var(--pv-line);border-radius:16px;padding:12px;margin-bottom:20px;overflow-x:auto}
+.pv-cap{display:flex;align-items:center;gap:10px;padding:2px 6px 11px;flex-wrap:wrap}
+.pv-cap .name{font-size:12.5px;font-weight:600}
+.pv-cap .route{font-size:11.5px;color:var(--pv-muted);font-family:var(--pv-mono);background:var(--pv-panel);border:1px solid var(--pv-line);padding:2px 8px;border-radius:5px}
+.pv-cap .tag{font-size:11px;color:var(--pv-muted);margin-left:auto}
+.pv-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.pv-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+@media(max-width:1240px){.pv-grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:860px){.pv-grid2,.pv-grid3{grid-template-columns:minmax(0,1fr)}}
+.pv-row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.pv-aside{font-size:12px;color:var(--pv-muted);max-width:280px;line-height:1.55;margin:0}
+.pv-aside b{color:var(--pv-ink);font-weight:600}
+
+.pv-legend{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.pv-legend{grid-template-columns:1fr}}
+.pv-card{background:var(--pv-panel);border:1px solid var(--pv-line);border-radius:14px;padding:18px 20px}
+.pv-card h4{margin:0 0 12px;font-size:13px;font-weight:600}
+.pv-rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.pv-rules li{display:flex;gap:10px;font-size:12.5px;color:var(--pv-muted);line-height:1.5}
+.pv-rules li svg{width:15px;height:15px;flex:none;margin-top:2px;color:var(--pv-accent)}
+.pv-rules b{color:var(--pv-ink);font-weight:600}
+.pv-foot{margin-top:70px;padding-top:22px;border-top:1px solid var(--pv-line);color:var(--pv-muted);font-size:12.5px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+/* ============================================================
+   PRODUCT TOKENS — copied verbatim from src/app/globals.css.
+   Light = :root, dark = .dark. Never retype; re-copy.
+   ============================================================ */
+.ov{
+  --ov-radius:0.5rem;
+  --ov-background:#f7f7f8; --ov-foreground:#0e0e10;
+  --ov-card:#ffffff; --ov-card-foreground:#0e0e10;
+  --ov-popover:#ffffff; --ov-popover-foreground:#0e0e10;
+  --ov-primary:#0159fd; --ov-primary-foreground:#ffffff;
+  --ov-secondary:#ececed; --ov-secondary-foreground:#0e0e10;
+  --ov-muted:#ececed; --ov-muted-foreground:#5f5f68;
+  --ov-accent:#ececed; --ov-accent-foreground:#0e0e10;
+  --ov-destructive:#b42318; --ov-destructive-foreground:#ffffff;
+  --ov-border:#e4e4e8; --ov-input:#e4e4e8; --ov-ring:#0159fd;
+  --ov-progress:#2f9e6b; --ov-deload:#b7791f;
+  /* Shadows exist only on overlays (dialogs, menus, toasts), as shadcn ships them. */
+  --ov-shadow-lg:0 10px 15px -3px rgb(0 0 0 / .1),0 4px 6px -4px rgb(0 0 0 / .1);
+  --ov-shadow-md:0 4px 6px -1px rgb(0 0 0 / .1),0 2px 4px -2px rgb(0 0 0 / .1);
+  --ov-shadow-xs:0 1px 2px 0 rgb(0 0 0 / .05);
+  font-family:'Inter',ui-sans-serif,system-ui,sans-serif;
+  font-feature-settings:"rlig" 1,"calt" 1;
+  color:var(--ov-foreground);font-size:14px;line-height:20px;
+}
+.ov[data-ov="dark"]{
+  --ov-background:#0b0b0c; --ov-foreground:#f2f2f3;
+  --ov-card:#141416; --ov-card-foreground:#f2f2f3;
+  --ov-popover:#1c1c1f; --ov-popover-foreground:#f2f2f3;
+  --ov-primary:#1a66ff; --ov-primary-foreground:#ffffff;
+  --ov-secondary:#1c1c1f; --ov-secondary-foreground:#f2f2f3;
+  --ov-muted:#1c1c1f; --ov-muted-foreground:#a1a1a8;
+  --ov-accent:#1c1c1f; --ov-accent-foreground:#f2f2f3;
+  --ov-destructive:#e5484d; --ov-destructive-foreground:#0b0b0c;
+  --ov-border:#26262a; --ov-input:#26262a; --ov-ring:#2f7bff;
+  --ov-progress:#4cc38a; --ov-deload:#e0a93b;
+}
+.ov *{border-color:var(--ov-border)}
+.ov svg{width:16px;height:16px;flex:none}
+
+/* --- type: Tailwind's scale, regular/medium/semibold only --- */
+.ov .t-title{font-size:18px;line-height:28px;font-weight:600;margin:0}          /* text-lg font-semibold */
+.ov .t-base{font-size:16px;line-height:24px;margin:0}                           /* text-base */
+.ov .t-sm{font-size:14px;line-height:20px;margin:0}                             /* text-sm */
+.ov .t-xs{font-size:12px;line-height:16px;margin:0}                             /* text-xs */
+.ov .medium{font-weight:500} .ov .semibold{font-weight:600}
+.ov .muted{color:var(--ov-muted-foreground)}
+.ov .num{font-variant-numeric:tabular-nums}                                     /* tabular-nums: every number */
+.ov .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ov .day{width:40px;flex:none;font-size:12px;line-height:16px;font-weight:500;letter-spacing:.025em;text-transform:uppercase;color:var(--ov-muted-foreground);font-variant-numeric:tabular-nums}
+.ov .err{font-size:14px;line-height:20px;color:var(--ov-destructive);margin:0}  /* inline validation only */
+
+/* --- layout helpers --- */
+.ov .stack{display:flex;flex-direction:column}
+.ov .row{display:flex;align-items:center;gap:8px}
+.ov .between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ov .gap-1{gap:4px} .ov .gap-2{gap:8px} .ov .gap-3{gap:12px} .ov .gap-4{gap:16px} .ov .gap-6{gap:24px}
+.ov .grow{flex:1;min-width:0}
+
+/* --- mock frames --- */
+.mock{background:var(--ov-background);border:1px solid var(--ov-border);border-radius:10px;overflow:hidden;position:relative}
+.mock--phone{width:375px;min-width:375px;flex:none}         /* the primary context: design here first */
+.mock--desktop{min-width:760px;flex:1}                        /* md+ shell with the left rail */
+.mock--pane{min-width:340px}                                  /* a single panel with no shell */
+
+/* --- app shell (Foundation's AppShell + AppNav) --- */
+.ov-app{display:flex;flex-direction:column;min-height:700px}
+.ov-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--ov-border);flex:none}
+.ov-wordmark{font-size:18px;line-height:28px;font-weight:600}
+.ov-main{flex:1;display:flex;flex-direction:column;padding:24px 16px 0}
+.ov-main > .screen{flex:1;display:flex;flex-direction:column;gap:24px;padding-bottom:24px}
+.ov-bottomnav{display:flex;border-top:1px solid var(--ov-border);background:var(--ov-card);flex:none}
+.ov-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0;font-size:12px;line-height:16px;font-weight:500;color:var(--ov-muted-foreground)}
+.ov-nav-item svg{width:20px;height:20px}
+.ov-nav-item.on{color:var(--ov-primary)}
+/* md+: left rail replaces the bottom bar; content stays in a centered sm column */
+.ov-desk{display:flex;min-height:640px}
+.ov-rail{width:224px;flex:none;border-right:1px solid var(--ov-border);padding:12px;display:flex;flex-direction:column;gap:4px}
+.ov-rail-item{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:var(--ov-muted-foreground)}
+.ov-rail-item svg{width:20px;height:20px}
+.ov-rail-item.on{background:var(--ov-accent);color:var(--ov-accent-foreground)}
+.ov-desk-col{flex:1;display:flex;flex-direction:column}
+.ov-desk-main{width:100%;max-width:640px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px}
+/* thumb-reach action bar (fixed above the bottom nav in the app; static at md+) */
+.ov-actions{margin:auto -16px 0;border-top:1px solid var(--ov-border);background:color-mix(in srgb,var(--ov-background) 95%,transparent);padding:12px 16px}
+.ov-desk-main .ov-actions{margin:0;border:0;padding:0;background:transparent}
+
+/* --- Button (components/ui/button.tsx) --- */
+.ov-btn{font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font-size:14px;line-height:20px;font-weight:500;height:40px;padding:0 16px;border:1px solid transparent;cursor:pointer;background:transparent;color:var(--ov-foreground)}
+.ov-btn--default{background:var(--ov-primary);color:var(--ov-primary-foreground)}
+.ov-btn--outline{border-color:var(--ov-input);background:var(--ov-background)}
+.ov-btn--secondary{background:var(--ov-secondary);color:var(--ov-secondary-foreground)}
+.ov-btn--ghost{background:transparent}
+.ov-btn--link{color:var(--ov-primary);padding:0 4px;height:auto}
+.ov-btn--sm{height:36px;padding:0 12px}
+.ov-btn--h11{height:44px}                                 /* className="h-11": every primary/thumb action */
+.ov-btn--icon{width:40px;height:40px;padding:0}
+.ov-btn--icon11{width:44px;height:44px;padding:0}          /* size-11 row action */
+.ov-btn--full{width:100%}
+.ov-btn--grow{flex:1}
+.ov-btn[disabled]{opacity:.5;cursor:not-allowed}
+.ov-btn--icon svg,.ov-btn--icon11 svg{width:20px;height:20px}
+
+/* --- Badge (components/ui/badge.tsx) --- */
+.ov-badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid transparent;padding:2px 8px;font-size:12px;line-height:16px;font-weight:500;white-space:nowrap;flex:none}
+.ov-badge--default{background:var(--ov-primary);color:var(--ov-primary-foreground)}
+.ov-badge--secondary{background:var(--ov-secondary);color:var(--ov-secondary-foreground)}
+.ov-badge--outline{border-color:var(--ov-border);color:var(--ov-foreground)}
+
+/* --- Input / Label (components/ui/input.tsx, label.tsx) --- */
+.ov-field{display:flex;flex-direction:column;gap:8px}
+.ov-label{font-size:14px;line-height:1;font-weight:500}
+.ov-input{display:flex;align-items:center;width:100%;height:40px;border:1px solid var(--ov-input);border-radius:6px;background:var(--ov-background);padding:0 12px;font-family:inherit;font-size:16px;color:var(--ov-foreground)}
+.ov-input--h11{height:44px}
+.ov-input--num{width:80px;justify-content:center;font-variant-numeric:tabular-nums}
+.ov-input.ph{color:var(--ov-muted-foreground)}
+.ov-input--invalid{border-color:var(--ov-destructive)}
+.ov-input--focus{outline:2px solid var(--ov-ring);outline-offset:2px}
+.ov-help{font-size:14px;line-height:20px;color:var(--ov-muted-foreground);margin:0}
+
+/* --- Select trigger, Tabs (components/ui/select.tsx, tabs.tsx) --- */
+.ov-select{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;height:40px;min-width:160px;padding:0 12px;border:1px solid var(--ov-input);border-radius:6px;font-size:14px;box-shadow:var(--ov-shadow-xs)}
+.ov-select svg{color:var(--ov-muted-foreground);opacity:.5}
+.ov[data-ov="dark"] .ov-select{background:color-mix(in srgb,var(--ov-input) 30%,transparent)}
+.ov-tabs{display:inline-flex;align-items:center;height:40px;padding:3px;border-radius:8px;background:var(--ov-muted);color:var(--ov-muted-foreground)}
+.ov-tab{height:100%;display:inline-flex;align-items:center;padding:0 16px;border-radius:6px;font-size:14px;font-weight:500}
+.ov-tab.on{background:var(--ov-background);color:var(--ov-foreground);box-shadow:var(--ov-shadow-xs)}
+
+/* --- Alert (components/ui/alert.tsx) --- */
+.ov-alert{display:flex;gap:12px;width:100%;border:1px solid var(--ov-border);border-radius:8px;padding:12px 16px;font-size:14px;line-height:20px;background:var(--ov-card);color:var(--ov-card-foreground)}
+.ov-alert > svg{margin-top:2px}
+.ov-alert-title{font-weight:500;line-height:1;margin:0 0 6px;letter-spacing:-.01em}
+.ov-alert--destructive{border-color:color-mix(in srgb,var(--ov-destructive) 50%,transparent);color:var(--ov-destructive)}
+
+/* --- lists and cards: bordered surfaces, never floated --- */
+.ov-list{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;margin:0;padding:0;list-style:none}
+.ov-list > * + *{border-top:1px solid var(--ov-border)}
+.ov-surface{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;padding:16px}
+.ov-empty{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;padding:24px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.ov-empty p{margin:0}
+
+/* --- ExerciseThumb / MonogramTile --- */
+.ov-thumb{width:48px;height:48px;flex:none;border-radius:6px;border:1px solid var(--ov-border);background:var(--ov-muted);display:grid;place-items:center;font-size:12px;font-weight:500;color:var(--ov-muted-foreground)}
+.ov-thumb--attn{border-style:dashed;color:var(--ov-foreground)}
+.ov-thumb--attn svg{width:20px;height:20px}
+
+/* --- overlays: Dialog / AlertDialog, DropdownMenu, Sonner toast --- */
+.ov-stage{position:relative;min-height:420px;display:grid;place-items:center;padding:16px;background:var(--ov-background)}
+.ov-scrim{position:absolute;inset:0;background:rgb(0 0 0 / .5)}
+.ov-dialog{position:relative;width:100%;max-width:512px;background:var(--ov-background);border:1px solid var(--ov-border);border-radius:8px;box-shadow:var(--ov-shadow-lg);padding:24px;display:grid;gap:16px}
+.ov-dialog-title{font-size:18px;line-height:1;font-weight:600;margin:0}
+.ov-dialog-desc{font-size:14px;line-height:20px;color:var(--ov-muted-foreground);margin:0}
+.ov-dialog-head{display:flex;flex-direction:column;gap:8px}
+.ov-dialog-actions{display:flex;flex-direction:column-reverse;gap:8px}   /* stacked full-width at base */
+.ov-menu{position:absolute;z-index:5;min-width:208px;background:var(--ov-popover);color:var(--ov-popover-foreground);border:1px solid var(--ov-border);border-radius:6px;box-shadow:var(--ov-shadow-md);padding:4px}
+.ov-menu-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;font-size:14px}
+.ov-menu-item.hl{background:var(--ov-accent);color:var(--ov-accent-foreground)}
+.ov-menu-sep{height:1px;margin:4px -4px;background:var(--ov-border)}
+.ov-toast{display:flex;align-items:center;gap:12px;width:100%;max-width:356px;background:var(--ov-popover);color:var(--ov-popover-foreground);border:1px solid var(--ov-border);border-radius:8px;box-shadow:var(--ov-shadow-lg);padding:14px 16px;font-size:14px;font-weight:500}
+.ov-toast--error{color:var(--ov-destructive)}
+
+/* --- Skeleton: shaped like the content, pulse only --- */
+.ov-sk{background:var(--ov-muted);border-radius:6px;animation:ov-pulse 2s cubic-bezier(.4,0,.6,1) infinite}
+@keyframes ov-pulse{50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.ov-sk{animation:none}}
+
+/* ============================================================
+   FEATURE RECIPES — Accounts (each maps to the shadcn/ui component
+   or the Tailwind composition the implementation uses)
+   ============================================================ */
+/* Auth screens have no shell: min-h-dvh centered max-w-sm column (login page) */
+.ov-auth{min-height:700px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--ov-background)}
+.ov-auth--top{justify-content:flex-start;padding-top:56px}
+.ov-auth-col{width:100%;max-width:384px;display:flex;flex-direction:column;gap:32px}
+.ov-lockup{display:flex;align-items:center;justify-content:center;gap:8px;font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.025em}
+.ov-lockup img{width:36px;height:36px}
+.ov-lockup--sm{justify-content:flex-start;font-size:18px;line-height:28px}
+.ov-lockup--sm img{width:22px;height:22px}
+/* AuthCard: rounded-lg border bg-card p-6 */
+.ov-authcard{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.ov-authfoot{text-align:center;font-size:14px;line-height:20px;color:var(--ov-muted-foreground);margin:-16px 0 0}
+.ov-link{color:var(--ov-primary);font-weight:500}
+.ov-labelrow{display:flex;align-items:baseline;justify-content:space-between}
+/* PasswordInput: Input + ghost icon Button toggle (aria-pressed) */
+.ov-pw{position:relative}
+.ov-pw .ov-input{padding-right:48px}
+.ov-pw .ov-pw-toggle{position:absolute;right:2px;top:2px;width:40px;height:40px;display:grid;place-items:center;color:var(--ov-muted-foreground);border-radius:6px}
+/* first/last grid: grid-cols-1 min-[360px]:grid-cols-2 gap-3 */
+.ov-names{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* NativeSelect: native <select> with Input styling (shadcn native-select recipe) */
+.ov-nselect{position:relative}
+.ov-nselect .ov-input{justify-content:space-between}
+.ov-nselect svg{color:var(--ov-muted-foreground);opacity:.5}
+/* Settings section heading: text-sm font-medium text-muted-foreground */
+.ov-sechead{font-size:14px;line-height:20px;font-weight:500;color:var(--ov-muted-foreground);margin:0 0 8px}
+.ov-h1{font-size:20px;line-height:28px;font-weight:600;margin:0}
+.ov-ro{font-size:14px;line-height:20px;color:var(--ov-muted-foreground);margin:0}
+/* Delete section: border-t pt-6; outline button with destructive text */
+.ov-danger{border-top:1px solid var(--ov-border);padding-top:24px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.ov-btn--outline-destructive{border-color:color-mix(in srgb,var(--ov-destructive) 40%,transparent);background:var(--ov-background);color:var(--ov-destructive)}
+.ov-btn--destructive{background:var(--ov-destructive);color:var(--ov-destructive-foreground)}
+.ov-inv{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;padding:4px 16px;margin:0;list-style:none}
+.ov-inv li{display:flex;justify-content:space-between;padding:8px 0;font-size:14px;line-height:20px}
+.ov-inv li + li{border-top:1px solid var(--ov-border)}
+.ov-inv b{font-weight:500;font-variant-numeric:tabular-nums}
+.ov-back{display:inline-flex;align-items:center;gap:4px;font-size:14px;color:var(--ov-muted-foreground)}
+/* Email client frame (plain HTML email in the auth recovery template) */
+.ov-mail{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;overflow:hidden}
+.ov-mail-head{padding:12px 16px;border-bottom:1px solid var(--ov-border);font-size:13px;line-height:20px}
+.ov-mail-head span{color:var(--ov-muted-foreground);display:inline-block;width:64px}
+.ov-mail-body{padding:24px 16px;display:flex;flex-direction:column;gap:16px;font-size:14px;line-height:22px}
+.ov-mail-body p{margin:0}
+.ov-actions .stack{gap:8px}
+.ov-menu-anchor{position:relative;min-height:220px}
+
+/* ============================================================
+   FEATURE RECIPES — Personalization & Navigation Polish
+   (each maps to the shadcn/ui component or Tailwind composition
+   the implementation uses)
+   ============================================================ */
+/* Today greeting: h1 text-xl font-semibold tracking-tight text-balance; date line mt-1 text-sm muted */
+.ov-greet{font-size:20px;line-height:28px;font-weight:600;letter-spacing:-.025em;margin:0;text-wrap:balance}
+.ov-date{font-size:14px;line-height:20px;color:var(--ov-muted-foreground);margin:4px 0 0}
+/* Phone header (below md): sticky top-0 h-14 px-2 gap-1 bg-background/95 border-b; menu button size-11 */
+.ov-mhead{display:flex;align-items:center;gap:4px;height:56px;padding:0 8px;border-bottom:1px solid var(--ov-border);background:color-mix(in srgb,var(--ov-background) 95%,transparent);flex:none}
+.ov-mhead .ov-push{margin-left:auto}
+.ov-mhead .ov-btn--icon11 svg{width:20px;height:20px}
+.ov-sticky-note{font-size:11px;color:var(--ov-muted-foreground)}
+/* Dashboard blocks (existing markup): rounded-lg border bg-card p-6 */
+.ov-block{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:8px;padding:24px}
+.ov-block p{margin:0}
+.ov-exlist{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;font-variant-numeric:tabular-nums}
+.ov-exlist li{display:flex;justify-content:space-between;gap:8px;font-size:14px;line-height:20px}
+.ov-exlist .r{display:flex;align-items:center;gap:8px;color:var(--ov-muted-foreground)}
+/* ProgressTag (progress only appears where the engine computes it) */
+.ov-tag{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:12px;line-height:16px;font-weight:500}
+.ov-tag--progress{background:color-mix(in srgb,var(--ov-progress) 10%,transparent);color:var(--ov-progress)}
+/* Missed-day prompt choices: Button variant=outline h-auto w-full justify-start py-3 */
+.ov-choice{display:flex;flex-direction:column;align-items:flex-start;width:100%;border-radius:6px;background:var(--ov-secondary);padding:12px 16px}
+/* Navigation Sheet (shadcn Sheet side=left, w-72 max-w-[85vw] p-0) over a scrim */
+.ov-sheetwrap{position:absolute;inset:0;z-index:6}
+.ov-sheet{position:absolute;top:0;bottom:0;left:0;width:288px;max-width:85%;background:var(--ov-background);border-right:1px solid var(--ov-border);box-shadow:var(--ov-shadow-lg);display:flex;flex-direction:column}
+.ov-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:6px 6px 6px 16px;border-bottom:1px solid var(--ov-border)}
+.ov-sheet-title{font-size:16px;line-height:24px;font-weight:600;margin:0}
+.ov-sheet nav{padding:8px}
+.ov-sheet-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ov-sheet-item{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 12px;border-radius:6px;font-size:14px;font-weight:500;color:var(--ov-muted-foreground)}
+.ov-sheet-item svg{width:20px;height:20px}
+.ov-sheet-item.on{color:var(--ov-primary);font-weight:600;background:color-mix(in srgb,var(--ov-primary) 10%,transparent)}
+.ov-sheet-item.focus{outline:3px solid color-mix(in srgb,var(--ov-ring) 50%,transparent);outline-offset:0}
+.ov-sheet-sep{height:1px;background:var(--ov-border);margin:8px 12px}
+/* Desktop rail active item: text-primary font-semibold bg-primary/10 (as AppNav today) */
+.ov-rail-item.on{background:color-mix(in srgb,var(--ov-primary) 10%,transparent);color:var(--ov-primary);font-weight:600}
+.ov-bottomnav .ov-nav-item.on{font-weight:600}
+/* Appearance tiles: RadioGroup → grid grid-cols-3 gap-2; Label tile rounded-lg border bg-card p-3 min-h-16 */
+.ov-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ov-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:64px;padding:12px;border:1px solid var(--ov-border);border-radius:8px;background:var(--ov-card)}
+.ov-tile svg{width:20px;height:20px;color:var(--ov-muted-foreground)}
+.ov-tile .lab{font-size:14px;line-height:20px}
+.ov-tile .sub{font-size:12px;line-height:16px;color:var(--ov-muted-foreground);margin-top:-6px}
+.ov-tile.on{border-color:var(--ov-primary);box-shadow:0 0 0 1px var(--ov-primary)}
+.ov-tile.on .lab{font-weight:500}
+.ov-tile .chk{position:absolute;top:10px;right:10px;color:var(--ov-primary)}
+.ov-tile .chk svg{width:16px;height:16px;color:var(--ov-primary)}
+.ov-tile.focus{box-shadow:0 0 0 1px var(--ov-primary),0 0 0 4px color-mix(in srgb,var(--ov-ring) 50%,transparent)}
+.ov-h2{font-size:16px;line-height:24px;font-weight:600;margin:0}
+.mock--narrow{width:320px;min-width:320px;flex:none}
+.ov-curl{font-size:12px}
+.pv-pin{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--pv-muted);font-weight:600}
+
+
+/* ============================================================
+   FEATURE RECIPES — What's New (each maps to the shadcn/ui
+   component or Tailwind composition the implementation uses)
+   ============================================================ */
+/* Dialog overlay inside a phone/desktop frame: DialogOverlay (fixed inset-0 bg-black/50)
+   + stock DialogContent centered (max-w-[calc(100%-2rem)] sm:max-w-lg). */
+.ov .wn-over{position:absolute;inset:0;z-index:9;display:grid;place-items:center;padding:16px}
+.ov .wn-over .ov-scrim{z-index:0}
+/* DialogContent + max-h-[85dvh] grid-rows-[auto_1fr_auto] (header / scrolling list / footer) */
+.ov .wn-dialog{position:relative;z-index:1;width:100%;max-width:512px;max-height:85%;background:var(--ov-background);border:1px solid var(--ov-border);border-radius:8px;box-shadow:var(--ov-shadow-lg);padding:24px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:16px}
+.ov .wn-close{position:absolute;top:16px;right:16px;opacity:.7;color:var(--ov-foreground);display:grid;place-items:center;width:16px;height:16px}
+.ov .wn-head{display:flex;flex-direction:column;gap:8px;padding-right:24px}
+/* the list: -mx-6 px-6 overflow-y-auto, ol divide-y divide-border */
+.ov .wn-body{margin:0 -24px;padding:0 24px;overflow-y:auto;min-height:0}
+.ov .wn-body--scrolled{box-shadow:inset 0 1px 0 var(--ov-border),inset 0 -1px 0 var(--ov-border)}
+.ov .wn-list{list-style:none;margin:0;padding:0}
+.ov .wn-list > li{padding:16px 0}
+.ov .wn-list > li:first-child{padding-top:0}
+.ov .wn-list > li:last-child{padding-bottom:0}
+.ov .wn-list > li + li{border-top:1px solid var(--ov-border)}
+.ov .wn-body--scrolled .wn-list > li:first-child{padding-top:12px}
+/* DialogFooter: flex-col-reverse gap-2 at base (Got it on top, full width, h-11);
+   sm:flex-row sm:justify-end (link then Got it, h-9) */
+.ov .wn-foot{display:flex;flex-direction:column-reverse;gap:8px;align-items:stretch}
+.ov .wn-foot .ov-btn--link{height:44px;justify-content:center}
+.ov .wn-foot--row{flex-direction:row;justify-content:flex-end;align-items:center}
+.ov .wn-foot--row .ov-btn{height:36px}
+.ov .wn-foot--row .ov-btn--link{height:36px}
+/* ReleaseNote block: <time> text-xs font-medium muted tabular-nums / title text-base font-semibold / body text-sm leading-relaxed muted */
+.ov .rn{display:flex;flex-direction:column;gap:4px}
+.ov .rn time{font-size:12px;line-height:16px;font-weight:500;color:var(--ov-muted-foreground);font-variant-numeric:tabular-nums}
+.ov .rn .rn-title{font-size:16px;line-height:24px;font-weight:600;margin:0}
+.ov .rn .rn-body{font-size:14px;line-height:22.75px;color:var(--ov-muted-foreground);margin:0}
+/* Page list: ol divide-y divide-border border-t border-border, li py-5 */
+.ov .wn-page-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--ov-border)}
+.ov .wn-page-list > li{padding:20px 0}
+.ov .wn-page-list > li + li{border-top:1px solid var(--ov-border)}
+/* Settings What's New section: same shape as the Tour section */
+.ov .wn-sec{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.ov .wn-sec .ov-btn{height:44px}
+.ov-desk-main .wn-sec .ov-btn{height:36px}
+.ov .focusring{box-shadow:0 0 0 3px color-mix(in srgb,var(--ov-ring) 50%,transparent)}
+/* short phone (iPhone SE height) */
+.mock--short .ov-app{min-height:0;height:568px;overflow:hidden}
+.mock--short .wn-dialog{max-height:483px} /* 85dvh of a 568px screen */
+.mock--tall .ov-app{min-height:760px}
+.pv-anat{width:100%;border-collapse:collapse;font-size:12.5px}
+.pv-anat th,.pv-anat td{text-align:left;padding:8px 10px;border-top:1px solid var(--pv-line);vertical-align:top}
+.pv-anat th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pv-muted);font-weight:600;border-top:0}
+.pv-anat code{font-family:var(--pv-mono);font-size:11.5px}
+.pv-spec{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media(max-width:900px){.pv-spec{grid-template-columns:1fr}}
+.pv-sw{display:flex;align-items:center;gap:10px;font-size:12px}
+.pv-sw i{width:28px;height:28px;border-radius:6px;border:1px solid var(--ov-border);flex:none}
+
+</style>
+
+</head>
+<body>
+<header class="pv-head"><div class="pv-head-in">
+<div class="pv-brand"><div><h1>Overload · What's New</h1><p>UI preview — the once-only dialog (one and several updates), Settings entry point, release-history page, launch and loading states; both appearance modes</p></div></div>
+<nav class="pv-jump" aria-label="Jump to section"><a href="#s1">One update</a><a href="#s2">Several</a><a href="#s3">Settings</a><a href="#s4">Page</a><a href="#s5">States</a><a href="#s6">Entry</a><a href="#s7">Specimen</a></nav>
+<div class="pv-toggle"><span class="lbl">Appearance</span><div class="pv-seg" role="tablist" aria-label="Product appearance">
+<button id="pv-light" class="on" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>Light</button>
+<button id="pv-dark" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>Dark</button>
+</div></div>
+</div></header>
+<div class="pv-wrap">
+<div class="pv-lead">
+<span class="pv-eyebrow">Design handoff · v1.0</span>
+<h2>Say what changed, once, then keep it on the shelf.</h2>
+<p>When a significant update ships, the next load shows one calm dialog listing every significant update the account hasn't seen, and it never shows those again. Settings → What's New keeps every entry, newest first. Nothing is fabricated: the page launches empty, and new accounts start caught up. Check every frame against <b>“could this interrupt the same lifter twice, or show them something about anyone but the product?”</b> Use the <b>Light / Dark</b> switch to flip every product surface.</p>
+<span class="pv-note"><b>Note</b>&nbsp;This preview is a rendering of the design, not product code. The app is built with Tailwind and shadcn/ui against the theme in <code>globals.css</code>; nothing here is copied into it. Entries are illustrative mock data — none ship with this pitch.</span>
+</div>
+<section class="pv-section" id="s1"><div class="pv-sec-head"><span class="pv-num">01</span><h3>One significant update — shown once, on load</h3><span class="desc">The app's standard centered dialog over whatever page loaded. Title, one subtitle line, the entry, Got it. It counts as seen the moment it opens, so a reload, the ✕, Escape, or a tap on the scrim never brings it back.</span></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's new · one update</span><span class="route">dialog</span><span class="tag">375 · base: footer stacked, Got it full width 44px · focus on Got it</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div><div class="wn-over"><div class="ov-scrim"></div><div class="wn-dialog" role="dialog" aria-label="What's new">
+<span class="wn-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+<div class="wn-head"><h2 class="ov-dialog-title">What's new</h2><p class="ov-dialog-desc">Since you were last here</p></div>
+<div class="wn-body"><ol class="wn-list"><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h3 class="rn-title">Logging is faster</h3><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div>
+<div class="wn-foot"><span class="ov-btn ov-btn--link">See all updates</span><span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full focusring">Got it</span></div>
+</div></div></div></div><p class="pv-aside"><b>Entries here are illustrative.</b> No entry ships with this pitch (design doc §13): the first one is written by Pitch 13's guidance ticket. <br><br><b>Exits:</b> Got it, ✕, Escape, scrim, or See all updates (→ <code>/settings/whats-new</code>). All of them only close; seen was recorded on open.</p></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's new · one update</span><span class="route">dialog</span><span class="tag">760+ · sm+: footer is one row, buttons 36px</span></div><div class="pv-row"><div class="mock mock--desktop ov js-ov" data-ov="light" style="position:relative"><div class="ov-desk"><nav class="ov-rail"><span class="ov-rail-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Today</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 2v3"/><path d="M3 9h18"/><path d="M8 2v3"/><path d="M17 13h-6"/><path d="M13 17H7"/><path d="M7 13h.01"/><path d="M17 17h.01"/></svg>Plan</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>History</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Goals</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg>Exercises</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>Gyms</span></nav><div class="ov-desk-col"><div class="ov-header"><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></div><div class="ov-desk-main"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div></div><div class="wn-over"><div class="ov-scrim"></div><div class="wn-dialog" role="dialog" aria-label="What's new">
+<span class="wn-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+<div class="wn-head"><h2 class="ov-dialog-title">What's new</h2><p class="ov-dialog-desc">Since you were last here</p></div>
+<div class="wn-body"><ol class="wn-list"><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h3 class="rn-title">Logging is faster</h3><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div>
+<div class="wn-foot wn-foot--row"><span class="ov-btn ov-btn--link">See all updates</span><span class="ov-btn ov-btn--default ">Got it</span></div>
+</div></div></div></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's new · one update — dark</span><span class="route">dialog</span><span class="tag">375 + 760+ · near-black page, hairline dialog border over the scrim</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="dark" data-force><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div><div class="wn-over"><div class="ov-scrim"></div><div class="wn-dialog" role="dialog" aria-label="What's new">
+<span class="wn-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+<div class="wn-head"><h2 class="ov-dialog-title">What's new</h2><p class="ov-dialog-desc">Since you were last here</p></div>
+<div class="wn-body"><ol class="wn-list"><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h3 class="rn-title">Logging is faster</h3><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div>
+<div class="wn-foot"><span class="ov-btn ov-btn--link">See all updates</span><span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full focusring">Got it</span></div>
+</div></div></div></div><div class="mock mock--desktop ov js-ov" data-ov="dark" data-force style="position:relative"><div class="ov-desk"><nav class="ov-rail"><span class="ov-rail-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Today</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 2v3"/><path d="M3 9h18"/><path d="M8 2v3"/><path d="M17 13h-6"/><path d="M13 17H7"/><path d="M7 13h.01"/><path d="M17 17h.01"/></svg>Plan</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>History</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Goals</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg>Exercises</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>Gyms</span></nav><div class="ov-desk-col"><div class="ov-header"><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></div><div class="ov-desk-main"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div></div><div class="wn-over"><div class="ov-scrim"></div><div class="wn-dialog" role="dialog" aria-label="What's new">
+<span class="wn-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+<div class="wn-head"><h2 class="ov-dialog-title">What's new</h2><p class="ov-dialog-desc">Since you were last here</p></div>
+<div class="wn-body"><ol class="wn-list"><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h3 class="rn-title">Logging is faster</h3><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div>
+<div class="wn-foot wn-foot--row"><span class="ov-btn ov-btn--link">See all updates</span><span class="ov-btn ov-btn--default ">Got it</span></div>
+</div></div></div></div></div></section>
+<section class="pv-section" id="s2"><div class="pv-sec-head"><span class="pv-num">02</span><h3>Several significant updates — one dialog, newest first</h3><span class="desc">Every unseen significant entry in one list, with a count in the subtitle. Only the list scrolls; the title and Got it never leave the screen. Ordinary entries are never in the dialog (Smoother charts, Nov 21, is unseen too but stays on the page).</span></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's new · three updates</span><span class="route">dialog</span><span class="tag">375 · fits without scrolling</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div><div class="wn-over"><div class="ov-scrim"></div><div class="wn-dialog" role="dialog" aria-label="What's new">
+<span class="wn-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+<div class="wn-head"><h2 class="ov-dialog-title">What's new</h2><p class="ov-dialog-desc"><span class="num">3</span> updates since you were last here</p></div>
+<div class="wn-body"><ol class="wn-list"><li><article class="rn"><time datetime="2026-12-01">Dec 1, 2026</time><h3 class="rn-title">Exercise history</h3><p class="rn-body">Every lift now has its own page with recent sessions, trends, and personal bests.</p></article></li><li><article class="rn"><time datetime="2026-11-17">Nov 17, 2026</time><h3 class="rn-title">Clearer recommendations</h3><p class="rn-body">Each lift now says why it's ready to go up, holding steady, or due a deload.</p></article></li><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h3 class="rn-title">Logging is faster</h3><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div>
+<div class="wn-foot"><span class="ov-btn ov-btn--link">See all updates</span><span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full focusring">Got it</span></div>
+</div></div></div></div><p class="pv-aside"><b>One dialog, never a queue.</b> One Got it closes all of it; no second dialog follows (AC-4).<br><br><b>No cap.</b> Every unseen significant entry is listed; nothing hides behind “and 3 more”.</p></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's new · five updates on a short phone</span><span class="route">dialog</span><span class="tag">375 × 568 · dialog capped at 85% height · list scrolled; header + footer fixed</span></div><div class="pv-row"><div class="mock mock--phone mock--short ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div><div class="wn-over"><div class="ov-scrim"></div><div class="wn-dialog" role="dialog" aria-label="What's new">
+<span class="wn-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+<div class="wn-head"><h2 class="ov-dialog-title">What's new</h2><p class="ov-dialog-desc"><span class="num">5</span> updates since you were last here</p></div>
+<div class="wn-body wn-body--scrolled" style="padding-top:0"><ol class="wn-list" style="margin-top:-40px"><li><article class="rn"><time datetime="2027-02-02">Feb 2, 2027</time><h3 class="rn-title">Reps in reserve</h3><p class="rn-body">You can now note how many reps you had left on a set, and recommendations take it into account.</p></article></li><li><article class="rn"><time datetime="2027-01-12">Jan 12, 2027</time><h3 class="rn-title">Personal bests</h3><p class="rn-body">Your best set for each lift is marked in its history.</p></article></li><li><article class="rn"><time datetime="2026-12-01">Dec 1, 2026</time><h3 class="rn-title">Exercise history</h3><p class="rn-body">Every lift now has its own page with recent sessions, trends, and personal bests.</p></article></li><li><article class="rn"><time datetime="2026-11-17">Nov 17, 2026</time><h3 class="rn-title">Clearer recommendations</h3><p class="rn-body">Each lift now says why it's ready to go up, holding steady, or due a deload.</p></article></li><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h3 class="rn-title">Logging is faster</h3><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div>
+<div class="wn-foot"><span class="ov-btn ov-btn--link">See all updates</span><span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full focusring">Got it</span></div>
+</div></div></div></div><p class="pv-aside">A long absence on an iPhone SE: the list scrolls inside the dialog (<code>overflow-y-auto</code> between <code>auto</code> rows), so <b>Got it</b> is always reachable without scrolling the page (pitch §4.11).</p></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's new · three updates</span><span class="route">dialog</span><span class="tag">760+ · sm+ footer row</span></div><div class="pv-row"><div class="mock mock--desktop ov js-ov" data-ov="light" style="position:relative"><div class="ov-desk"><nav class="ov-rail"><span class="ov-rail-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Today</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 2v3"/><path d="M3 9h18"/><path d="M8 2v3"/><path d="M17 13h-6"/><path d="M13 17H7"/><path d="M7 13h.01"/><path d="M17 17h.01"/></svg>Plan</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>History</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Goals</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg>Exercises</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>Gyms</span></nav><div class="ov-desk-col"><div class="ov-header"><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></div><div class="ov-desk-main"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div></div><div class="wn-over"><div class="ov-scrim"></div><div class="wn-dialog" role="dialog" aria-label="What's new">
+<span class="wn-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+<div class="wn-head"><h2 class="ov-dialog-title">What's new</h2><p class="ov-dialog-desc"><span class="num">3</span> updates since you were last here</p></div>
+<div class="wn-body"><ol class="wn-list"><li><article class="rn"><time datetime="2026-12-01">Dec 1, 2026</time><h3 class="rn-title">Exercise history</h3><p class="rn-body">Every lift now has its own page with recent sessions, trends, and personal bests.</p></article></li><li><article class="rn"><time datetime="2026-11-17">Nov 17, 2026</time><h3 class="rn-title">Clearer recommendations</h3><p class="rn-body">Each lift now says why it's ready to go up, holding steady, or due a deload.</p></article></li><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h3 class="rn-title">Logging is faster</h3><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div>
+<div class="wn-foot wn-foot--row"><span class="ov-btn ov-btn--link">See all updates</span><span class="ov-btn ov-btn--default ">Got it</span></div>
+</div></div></div></div></div></section>
+<section class="pv-section" id="s3"><div class="pv-sec-head"><span class="pv-num">03</span><h3>Settings — the What's New section</h3><span class="desc">One new section after Tour and before the divider: a heading, one line, and a link styled as an outline button. No count, no unread dot, whatever the account has or hasn't seen.</span></div><div class="pv-frame"><div class="pv-cap"><span class="name">Settings · What's New section</span><span class="route">/settings</span><span class="tag">375 · 760+</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><h1 class="ov-h1">Settings</h1><div class="stack gap-4"><div class="ov-field"><span class="ov-label">First name</span><span class="ov-input">Robin</span></div><div class="ov-field"><span class="ov-label">Timezone</span><span class="ov-input">America/Chicago</span></div></div><div class="stack gap-2"><h2 class="ov-h2">Appearance</h2><div class="ov-tiles"><div class="ov-tile"><span class="lab">Light</span></div><div class="ov-tile"><span class="lab">Dark</span></div><div class="ov-tile on"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span class="lab">System</span></div></div></div><div class="ov-tour-sec"><h2 class="ov-h2">Tour</h2><p class="t-sm muted">A short walk through Today, Plan, History, Goals, Gyms, and Settings.</p><span class="ov-btn ov-btn--outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Replay tour</span></div><div class="wn-sec"><h2 class="ov-h2">What's New</h2><p class="t-sm muted">Every update to Overload, newest first.</p><span class="ov-btn ov-btn--outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>See what's new</span></div><div class="ov-danger"><h2 class="ov-h2">Delete account</h2><p class="t-sm muted">Permanently delete your account and all of its training history.</p><span class="ov-btn ov-btn--outline-destructive">Delete account…</span></div></div></div></div></div><div class="mock mock--desktop ov js-ov" data-ov="light" style="position:relative"><div class="ov-desk"><nav class="ov-rail"><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Today</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 2v3"/><path d="M3 9h18"/><path d="M8 2v3"/><path d="M17 13h-6"/><path d="M13 17H7"/><path d="M7 13h.01"/><path d="M17 17h.01"/></svg>Plan</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>History</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Goals</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg>Exercises</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>Gyms</span></nav><div class="ov-desk-col"><div class="ov-header"><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></div><div class="ov-desk-main"><h1 class="ov-h1">Settings</h1><div class="stack gap-4"><div class="ov-field"><span class="ov-label">First name</span><span class="ov-input">Robin</span></div><div class="ov-field"><span class="ov-label">Timezone</span><span class="ov-input">America/Chicago</span></div></div><div class="stack gap-2"><h2 class="ov-h2">Appearance</h2><div class="ov-tiles"><div class="ov-tile"><span class="lab">Light</span></div><div class="ov-tile"><span class="lab">Dark</span></div><div class="ov-tile on"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span class="lab">System</span></div></div></div><div class="ov-tour-sec"><h2 class="ov-h2">Tour</h2><p class="t-sm muted">A short walk through Today, Plan, History, Goals, Gyms, and Settings.</p><span class="ov-btn ov-btn--outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Replay tour</span></div><div class="wn-sec"><h2 class="ov-h2">What's New</h2><p class="t-sm muted">Every update to Overload, newest first.</p><span class="ov-btn ov-btn--outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>See what's new</span></div><div class="ov-danger"><h2 class="ov-h2">Delete account</h2><p class="t-sm muted">Permanently delete your account and all of its training history.</p><span class="ov-btn ov-btn--outline-destructive">Delete account…</span></div></div></div></div></div></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">Settings · What's New section — dark, focused</span><span class="route">/settings</span><span class="tag">375 · keyboard focus ring on See what's new</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="dark" data-force><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><h1 class="ov-h1">Settings</h1><div class="stack gap-4"><div class="ov-field"><span class="ov-label">First name</span><span class="ov-input">Robin</span></div><div class="ov-field"><span class="ov-label">Timezone</span><span class="ov-input">America/Chicago</span></div></div><div class="stack gap-2"><h2 class="ov-h2">Appearance</h2><div class="ov-tiles"><div class="ov-tile"><span class="lab">Light</span></div><div class="ov-tile"><span class="lab">Dark</span></div><div class="ov-tile on"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span class="lab">System</span></div></div></div><div class="ov-tour-sec"><h2 class="ov-h2">Tour</h2><p class="t-sm muted">A short walk through Today, Plan, History, Goals, Gyms, and Settings.</p><span class="ov-btn ov-btn--outline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Replay tour</span></div><div class="wn-sec"><h2 class="ov-h2">What's New</h2><p class="t-sm muted">Every update to Overload, newest first.</p><span class="ov-btn ov-btn--outline focusring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>See what's new</span></div><div class="ov-danger"><h2 class="ov-h2">Delete account</h2><p class="t-sm muted">Permanently delete your account and all of its training history.</p><span class="ov-btn ov-btn--outline-destructive">Delete account…</span></div></div></div></div></div><p class="pv-aside"><b>See what's new</b> → <code>/settings/whats-new</code>. Browser Back returns here. 44px on phones, 36px at md+, the same as Replay tour.</p></div></div></section>
+<section class="pv-section" id="s4"><div class="pv-sec-head"><span class="pv-num">04</span><h3>The What's New page — every entry, newest first</h3><span class="desc">A read-only changelog in the Settings column: back link, heading, intro line, then entries divided by hairlines. Significant and ordinary entries look the same. It reads nothing from the account and records nothing.</span></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's New · populated</span><span class="route">/settings/whats-new</span><span class="tag">375 · four entries, one ordinary (Smoother charts)</span></div><div class="pv-row"><div class="mock mock--phone mock--tall ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><span class="ov-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</span><div class="stack gap-2"><h1 class="ov-h1">What's New</h1><p class="t-sm muted">Every update to Overload, newest first.</p></div><ol class="wn-page-list"><li><article class="rn"><time datetime="2026-12-01">Dec 1, 2026</time><h2 class="rn-title">Exercise history</h2><p class="rn-body">Every lift now has its own page with recent sessions, trends, and personal bests.</p></article></li><li><article class="rn"><time datetime="2026-11-21">Nov 21, 2026</time><h2 class="rn-title">Smoother charts</h2><p class="rn-body">Charts on Goals load faster and keep their shape while they update.</p></article></li><li><article class="rn"><time datetime="2026-11-17">Nov 17, 2026</time><h2 class="rn-title">Clearer recommendations</h2><p class="rn-body">Each lift now says why it's ready to go up, holding steady, or due a deload.</p></article></li><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h2 class="rn-title">Logging is faster</h2><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div></div></div></div><div class="mock mock--desktop ov js-ov" data-ov="light" style="position:relative"><div class="ov-desk"><nav class="ov-rail"><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Today</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 2v3"/><path d="M3 9h18"/><path d="M8 2v3"/><path d="M17 13h-6"/><path d="M13 17H7"/><path d="M7 13h.01"/><path d="M17 17h.01"/></svg>Plan</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>History</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Goals</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg>Exercises</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>Gyms</span></nav><div class="ov-desk-col"><div class="ov-header"><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></div><div class="ov-desk-main"><span class="ov-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</span><div class="stack gap-2"><h1 class="ov-h1">What's New</h1><p class="t-sm muted">Every update to Overload, newest first.</p></div><ol class="wn-page-list"><li><article class="rn"><time datetime="2026-12-01">Dec 1, 2026</time><h2 class="rn-title">Exercise history</h2><p class="rn-body">Every lift now has its own page with recent sessions, trends, and personal bests.</p></article></li><li><article class="rn"><time datetime="2026-11-21">Nov 21, 2026</time><h2 class="rn-title">Smoother charts</h2><p class="rn-body">Charts on Goals load faster and keep their shape while they update.</p></article></li><li><article class="rn"><time datetime="2026-11-17">Nov 17, 2026</time><h2 class="rn-title">Clearer recommendations</h2><p class="rn-body">Each lift now says why it's ready to go up, holding steady, or due a deload.</p></article></li><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h2 class="rn-title">Logging is faster</h2><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div></div></div></div></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's New · populated — dark</span><span class="route">/settings/whats-new</span><span class="tag">375 · 760+</span></div><div class="pv-row"><div class="mock mock--phone mock--tall ov js-ov" data-ov="dark" data-force><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><span class="ov-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</span><div class="stack gap-2"><h1 class="ov-h1">What's New</h1><p class="t-sm muted">Every update to Overload, newest first.</p></div><ol class="wn-page-list"><li><article class="rn"><time datetime="2026-12-01">Dec 1, 2026</time><h2 class="rn-title">Exercise history</h2><p class="rn-body">Every lift now has its own page with recent sessions, trends, and personal bests.</p></article></li><li><article class="rn"><time datetime="2026-11-21">Nov 21, 2026</time><h2 class="rn-title">Smoother charts</h2><p class="rn-body">Charts on Goals load faster and keep their shape while they update.</p></article></li><li><article class="rn"><time datetime="2026-11-17">Nov 17, 2026</time><h2 class="rn-title">Clearer recommendations</h2><p class="rn-body">Each lift now says why it's ready to go up, holding steady, or due a deload.</p></article></li><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h2 class="rn-title">Logging is faster</h2><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div></div></div></div><div class="mock mock--desktop ov js-ov" data-ov="dark" data-force style="position:relative"><div class="ov-desk"><nav class="ov-rail"><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Today</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 2v3"/><path d="M3 9h18"/><path d="M8 2v3"/><path d="M17 13h-6"/><path d="M13 17H7"/><path d="M7 13h.01"/><path d="M17 17h.01"/></svg>Plan</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>History</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Goals</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg>Exercises</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>Gyms</span></nav><div class="ov-desk-col"><div class="ov-header"><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></div><div class="ov-desk-main"><span class="ov-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</span><div class="stack gap-2"><h1 class="ov-h1">What's New</h1><p class="t-sm muted">Every update to Overload, newest first.</p></div><ol class="wn-page-list"><li><article class="rn"><time datetime="2026-12-01">Dec 1, 2026</time><h2 class="rn-title">Exercise history</h2><p class="rn-body">Every lift now has its own page with recent sessions, trends, and personal bests.</p></article></li><li><article class="rn"><time datetime="2026-11-21">Nov 21, 2026</time><h2 class="rn-title">Smoother charts</h2><p class="rn-body">Charts on Goals load faster and keep their shape while they update.</p></article></li><li><article class="rn"><time datetime="2026-11-17">Nov 17, 2026</time><h2 class="rn-title">Clearer recommendations</h2><p class="rn-body">Each lift now says why it's ready to go up, holding steady, or due a deload.</p></article></li><li><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h2 class="rn-title">Logging is faster</h2><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></li></ol></div></div></div></div></div></div></section>
+<section class="pv-section" id="s5"><div class="pv-sec-head"><span class="pv-num">05</span><h3>States</h3><span class="desc">The empty page is the launch state: What's New ships with no entries, so nobody gets a dialog at rollout. Loading is a route skeleton shaped like the list. There is no error state to draw: entries are checked in the repository, and a failed “seen” save is silent.</span></div><div class="pv-grid3"><div class="pv-frame"><div class="pv-cap"><span class="name">What's New · empty (launch)</span><span class="route">/settings/whats-new</span><span class="tag">375 · no entries yet</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><span class="ov-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</span><div class="stack gap-2"><h1 class="ov-h1">What's New</h1><p class="t-sm muted">Every update to Overload, newest first.</p></div><div style="border-top:1px solid var(--ov-border);padding-top:20px"><p class="t-sm muted">No updates yet. When something changes in Overload, it's listed here.</p></div></div></div></div></div></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's New · empty — dark</span><span class="route">/settings/whats-new</span><span class="tag">375</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="dark" data-force><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><span class="ov-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</span><div class="stack gap-2"><h1 class="ov-h1">What's New</h1><p class="t-sm muted">Every update to Overload, newest first.</p></div><div style="border-top:1px solid var(--ov-border);padding-top:20px"><p class="t-sm muted">No updates yet. When something changes in Overload, it's listed here.</p></div></div></div></div></div></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's New · loading</span><span class="route">/settings/whats-new</span><span class="tag">375 · loading.tsx skeleton</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><div class="ov-sk" style="height:16px;width:72px"></div><div class="stack gap-2"><div class="ov-sk" style="height:24px;width:140px"></div><div class="ov-sk" style="height:16px;width:240px"></div></div>
+<div class="stack gap-6" style="border-top:1px solid var(--ov-border);padding-top:20px"><div class="stack gap-2"><div class="ov-sk" style="height:12px;width:96px"></div><div class="ov-sk" style="height:16px;width:192px"></div><div class="ov-sk" style="height:16px;width:100%"></div></div><div class="stack gap-2"><div class="ov-sk" style="height:12px;width:96px"></div><div class="ov-sk" style="height:16px;width:192px"></div><div class="ov-sk" style="height:16px;width:100%"></div></div><div class="stack gap-2"><div class="ov-sk" style="height:12px;width:96px"></div><div class="ov-sk" style="height:16px;width:192px"></div><div class="ov-sk" style="height:16px;width:100%"></div></div></div></div></div></div></div></div></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">No dialog — new account, rollout, or nothing unseen</span><span class="route">/</span><span class="tag">375 · the page as it is today</span></div><div class="pv-row"><div class="mock mock--phone  ov js-ov" data-ov="light"><div class="ov-app" style="position:relative"><div class="ov-mhead"><span class="ov-btn ov-btn--ghost ov-btn--icon11" aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg></span><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-push"><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></span></div><div class="ov-main"><div class="screen"><div><h1 class="ov-greet">Good morning, Robin.</h1><p class="ov-date">Push Day 1 is up. Tuesday, December 8</p></div>
+<div class="ov-block"><div class="between"><p class="semibold t-base">Push Day 1</p><span class="t-xs muted num">Week 3 of 5</span></div>
+<ul class="ov-exlist"><li><span>Barbell Bench Press</span><span class="r num">3 × 6–8</span></li><li><span>Incline Dumbbell Press</span><span class="r num">3 × 8–10</span></li><li><span>Overhead Press</span><span class="r num">3 × 6–8</span></li><li><span>Cable Fly</span><span class="r num">3 × 12–15</span></li><li><span>Triceps Pushdown</span><span class="r num">3 × 10–12</span></li></ul></div>
+<span class="ov-btn ov-btn--default ov-btn--h11 ov-btn--full">Start workout</span></div></div></div></div><p class="pv-aside"><b>New account:</b> starts with every existing entry seen; its first load opens the tour, never this dialog (AC-3).<br><br><b>Accounts at rollout:</b> no entries exist, so nothing is unseen.<br><br><b>Tour opening by itself on this load:</b> the dialog waits for a later load.<br><br><b>Seen save failed:</b> no toast; retried on close; at worst one more appearance.</p></div></div><div class="pv-frame"><div class="pv-cap"><span class="name">What's New · empty</span><span class="route">/settings/whats-new</span><span class="tag">760+</span></div><div class="pv-row"><div class="mock mock--desktop ov js-ov" data-ov="light" style="position:relative"><div class="ov-desk"><nav class="ov-rail"><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Today</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M16 2v3"/><path d="M3 9h18"/><path d="M8 2v3"/><path d="M17 13h-6"/><path d="M13 17H7"/><path d="M7 13h.01"/><path d="M17 17h.01"/></svg>Plan</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>History</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Goals</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg>Exercises</span><span class="ov-rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>Gyms</span></nav><div class="ov-desk-col"><div class="ov-header"><div class="ov-lockup ov-lockup--sm"><img src="../../public/brand/overload-mark.png" alt="">Overload</div><span class="ov-btn ov-btn--ghost ov-btn--icon" aria-label="Account menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span></div><div class="ov-desk-main"><span class="ov-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</span><div class="stack gap-2"><h1 class="ov-h1">What's New</h1><p class="t-sm muted">Every update to Overload, newest first.</p></div><div style="border-top:1px solid var(--ov-border);padding-top:20px"><p class="t-sm muted">No updates yet. When something changes in Overload, it's listed here.</p></div></div></div></div></div></div></div></section>
+<section class="pv-section" id="s6"><div class="pv-sec-head"><span class="pv-num">06</span><h3>One entry, one look everywhere</h3><span class="desc">The dialog and the page draw entries with the same block, and nothing in it depends on who is reading. That is what lets a future public changelog reuse both the content and the visual language without copying either.</span></div><div class="pv-frame"><div class="pv-cap"><span class="name">ReleaseNote block</span><span class="route">component</span><span class="tag">dialog (h3) · page (h2) · a future public changelog</span></div><div class="pv-row">
+<div class="mock mock--pane ov js-ov" data-ov="light" style="padding:20px;width:375px;flex:none"><article class="rn"><time datetime="2026-11-03">Nov 3, 2026</time><h2 class="rn-title">Logging is faster</h2><p class="rn-body">Your last weight is filled in, and you can repeat it across sets with one tap.</p></article></div>
+<table class="pv-anat" style="flex:1;min-width:320px"><tr><th>Part</th><th>Source field</th><th>Style</th></tr>
+<tr><td>Date</td><td><code>date</code> — a calendar date (YYYY-MM-DD), the shipping date</td><td><code>&lt;time&gt;</code> text-xs font-medium text-muted-foreground tabular-nums · “Nov 3, 2026”, same in every timezone</td></tr>
+<tr><td>Title</td><td><code>title</code></td><td>text-base font-semibold · heading level is a prop</td></tr>
+<tr><td>Body</td><td><code>body</code> — one to three plain sentences</td><td>text-sm leading-relaxed text-muted-foreground</td></tr>
+<tr><td>Significant</td><td><code>significant</code></td><td><b>Not drawn.</b> It decides whether the entry can open the dialog; it never changes how the entry looks</td></tr>
+<tr><td>Read state</td><td>— (private, never passed in)</td><td><b>Not drawn.</b> No unread dot, no “New”, no name — so the block renders the same for anyone</td></tr></table></div></div></section>
+<section class="pv-section" id="s7"><div class="pv-sec-head"><span class="pv-num">07</span><h3>Theme specimen</h3><span class="desc">Only stock tokens. No progress or deload color, no badge, no accent dot anywhere in this feature.</span></div><div class="pv-frame"><div class="pv-cap"><span class="name">Tokens and type this feature uses</span><span class="route">globals.css</span><span class="tag">flip the toggle to check both modes</span></div>
+<div class="mock ov js-ov" data-ov="light" style="padding:20px"><div class="pv-spec">
+<div class="pv-sw"><i style="background:var(--ov-background)"></i><div><span style="font-weight:600">background</span><br><span style="color:var(--pv-muted)">dialog surface, page</span></div></div><div class="pv-sw"><i style="background:var(--ov-foreground)"></i><div><span style="font-weight:600">foreground</span><br><span style="color:var(--pv-muted)">titles</span></div></div><div class="pv-sw"><i style="background:var(--ov-muted-foreground)"></i><div><span style="font-weight:600">muted-foreground</span><br><span style="color:var(--pv-muted)">date, body, subtitle, intro</span></div></div><div class="pv-sw"><i style="background:var(--ov-border)"></i><div><span style="font-weight:600">border</span><br><span style="color:var(--pv-muted)">dialog hairline, entry dividers</span></div></div><div class="pv-sw"><i style="background:var(--ov-primary)"></i><div><span style="font-weight:600">primary</span><br><span style="color:var(--pv-muted)">Got it, See all updates link</span></div></div><div class="pv-sw"><i style="background:var(--ov-ring)"></i><div><span style="font-weight:600">ring</span><br><span style="color:var(--pv-muted)">focus rings</span></div></div>
+</div><div class="stack gap-3" style="margin-top:20px">
+<p class="t-title">What's new <span class="t-xs muted" style="font-weight:400">— DialogTitle text-lg semibold</span></p>
+<p class="t-sm muted">3 updates since you were last here <span class="t-xs" style="font-weight:400">— DialogDescription text-sm</span></p>
+<p class="t-xs medium muted num">Nov 3, 2026 <span style="font-weight:400">— entry date text-xs medium tabular-nums</span></p>
+<p class="t-base semibold">Logging is faster <span class="t-xs muted" style="font-weight:400">— entry title text-base semibold</span></p>
+<p class="t-sm muted" style="line-height:22.75px">Your last weight is filled in, and you can repeat it across sets with one tap. <span class="t-xs">— entry body text-sm leading-relaxed</span></p>
+<p class="ov-h1">What's New <span class="t-xs muted" style="font-weight:400">— page h1 text-xl semibold</span></p>
+</div></div></div></section>
+<section class="pv-section"><div class="pv-legend">
+<div class="pv-card"><h4>Behavior commitments</h4><ul class="pv-rules">
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>Once.</b> Seen is recorded when the dialog opens; no reload, sign-in, or device shows it again.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>Together.</b> Any number of unseen significant entries share one dialog, newest first.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>Significant only.</b> Ordinary entries never interrupt; they are on the page.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>No backlog.</b> A new account starts caught up; the tour, not this dialog, owns its first visit.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>Nothing fabricated.</b> No historical or backdated entries; the page launches empty.</span></li>
+</ul></div>
+<div class="pv-card"><h4>Visual commitments</h4><ul class="pv-rules">
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>The app's own dialog.</b> Centered stock DialogContent at every width; header and Got it fixed, list scrolls.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>Thumb reach.</b> Got it is full width and 44px on phones, first in the stack.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>No read state on screen.</b> No unread dot, count badge, or “New” label in Settings or on the page.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>One entry block.</b> Date · title · body, identical in the dialog, on the page, and later in public.</span></li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span><b>Quiet.</b> No promotion, no CTA inside an entry, no icon that reads as marketing; stock tokens only.</span></li>
+</ul></div></div></section>
+<div class="pv-foot"><span>Overload · What's New — UI preview generated from <b>12-whats-new-design-doc.md</b> v1.0</span><span>Once per entry · one dialog however many · significant only · no backlog · no read state on screen · light + near-black dark</span></div>
+</div>
+<script>
+(function(){
+  var light=document.getElementById('pv-light'), dark=document.getElementById('pv-dark');
+  function set(mode){
+    document.querySelectorAll('.js-ov').forEach(function(el){ if(!el.hasAttribute('data-force')) el.setAttribute('data-ov',mode); });
+    document.documentElement.setAttribute('data-pv',mode);
+    dark.classList.toggle('on',mode==='dark'); light.classList.toggle('on',mode!=='dark');
+    dark.setAttribute('aria-selected',mode==='dark'); light.setAttribute('aria-selected',mode!=='dark');
+  }
+  light.addEventListener('click',function(){set('light');});
+  dark.addEventListener('click',function(){set('dark');});
+  // Follow the OS on first load: system is Overload's default appearance.
+  if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){set('dark');}
+})();
+</script>
+</body>
+</html>

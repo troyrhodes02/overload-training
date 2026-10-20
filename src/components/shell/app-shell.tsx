@@ -6,7 +6,9 @@ import { MobileNav } from "./mobile-nav";
 import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { Toaster } from "@/components/ui/sonner";
 import { TourProvider } from "@/components/tour/tour-provider";
+import { WhatsNewDialog } from "@/components/release-notes/whats-new-dialog";
 import type { Appearance } from "@/lib/appearance/appearance";
+import type { WhatsNewDialogData } from "@/lib/release-notes/seen";
 
 /**
  * The authenticated application shell: a top app bar, a content region, and the
@@ -21,15 +23,19 @@ import type { Appearance } from "@/lib/appearance/appearance";
  * `appearance` is the account's stored preference (read by the layout): the
  * shell keeps the document and the toasts on it. `tourAutoStart` says the
  * account is due its first onboarding tour (Onboarding Tour); the provider
- * opens it once and lets Settings replay it.
+ * opens it once and lets Settings replay it. `whatsNew` holds the significant
+ * release notes the account hasn't seen (What's New), or null; the dialog
+ * opens with all of them, once, and only from the visit's first render.
  */
 export function AppShell({
   appearance,
   tourAutoStart,
+  whatsNew,
   children,
 }: {
   appearance: Appearance;
   tourAutoStart: boolean;
+  whatsNew: WhatsNewDialogData | null;
   children: ReactNode;
 }) {
   return (
@@ -55,6 +61,7 @@ export function AppShell({
 
         {/* One toaster for the whole authenticated app (archive/undo, saves). */}
         <Toaster theme={appearance} />
+        <WhatsNewDialog data={whatsNew} />
       </div>
     </TourProvider>
   );

@@ -41,6 +41,7 @@ const OWNED = [
   "MissedDayResolution",
   "PlannedCardio",
   "Profile",
+  "ReleaseSeen",
   "Session",
   "SessionExercise",
   "TourProgress",

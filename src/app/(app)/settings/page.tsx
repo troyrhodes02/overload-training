@@ -7,14 +7,16 @@ import { ProfileForm } from "@/components/settings/profile-form";
 import { AppearanceSetting } from "@/components/settings/appearance-setting";
 import { Button } from "@/components/ui/button";
 import { ReplayTourButton } from "@/components/settings/replay-tour-button";
+import { WhatsNewSection } from "@/components/settings/whats-new-section";
 
 export const metadata = { title: "Settings · Overload" };
 
 /**
  * Settings (Accounts design doc Screen 6): routine profile editing above, the
  * appearance preference (Personalization & Navigation Polish — the only place
- * it can be changed), the tour replay (Onboarding Tour), and the one
- * irreversible action set apart below, behind its own page.
+ * it can be changed), the tour replay (Onboarding Tour), the way into the
+ * release history (What's New), and the one irreversible action set apart
+ * below, behind its own page.
  */
 export default async function SettingsPage() {
   const [account, user] = await Promise.all([requireAccount(), requireUser()]);
@@ -43,6 +45,8 @@ export default async function SettingsPage() {
         </p>
         <ReplayTourButton />
       </div>
+      {/* What's New: the permanent way into the release history. */}
+      <WhatsNewSection />
       <div className="space-y-2 border-t border-border pt-6">
         <h2 className="text-base font-semibold">Delete account</h2>
         <p className="text-sm text-muted-foreground">

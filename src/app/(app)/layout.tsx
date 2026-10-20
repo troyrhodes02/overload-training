@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { requireAccount } from "@/lib/data/account";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { getTourAutoStart } from "@/lib/tour/progress";
+import { getWhatsNewDialog } from "@/lib/release-notes/seen";
 import { AppShell } from "@/components/shell/app-shell";
 
 // This segment reads the auth session at request time, so it blocks on the
@@ -16,12 +17,21 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const account = await requireAccount();
   // The account's appearance preference: the shell keeps the document on it.
   // Whether the account is due its first onboarding tour (Onboarding Tour).
-  const [appearance, tourAutoStart] = await Promise.all([
+  // Significant release notes this account hasn't seen (What's New), read
+  // alongside: the tour owns a load on which it opens by itself, so What's
+  // New waits (R17).
+  const [appearance, tourAutoStart, unseen] = await Promise.all([
     getAccountAppearance(account),
     getTourAutoStart(account),
+    getWhatsNewDialog(account),
   ]);
+  const whatsNew = tourAutoStart ? null : unseen;
   return (
-    <AppShell appearance={appearance} tourAutoStart={tourAutoStart}>
+    <AppShell
+      appearance={appearance}
+      tourAutoStart={tourAutoStart}
+      whatsNew={whatsNew}
+    >
       {children}
     </AppShell>
   );

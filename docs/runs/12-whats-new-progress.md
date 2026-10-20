@@ -1,0 +1,74 @@
+# Pitch 12 — What's New — Run Progress
+
+Resumable state for the autonomous pipeline run. Updated at every pipeline
+transition and ticket boundary. A fresh session resumes from **Current step**.
+
+- **Slug:** `12-whats-new`
+- **Linear project:** Overload V1, team `OVE`
+- **Pitch document:** Linear doc `d52121df-bb1b-44b2-add0-debdf1906b12` → `pitches/12-whats-new.md` (verbatim copy)
+- **Classification:** Feature, UI-bearing (full pipeline incl. UI preview).
+- **Merge behavior:** run prompt says "merge on green, subject to the pipeline guide's protected-boundary rules". Guide D1 lists What's New as merge-on-green "unless the pitch text trips the rule", and says stop before merge when a pitch "changes schema on tables that hold user data" or changes signup / account deletion. Per-account seen state is the architecture's `ReleaseSeen`, a new owned table → expected **stop before merge** (decided in the spec; same reasoning as Pitch 10 R3 / Pitch 11 R3: code that reads a table production does not have yet cannot deploy before the human-applied migration). Never apply migrations to production; never enable production signup.
+- **Target branch:** `main` · **Feature branch:** `feat/12-whats-new` (cut from `origin/main` @ `2813caf`, Pitch 11 merged)
+
+## Current step
+
+**COMPLETE — stopped before merge to `main` (spec R3, guide D1).** Feature PR #72 is open and ready for review, with every ticket PR integrated and the review findings addressed. The remaining steps are human: runbook §1–§6 (apply the production migration 9e BEFORE merging), then move OVE-54…56 to Done.
+
+## Authority used (read before resuming)
+
+- Controlling planning docs: the owner's approved multi-user set (standing Pitch 8 R1) in `C:\Users\wtrho\Downloads\`: `architecture (1).md` (data model: `ReleaseSeen` — "per account: the latest release-notes entry shown. The release notes themselves are repository content, not rows"; open question: "where release-notes content lives and its entry format"), `prd (1).md` (What's New feature + journey), `pitch-roadmap (1).md` (Pitch 12), `product-brief (1).md` (2026-10-13). Pipeline guide: `Downloads/overload-pipeline-prompt-guide.md` (D1 merge rule; D2 standing: "Release backlog for a new account — starts with the latest entry already marked seen" (B); D3 temptations: unread backlog for a new account, showing the modal more than once, email/push, in-app editor; D4: "A new account has no unread release backlog, and the modal shows once per entry"). `docs/planning/` is still single-user and is not edited (except `method-note.md`, if needed).
+- Governing rules: `.claude/CLAUDE.md` (multi-user; **uncommitted owner change in the working tree — never stage it**). Root `CLAUDE.md` is stale single-user. Untracked `.claude/skills/overload-onboarding/` is the owner's — never stage it.
+- Never stage `backup-pre-ownership-20261019-1119.dump` (repo root).
+- OVE-50 (memory): signup is open behind `OVERLOAD_SIGNUP_OPEN`, no invite code; CLAUDE.md invite wording is stale. Password reset removed (no email). Do not touch either. No Resend/SMTP.
+- Owner feedback memory: UI previews are `.html` galleries from the skill template (not `.tsx`) — the run prompt's `-preview.tsx` path is replaced by `docs/previews/12-whats-new-preview.html`.
+- `/overload-onboarding`: read for the User guidance contract only. Do **not** invoke its maintenance workflow, create a guidance ticket, or add a premature entry (run prompt + pitch §14). Pitch 13 is the first guidance-ticket pitch.
+- Additional approved requirement (run prompt): release-note content is a single reusable source a future public changelog can consume (shared entries + visual language, no copying); seen state stays private; no landing page/public changelog in this pitch.
+
+## Environment hazards (read before running anything)
+
+- **`.env` contains PRODUCTION (`overload-prod`) values.** For every DB/Supabase-touching command, override `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` to the local Supabase CLI stack (`127.0.0.1:54322` / `:54321`). Integration tests use embedded throwaway Postgres.
+- Embedded test Postgres is WIN1252: migration SQL must be ASCII-only.
+- Integration runs: kill orphaned embedded postgres, random `TEST_PG_PORT`, wrap in `timeout`.
+- Migrations sort lexicographically: the new migration must sort after `9d_tour_progress` (→ `9e_…`).
+- Port 3200 is held by an unrelated process; ad-hoc servers use 3317.
+- Never pipe a browser-check script to `head`.
+
+## Pipeline status
+
+- [x] 1. Pitch pulled + authority read
+- [x] 2. Design doc — `docs/design/12-whats-new-design-doc.md` (v1.0)
+- [x] 3. UI preview — `docs/previews/12-whats-new-preview.html` (.html not the run prompt .tsx; 17 frames; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, Got it inside its frame in every dialog; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs` (+ `check.mjs`).
+- [x] 4. Spec — `docs/specs/12-whats-new-spec.md` (v1.0.0; migration `9e_release_seen`); `docs/planning/method-note.md` gains the release-note content contract
+- [x] 5. Resolved Decisions recorded in spec (R1–R30). Key: R3 stop before merge; R8 no entry ships; R9 existing accounts = no row = shown nothing; R10 signup row; R12 account floor; R13 seen on open
+- [x] 6. Linear milestone + issues (blockedBy chain)
+- [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#72** https://github.com/troyrhodes02/overload-training/pull/72
+- [x] 8. Tickets implemented — OVE-54…56 → PRs #73–#75 (stacked), all In Review
+- [x] 9. Runbook — `docs/runs/12-whats-new-runbook.md` + `docs/runs/12-sql/verify-release-seen.sql` (rehearsed on the local stack: columns, RLS t/0, trigger + 3 constraints, 0 rows, history counts)
+- [x] 10. Ticket PRs squash-merged into the feature branch in order — #73 `0f44907`, #74 `8589e45`, #75 `7bb4a83`. Each: (retarget) → merge feature branch into ticket branch (conflicts only in progress / guard test; kept the ticket's superset) → delta vs ticket tip = runbook + SQL only → Vercel pass → squash. Final feature tree == OVE-56 tip.
+- [x] 11. Full verification on `7bb4a83`: prettier, lint, tsc, prisma validate, local migrate status up to date; unit 53/879; integration 40/481; accounts e2e 26/26 (build via webServer, local env); verify:client-bundle OK; default e2e 26/26; local DB 3 users / 2 profiles / 1 tour row / 0 release_seen / 463 sets (unchanged). Visual vs preview: OVE-55 walkthrough on identical UI code (OVE-56 added e2e only).
+- [x] 12. Code review: the `code-review` skill (high) posted 8 inline comments on #72
+- [x] 13. Review audit posted at https://github.com/troyrhodes02/overload-training/pull/72#issuecomment-6304206992, with a reply on each comment: 6 implement (dialog only from the visit's first render, so a mid-visit refresh() can't open it; account-timezone floor; guarded reads; calendar.ts reuse; non-object entry reported; id must start with its date), 1 implement-part/defer (parallel read now; Account createdAt fold → Pitch 11 R34, R32), 1 skip (strict unknown-id fallback, R31). Fixes in `c4634fe`; spec v1.2.0. Finding 1 was browser-verified both ways: without the fix the dialog opened mid-visit; with it, it doesn't.
+- [x] 14. Final verification on `c4634fe`: STOP before merge (R3). prettier, lint, tsc, prisma validate, local migrate status; unit 54/885; integration 40/482; accounts e2e 26/26 (build); client-bundle OK; default e2e 26/26; Vercel pass on #72; local DB 3/2/1/0/463; entries.ts clean. #72 marked ready for review (open, not merged).
+- [x] 15. Run report — `docs/runs/12-whats-new-report.md`
+
+## Linear
+
+- Milestone: **What's New** (`c6f5d6f2-e57a-414b-9172-5c555685830f`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-54** — 1: Release-note content + seen state (catalog, ReleaseSeen, migration 9e, action, signup/deletion/isolation)
+  - **OVE-55** — 2: What's New UI (ReleaseNote, dialog, layout + shell, Settings section, history page) (blockedBy OVE-54)
+  - **OVE-56** — 3: Local-stack e2e + dialog browser walkthrough + visual verification (blockedBy OVE-55)
+
+### Ticket branches / PRs
+
+- **OVE-54** — `feat/ove-54-release-notes-seen` (off the feature branch) → PR **#73** (base: feature branch). In Review. Verified: prettier, lint, tsc, prisma validate, unit 51/873, integration 40/481 (release-notes, isolation/release-notes, release-seen-migration, deletion, ownership-enforce, RLS, schema), build (local env) + client-bundle OK; migration 9e applied to the LOCAL stack only (release_seen 0 rows, RLS on, 0 policies, migrate diff local→schema empty, anon Data API refused, 463 sets unchanged). **Spec v1.1.0 (R10):** the signup write moved into `establishProfile` (`initialReleaseSeen()` supplies the start) because the isolation guard forbids a bare `userId` outside src/lib/data; guard not weakened. Two standing guards caught this and a comment naming establishProfile — both fixed in code.
+- **OVE-55** — `feat/ove-55-whats-new-ui` (off OVE-54) → PR **#74** (base: OVE-54 branch). In Review. Verified: prettier, lint, tsc, unit 53/879, integration 40/481, build (local env) + client-bundle OK. **Browser walkthrough** (scratchpad `walk.mjs`; dev server on 3317 against the local stack; temporary uncommitted entries; `git diff --exit-code src/lib/release-notes/entries.ts` clean afterwards): 3 accounts signed up with an empty catalog had no row and no dialog; after 1 significant entry: one-entry dialog, focus on Got it, row moved on open, reload without closing → none; after 3 significant + 1 ordinary: a fresh account got exactly [Exercise history, Clearer recommendations, Logging is faster] ("3 updates since you were last here"), Got it + reload → none; desktop light/dark and phone dark renders; See all updates → page with dialog closed; 375×568 with 5 entries: Got it fully in viewport at 44px, list scrolls, Escape + reload → none; a new account signed up with entries present: tour on first load, no dialog, row = newest id, no dialog after skipping the tour; Settings section + page at 375/1280 light/dark, no horizontal scroll; empty state + back link. All 4 temporary accounts deleted through the app's deletion flow. Screenshots in scratchpad `walk/` compared with preview §01–§05 — hierarchy, copy, controls, tokens match.
+- **OVE-56** — `feat/ove-56-whats-new-e2e` (off OVE-55) → PR **#75** (base: OVE-55 branch). Adds `e2e/accounts/whats-new.spec.ts`. Verified: accounts e2e **26/26** (lifecycle 6, personalization 8, tour 8 — the tour regression with the dialog mounted — whats-new 4: auth gate, new account = tour and no dialog incl. after reload and no release_seen row with the empty catalog, Settings → page → back at 375 (44px) and 1280 (36px), empty state, no horizontal scroll, training counts unchanged); default e2e 26/26; prettier, lint, tsc. The dialog walkthrough evidence is OVE-55's run (above); it is a scratch script by design (R22). Local DB afterwards: 3 pre-existing auth users, 2 profiles, 1 tour row, 0 release_seen rows, 463 logged sets — no temporary account left. Hidden previous routes stay mounted in this Next version (route preservation), so page-text assertions are scoped to visible elements.
+
+## Resolved Decisions so far
+
+See spec `## Resolved Decisions` R1–R33. Headline: R3 stop before merge; R8 no entry ships; R9 existing accounts = no row = shown nothing; R10 signup row in establishProfile; R12 account-timezone floor; R13 seen on open; R17 the tour owns its load, and the dialog opens only from a visit's first render.
+
+## Deferred / notes
+
+- Scratchpad helpers from Pitch 11 (`localenv.sh`, preview build scripts) lived in that session's scratchpad and are gone; recreate as needed.

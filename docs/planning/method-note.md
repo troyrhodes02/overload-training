@@ -93,3 +93,14 @@ Source: `docs/specs/04-guided-workout-logging-spec.md` §8. These extend the Arc
 - **`LoggedSession.scheduledFor` (DATE)** — the authored calendar date of the planned occurrence; the idempotency key `(sessionId, scheduledFor)` so opening/resuming never duplicates a session.
 - **`LoggedExercise` plan-context snapshot** — `plannedExerciseId`, `sessionExerciseId` (SetNull), `plannedSets`, `targetRepMin`, `targetRepMax`: durable plan provenance so later plan edits can't make old history unintelligible. `exerciseId` is the **performed** exercise (changes on swap); `plannedExerciseId` is immutable.
 - **`MissedDayResolution { mesocycleId, sessionId?, missedOn (DATE), outcome }`**, `outcome ∈ MissedDayOutcome { logged_late, shifted, skipped }`, unique `(mesocycleId, missedOn)`, immutable in Pitch 4, RLS deny-all. The effective training schedule is derived from the authored `Mesocycle` plus these records; the template is never mutated. Shifts are computed **per mesocycle week independently** (current-week scope; a shifted occurrence beyond the week is dropped, never carried forward).
+
+## Release-note content contract (established by What's New)
+
+Source: `docs/specs/12-whats-new-spec.md` §8 "Release-note content contract" (Resolved Decisions R5–R12). Code: `src/lib/release-notes/entries.ts` (the only place entries live), `types.ts` (`ReleaseNoteEntry`), `catalog.ts` (validation, order, formatting, selection), `seen.ts` (per-account `ReleaseSeen`, server-only). Consumed by `overload-onboarding` from Faster Logging UX (Pitch 13) onward.
+
+- **Entry fields:** `id` (permanent kebab-case slug that starts with its own date, `YYYY-MM-DD-short-name`, ≤ 64, unique, never reused or changed), `date` (shipping date `YYYY-MM-DD`, never planned or backdated), `title` (1–80 chars, one line), `body` (1–400 chars, one to three plain sentences, no HTML or Markdown links), `significant` (boolean: may open the What's New dialog).
+- **Adding one:** put a new object at the **top** of `RELEASE_NOTES`, dated the day it reaches production. Nothing else changes (no component, page, action, migration, or test edit). CI validates the file.
+- **Order:** file order, newest first, validated non-increasing by date; same-date entries keep file order (upper = newer).
+- **Never** delete, re-order, or re-date a published entry, or change its `id` (each account's seen point refers to it). Correct wording mistakes in place only.
+- **Seen state:** `ReleaseSeen` (one row per account) stores the newest entry shown. A new account starts at the newest entry; an account with no row has been shown nothing; an entry dated before an account's creation (its calendar date in the account's timezone) is never unseen. The dialog opens only on a full page load, never mid-visit. The dialog marks seen when it opens.
+- **No tour link field** exists (R20). The launch catalog is empty (R8).
