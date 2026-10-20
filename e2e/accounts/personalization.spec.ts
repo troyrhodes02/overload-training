@@ -345,3 +345,38 @@ test("a missing timezone still gets a sensible greeting, not an error", async ()
   await expect(page.getByText("No active plan.")).toBeVisible();
   await setOwnTimeZone(P.email, "America/Denver");
 });
+
+/** Test-only: make this suite's own temporary account look pre-usernames. */
+async function clearOwnUsername(email: string) {
+  const db = new Client({ connectionString: DB_URL });
+  await db.connect();
+  try {
+    await db.query(
+      `UPDATE profiles SET username = NULL
+        WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
+      [email],
+    );
+  } finally {
+    await db.end();
+  }
+}
+
+test("an account from before usernames can still save Settings without one (OVE-50)", async () => {
+  await clearOwnUsername(P.email);
+  await page.goto("/settings");
+  await expect(page.getByLabel("Username")).toHaveValue("");
+  await page.getByLabel("Timezone").selectOption("Europe/Berlin");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Settings saved")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Timezone")).toHaveValue("Europe/Berlin");
+  await expect(page.getByLabel("Username")).toHaveValue("");
+  // Choosing one later works; after that it can't be cleared.
+  await page.getByLabel("Username").fill(P.username);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Settings saved")).toBeVisible();
+  await page.getByLabel("Username").fill("");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Choose a username.")).toBeVisible();
+  await expect(page.getByLabel("Username")).toBeFocused();
+});

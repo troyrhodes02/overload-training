@@ -1,5 +1,4 @@
 import "server-only";
-import { DomainError } from "@/lib/actions/result";
 import { isValidTimeZone } from "@/lib/plan/calendar";
 import {
   DEFAULT_PROFILE_TIME_ZONE,
@@ -9,6 +8,7 @@ import { isUsernameAvailable } from "@/lib/data/usernames";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
 import { isSignupOpen } from "./signup-gate";
+import { UsernameTakenError } from "./username-taken";
 import {
   checkEmail,
   checkName,
@@ -174,8 +174,7 @@ export async function signUp(
   } catch (error) {
     // The unique index refused the username: another signup took it between
     // the availability check and the profile write.
-    const lostUsernameRace =
-      error instanceof DomainError && error.code === "conflict";
+    const lostUsernameRace = error instanceof UsernameTakenError;
     console.error(
       "signup: compensating a partially created account",
       error instanceof Error ? error.name : "unknown",

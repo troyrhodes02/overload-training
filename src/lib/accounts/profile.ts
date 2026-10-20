@@ -1,7 +1,8 @@
 import "server-only";
-import { DomainError, isUniqueViolation } from "@/lib/actions/result";
-import { usernameTaken, type Account } from "@/lib/data/account";
+import { DomainError } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
 import type { AccountDb, AccountTx } from "@/lib/data/account-db";
+import { asUsernameConflict } from "./username-taken";
 import { parseProfileInput, type ProfileInput } from "./validation";
 
 /**
@@ -40,7 +41,10 @@ export async function getSettingsProfile(
 /**
  * Saves names, username, and timezone for the acting account only. A username
  * another account holds is refused by the unique index and reported as
- * "taken" — which says that the name is in use and nothing else.
+ * "taken" — which says that the name is in use and nothing else. Whether a
+ * username is required comes from the stored profile: an account without one
+ * may save with it empty (it stays NULL); one that has a username can change
+ * it but never clear it.
  */
 export async function updateProfile(
   account: Account,
@@ -52,7 +56,14 @@ export async function updateProfile(
   },
   tx?: AccountTx,
 ): Promise<ProfileInput> {
-  const parsed = parseProfileInput(raw);
+  const db = tx ?? account.db;
+  const stored = await db.profile.findUnique({
+    where: { userId: account.userId },
+    select: { username: true },
+  });
+  const parsed = parseProfileInput(raw, {
+    usernameRequired: stored?.username != null,
+  });
   if (!parsed.ok) {
     throw new DomainError(
       "validation_error",
@@ -60,14 +71,17 @@ export async function updateProfile(
       parsed.details,
     );
   }
+  // An empty username means "still none": leave the column untouched, so
+  // this path can never clear a username.
+  const { username, ...rest } = parsed.value;
   let count: number;
   try {
-    ({ count } = await (tx ?? account.db).profile.updateMany({
+    ({ count } = await db.profile.updateMany({
       where: { userId: account.userId },
-      data: parsed.value,
+      data: username ? { ...rest, username } : rest,
     }));
   } catch (error) {
-    throw isUniqueViolation(error) ? usernameTaken() : error;
+    throw asUsernameConflict(error);
   }
   if (count !== 1) throw new DomainError("not_found", "Profile not found.");
   return parsed.value;

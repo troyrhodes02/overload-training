@@ -145,19 +145,27 @@ export type ProfileParse =
   | { ok: false; details: Partial<Record<keyof ProfileInput, string>> };
 
 /**
- * Settings: both names and a username required (an account made before
- * usernames picks one on its first save), and a real IANA timezone.
+ * Settings: both names and a real IANA timezone. A username is required once
+ * the account has one (it can be changed, never cleared). An account made
+ * before usernames may leave it empty, so it can still fix its name or
+ * timezone; `username: ""` then means "still none".
  */
-export function parseProfileInput(raw: {
-  firstName: unknown;
-  lastName: unknown;
-  username: unknown;
-  timeZone: unknown;
-}): ProfileParse {
+export function parseProfileInput(
+  raw: {
+    firstName: unknown;
+    lastName: unknown;
+    username: unknown;
+    timeZone: unknown;
+  },
+  { usernameRequired = true }: { usernameRequired?: boolean } = {},
+): ProfileParse {
   const details: Partial<Record<keyof ProfileInput, string>> = {};
   const first = checkName("firstName", raw.firstName);
   const last = checkName("lastName", raw.lastName);
-  const username = checkUsername(raw.username);
+  const username =
+    !usernameRequired && normalizeUsername(raw.username) === ""
+      ? ({ ok: true, value: "" } as const)
+      : checkUsername(raw.username);
   if (!first.ok) details.firstName = first.message;
   if (!last.ok) details.lastName = last.message;
   if (!username.ok) details.username = username.message;

@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved (owner request, 2026-10-20)
 author: Claude Code
 last_updated: 2026-10-20
@@ -40,16 +40,16 @@ Two things keep it safe:
 
 | # | Decision | Rationale | Authority |
 | - | -------- | --------- | --------- |
-| U1 | The invite gate (`OVERLOAD_INVITE_CODE`, `src/lib/accounts/invite.ts`) is removed. Signup is open to anyone while `OVERLOAD_SIGNUP_OPEN` is exactly `true` (trimmed, case-insensitive), and closed otherwise. | Owner: "I don't want it to be me that has to invite a user." The switch keeps the CLAUDE.md rule that signup stays closed in production until Multi-User Foundation is verified there. Without it, merging would open production signup the moment it deployed. It is also the off switch if abuse appears. | Owner instruction; `.claude/CLAUDE.md` Access model (amendment flagged, §10) |
+| U1 | The invite gate (`OVERLOAD_INVITE_CODE`, `src/lib/accounts/invite.ts`) is removed. Signup is open to anyone while `OVERLOAD_SIGNUP_OPEN` is `true` (case and surrounding spaces ignored), and closed for anything else or when unset. | Owner: "I don't want it to be me that has to invite a user." The switch keeps the CLAUDE.md rule that signup stays closed in production until Multi-User Foundation is verified there. Without it, merging would open production signup the moment it deployed. It is also the off switch if abuse appears. | Owner instruction; `.claude/CLAUDE.md` Access model (amendment flagged, §10) |
 | U2 | Accounts are still created with the Supabase admin API, and Supabase's own "Allow new users to sign up" stays **OFF**. | With project signup on, the browser's anon key could create auth users directly, skipping the app's checks (names, unique username, profile). The admin path keeps the app the only door. | Accounts R3 |
 | U3 | Username rules: trimmed, a leading `@` dropped, lowercased, then `^[a-z0-9_]{3,20}$`. Stored lowercase, so uniqueness ignores case ("Sam" and "sam" are the same name). | Lowercase storage makes a plain unique index enforce case-insensitive uniqueness, with no functional index or citext. The rule is URL-safe and easy to type for the future "find by username". | Owner: "never identical usernames" |
 | U4 | The database enforces both uniqueness (`profiles_username_key` unique index) and shape (`profiles_username_format` CHECK). The column is nullable; Postgres allows many NULLs under a unique index. | Application checks can race; the database can't be raced. Nullable because existing accounts have no username, and inventing ones for them would be guessing. | CLAUDE.md layered enforcement |
 | U5 | Reserved names are refused: admin, administrator, help, me, moderator, null, official, overload, root, settings, staff, support, system, undefined. | Cheap now, impossible to take back later once friends can see usernames. Reserved names could pass for Overload itself or a route. | Judgment |
-| U6 | Signup pre-checks availability (`isUsernameAvailable` in `src/lib/data/usernames.ts`). It is the one cross-account question the app asks, and it answers yes or no only. The unique index stays the authority: losing a race at the profile write is compensated (auth user deleted, auth session cleared) and reported as "That username is taken." | Without the pre-check, a taken username would create and then delete an auth user every time, and "email exists" would be reported before "username taken". Never returning more than a boolean keeps it from leaking anything else about the holder. | CLAUDE.md first invariant |
+| U6 | Signup pre-checks availability (`isUsernameAvailable` in `src/lib/data/usernames.ts`). It is the one cross-account question the app asks, and it answers yes or no only. The unique index stays the authority: losing a race at the profile write raises `UsernameTakenError` (never a generic conflict), which is compensated (auth user deleted, auth session cleared) and reported as "That username is taken." | Without the pre-check, a taken username would create and then delete an auth user every time, and "email exists" would be reported before "username taken". Never returning more than a boolean keeps it from leaking anything else about the holder. | CLAUDE.md first invariant |
 | U7 | "That username is taken." is shown at signup and in Settings. It reveals that **some** account uses that name, and nothing else. | Inherent to unique usernames: they are meant to be public handles later. No name, id, or data of the holder is revealed. | Owner requirement; CLAUDE.md "never show another account's name" (a username is not shown, only refused) |
 | U8 | With no invite gate in front of it, "An account with this email already exists." now tells anyone whether an email has an account. Accepted. | With no email verification, signup can't hide this: the account can't be created, and saying so is the only honest answer. Mitigations: the runbook's Vercel Firewall rate limit on `/signup`, and the off switch. Login still gives one message for an unknown email and a wrong password. | Known risk, flagged for the owner |
 | U9 | Confirm password must equal the password exactly (no trimming). Mismatch → "Passwords don't match."; empty → "Enter your password again." Neither password is ever echoed back or logged. | Owner request. Checking on the server too means a scripted post can't skip it. | Owner instruction |
-| U10 | Settings requires a username to save. An account created before usernames sees an empty field and picks one on its next save. | One form, one rule. There's no separate "claim your username" flow to build or test. | Judgment |
+| U10 | *(amended in review)* An account that has **no** username yet may save Settings with the field empty: it stays NULL, and its name and timezone still save. Once an account has a username, it can be changed but never cleared. The server decides from the stored profile, never from client input; the form mirrors it. | Requiring it would stop an existing lifter fixing the timezone that drives "today" until they picked a username they hadn't asked for (review finding 5). | Review audit on #67 |
 | U11 | No design doc or UI preview. The change adds fields to two existing screens (Signup, Settings) using existing components and patterns. | Proportional: no new screen, state, or component. Screenshots were checked at phone width in light and dark. | Judgment; flagged in the PR |
 | U12 | Abuse controls are operational, not code: a Vercel Firewall rate-limit rule on `POST /signup` (runbook) and the off switch. No CAPTCHA, no app-level rate limiter. | CLAUDE.md rules out a cache or queue layer, which an app-level limiter would need. The admin API has no Supabase rate limit of its own. | CLAUDE.md infrastructure non-goals |
 
@@ -87,7 +87,7 @@ The migration is additive. No table is created (RLS unchanged: on, no policies),
 5. Sign in, then `establishProfile` with names, username, and the device timezone.
 6. Any failure after step 4 → delete the auth user, clear the auth session. A username lost to a race reports "That username is taken."; anything else reports "unexpected".
 
-**Settings** (`updateProfile`): parses names, username, and timezone, then `updateMany` scoped to the acting account. A unique violation becomes `conflict` / "That username is taken." on the username field. Re-saving your own username is not a conflict. Changing it frees the old name immediately.
+**Settings** (`updateProfile`): reads the stored username, then parses names, username, and timezone; the username is required only if one is stored. It then runs `updateMany` scoped to the acting account. An empty username leaves the column untouched, so this path can never clear one. A unique violation becomes `UsernameTakenError` / "That username is taken." on the username field (one mapping, `asUsernameConflict`, shared with signup). Re-saving your own username is not a conflict. Changing it frees the old name immediately.
 
 **Signup switch** (`src/lib/accounts/signup-gate.ts`): the only reader of `OVERLOAD_SIGNUP_OPEN` (guard test). The variable is server-only and is in the client-bundle scan's forbidden list.
 
@@ -95,7 +95,7 @@ The migration is additive. No table is created (RLS unchanged: on, no policies),
 
 | Field | Rule | Message |
 | ----- | ---- | ------- |
-| username | empty | Choose a username. |
+| username | empty (signup; Settings once the account has one) | Choose a username. |
 | username | a character outside a–z, 0–9, `_` (after lowercasing) | Use only letters, numbers, and underscores. |
 | username | fewer than 3 or more than 20 characters | Use 3 to 20 characters. |
 | username | reserved | That username isn't available. |
@@ -109,7 +109,7 @@ Helper text under both username fields: "3–20 characters: lowercase letters, n
 
 - **Signup:** no invite-code field. Order: First name, Last name, Username (helper text), Email, Password, Confirm password. After a server error both password fields are cleared and the first problem is focused. Closed state: "Signup isn't open. New accounts can't be created right now. If you already have one, sign in."
 - **Login footer:** "New to Overload? Create an account".
-- **Settings → Profile:** a Username field between the names and the read-only email. Save is enabled when anything differs from what's saved, compared normalized.
+- **Settings → Profile:** a Username field between the names and the read-only email (one shared text-field component for names and username). Save is enabled when anything differs from what's saved, compared normalized. A failed client check focuses the first failing field in form order, timezone included.
 - **Metadata description:** "A strength training tracker."
 
 ## 8. Testing
@@ -148,7 +148,7 @@ Helper text under both username fields: "3–20 characters: lowercase letters, n
 
 ## 10. Upstream amendments (not made here)
 
-- `.claude/CLAUDE.md`, still uncommitted:
+- `.claude/CLAUDE.md`, still uncommitted (review findings 1–4 on #67 point at these):
   - opening paragraph ("It is invite-only and used by a small group of friends");
   - Stack/Secrets ("the invite code");
   - Access and registration model ("requires a valid invite code", "open without the invite gate", "loosen the invite gate");
@@ -156,7 +156,13 @@ Helper text under both username fields: "3–20 characters: lowercase letters, n
   - Testing item 6 ("signup rejects a missing or wrong invite code");
   - the stop condition "open without the invite gate".
   
-  These should describe open self-signup behind `OVERLOAD_SIGNUP_OPEN`, and usernames. The data-model list should note `Profile.username`.
+  These should describe open self-signup behind `OVERLOAD_SIGNUP_OPEN`, and usernames.
+
+  Two exceptions should also be named:
+  - **First invariant:** a username's *existence* is the one fact one account can learn about another, by being refused it.
+  - **Data access:** `isUsernameAvailable` is the one cross-account read (yes/no only, signup only).
+
+  "Uniqueness is per account" should note that the username is the one deliberately global constraint. The data-model list should note `Profile.username`.
 - PRD / Roadmap / Pitch 9 doc: the invite requirement is superseded.
 - `overload-ui-design` skill's Login guidance and single-user wording (already stale, Accounts R19).
 

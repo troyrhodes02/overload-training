@@ -36,7 +36,8 @@ type Errors = Partial<Record<Field, string>>;
 /**
  * Name, username, and timezone for the signed-in account (Accounts design doc
  * Screen 6; OVE-50). An account made before usernames starts with the field
- * empty and must choose one to save.
+ * empty and may keep it empty; once it has a username it can change it but
+ * not clear it.
  * Save stays disabled until something differs from what is saved. The
  * device-zone hint is read only on the client (null on the server render, so
  * hydration matches) and only suggests: the saved zone changes only on Save.
@@ -63,6 +64,7 @@ export function ProfileForm({
   const firstRef = useRef<HTMLInputElement>(null);
   const lastRef = useRef<HTMLInputElement>(null);
   const usernameRef = useRef<HTMLInputElement>(null);
+  const zoneRef = useRef<HTMLSelectElement>(null);
 
   // Toasts are an external system: the effect only notifies, never sets state.
   useEffect(() => {
@@ -100,15 +102,21 @@ export function ProfileForm({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const parsed = parseProfileInput(values);
+    // The server decides from the stored profile; this mirrors it for quick
+    // feedback: an account with no username yet may leave it empty.
+    const parsed = parseProfileInput(values, {
+      usernameRequired: saved.username !== "",
+    });
     if (!parsed.ok) {
       setClientErrors(parsed.details);
-      const firstBad = parsed.details.firstName
-        ? firstRef
-        : parsed.details.lastName
-          ? lastRef
-          : usernameRef;
-      firstBad.current?.focus();
+      // Focus the first failing field in form order.
+      const order: [Field, React.RefObject<HTMLElement | null>][] = [
+        ["firstName", firstRef],
+        ["lastName", lastRef],
+        ["username", usernameRef],
+        ["timeZone", zoneRef],
+      ];
+      order.find(([field]) => parsed.details[field])?.[1].current?.focus();
       return;
     }
     setClientErrors({});
@@ -128,7 +136,7 @@ export function ProfileForm({
         <h2 className="text-sm font-medium text-muted-foreground">Profile</h2>
         <div className="space-y-4 rounded-lg border border-border bg-card p-4">
           <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-            <NameField
+            <TextField
               id="firstName"
               label="First name"
               autoComplete="given-name"
@@ -137,7 +145,7 @@ export function ProfileForm({
               error={errorFor("firstName")}
               onChange={(v) => set("firstName", v)}
             />
-            <NameField
+            <TextField
               id="lastName"
               label="Last name"
               autoComplete="family-name"
@@ -147,41 +155,20 @@ export function ProfileForm({
               onChange={(v) => set("lastName", v)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              ref={usernameRef}
-              id="username"
-              name="username"
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck={false}
-              // Room for a leading "@", which normalizeUsername drops.
-              maxLength={USERNAME_MAX + 1}
-              className="h-11 aria-invalid:border-destructive"
-              value={values.username}
-              // Shown as it will be stored: usernames are lowercase.
-              onChange={(e) => set("username", e.target.value.toLowerCase())}
-              aria-invalid={Boolean(errorFor("username"))}
-              aria-describedby={
-                errorFor("username")
-                  ? "username-help username-error"
-                  : "username-help"
-              }
-            />
-            <p id="username-help" className="text-sm text-muted-foreground">
-              {USERNAME_HELP}
-            </p>
-            {errorFor("username") && (
-              <p
-                id="username-error"
-                role="alert"
-                className="text-sm text-destructive"
-              >
-                {errorFor("username")}
-              </p>
-            )}
-          </div>
+          <TextField
+            id="username"
+            label="Username"
+            autoComplete="username"
+            inputRef={usernameRef}
+            value={values.username}
+            error={errorFor("username")}
+            help={USERNAME_HELP}
+            // Room for a leading "@", which normalizeUsername drops.
+            maxLength={USERNAME_MAX + 1}
+            // Shown as it will be stored: usernames are lowercase.
+            onChange={(v) => set("username", v.toLowerCase())}
+            plain
+          />
           <div className="space-y-2">
             <p className="text-sm leading-none font-medium">Email</p>
             <p className="text-sm text-muted-foreground">{email}</p>
@@ -197,6 +184,7 @@ export function ProfileForm({
               Timezone
             </Label>
             <NativeSelect
+              ref={zoneRef}
               id="timeZone"
               name="timeZone"
               className="h-11 aria-invalid:border-destructive"
@@ -270,23 +258,38 @@ export function ProfileForm({
   );
 }
 
-function NameField({
+/**
+ * One labelled text input with optional help text and its inline error, wired
+ * for screen readers (aria-invalid, aria-describedby). `plain` turns off
+ * autocapitalize and spellcheck, for identifiers such as the username.
+ */
+function TextField({
   id,
   label,
   autoComplete,
   inputRef,
   value,
   error,
+  help,
+  maxLength = PROFILE_NAME_MAX,
+  plain = false,
   onChange,
 }: {
-  id: "firstName" | "lastName";
+  id: Field;
   label: string;
   autoComplete: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
   value: string;
   error?: string;
+  help?: string;
+  maxLength?: number;
+  plain?: boolean;
   onChange: (value: string) => void;
 }) {
+  const describedBy =
+    [help ? `${id}-help` : null, error ? `${id}-error` : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
@@ -295,13 +298,19 @@ function NameField({
         id={id}
         name={id}
         autoComplete={autoComplete}
-        maxLength={PROFILE_NAME_MAX}
+        {...(plain ? { autoCapitalize: "none", spellCheck: false } : {})}
+        maxLength={maxLength}
         className="h-11 aria-invalid:border-destructive"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${id}-error` : undefined}
+        aria-describedby={describedBy}
       />
+      {help && (
+        <p id={`${id}-help`} className="text-sm text-muted-foreground">
+          {help}
+        </p>
+      )}
       {error && (
         <p id={`${id}-error`} role="alert" className="text-sm text-destructive">
           {error}

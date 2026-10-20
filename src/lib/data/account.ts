@@ -1,8 +1,11 @@
 import "server-only";
 import { cache } from "react";
 import { requireUser } from "@/lib/auth";
-import { DomainError, isUniqueViolation } from "@/lib/actions/result";
-import { USERNAME_TAKEN } from "@/lib/accounts/validation";
+import { isUniqueViolation } from "@/lib/actions/result";
+import {
+  asUsernameConflict,
+  UsernameTakenError,
+} from "@/lib/accounts/username-taken";
 import { isValidTimeZone, todayIso } from "@/lib/plan/calendar";
 import {
   createAccountClient,
@@ -66,8 +69,8 @@ export async function resolveAccount(userId: string): Promise<Account> {
  * input. If a lazy profile raced in (a concurrent first request), it is
  * completed, not duplicated. Only the signup module calls this (guard tests).
  *
- * Throws a `conflict` DomainError when the username was taken in the meantime
- * (the unique index decides; see isUsernameAvailable).
+ * Throws UsernameTakenError when the username was taken in the meantime (the
+ * unique index decides; see isUsernameAvailable).
  */
 export async function establishProfile(
   user: { id: string },
@@ -96,20 +99,13 @@ export async function establishProfile(
     // Either this account's profile already exists (a lazy profile raced in)
     // or another account holds the username. Only the first is completable.
     const own = await db.profile.findUnique({ where: { userId: user.id } });
-    if (!own) throw usernameTaken();
+    if (!own) throw new UsernameTakenError();
   }
   try {
     await db.profile.updateMany({ where: { userId: user.id }, data });
   } catch (error) {
-    throw isUniqueViolation(error) ? usernameTaken() : error;
+    throw asUsernameConflict(error);
   }
-}
-
-/** The one error a username collision becomes, for signup and Settings. */
-export function usernameTaken(): DomainError {
-  return new DomainError("conflict", USERNAME_TAKEN, {
-    username: USERNAME_TAKEN,
-  });
 }
 
 /**

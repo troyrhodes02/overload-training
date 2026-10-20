@@ -29,7 +29,7 @@ impossible at the database level, whatever the app does.
 **What changes in configuration:**
 
 - The invite code is gone. `OVERLOAD_INVITE_CODE` is ignored from this release on.
-- Signup is controlled by a new server-only switch, **`OVERLOAD_SIGNUP_OPEN`**. Signup is open only when it is `true`, and closed when it is unset.
+- Signup is controlled by a new server-only switch, **`OVERLOAD_SIGNUP_OPEN`**. Signup is open only when it is `true` (case and surrounding spaces ignored), and closed for anything else or when it is unset.
 
 So merging this **closes signup** until you set the switch (§7), even if you
 had opened invite-only signup before.
@@ -177,9 +177,10 @@ and skip those checks.
 - [ ] Settings → Profile shows an empty **Username** field. Choose your username
       and Save → "Settings saved". Reload: it's still there, in lowercase.
 - [ ] Try `admin` → "That username isn't available." (reserved); nothing saved.
-- [ ] If friends already have accounts: tell them to choose a username in
-      Settings. Until they do, theirs is empty, which is allowed. They're asked
-      for one the next time they save their profile.
+- [ ] If friends already have accounts: ask them to choose a username in
+      Settings. Until they do, theirs stays empty, which is allowed. They can
+      still save their name and timezone without one, and once they've chosen
+      one they can change it but not clear it.
 
 ---
 
@@ -256,18 +257,21 @@ Accounts runbook §8 (`docs/runs/09-accounts-signup-login-password-reset-runbook
 ## 10. What was verified (local stack + embedded test DB only)
 
 - Format, lint, typecheck: pass.
-- Unit 43 suites / 746 tests. Includes: the signup switch; username rules and
+- Unit 43 suites / 748 tests. Includes: the signup switch; username rules and
   their agreement with the database CHECK; signup orchestration including
-  confirm mismatch, a taken username, and a lost race compensated; guard tests
-  (only the gate reads the switch, no invite code anywhere, only signup asks
-  whether a username is free).
-- Integration 34 suites / 434 tests. Includes the isolation suite's username
+  confirm mismatch, a taken username, a lost race compensated, and a
+  different conflict not reported as "taken"; guard tests (only the gate
+  reads the switch, no invite code anywhere, only signup asks whether a
+  username is free).
+- Integration 34 suites / 436 tests. Includes the isolation suite's username
   cases:
   - another account can't take, change, or read a username, in any case;
   - the availability check answers yes/no only;
   - the database refuses duplicates, uppercase, and malformed values;
   - two concurrent saves of one name: exactly one wins;
-  - a taken name at signup creates nothing.
+  - a taken name at signup creates nothing;
+  - an account without a username still saves name and timezone;
+  - a username can't be cleared once set.
   
   Also the schema checks for the column, index, and CHECK.
 - `prisma migrate diff` from the migrations to the schema: empty (no drift).
@@ -275,13 +279,15 @@ Accounts runbook §8 (`docs/runs/09-accounts-signup-login-password-reset-runbook
   `prisma migrate deploy`; `docs/runs/ove-50-sql/verify-username.sql`
   rehearsed there (results in §4).
 - Production build with the switch on; `verify:client-bundle` OK.
-- Default e2e 26 passed (signup closed without the switch). Accounts e2e 13
+- Default e2e 26 passed (signup closed without the switch). Accounts e2e 14
   passed on the local stack, including:
   - no invite field;
   - mismatched passwords create nothing;
   - a capitalized username is stored lowercase;
   - email taken; username taken in another case creates nothing;
-  - Settings rename, another account refused the name, the old name freed.
+  - Settings rename, another account refused the name, the old name freed;
+  - an account from before usernames saves its timezone with the field
+    empty, then picks one, which can't be cleared afterwards.
   
   Temporary accounts only, each removed through the app.
 - Screens checked at phone width in light and dark (signup with errors,

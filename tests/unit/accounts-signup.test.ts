@@ -14,6 +14,7 @@ jest.mock("@/lib/data/usernames", () => ({
 }));
 
 import { DomainError } from "@/lib/actions/result";
+import { UsernameTakenError } from "@/lib/accounts/username-taken";
 import { isSignupOpen } from "@/lib/accounts/signup-gate";
 import { signUp, type SignUpDeps } from "@/lib/accounts/signup";
 
@@ -222,7 +223,7 @@ describe("signUp orchestration (OVE-50)", () => {
   it("losing the username race is compensated and reported as taken", async () => {
     const d = deps({
       establishProfile: jest.fn(async () => {
-        throw new DomainError("conflict", "That username is taken.");
+        throw new UsernameTakenError();
       }),
     });
     expect(await signUp(valid, d, OPEN)).toEqual({
@@ -231,6 +232,16 @@ describe("signUp orchestration (OVE-50)", () => {
     });
     expect(d.deleteAuthUser).toHaveBeenCalledWith(NEW_ID);
     expect(d.signOut).toHaveBeenCalled();
+  });
+
+  it("any other conflict is compensated and reported as unexpected, not as a taken username", async () => {
+    const d = deps({
+      establishProfile: jest.fn(async () => {
+        throw new DomainError("conflict", "Something else conflicted.");
+      }),
+    });
+    expect(await signUp(valid, d, OPEN)).toEqual({ kind: "unexpected" });
+    expect(d.deleteAuthUser).toHaveBeenCalledWith(NEW_ID);
   });
 
   it("never logs the email, names, username, or password", async () => {

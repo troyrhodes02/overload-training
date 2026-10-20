@@ -8,6 +8,7 @@ import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { getSettingsProfile, updateProfile } from "@/lib/accounts/profile";
 import { isUsernameAvailable } from "@/lib/data/usernames";
+import { UsernameTakenError } from "@/lib/accounts/username-taken";
 import {
   getAccountAppearance,
   updateAppearance,
@@ -316,7 +317,9 @@ describe("usernames: unique across accounts, private otherwise (OVE-50)", () => 
     const b = await createTestAccount();
     await save(a, "sam_r");
     for (const attempt of ["sam_r", "Sam_R", "@SAM_R"]) {
-      await expect(save(b, attempt)).rejects.toEqual(
+      const error = await save(b, attempt).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(UsernameTakenError);
+      expect(error).toEqual(
         expect.objectContaining({
           code: "conflict",
           message: "That username is taken.",
@@ -326,6 +329,38 @@ describe("usernames: unique across accounts, private otherwise (OVE-50)", () => 
     }
     expect(await usernameOf(a.userId)).toBe("sam_r");
     expect(await usernameOf(b.userId)).toBeNull();
+  });
+
+  it("an account without a username can still save its name and timezone (it stays without one)", async () => {
+    const a = await createTestAccount("America/Chicago");
+    await updateProfile(a, {
+      firstName: "William",
+      lastName: "Rhodes",
+      username: "",
+      timeZone: "Europe/Berlin",
+    });
+    expect(
+      await getTestPrisma().profile.findUniqueOrThrow({
+        where: { userId: a.userId },
+      }),
+    ).toMatchObject({
+      firstName: "William",
+      lastName: "Rhodes",
+      username: null,
+      timeZone: "Europe/Berlin",
+    });
+  });
+
+  it("once an account has a username it can be changed but never cleared", async () => {
+    const a = await createTestAccount();
+    await save(a, "keep_me");
+    for (const empty of ["", "   "]) {
+      await expect(save(a, empty)).rejects.toMatchObject({
+        code: "validation_error",
+        details: { username: "Choose a username." },
+      });
+    }
+    expect(await usernameOf(a.userId)).toBe("keep_me");
   });
 
   it("re-saving your own username is not a conflict, and changing it frees the old one", async () => {

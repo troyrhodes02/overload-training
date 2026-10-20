@@ -168,6 +168,27 @@ describe("usernames (OVE-50)", () => {
     }
   });
 
+  it("an account with no username yet may save with it empty; malformed is still refused", () => {
+    const base = { firstName: "W", lastName: "R", timeZone: "UTC" };
+    expect(
+      parseProfileInput(
+        { ...base, username: "  " },
+        { usernameRequired: false },
+      ),
+    ).toEqual({ ok: true, value: { ...base, username: "" } });
+    expect(
+      parseProfileInput(
+        { ...base, username: "ab" },
+        { usernameRequired: false },
+      ),
+    ).toEqual({ ok: false, details: { username: "Use 3 to 20 characters." } });
+    // By default (an account that has a username) it is required.
+    expect(parseProfileInput({ ...base, username: "" })).toEqual({
+      ok: false,
+      details: { username: "Choose a username." },
+    });
+  });
+
   it("reserved names are refused regardless of case", () => {
     expect(RESERVED_USERNAMES.has("admin")).toBe(true);
     for (const name of ["admin", "Overload", "@Support", "ROOT"]) {
