@@ -38,7 +38,7 @@ import { TourOverlay } from "./tour-overlay";
  * a step whose target never appears is skipped in the direction of travel.
  *
  * It opens by itself once per mount when the server says the account is due
- * (`autoStart`), and spends that offer the moment the first step shows (R8).
+ * (`autoStart`), and spends that offer the moment its card opens (R8).
  * Done records "completed" and returns to where the run started; Skip tour,
  * Escape, and a navigation the tour didn't make record "skipped" and stay put
  * (R7, R17, R18). Replays (Settings) record their outcome too, and never
@@ -87,6 +87,23 @@ function recordOutcome(outcome: "completed" | "skipped") {
         { duration: Infinity },
       );
     });
+}
+
+/** Where the browser is, query string included (R18: Done returns here). */
+function currentUrl(): string {
+  return window.location.pathname + window.location.search;
+}
+
+/**
+ * Spends the automatic offer in the background. A failed save is ignored by
+ * design (R22): the tour is already open, and its outcome save at Done or
+ * Skip still ends auto-start; at worst the tour opens once more.
+ */
+function spendOffer() {
+  markTourOfferedAction().then(
+    () => undefined,
+    () => undefined, // transport failure: same as { ok: false }
+  );
 }
 
 /**
@@ -152,10 +169,7 @@ export function TourProvider({
       const ending = close();
       if (!ending) return;
       recordOutcome(outcome);
-      if (
-        outcome === "completed" &&
-        window.location.pathname !== ending.origin
-      ) {
+      if (outcome === "completed" && currentUrl() !== ending.origin) {
         router.push(ending.origin);
       }
       // After the dialog (and its focus trap) has unmounted.
@@ -189,7 +203,8 @@ export function TourProvider({
         const step = base.steps[index];
         const loading: Run = { ...base, skipped, index, target: null };
         commit(loading);
-        if (window.location.pathname !== step.route) router.push(step.route);
+        const from = window.location.pathname;
+        if (from !== step.route) router.push(step.route);
         const found = await waitForTarget(step, {
           timeoutMs: TOUR_TARGET_TIMEOUT_MS,
           signal: controller.signal,
@@ -197,10 +212,13 @@ export function TourProvider({
         if (controller.signal.aborted || runRef.current !== loading) return;
         if (found) {
           commit({ ...loading, target: found, shown: true });
-          if (loading.source === "auto" && !offerSpent.current) {
-            offerSpent.current = true;
-            void markTourOfferedAction().catch(() => undefined);
-          }
+          return;
+        }
+        // The browser ended up somewhere the tour didn't send it (e.g. Back
+        // cancelled the pending navigation): end the run, never push on (R17).
+        const at = window.location.pathname;
+        if (at !== step.route && at !== from) {
+          finish("skipped");
           return;
         }
         skipped = new Set(skipped).add(step.id);
@@ -223,7 +241,7 @@ export function TourProvider({
         steps: offered,
         index: 0,
         skipped: new Set(),
-        origin: window.location.pathname,
+        origin: currentUrl(),
         target: null,
         shown: false,
         returnFocus:
@@ -231,6 +249,13 @@ export function TourProvider({
             ? null
             : active,
       };
+      if (base.source === "auto" && !offerSpent.current) {
+        // The card opens now (loading the first step), so the automatic
+        // offer is spent now (R8): even a run where no target ever appears
+        // can't come back on the next load.
+        offerSpent.current = true;
+        spendOffer();
+      }
       void go(base, startIndex(offered, opts?.from), 1);
     },
     [go, steps],
@@ -244,7 +269,12 @@ export function TourProvider({
   }, [autoStart, start]);
 
   // A navigation the tour did not make (browser Back/Forward) ends it (R17).
+  // Only a real change counts: on mount an automatic run may start on any
+  // screen and navigate to its first step's route itself.
+  const lastPath = useRef(pathname);
   useEffect(() => {
+    if (pathname === lastPath.current) return;
+    lastPath.current = pathname;
     const current = runRef.current;
     if (!current) return;
     if (pathname !== current.steps[current.index].route) finish("skipped");

@@ -106,7 +106,9 @@ export function TourOverlay({
   }, [target, isPhone]);
 
   // Follow the target (scroll, resize, layout shifts) and place the card.
-  useEffect(() => {
+  // A layout effect, so the first paint with a new target already uses its
+  // own rect and placement (never the previous step's).
+  useLayoutEffect(() => {
     if (!target) return;
     let frame = 0;
     let last: Rect | null = null;

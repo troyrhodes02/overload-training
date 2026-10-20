@@ -6,6 +6,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { Client } from "pg";
 import { TOUR_STEPS } from "../../src/lib/tour/steps";
 import { tourCard } from "./tour-support";
 
@@ -40,7 +41,34 @@ const account = (k: string) => ({
 const T = account("t"); // finishes the tour
 const S = account("s"); // skips it
 const E = account("e"); // abandons it
-const ALL = [T, S, E];
+const D = account("d"); // first page is not Today
+const ALL = [T, S, E, D];
+const DB_URL = process.env.DATABASE_URL ?? "";
+if (!/^postgresql:\/\/[^@]*@127\.0\.0\.1:/.test(DB_URL)) {
+  throw new Error(
+    "The Onboarding Tour suite runs against the local stack only.",
+  );
+}
+
+/**
+ * Test-only: make this suite's OWN temporary account due again, as if it had
+ * just signed up and never been shown the tour (stands in for a first page
+ * reached by a bookmark or deep link, which the signup redirect never is).
+ */
+async function makeOwnAccountDue(email: string) {
+  const db = new Client({ connectionString: DB_URL });
+  await db.connect();
+  try {
+    const res = await db.query(
+      `UPDATE tour_progress SET offered_at = NULL, outcome = NULL, outcome_at = NULL
+        WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
+      [email],
+    );
+    expect(res.rowCount).toBe(1);
+  } finally {
+    await db.end();
+  }
+}
 
 const PHONE = { width: 375, height: 812 };
 const DESKTOP = { width: 1280, height: 800 };
@@ -361,4 +389,23 @@ test("abandoning the first tour (a reload mid-tour) spends it; browser Back ends
   await expect(tourCard(p)).toHaveCount(0);
   await expect(p).toHaveURL(/\/$/);
   await expect(p.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("a due account whose first page is not Today still gets its tour, starting on Today", async ({
+  browser,
+}) => {
+  const p = await newPage(browser, PHONE);
+  await signUp(p, D);
+  await shownStep(p, 1, 8);
+  await makeOwnAccountDue(D.email);
+  // First page of the "first visit" is /plan (a bookmark or deep link).
+  await p.goto("/plan");
+  await shownStep(p, 1, 8);
+  await expect(p).toHaveURL(/\/$/);
+  expect(await spotlitAnchor(p)).toBe("today-heading");
+  await tourCard(p).getByRole("button", { name: "Skip tour" }).click();
+  await expect(tourCard(p)).toHaveCount(0);
+  await p.goto("/plan");
+  await p.waitForTimeout(2500);
+  await expect(tourCard(p)).toHaveCount(0);
 });

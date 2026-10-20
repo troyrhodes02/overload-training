@@ -57,11 +57,14 @@ export function waitForTarget(
     const tick = () => {
       if (opts.signal.aborted) return done(null);
       if (window.location.pathname === step.route) {
-        const found = resolveTarget(
-          step,
-          (a) => findAvailableAnchor(a) !== null,
-        );
-        const el = found ? findAvailableAnchor(found.anchor) : null;
+        // One scan per candidate: remember what the predicate found.
+        const seen = new Map<TourAnchor, HTMLElement>();
+        const found = resolveTarget(step, (a) => {
+          const el = findAvailableAnchor(a);
+          if (el) seen.set(a, el);
+          return el !== null;
+        });
+        const el = found ? seen.get(found.anchor) : undefined;
         if (found && el) return done({ ...found, el });
       }
       if (Date.now() >= deadline) return done(null);
