@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-52** (OVE-51 done → PR #69).
+**Step 10 — integrating ticket PRs into the feature branch** (runbook written).
 
 ## Authority used (read before resuming)
 
@@ -41,8 +41,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 5. Resolved Decisions recorded in spec (R1–R32). Key: R3 stop before merge (new owned table + backfill + deletion module; production migration must precede deploy, guide D1)
 - [x] 6. Linear milestone + issues (blockedBy chain)
 - [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#68** https://github.com/troyrhodes02/overload-training/pull/68
-- [ ] 8. Tickets implemented
-- [ ] 9. Runbook
+- [x] 8. Tickets implemented — OVE-51…53 → PRs #69–#71 (stacked), all In Review
+- [x] 9. Runbook — `docs/runs/11-onboarding-tour-runbook.md` + `docs/runs/11-sql/verify-tour-progress.sql` (rehearsed on the local stack: columns, enum, RLS t/0, trigger + constraints, 0 rows, 463 sets)
 - [ ] 10. Ticket PRs integrated
 - [ ] 11. Verification
 - [ ] 12. Code review
@@ -61,6 +61,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 ### Ticket branches / PRs
 
 - **OVE-51** — `feat/ove-51-tour-progress` (off the feature branch) → PR **#69** (base: feature branch), commit `f495858`. In Review. Verified: prettier, lint, tsc, prisma validate, unit 44/768, integration 37/453, build (local env) + client-bundle, migration 9d applied to the LOCAL stack only (tour_progress 0 rows, RLS on, 0 policies, 463 sets unchanged, anon Data API refused). **Spec amended to v1.1.0 (R6):** backfill INSERT dropped (invariant-guards forbids INSERT in migrations) → new accounts made due by `establishProfile`; older accounts have no row.
+- **OVE-52** — `feat/ove-52-tour-ui` (off OVE-51) → PR **#70** (base: OVE-51 branch), commit `c3d3640`. In Review. Verified: prettier, lint, tsc, unit 47/813, integration 37/453, build + client-bundle; local-stack browser walk-through (scratchpad `tourcheck.mjs`, `tourcheck2.mjs`, dev server on 3317): 375 light 8 steps / 1280 dark 7 steps, Escape, Skip, Replay (focus back on Replay tour), Done→origin, browser Back ends it, 0 page errors; local DB back to 1/1/0 tour rows/463. **Spec v1.2.0:** R10 (aria-hidden dropped from availability — Radix modal marks outside aria-hidden), R14 (modal scroll lock), SVG scrim (box-shadow scrim unreliable; node order).
+- **OVE-53** — `feat/ove-53-tour-e2e` (off OVE-52) → PR **#71** (base: OVE-52 branch), commit `7c07c60`. In Review. Verified: accounts e2e 21/21 (lifecycle 6, personalization 8, tour 7; local DB unchanged 1/1/0/463), default e2e 26/26, prettier/lint/tsc, unit 47/813, build (accounts webServer) + client-bundle; visual vs preview at 375/1280 light+dark. Fix found by the e2e: focus could rest on <body> after a replay navigated away from Settings → overlay keeps focus inside the shown card.
 
 ## Resolved Decisions so far
 
@@ -69,4 +71,5 @@ See spec `## Resolved Decisions` R1–R32. Headline: R3 stop before merge; R4 To
 ## Deferred / notes
 
 - Layout wiring of `getTourAutoStart` moved from OVE-51 to OVE-52 (an unused prop would fail lint).
+- Ad-hoc `next start` signup once failed with `unexpected_failure` right after the e2e burst of sign-ins (local auth rate limit; no account created); dev-server runs were clean. Not a product issue.
 - Scratchpad helpers: `localenv.sh` (local-stack env; refuses non-127.0.0.1), `preview/*`.
