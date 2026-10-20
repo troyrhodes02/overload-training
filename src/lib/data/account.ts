@@ -71,6 +71,11 @@ export async function resolveAccount(userId: string): Promise<Account> {
  *
  * Throws UsernameTakenError when the username was taken in the meantime (the
  * unique index decides; see isUsernameAvailable).
+ *
+ * Last, a brand-new account is made due its onboarding tour (Onboarding Tour
+ * spec R6). Best effort and never thrown: a failure only means the tour won't
+ * open by itself (Settings still replays it), and signup must not undo a
+ * complete account over it.
  */
 export async function establishProfile(
   user: { id: string },
@@ -91,9 +96,10 @@ export async function establishProfile(
     username: input.username,
     timeZone,
   };
+  let created = false;
   try {
     await db.profile.create({ data: { userId: user.id, ...data } });
-    return;
+    created = true;
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
     // Either this account's profile already exists (a lazy profile raced in)
@@ -101,10 +107,24 @@ export async function establishProfile(
     const own = await db.profile.findUnique({ where: { userId: user.id } });
     if (!own) throw new UsernameTakenError();
   }
+  if (!created) {
+    try {
+      await db.profile.updateMany({ where: { userId: user.id }, data });
+    } catch (error) {
+      throw asUsernameConflict(error);
+    }
+  }
   try {
-    await db.profile.updateMany({ where: { userId: user.id }, data });
+    // Due: never offered, no outcome. skipDuplicates keeps it idempotent.
+    await db.tourProgress.createMany({
+      data: [{ userId: user.id }],
+      skipDuplicates: true,
+    });
   } catch (error) {
-    throw asUsernameConflict(error);
+    console.error(
+      "signup: could not make the new account due its tour",
+      error instanceof Error ? error.name : "unknown",
+    );
   }
 }
 

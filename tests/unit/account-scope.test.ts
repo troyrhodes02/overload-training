@@ -43,6 +43,7 @@ const OWNED = [
   "Profile",
   "Session",
   "SessionExercise",
+  "TourProgress",
 ];
 
 const mine = { userId: ME };

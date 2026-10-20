@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved
 author: Autonomous pipeline run (Claude Code), 2026-10-20
 last_updated: 2026-10-20
@@ -17,7 +17,7 @@ linear_issue: milestone "Onboarding Tour" (Overload V1) — tickets listed in do
 
 Onboarding Tour adds one guided tour over the real authenticated interface. The tour is a **client-side overlay driven by data**: an ordered registry of steps (`src/lib/tour/steps.ts`) names, for each step, the route it lives on, the on-screen controls it can point at (by a stable `data-tour` anchor name, in priority order), and its copy. A single mechanism (`TourProvider` + `TourOverlay`, plus a pure engine) walks that list: it navigates to each step's route with the app's own router, finds the first anchor that is actually visible at the current width, draws a spotlight over it, and shows a card with Next / Back / Skip tour / Done. A step with no visible anchor is skipped. Nothing in the mechanism knows what any step says or where it points.
 
-Per-account state is a new owned model, `TourProgress` (one row per account, the architecture's data object). **The row's existence means "this account has been offered the tour"**; its `outcome` and `outcomeAt` record whether the latest run was finished or skipped, and when. The (app) layout reads one boolean, *auto-start?* = no row, and hands it to the provider. When the tour first appears the client records the offer, so the tour opens by itself once, ever. The migration that creates the table also inserts a row (outcome `NULL`) for every account that already exists, which is how pre-existing accounts are "treated as already offered" without inventing an outcome. Settings gains a Tour section whose **Replay tour** button starts the same tour; replays record their outcome but never re-arm the automatic offer.
+Per-account state is a new owned model, `TourProgress` (one row per account, the architecture's data object). A brand-new account's row is created **due** (never offered, no outcome) when its profile is established at signup. `offeredAt` is set when the automatically started tour first appears, and `outcome` + `outcomeAt` record whether the latest run was finished or skipped, and when. The (app) layout reads one boolean, *auto-start?* = the row is due, and hands it to the provider, so the tour opens by itself once, ever. Migration 9d only creates the (empty) table: accounts that exist when it runs have no row, so they are never due. That is how pre-existing accounts are "treated as already offered", with no backfill and no invented outcome (R6, amended in OVE-51). Settings gains a Tour section whose **Replay tour** button starts the same tour; replays record their outcome (creating the row for an older account) but never re-arm the automatic offer.
 
 "Working" means: a brand-new account's first page opens the tour; finishing, skipping, or abandoning it means it never opens by itself again; an account that existed before the migration is never auto-toured; Replay tour works for everyone at any time; at 375px and 1280px every step points at a control that is really on screen (rail item on desktop, heading or menu button on a phone) or is skipped; one account's tour state is invisible to and unchangeable by another; and a new step can be added by editing the registry (plus putting its `data-tour` attribute on the target element) with no change to the mechanism.
 
@@ -32,7 +32,7 @@ Per-account state is a new owned model, `TourProgress` (one row per account, the
 
 ### In scope
 
-- `TourProgress` model + migration `9d_tour_progress` (table, RLS deny-all, ownership triggers, backfill of existing accounts).
+- `TourProgress` model + migration `9d_tour_progress` (empty table, RLS deny-all, ownership trigger); a new account made due at signup (`establishProfile`).
 - Server module `src/lib/tour/progress.ts` (read auto-start, record offer, record outcome) and server actions `markTourOfferedAction`, `recordTourOutcomeAction`.
 - Account deletion and the isolation coverage registry extended to the new owned model.
 - The registry (`src/lib/tour/steps.ts`) with the eight initial steps of design doc Screen 2, the pure engine (`src/lib/tour/engine.ts`), the DOM anchor helpers (`src/lib/tour/dom.ts`).
@@ -50,15 +50,15 @@ Per-account state is a new owned model, `TourProgress` (one row per account, the
 - A URL/deep-link way to open the tour (R20).
 - Email, analytics, third-party services, a third-party tour library (pitch §7, guide D2).
 
-**Temptations named (guide D3):** adding a third-party tour library; hardcoding steps into the tour component; restarting the tour for accounts that finished it; anchoring a step to a control that is hidden at phone width. Each is prevented structurally: no new dependency (R14), the mechanism reads steps only from the registry and a guard test forbids step ids in mechanism files (§14.1), auto-start is a server-side "no row" check (R5), and anchor resolution requires visibility (R10).
+**Temptations named (guide D3):** adding a third-party tour library; hardcoding steps into the tour component; restarting the tour for accounts that finished it; anchoring a step to a control that is hidden at phone width. Each is prevented structurally: no new dependency (R14), the mechanism reads steps only from the registry and a guard test forbids step ids in mechanism files (§14.1), auto-start is a server-side "row is due" check that nothing re-arms (R5), and anchor resolution requires visibility (R10).
 
 ## 5. Core concepts
 
 | Concept | Description |
 | ------- | ----------- |
-| `TourProgress` | **Persisted, owned.** One row per account (PK = `userId`). Exists ⇔ the account has been offered the tour (automatically, or by the rollout backfill). `outcome` (`completed` / `skipped` / `NULL`) and `outcomeAt` record the latest finished-or-skipped run (first-run or replay). Never deleted except by account deletion. |
-| Auto-start | **Derived on read**: `true` iff the acting account has no `TourProgress` row. Read by the (app) layout once per request. |
-| Offer | Recording the offer = inserting the row if absent (`outcome NULL`). Done by the client the first time the auto-started tour shows a step. |
+| `TourProgress` | **Persisted, owned.** One row per account (PK = `userId`), created *due* by `establishProfile` at signup (or by an older account's first replay). `offeredAt` = when the auto-started tour first appeared; `outcome` (`completed` / `skipped` / `NULL`) and `outcomeAt` = the latest finished-or-skipped run (first-run or replay). Never deleted except by account deletion. |
+| Due / auto-start | **Derived on read**: `true` iff the acting account's row exists with `offeredAt` and `outcome` both `NULL`. No row (an account older than the tour) → `false`. Read by the (app) layout once per request. |
+| Offer | Spending the offer = setting `offeredAt` on a due row. Done by the client the first time the auto-started tour shows a step. |
 | Outcome | `completed` when the lifter presses Done on the last shown step (or the last step is skipped for a missing target); `skipped` on Skip tour, Escape, or a browser navigation the tour did not make. Latest run wins. |
 | Tour step | Registry entry: `id` (stable), `route`, optional `layout` (`phone` / `desktop`), `targets` (ordered anchor candidates, each with an optional body override), `title`, `body`. Pure data. |
 | Anchor | A `data-tour="<name>"` attribute on an existing element. Names are the `TourAnchor` union in the registry file. |
@@ -76,18 +76,19 @@ Invariants:
 
 ```text
 TourProgress (per account)
-  (no row) ──auto-start shows step──► row{outcome: NULL}            [markTourOffered]
-  (no row) ──rollout migration──────► row{outcome: NULL}            [9d backfill, existing accounts]
-  any      ──Done / last-step-skip──► row{outcome: completed, outcomeAt: now}   [recordTourOutcome; upsert]
-  any      ──Skip / Escape / nav────► row{outcome: skipped,   outcomeAt: now}   [recordTourOutcome; upsert]
-  row      ──(nothing)──────────────► (no row)      never, except account deletion
+  (no row)  ──signup (establishProfile)──► due {offeredAt: NULL, outcome: NULL}
+  (no row)  accounts older than the tour stay here: never due, never auto-toured
+  due       ──auto-start shows a step────► offered {offeredAt: now}               [markTourOffered]
+  any/none  ──Done / last-step-skip──────► {outcome: completed, outcomeAt: now}   [recordTourOutcome; upsert]
+  any/none  ──Skip / Escape / nav────────► {outcome: skipped,   outcomeAt: now}   [recordTourOutcome; upsert]
+  row       ──(nothing)──────────────────► (no row)  never, except account deletion
 ```
 
 | From | To | Allowed? | Side effects |
 | ---- | -- | -------- | ------------ |
-| no row | row (outcome NULL) | yes: first auto-started step shown | auto-start is `false` from the next request on |
-| no row | row (outcome set) | yes: outcome recorded when the offer write failed or for a replay before any offer | same |
-| row | row (outcome changed) | yes: every finished or skipped run, replays included | `outcomeAt` = now; auto-start stays `false` |
+| no row | due | yes: a new account's profile is established at signup | auto-start `true` |
+| due | offered | yes: first auto-started step shown | auto-start `false` from the next request on |
+| any / no row | outcome set | yes: every finished or skipped run, replays included (creates the row for an older account) | `outcomeAt` = now; auto-start stays or becomes `false` |
 | row | no row | only via account deletion | — |
 
 Client tour state (not persisted):
@@ -170,18 +171,19 @@ enum TourOutcome {
 }
 
 /// Per-account onboarding tour progress (Onboarding Tour; architecture data
-/// object TourProgress). The row's EXISTENCE means the account has been
-/// offered the tour, so it never opens by itself again: inserted when the
-/// tour first appears, or by migration 9d for accounts that predate the tour
-/// (outcome NULL). outcome/outcomeAt record the latest finished or skipped
-/// run, replays included. Never deleted except by account deletion.
+/// object TourProgress). Created DUE when a new account's profile is
+/// established at signup; the tour opens by itself only while due (offeredAt
+/// and outcome both NULL). Accounts older than the tour have no row (a replay
+/// creates one). Never deleted except by account deletion.
 model TourProgress {
   /// Owning account (also the key: one row per account). Immutable (trigger).
   userId    String       @id @map("user_id") @db.Uuid
-  /// NULL until a run is finished or skipped (and for backfilled accounts).
+  /// When the automatically started tour first appeared (the offer is spent).
+  offeredAt DateTime?    @map("offered_at") @db.Timestamptz
+  /// NULL until a run is finished or skipped.
   outcome   TourOutcome?
   outcomeAt DateTime?    @map("outcome_at") @db.Timestamptz
-  /// When the tour was offered (first shown, or the rollout backfill).
+  /// When the row was created (signup, or an older account's first replay).
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -200,6 +202,7 @@ CREATE TYPE "tour_outcome" AS ENUM ('completed', 'skipped');
 
 CREATE TABLE "tour_progress" (
     "user_id" UUID NOT NULL,
+    "offered_at" TIMESTAMPTZ,
     "outcome" "tour_outcome",
     "outcome_at" TIMESTAMPTZ,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -217,16 +220,9 @@ ALTER TABLE "tour_progress" ENABLE ROW LEVEL SECURITY;
 
 CREATE TRIGGER "tour_progress_user_id_immutable" BEFORE UPDATE OF "user_id" ON "tour_progress"
   FOR EACH ROW EXECUTE FUNCTION "overload_user_id_immutable"();
-
--- Rollout (standing resolution, guide D2): every account that exists when this
--- migration runs is treated as already offered the tour. outcome stays NULL -
--- nothing is claimed about a tour it never saw.
-INSERT INTO "tour_progress" ("user_id", "created_at", "updated_at")
-SELECT "user_id", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM "profiles"
-ON CONFLICT ("user_id") DO NOTHING;
 ```
 
-- It is additive: a new enum, a new table, and inserted rows. No existing table or column changes, and no training data is touched.
+- It is additive: a new enum and a new, **empty** table. No existing table or column changes, and no row is written. The standing migration-safety guard forbids `INSERT` in any migration, and this codebase never writes data from a migration (R6). Every account that exists when 9d runs therefore has no row and is never due.
 - `overload_same_owner` triggers don't apply, because the table has no foreign key to another owned parent besides `profiles`, and that one is the owner itself.
 - The column checks in `schema.int.test.ts` (no stored tag/e1RM, `userId` on every owned model) cover it automatically through DMMF.
 
@@ -241,7 +237,7 @@ ALTER TABLE "tour_progress" ENABLE ROW LEVEL SECURITY;
 
 | Field / Concept | Stored? | Computed From | Notes |
 | --------------- | ------- | ------------- | ----- |
-| auto-start | no | absence of the acting account's `TourProgress` row | read per request in the (app) layout |
+| auto-start | no | the acting account's `TourProgress` row is due (`offeredAt`, `outcome` NULL) | read per request in the (app) layout |
 | step position / total | no | registry filtered by layout, minus steps skipped this run | client only |
 | resolved target | no | DOM at the moment the step shows | client only |
 
@@ -270,27 +266,34 @@ import type { AccountTx } from "@/lib/data/account-db";
 export type TourOutcomeValue = "completed" | "skipped";
 export function isTourOutcome(v: unknown): v is TourOutcomeValue;
 
-/** True iff the acting account has never been offered the tour. React-cached per request. */
+/** True iff the acting account's row is due (offeredAt and outcome NULL). React-cached per request. */
 export const getTourAutoStart: (account: Account) => Promise<boolean>;
 
-/** Inserts the acting account's row if absent (outcome NULL). Idempotent; returns whether this call created it. */
-export async function markTourOffered(account: Account, tx?: AccountTx): Promise<{ created: boolean }>;
-// implementation: account.db.tourProgress.createMany({ data: [{}], skipDuplicates: true }) → count === 1
-//   (createMany is stamped with the acting userId by scopeArgs; skipDuplicates = ON CONFLICT DO NOTHING)
+/** Spends the acting account's due offer. Idempotent; a no-op with no row or an already spent offer. */
+export async function markTourOffered(account: Account, tx?: AccountTx): Promise<{ spent: boolean }>;
+// implementation: account.db.tourProgress.updateMany({
+//   where: { userId: account.userId, offeredAt: null }, data: { offeredAt: now } }) → count === 1
 
 /** Upserts the latest outcome for the acting account. Throws DomainError("validation_error") on a bad literal. */
 export async function recordTourOutcome(account: Account, raw: unknown, tx?: AccountTx): Promise<TourOutcomeValue>;
 // implementation: account.db.tourProgress.upsert({
 //   where: { userId: account.userId },
-//   create: { outcome, outcomeAt: now }, update: { outcome, outcomeAt: now } })
+//   create: { userId: account.userId, offeredAt: now, outcome, outcomeAt: now },
+//   update: { outcome, outcomeAt: now } })
+
+// src/lib/data/account.ts: establishProfile (signup only) gains, as its LAST step and best effort
+// (logged, never thrown, so signup never compensates a complete account over it):
+//   db.tourProgress.createMany({ data: [{ userId: user.id }], skipDuplicates: true })   // due
 ```
 
-### `src/app/(app)/tour/actions.ts` (`"use server"`)
+### `src/app/(app)/tour-actions.ts` (`"use server"`)
+
+It's a file, not a folder: a folder under `(app)` would be a route, and the routes guard lists only real screens.
 
 ```ts
-export async function markTourOfferedAction(): Promise<ActionResult<{ created: boolean }>>;
+export async function markTourOfferedAction(): Promise<ActionResult<{ spent: boolean }>>;
 // requireAccount(); toActionResult(() => markTourOffered(account), "Couldn't save your tour progress.")
-// Side effects: inserts the acting account's TourProgress row if absent. No refresh().
+// Side effects: sets offeredAt on the acting account's due row (if any). No refresh().
 
 export async function recordTourOutcomeAction(outcome: unknown): Promise<ActionResult<{ outcome: TourOutcomeValue }>>;
 // requireAccount(); toActionResult(() => recordTourOutcome(account, outcome), "Couldn't save your tour progress.")
@@ -427,11 +430,14 @@ Standing guards (existing, must stay green): account-isolation-guards (no raw pr
 
 ```text
 tests/integration/tour.int.test.ts
-GIVEN a new account (profile, no row) THEN getTourAutoStart → true
-WHEN markTourOffered THEN row exists, outcome NULL, outcomeAt NULL; getTourAutoStart → false; second call → created:false
+GIVEN a new account via establishProfile THEN a due row; getTourAutoStart → true
+GIVEN an account with a profile and no row (older than the tour) THEN not due; markTourOffered → spent:false, no row
+WHEN markTourOffered on a due row THEN offeredAt set, outcome NULL; auto-start false; second call → spent:false
 WHEN recordTourOutcome("skipped") THEN outcome skipped, outcomeAt set; auto-start stays false
 WHEN recordTourOutcome("completed") after skipped (a replay) THEN outcome completed, outcomeAt advanced; still false
-GIVEN no row WHEN recordTourOutcome("completed") (offer write had failed) THEN row created with the outcome
+GIVEN a due row WHEN recordTourOutcome without a saved offer THEN auto-start false
+GIVEN an older account (no row) WHEN recordTourOutcome (a replay) THEN row created with offeredAt + outcome; never due
+GIVEN a lazy profile raced in WHEN establishProfile THEN exactly one due row
 GIVEN outcome set and outcome_at NULL via raw SQL THEN the CHECK refuses it
 GIVEN a row WHEN user_id is updated via raw SQL THEN the immutable trigger refuses it
 GIVEN a hard delete of the profile while the row exists THEN Restrict refuses it
@@ -447,9 +453,9 @@ tests/integration/isolation/account-deletion.int.test.ts (extended)
 GIVEN A and B both with TourProgress WHEN A is deleted THEN A's row gone, B's row intact; counts include TourProgress
 
 Migration rehearsal (tests/integration/tour-migration.int.test.ts, rehearsal support)
-GIVEN migrations replayed through 9c with three profiles WHEN 9d applies THEN three rows, outcome NULL,
-  RLS enabled with zero policies, trigger present; every other table's row count unchanged
-GIVEN a profile created AFTER 9d THEN it has no row (eligible)
+GIVEN migrations replayed through 9c with three profiles WHEN 9d applies THEN tour_progress is empty (those
+  accounts are never due), RLS enabled with zero policies, the immutable trigger and the outcome CHECK present;
+  every other table's row count unchanged
 
 Standing (existing, auto-extended through DMMF): rls.int.test.ts (every table RLS on, 0 policies),
   schema.int.test.ts (userId non-null + indexed on every owned model; no tag/e1RM columns), history-integrity,
@@ -478,7 +484,7 @@ Overlay leaves nothing      after Done/Skip: no element with role=dialog, page i
 Focus/keyboard              Next focused on each step; Tab cycles inside the card; Escape skips
 Isolation (e2e)             account A completes; account B (new) still gets the tour; A still doesn't
 Pre-existing account        not driven in the browser: the e2e never writes rows by SQL and never signs in as the
-                            local stack's existing account. The backfill is proven by the migration rehearsal (14.2);
+                            local stack's existing account. That 9d leaves them with no row is proven by the migration rehearsal (14.2);
                             the e2e proves the consequence — an account that has a row is never auto-toured.
 ```
 
@@ -508,7 +514,7 @@ The existing default e2e (`npx playwright test`) and accounts e2e stay green. Pe
 - [ ] The steps live only in `src/lib/tour/steps.ts`. A data-only extra step is exercised by a test without mechanism changes. Guard tests forbid step data in mechanism files.
 
 **Rollout**
-- [ ] Migration `9d_tour_progress` gives every account that exists when it runs a row (`outcome NULL`). Those accounts are never auto-toured, and Replay works for them.
+- [ ] Accounts that exist when migration `9d_tour_progress` runs have no row and are never auto-toured; Replay works for them. Only accounts created through signup afterwards are due.
 
 **Isolation and invariants**
 - [ ] `TourProgress` is an owned model: scoped, RLS deny-all, immutable owner, in the isolation registry, and removed by account deletion (only the acting account's row).
@@ -535,12 +541,12 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | - | -------- | --------- | --------- |
 | R1 | The controlling planning docs are the owner's multi-user set in `Downloads/` (`prd (1).md`, `architecture (1).md`, `pitch-roadmap (1).md`, `product-brief (1).md`). `docs/planning/` stays the stale single-user copy and isn't edited. | Standing since Pitch 8 R1 | Standing resolution; planning docs |
 | R2 | The preview is `docs/previews/11-onboarding-tour-preview.html`, not the run prompt's `.tsx`. | Skill rule ("names a `.tsx` file … write the `.html`") and owner feedback | `overload-ui-design`; owner memory; Pitch 9 R18 / Pitch 10 R2 |
-| R3 | **Stop before merge to `main`.** | Guide D1 says stop when a pitch "changes schema on tables that hold user data" or "changes … account deletion". This pitch adds an owned table holding per-account data, backfills rows for every existing account, and extends the deletion module. Merging deploys code that queries `tour_progress`, which production doesn't have until a human applies 9d, and every signed-in page would fail. Same reasoning as Pitch 10 R3. | Guide D1; Pitch 10 R3 precedent; CLAUDE.md (production migrations are human steps) |
+| R3 | **Stop before merge to `main`.** | Guide D1 says stop when a pitch "changes schema on tables that hold user data", "changes … signup", or "changes … account deletion". This pitch adds an owned table holding per-account data, makes signup create its row, and extends the deletion module. Merging deploys code that queries `tour_progress`, which production doesn't have until a human applies 9d, and every signed-in page would fail. Same reasoning as Pitch 10 R3. | Guide D1; Pitch 10 R3 precedent; CLAUDE.md (production migrations are human steps) |
 | R4 | Persistence is a new owned model `TourProgress` (PK `userId`), not a `Profile` column. | The architecture's data model names TourProgress as its own object ("whether finished or skipped, and when") | Architecture data model; CLAUDE.md data objects list |
-| R5 | Auto-start = no `TourProgress` row, read server-side in the (app) layout. | One boolean per request. The server decides, so the client can't be talked into or out of it. A replay can't re-arm it. | Pitch §4.4/§4.5; judgment |
-| R6 | Existing accounts: migration 9d inserts a row with `outcome NULL` for every profile. | Standing resolution "treated as already offered". A NULL outcome records the offer without claiming a completion or skip that never happened, so no data is fabricated. No date cutoff constant is needed. | Guide D2 (bucket C — flagged for owner review); pitch §4.6 |
+| R5 | Auto-start = the acting account's `TourProgress` row is due (`offeredAt` and `outcome` NULL), read server-side in the (app) layout. | One boolean per request. The server decides, so the client can't be talked into or out of it. Nothing re-arms it. | Pitch §4.4/§4.5; judgment |
+| R6 | *(Amended in OVE-51.)* A new account is made due by `establishProfile` at signup, as its last step, best effort (logged, never thrown). Migration 9d writes no row, so every account that exists before rollout has none and is never auto-toured. The first draft backfilled rows with an `INSERT` in 9d. That was dropped: the standing migration-safety guard (`invariant-guards`: no `INSERT INTO` in any migration) forbids it, and this codebase never writes data from a migration (Pitch 8 used an operator script). The guard was not weakened. Consequence: accounts created after the migration but before the deploy (by the old signup code) are never due either, which is the strict reading of "existed before rollout". Hand-provisioned accounts (a lazy profile, no signup) are never due. | Standing resolution "treated as already offered", with no backfill, no date constant, and no fabricated outcome | Guide D2 (bucket C, flagged for owner review); pitch §4.6; codebase guard |
 | R7 | The outcome is the latest run's (`completed` on Done or a missing last step; `skipped` on Skip/Escape/foreign navigation), and replays update it. | The PRD asks for "whether finished or skipped, and when". The latest is the only answer anyone will want. It never affects eligibility. | PRD data object; pitch Journey C |
-| R8 | The offer is spent when the tour first appears (`markTourOfferedAction`), so abandoning (reload, close tab) never re-opens it. | Pitch §9.6: a tour that reappears because the lifter didn't finish is intrusive. Design doc Screen 3 decision. | Pitch §9.6; design doc |
+| R8 | The offer is spent when the tour first appears (`markTourOfferedAction` sets `offeredAt`), so abandoning (reload, close tab) never re-opens it. | Pitch §9.6: a tour that reappears because the lifter didn't finish is intrusive. Design doc Screen 3 decision. | Pitch §9.6; design doc |
 | R9 | The registry is `src/lib/tour/steps.ts` (`TOUR_STEPS`, `TOUR_ANCHORS`, `tourAnchor`). Adding a step = editing that file + putting `tourAnchor(name)` on the target element. | Architecture open question "shape and location of the tour step registry", settled here for the `overload-onboarding` skill | Architecture open question; roadmap; pitch §4.8 |
 | R10 | Target availability: connected, non-empty rect, not `visibility:hidden`, not inside `[inert]`/`[aria-hidden=true]`. First available candidate wins. | Makes "a control that exists on the current screen size" structural. `inert` covers the dimmed workout under a missed-day prompt. | PRD AC-3; guide D4 |
 | R11 | An optional `layout` on a step (`phone`/`desktop`) filters it before the tour starts. Below 768px is phone. | Stable counter ("1 of 8" / "1 of 7"). The visibility rule still applies as a safety net. | Design doc Screen 1/2; codebase `md` breakpoint (`MobileNav` DESKTOP_QUERY) |
@@ -553,8 +559,8 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R18 | Done navigates to the origin pathname. Skip stays on the current screen. | Design doc decision | Design doc Screen 3/4 |
 | R19 | Exercises is not a tour stop. | Not one of the seven areas, and the phone step names it | Pitch §4.2; PRD |
 | R20 | `useTour().start({ from })` can start at a step (for a later What's New entry). There's no URL parameter or deep link. | The `overload-onboarding` skill links entries to steps "where the mechanism supports that". A URL entry point would be a public surface nobody asked for. | `overload-onboarding`; design doc §7 |
-| R21 | Module `src/lib/tour/progress.ts` + actions in `src/app/(app)/tour/actions.ts`. `markTourOffered` uses `createMany({ skipDuplicates })`, `recordTourOutcome` uses `upsert`. Both go through `account.db`, and there's no `refresh()`. | Codebase pattern (`lib/accounts/appearance.ts`, settings actions). Both operations are classified by `scopeArgs`. | Codebase |
-| R22 | A failed outcome save → error toast `Couldn't save your tour progress. It may open again next time.` A failed offer save is ignored (the later outcome upsert creates the row). | Honest about the consequence. A failed offer shouldn't interrupt the tour. | Design doc §8 |
+| R21 | Module `src/lib/tour/progress.ts` + actions in `src/app/(app)/tour-actions.ts` (a file; a folder would be a route). `markTourOffered` is a scoped `updateMany` on the due row; `recordTourOutcome` is a scoped `upsert`. Both go through `account.db`, and there's no `refresh()`. | Codebase pattern (`lib/accounts/appearance.ts`, settings actions). Both operations are classified by `scopeArgs`. | Codebase |
+| R22 | A failed outcome save → error toast `Couldn't save your tour progress. It may open again next time.` A failed offer save is ignored (the outcome save still ends auto-start). | Honest about the consequence. A failed offer shouldn't interrupt the tour. | Design doc §8 |
 | R23 | The Settings Tour section sits between Appearance and Delete account and holds: h2 "Tour", one line, and an outline **Replay tour** with `RotateCcw`. | Design doc Screen 4 / preview §04 | Design doc; preview |
 | R24 | The provider and overlay are mounted in `AppShell`, which is only in the authenticated (app) layout. Login and signup never mount them. | Auth gate already lives there | Codebase |
 | R25 | There are no route exclusions for auto-start. | A brand-new account's first page is `/` (signup redirects there). Any deep link is handled by step 1 navigating to Today. | Codebase (`signup/actions.ts`) |
@@ -566,7 +572,7 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R31 | The migration is named `9d_tour_progress`. | Prisma sorts lexicographically. It must sort after `9c_profile_username`. | Codebase (Pitch 8 note) |
 | R32 | Copy is design doc Screen 2 verbatim, pinned by a unit test. | One source for wording, like Pitch 10 R21 | Design doc; precedent |
 
-**Bucket-C defaults for the owner to confirm (guide D2):** the existing-account treatment (R6, standing), offer-spent-on-first-show (R8), the step copy (R32), and Exercises not being a stop (R19).
+**Bucket-C defaults for the owner to confirm (guide D2):** the existing-account treatment (R6, standing; implemented as "due at signup", no backfill), offer-spent-on-first-show (R8), the step copy (R32), and Exercises not being a stop (R19).
 
 ## 17. Open questions
 

@@ -545,8 +545,43 @@ model Profile {
   goals                Goal[]
   plannedCardio        PlannedCardio[]
   cardioLogs           CardioLog[]
+  tourProgress         TourProgress?
 
   @@map("profiles")
+}
+
+/// Latest finished-or-skipped outcome of the onboarding tour (Onboarding Tour).
+enum TourOutcome {
+  completed
+  skipped
+
+  @@map("tour_outcome")
+}
+
+/// Per-account onboarding tour progress (Onboarding Tour, spec §8; the
+/// architecture's TourProgress). Created DUE when a new account's profile is
+/// established at signup; the tour opens by itself only while the row is due
+/// (offeredAt and outcome both NULL), so it does so once, ever. Accounts that
+/// predate the tour have no row and are never auto-toured (a replay creates
+/// one). outcome/outcomeAt record the latest finished or skipped run, replays
+/// included. Never deleted except by account deletion.
+/// RLS deny-all; user_id immutable (trigger, 9d).
+model TourProgress {
+  /// Owning account, also the key: one row per account.
+  userId    String       @id @map("user_id") @db.Uuid
+  /// When the automatically started tour first appeared (the offer is spent).
+  offeredAt DateTime?    @map("offered_at") @db.Timestamptz
+  /// NULL until a run is finished or skipped. A CHECK keeps outcome and
+  /// outcomeAt both set or both NULL.
+  outcome   TourOutcome?
+  outcomeAt DateTime?    @map("outcome_at") @db.Timestamptz
+  /// When the row was created (signup, or a first replay).
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("tour_progress")
 }
 
 /// Multi-User Foundation (Pitch 8, spec R12): account X starred exercise E (a
