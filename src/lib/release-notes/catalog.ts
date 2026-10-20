@@ -1,3 +1,4 @@
+import { parseIsoDate } from "@/lib/plan/calendar";
 import { RELEASE_NOTES } from "./entries";
 import type { ReleaseNoteEntry, ReleaseNoteView } from "./types";
 
@@ -9,7 +10,11 @@ import type { ReleaseNoteEntry, ReleaseNoteView } from "./types";
  * seen.ts.
  *
  * The list is newest first and that order is canonical: index 0 is the newest
- * entry, and "newer" always means "a lower index", never a parsed id.
+ * entry, and "newer" always means "a lower index", never a parsed id. The
+ * id's date prefix must equal the entry's date (a permanent id can't carry a
+ * wrong one), but ordering still never reads it. Calendar-date validity comes
+ * from src/lib/plan/calendar.ts, the app's one home for date semantics (also
+ * pure).
  */
 
 export type { ReleaseNoteEntry, ReleaseNoteView } from "./types";
@@ -43,22 +48,12 @@ const MONTHS = [
   "Dec",
 ] as const;
 
-function daysInMonth(year: number, month: number): number {
-  if (month === 2) {
-    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-    return leap ? 29 : 28;
-  }
-  return [4, 6, 9, 11].includes(month) ? 30 : 31;
-}
-
 /** True iff `date` is a real calendar date written YYYY-MM-DD. */
 export function isReleaseDate(date: unknown): date is string {
-  if (typeof date !== "string") return false;
-  const m = DATE_PATTERN.exec(date);
-  if (!m) return false;
-  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
   return (
-    month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(year, month)
+    typeof date === "string" &&
+    DATE_PATTERN.test(date) &&
+    parseIsoDate(date) !== null
   );
 }
 
@@ -72,7 +67,11 @@ export function validateReleaseNotes(
   const problems: string[] = [];
   const seen = new Set<string>();
   entries.forEach((entry, i) => {
-    const where = `entry ${i} (${typeof entry?.id === "string" ? entry.id : "no id"})`;
+    if (typeof entry !== "object" || entry === null) {
+      problems.push(`entry ${i}: must be an entry object`);
+      return;
+    }
+    const where = `entry ${i} (${typeof entry.id === "string" ? entry.id : "no id"})`;
     if (
       typeof entry.id !== "string" ||
       !RELEASE_NOTE_ID_PATTERN.test(entry.id) ||
@@ -88,9 +87,17 @@ export function validateReleaseNotes(
     }
     if (!isReleaseDate(entry.date)) {
       problems.push(`${where}: date must be a real date written YYYY-MM-DD`);
-    } else if (i > 0) {
-      const above = entries[i - 1];
-      if (isReleaseDate(above.date) && entry.date > above.date) {
+    } else {
+      if (
+        typeof entry.id === "string" &&
+        !entry.id.startsWith(`${entry.date}-`)
+      ) {
+        problems.push(
+          `${where}: id must start with its date (${entry.date}-short-name)`,
+        );
+      }
+      const above = i > 0 ? entries[i - 1] : null;
+      if (above && isReleaseDate(above?.date) && entry.date > above.date) {
         problems.push(
           `${where}: dated after the entry above it — the list is newest first`,
         );
@@ -165,31 +172,27 @@ export function isNewer(
   return ia !== -1 && ib !== -1 && ia < ib;
 }
 
-/** The UTC calendar date (YYYY-MM-DD) of a moment. */
-export function utcDate(moment: Date): string {
-  return moment.toISOString().slice(0, 10);
-}
-
 /**
  * The account's unseen significant entries, newest first (spec §11; R11,
  * R12). `seenId` is its ReleaseSeen row's entry id (null: no row, shown
- * nothing), `seenAt` that row's lastSeenAt, and `floor` the UTC date the
- * account was created: an entry dated before it is never unseen.
+ * nothing); `seenOn` is the calendar date, in the account's own timezone, of
+ * that row's lastSeenAt; `floor` is the calendar date, in the account's
+ * timezone, it was created — an entry dated before it is never unseen.
  */
 export function unseenSignificant(
   catalog: readonly ReleaseNoteEntry[],
-  state: { seenId: string | null; seenAt: Date | null; floor: string },
+  state: { seenId: string | null; seenOn: string | null; floor: string },
 ): readonly ReleaseNoteEntry[] {
   const seenIndex =
     state.seenId === null
       ? -1
       : catalog.findIndex((e) => e.id === state.seenId);
   // A seen id the catalog no longer has (content rule 6 broken): fall back on
-  // the date the account was last shown something.
+  // the date the account was last shown something. Strictly after it: in a
+  // broken-contract fallback, never repeating an entry wins over catching one
+  // published later that same day (review finding r4331392867, skipped).
   const seenDate =
-    state.seenId !== null && seenIndex === -1 && state.seenAt
-      ? utcDate(state.seenAt)
-      : null;
+    state.seenId !== null && seenIndex === -1 ? state.seenOn : null;
   return catalog.filter((entry, i) => {
     if (!entry.significant || entry.date < state.floor) return false;
     if (state.seenId === null) return true;

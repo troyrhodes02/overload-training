@@ -111,9 +111,32 @@ it.each([
 });
 
 it("names every problem at once", () => {
+  // id format, id date prefix, title, body
   expect(problems([entry({ id: "Bad", title: "", body: "<x>" })])).toHaveLength(
-    3,
+    4,
   );
+});
+
+it("requires the id to start with the entry's own date", () => {
+  expect(problems([entry({ id: "routine-swap" })]).join()).toContain(
+    "must start with its date (2026-11-03-short-name)",
+  );
+  expect(
+    problems([entry({ id: "2026-11-04-faster-logging" })]).join(),
+  ).toContain("must start with its date");
+  expect(problems([entry()])).toEqual([]);
+});
+
+it("reports a missing or non-object entry instead of crashing", () => {
+  const list = [
+    entry(),
+    null as unknown as ReleaseNoteEntry,
+    "x" as unknown as ReleaseNoteEntry,
+  ];
+  expect(problems(list)).toEqual([
+    "entry 1: must be an entry object",
+    "entry 2: must be an entry object",
+  ]);
 });
 
 it("formats dates with no Date, locale, or timezone involved", () => {

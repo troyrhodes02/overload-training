@@ -3,12 +3,12 @@ import { cache } from "react";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
+import { isoDateInZone } from "@/lib/plan/calendar";
 import {
   isNewer,
   orderedReleaseNotes,
   toReleaseNoteView,
   unseenSignificant,
-  utcDate,
   type ReleaseNoteEntry,
   type ReleaseNoteView,
 } from "./catalog";
@@ -33,8 +33,10 @@ export type WhatsNewDialogData = {
 /**
  * The acting account's dialog content, or null when nothing significant is
  * unseen. Memoized per request (React cache): the (app) layout reads it once
- * per render. A catalog that fails validation is logged and means "no
- * dialog": a bad entry must never take every signed-in page down (R23).
+ * per render. A catalog that fails validation, or a failed read, is logged and
+ * means "no dialog": What's New must never take every signed-in page down
+ * (R23). Dates are calendar dates in the account's own timezone (CLAUDE.md,
+ * "Today is per account").
  */
 export const getWhatsNewDialog = cache(async function getWhatsNewDialog(
   account: Account,
@@ -51,21 +53,32 @@ export const getWhatsNewDialog = cache(async function getWhatsNewDialog(
     return null;
   }
   if (catalog.length === 0) return null;
-  const [row, profile] = await Promise.all([
-    account.db.releaseSeen.findUnique({
-      where: { userId: account.userId },
-      select: { lastSeenReleaseId: true, lastSeenAt: true },
-    }),
-    account.db.profile.findUnique({
-      where: { userId: account.userId },
-      select: { createdAt: true },
-    }),
-  ]);
+  let row: { lastSeenReleaseId: string; lastSeenAt: Date } | null;
+  let profile: { createdAt: Date } | null;
+  try {
+    [row, profile] = await Promise.all([
+      account.db.releaseSeen.findUnique({
+        where: { userId: account.userId },
+        select: { lastSeenReleaseId: true, lastSeenAt: true },
+      }),
+      account.db.profile.findUnique({
+        where: { userId: account.userId },
+        select: { createdAt: true },
+      }),
+    ]);
+  } catch (error) {
+    console.error(
+      "release notes: could not read seen state",
+      error instanceof Error ? error.name : "unknown",
+    );
+    return null;
+  }
+  const inZone = (instant: Date) => isoDateInZone(instant, account.timeZone);
   const unseen = unseenSignificant(catalog, {
     seenId: row?.lastSeenReleaseId ?? null,
-    seenAt: row?.lastSeenAt ?? null,
+    seenOn: row ? inZone(row.lastSeenAt) : null,
     // The account floor (R12): nothing dated before the account existed.
-    floor: profile ? utcDate(profile.createdAt) : "9999-12-31",
+    floor: profile ? inZone(profile.createdAt) : "9999-12-31",
   });
   if (unseen.length === 0) return null;
   return { entries: unseen.map(toReleaseNoteView), throughId: catalog[0].id };

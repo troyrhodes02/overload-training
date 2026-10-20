@@ -25,7 +25,7 @@ import type { WhatsNewDialogData } from "@/lib/release-notes/seen";
  * account is due its first onboarding tour (Onboarding Tour); the provider
  * opens it once and lets Settings replay it. `whatsNew` holds the significant
  * release notes the account hasn't seen (What's New), or null; the dialog
- * opens with all of them, once.
+ * opens with all of them, once, and only from the visit's first render.
  */
 export function AppShell({
   appearance,
@@ -61,7 +61,7 @@ export function AppShell({
 
         {/* One toaster for the whole authenticated app (archive/undo, saves). */}
         <Toaster theme={appearance} />
-        {whatsNew && <WhatsNewDialog {...whatsNew} />}
+        <WhatsNewDialog data={whatsNew} />
       </div>
     </TourProvider>
   );

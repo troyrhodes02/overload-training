@@ -26,8 +26,20 @@ import { ReleaseNote } from "./release-note";
  * Escape, the scrim, a reload, or closing the tab. Closing records nothing
  * more; if the open-time save failed, closing retries it once. A failure is
  * silent: the worst case is one more appearance on the next load.
+ *
+ * Only what the FIRST render of this visit carries counts. The shell keeps
+ * this component mounted across client navigation and every refresh() (a
+ * logged set, a saved setting), which re-render the layout; a later value is
+ * ignored, so the dialog can never open mid-visit — over the logging card or
+ * the tour — only on a full load (design doc Screen 1; review r4331392480).
  */
-export function WhatsNewDialog({ entries, throughId }: WhatsNewDialogData) {
+export function WhatsNewDialog({ data }: { data: WhatsNewDialogData | null }) {
+  const [shown] = useState(data);
+  if (!shown) return null;
+  return <WhatsNewDialogBody {...shown} />;
+}
+
+function WhatsNewDialogBody({ entries, throughId }: WhatsNewDialogData) {
   const [open, setOpen] = useState(true);
   const gotIt = useRef<HTMLButtonElement>(null);
   const saved = useRef<Promise<boolean> | null>(null);

@@ -10,7 +10,8 @@ import type { ReleaseNoteEntry } from "./types";
  * reaches production. Nothing else changes. CI validates the list
  * (tests/unit/release-notes-catalog.test.ts):
  *
- *   - id: permanent kebab-case slug, unique, YYYY-MM-DD-short-name, <= 64
+ *   - id: permanent kebab-case slug, unique, <= 64, starting with its own
+ *     date: YYYY-MM-DD-short-name
  *   - date: YYYY-MM-DD shipping date; the list is newest first, so each date
  *     is <= the one above it (same date: the upper entry is newer)
  *   - title: 1-80 characters, one line

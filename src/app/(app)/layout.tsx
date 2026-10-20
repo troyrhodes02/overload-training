@@ -17,13 +17,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const account = await requireAccount();
   // The account's appearance preference: the shell keeps the document on it.
   // Whether the account is due its first onboarding tour (Onboarding Tour).
-  const [appearance, tourAutoStart] = await Promise.all([
+  // Significant release notes this account hasn't seen (What's New), read
+  // alongside: the tour owns a load on which it opens by itself, so What's
+  // New waits (R17).
+  const [appearance, tourAutoStart, unseen] = await Promise.all([
     getAccountAppearance(account),
     getTourAutoStart(account),
+    getWhatsNewDialog(account),
   ]);
-  // Significant release notes this account hasn't seen (What's New). The
-  // tour owns a load on which it opens by itself; What's New waits (R17).
-  const whatsNew = tourAutoStart ? null : await getWhatsNewDialog(account);
+  const whatsNew = tourAutoStart ? null : unseen;
   return (
     <AppShell
       appearance={appearance}

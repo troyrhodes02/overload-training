@@ -242,6 +242,27 @@ describe("a new account starts caught up (AC-3, R10)", () => {
     expect(ids(await getWhatsNewDialog(late))).toEqual([FIXTURE[0].id]);
   });
 
+  it("the floor is the account's own calendar date, not UTC's (CLAUDE.md: today is per account)", async () => {
+    // 2099-02-02 03:00Z is 2099-02-01 21:00 in Chicago: an entry dated
+    // 2099-02-01 shipped that day, so it is not "before the account existed".
+    const chicago = await createTestAccount("America/Chicago");
+    await raw().profile.update({
+      where: { userId: chicago.userId },
+      data: { createdAt: new Date("2099-02-02T03:00:00Z") },
+    });
+    expect(ids(await getWhatsNewDialog(chicago))).toEqual([
+      FIXTURE[0].id,
+      FIXTURE[2].id,
+    ]);
+    // The same instant for a UTC account is 2099-02-02: that entry predates it.
+    const utc = await createTestAccount("UTC");
+    await raw().profile.update({
+      where: { userId: utc.userId },
+      data: { createdAt: new Date("2099-02-02T03:00:00Z") },
+    });
+    expect(ids(await getWhatsNewDialog(utc))).toEqual([FIXTURE[0].id]);
+  });
+
   it("a failed release-notes start never fails signup", async () => {
     const spy = jest
       .spyOn(seenModule, "initialReleaseSeen")

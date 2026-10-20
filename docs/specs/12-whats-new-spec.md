@@ -1,5 +1,5 @@
 ---
-version: 1.1.0
+version: 1.2.0
 status: approved
 author: Autonomous pipeline run (Claude Code), 2026-10-20
 last_updated: 2026-10-20
@@ -61,7 +61,7 @@ A new account's row is written at signup, pointing at the newest entry that exis
 | **Significant** | An entry that may open the dialog. The rubric belongs to `overload-onboarding` (pitch §4.3): it adds a capability, changes behavior the lifter will notice, or fixes a bug that affected the correctness of their data or recommendations. Ordinary entries appear only on the page. |
 | **`ReleaseSeen`** | One row per account: `lastSeenReleaseId` (the newest entry the account has been shown, or was started at) and `lastSeenAt`. Private, owned, PK `userId`. |
 | **Seen point** | Where the account's "already seen" ends in the catalog: the index of `lastSeenReleaseId` (entries at lower indexes are newer, so unseen). See R11 for an absent row and an unknown id. |
-| **Account floor** | The UTC calendar date of the account's `Profile.createdAt`. An entry dated strictly before it is never unseen, whatever the row says (AC-3 backstop, R12). |
+| **Account floor** | The calendar date of the account's `Profile.createdAt` **in the account's own timezone** (amended in review). An entry dated strictly before it is never unseen, whatever the row says (AC-3 backstop, R12). |
 | **Unseen significant entries** | The catalog entries that are significant, newer than the seen point, and not before the floor, newest first. If this list is non-empty, the dialog opens. |
 | **`throughId`** | The catalog's newest entry id when the page rendered. The dialog marks the account seen through it, which covers every entry it showed and every ordinary entry before it. |
 
@@ -250,7 +250,7 @@ export type ReleaseNoteEntry = {
 
 **Rules** (enforced by `validateReleaseNotes`, run by CI on the real file and at runtime):
 
-1. `id` matches `^[a-z0-9]+(?:-[a-z0-9]+)*$`, ≤ 64 chars, unique.
+1. `id` matches `^[a-z0-9]+(?:-[a-z0-9]+)*$`, ≤ 64 chars, unique, and starts with its own `date` (`YYYY-MM-DD-short-name`; amended in review, r4331393375).
 2. `date` is a real calendar date `YYYY-MM-DD`.
 3. Entries are listed newest first: each `date` is ≤ the one above it. Two entries on the same date keep file order (the upper one is newer).
 4. `title` is 1–80 chars after trimming, with no line break. `body` is 1–400 chars after trimming, with no `<`, `>`, or `](` (no HTML, no Markdown links).
@@ -306,7 +306,8 @@ export function toReleaseNoteView(entry: ReleaseNoteEntry): ReleaseNoteView;
  */
 export function unseenSignificant(
   catalog: readonly ReleaseNoteEntry[],
-  state: { seenId: string | null; seenAt: Date | null; floor: string },
+  // seenOn / floor: calendar dates in the account's own timezone (amended in review)
+  state: { seenId: string | null; seenOn: string | null; floor: string },
 ): readonly ReleaseNoteEntry[];
 
 /** true iff `a` is strictly newer than `b` in the catalog (lower index). Unknown ids -> false. */
@@ -320,7 +321,7 @@ Selection (R11, R12), for each catalog entry `e` at index `i`:
 - the seen point allows it:
   - no row (`seenId === null`): yes;
   - `seenId` found at index `s`: `i < s`;
-  - `seenId` not in the catalog (rule 6 broken): `e.date > utcDate(seenAt)`.
+  - `seenId` not in the catalog (rule 6 broken): `e.date > seenOn` (strictly after, so nothing repeats; review r4331392867 skipped, R31).
 
 ### `src/lib/release-notes/seen.ts` (`server-only`)
 
@@ -381,16 +382,18 @@ A file in `(app)`, not a folder, so it isn't a route (Pitch 11 R21 precedent).
 
 ```tsx
 // src/app/(app)/layout.tsx
-const [appearance, tourAutoStart] = await Promise.all([
+// Read alongside (amended in review, r4331392982); the tour owns a load on
+// which it opens by itself, so What's New waits (R17).
+const [appearance, tourAutoStart, unseen] = await Promise.all([
   getAccountAppearance(account),
   getTourAutoStart(account),
+  getWhatsNewDialog(account),
 ]);
-// The tour owns a load on which it opens by itself; What's New waits (R17).
-const whatsNew = tourAutoStart ? null : await getWhatsNewDialog(account);
+const whatsNew = tourAutoStart ? null : unseen;
 return <AppShell appearance={appearance} tourAutoStart={tourAutoStart} whatsNew={whatsNew}>…</AppShell>;
 ```
 
-"Once per full load": the (app) layout doesn't re-render on client navigation between its pages, so the dialog is evaluated once per full load. A later full load finds nothing because the open-time mark already moved the seen point.
+"Once per full load" *(amended in review, r4331392480)*. Every `refresh()` re-renders the (app) layout in the same visit: a logged set, a saved setting, `router.refresh()` on the logging card. So the layout's value alone isn't enough. `AppShell` always renders `<WhatsNewDialog data={whatsNew} />`, and the dialog keeps only the value of its **first render** (`useState(data)`). The shell keeps it mounted across client navigation and refreshes, so a value that appears later in the visit is ignored. The dialog can open only on a full load, never mid-visit over the logging card or the tour. A later full load finds nothing because the open-time mark already moved the seen point.
 
 ### Signup integration
 
@@ -604,7 +607,7 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R9 | **Existing accounts at rollout:** no row = shown nothing, so every entry in the catalog is unseen for them (subject to the floor). Because the catalog is empty at rollout and every later entry ships after rollout, that's exactly "genuinely new updates, no fabricated backlog". No backfill and no migration `INSERT`. | Resolves pitch §4.8 / §13 without touching unrelated account state. It differs from the tour's "treated as already offered" because here an absent row must still let *future* entries reach existing lifters. | Pitch §4.8, §13; architecture; migration-safety guard; bucket C (owner review) |
 | R10 | *(Amended in OVE-54.)* **New accounts:** `establishProfile` writes the row last, best effort (logged by error name, never thrown), at the starting point `initialReleaseSeen()` returns (the newest entry), or writes no row if the catalog is empty. The first draft had `seen.ts` do the write with a `userId` parameter. The standing isolation guard (outside `src/lib/data`, `userId` appears only as `account.userId`) forbids that, so the write sits in the data layer like the tour row. The guard was not weakened. | Guide D2 standing resolution, implemented like the tour row (Pitch 11 R6). | Guide D2 (bucket B); codebase pattern |
 | R11 | Selection rules: no row → all significant entries are candidates. Known id → only entries above it. Unknown id (content rule 6 broken) → entries dated after the row's `lastSeenAt` UTC date. | Defends against a removed or renamed entry without freezing the account forever and without showing a backlog. | Judgment; pitch §12 |
-| R12 | **Account floor:** an entry dated before the account's profile creation date (UTC) is never unseen, whatever the row says. | AC-3 must hold even when the best-effort signup write fails (or for a lazily created profile). Same-date entries fall to the seen point. | PRD AC-3; guide D4; judgment |
+| R12 | *(Amended in review, r4331392600.)* **Account floor:** an entry dated before the account's profile creation date is never unseen, whatever the row says. The date is the calendar date **in the account's stored timezone**, as are all of What's New's calendar dates (including the unknown-id fallback). A UTC floor could hide an entry shipped the evening a Chicago account signed up. | AC-3 must hold even when the best-effort signup write fails (or for a lazily created profile). Same-date entries fall to the seen point. | PRD AC-3; guide D4; judgment |
 | R13 | "Seen" is recorded **when the dialog opens**, through the catalog's newest id at render time (`throughId`, returned by the client and validated). Closing records nothing more. | Architecture: "the latest release-notes entry shown". It makes "once" hold through reloads, closed tabs, and sign-outs (pitch §9.1, D4), and a render-time id can't mark an entry that shipped after the page loaded. Same idea as Pitch 11 R8. | Architecture; pitch §4.4, §9.1; design doc Screen 1 |
 | R14 | The seen point is monotonic (create, or compare-and-set forward; an older or equal id is a no-op), with no raw SQL lock. | An old tab must never re-arm entries. The single-writer model makes races rare, and their worst case is one repeat. | Architecture consistency model; judgment |
 | R15 | The action accepts only an entry id (content, not identity). The account comes from `requireAccount()`. | CLAUDE.md "identity comes from the session" | CLAUDE.md first invariant |
@@ -615,7 +618,7 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R20 | No tour-step link in an entry (no `tourStep` field). | Design doc §13: it would be a call to action inside an entry (pitch §9.10) and meaningless publicly. The tour's `start({ from })` remains for a later pitch. | Design doc; pitch §9.10 |
 | R21 | Public-reuse boundary: `types.ts`, `entries.ts`, `catalog.ts`, and `release-note.tsx` are import-clean (guard test). `ReleaseNoteView` carries no reader data, and seen state lives only in `seen.ts` (server-only). | Run prompt: a single source a future public changelog can consume, with seen state kept private | Run prompt; pitch §9.9 |
 | R22 | No test-only content switch in production code. The dialog's browser behavior is verified by a scratch walkthrough with temporary, reverted entries (§14.4), and its logic by integration tests that inject a catalog parameter. | A runtime content override would be an untested production seam, and the shipped catalog is empty. Parameters with defaults keep tests honest without one. | Judgment; CLAUDE.md verification honesty |
-| R23 | A catalog that fails runtime validation makes the layout show no dialog (logged), while the page throws to the error boundary. CI blocks invalid content before either happens. | A bad entry must never take every signed-in page down. On the page an error is visible and honest. | Judgment |
+| R23 | *(Amended in review, r4331392722.)* A catalog that fails runtime validation, **or a failed seen-state read** (a missing table, a pooler error), makes the layout show no dialog. It's logged by error name only. The page throws to the error boundary on an invalid catalog. CI blocks invalid content before either happens. Account deletion is deliberately not softened: it stays all-or-nothing, and the runbook's ordering rule (migrate before deploy) covers the missing-table case. | A bad entry must never take every signed-in page down. On the page an error is visible and honest. | Judgment |
 | R24 | Migration name `9e_release_seen` (sorts after `9d_tour_progress`). Empty table, CHECK on the id, RLS deny-all, immutable-owner trigger, ASCII only. | Codebase migration conventions (9d) and guards | Codebase; CLAUDE.md RLS invariant |
 | R25 | Dates display as "Nov 3, 2026" by pure string formatting (no `Date`, no `Intl`). | Identical on server and client in every timezone, so there's no hydration mismatch. | Design doc Screen 4; CLAUDE.md "today is per account" (an entry date isn't a moment) |
 | R26 | No guidance ticket and no `/overload-onboarding` invocation in this pitch. The skill's contract is satisfied by §8 "Release-note content contract" and `docs/planning/method-note.md`. | Run prompt; pitch §14; the skill's availability rule | Run prompt; pitch; skill |
@@ -623,6 +626,9 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R28 | The local Supabase stack stands in for preview-deployment verification with two accounts. | CLAUDE.md asks for preview verification of ownership/scoping work. Production-pointing previews don't exist, and `.env` is production (memory). | CLAUDE.md; owner memory; Pitch 10/11 R28 |
 | R29 | The owner's uncommitted `.claude/CLAUDE.md`, the untracked `overload-onboarding` skill, and the repo-root backup dump are never staged. | Not this run's files | Precedent (Pitch 11 R29, R35) |
 | R30 | No email work of any kind. | Pitch §10; run prompt | Pitch; run prompt |
+| R31 | *(Review.)* The unknown-id fallback stays **strictly after** the last-seen date. | It's a defense path for a forbidden state (content rule 6 broken). Never repeating an entry, the core AC-1 guarantee, wins over catching one published later that same day. Finding r4331392867 skipped. | AC-1; judgment |
+| R32 | *(Review.)* The layout reads What's New alongside appearance and tour. Folding `Profile.createdAt` into the `Account` resolution, to drop the extra profile read, is **deferred** to the same chokepoint refactor as Pitch 11 R34 / Pitch 10 R27. | Parallel reads remove the serial round trip now. The fold touches `resolveAccount`, which every page uses, and belongs with that refactor. Finding r4331392982 partly implemented. | Precedent (R34); judgment |
+| R33 | *(Review.)* Calendar-date validity reuses `parseIsoDate` from `src/lib/plan/calendar.ts` (pure, import-free, so still public-safe). A non-object entry is reported as a problem, not a crash. | One home for date semantics; the contract promises every problem at once. Findings r4331393132, r4331393269. | Codebase pattern; spec §8 |
 
 ## 17. Open questions
 

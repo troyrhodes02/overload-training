@@ -27,9 +27,9 @@ const CATALOG = [
 ];
 const ids = (list: readonly ReleaseNoteEntry[]) => list.map((x) => x.id);
 const FLOOR = "2026-10-20";
-const at = (seenId: string | null, seenAt: Date | null = new Date()) => ({
+const at = (seenId: string | null, seenOn: string | null = "2027-03-05") => ({
   seenId,
-  seenAt,
+  seenOn,
   floor: FLOOR,
 });
 
@@ -55,14 +55,9 @@ it("several unseen significant entries come back together, ordinary ones exclude
   expect(ids(unseenSignificant(CATALOG, at("s1")))).toEqual(["s4", "s2"]);
 });
 
-it("an unknown seen id falls back on the UTC date it was last shown something", () => {
+it("an unknown seen id falls back on the date it was last shown something (strictly after it)", () => {
   expect(
-    ids(
-      unseenSignificant(
-        CATALOG,
-        at("removed-entry", new Date("2027-02-01T23:30:00Z")),
-      ),
-    ),
+    ids(unseenSignificant(CATALOG, at("removed-entry", "2027-02-01"))),
   ).toEqual(["s4"]);
 });
 
@@ -71,7 +66,7 @@ it("the floor hides entries dated before the account existed, even with no row (
     ids(
       unseenSignificant(CATALOG, {
         seenId: null,
-        seenAt: null,
+        seenOn: null,
         floor: "2027-02-01",
       }),
     ),
@@ -79,7 +74,7 @@ it("the floor hides entries dated before the account existed, even with no row (
   expect(
     unseenSignificant(CATALOG, {
       seenId: null,
-      seenAt: null,
+      seenOn: null,
       floor: "2027-03-02",
     }),
   ).toEqual([]);
