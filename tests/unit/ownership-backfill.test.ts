@@ -15,11 +15,20 @@ describe("ownership backfill coverage", () => {
     .filter((m) => m.fields.some((f) => f.name === "userId"))
     .map((m) => m.dbName ?? m.name);
 
-  it("assigns every owned table except the two created empty by migration 9", () => {
+  it("assigns every owned table except the two created empty by migration 9 (and later tables)", () => {
+    // Tables created after ownership was enforced can never hold pre-ownership
+    // rows: Onboarding Tour's tour_progress (9d) is born owned.
+    const BORN_OWNED = ["tour_progress"];
     expect([...LEGACY_OWNED_TABLES].sort()).toEqual(
       owned
         .filter(
-          (t) => !["profiles", "exercise_favorites", "exercises"].includes(t),
+          (t) =>
+            ![
+              "profiles",
+              "exercise_favorites",
+              "exercises",
+              ...BORN_OWNED,
+            ].includes(t),
         )
         .sort(),
     );
