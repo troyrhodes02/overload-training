@@ -26,6 +26,8 @@ export const APP_TABLES = [
   "profiles",
   // Onboarding Tour
   "tour_progress",
+  // What's New
+  "release_seen",
 ] as const;
 
 let client: PrismaClient | undefined;

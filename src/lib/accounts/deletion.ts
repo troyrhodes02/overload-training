@@ -44,6 +44,7 @@ export const ACCOUNT_DELETION_ORDER = [
   "Exercise", // custom exercises only: the scoped write filter excludes the library
   "Gym",
   "TourProgress", // Onboarding Tour: references only the profile
+  "ReleaseSeen", // What's New: references only the profile
   "Profile",
 ] as const;
 
@@ -68,6 +69,7 @@ const DELETE: Record<
   Exercise: (tx) => tx.exercise.deleteMany({ where: { isCustom: true } }),
   Gym: (tx) => tx.gym.deleteMany({}),
   TourProgress: (tx) => tx.tourProgress.deleteMany({}),
+  ReleaseSeen: (tx) => tx.releaseSeen.deleteMany({}),
   Profile: (tx) => tx.profile.deleteMany({}),
 };
 

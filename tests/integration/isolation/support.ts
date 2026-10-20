@@ -70,6 +70,7 @@ const OWNED_TABLES = [
   "planned_cardio",
   "cardio_logs",
   "tour_progress",
+  "release_seen",
 ] as const;
 
 /** Every row an account owns, in a stable order — to prove it never changed. */

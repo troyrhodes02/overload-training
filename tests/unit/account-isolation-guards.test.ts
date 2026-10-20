@@ -108,7 +108,7 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
 
   it("the Supabase client never queries application tables", () => {
     const offenders = walk(SRC).filter((f) =>
-      /supabase[\w.]*\.from\(|\.from\(["'](mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress)["']\)/.test(
+      /supabase[\w.]*\.from\(|\.from\(["'](mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen)["']\)/.test(
         code(f),
       ),
     );
