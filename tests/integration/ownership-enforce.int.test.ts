@@ -10,6 +10,8 @@ import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 import { setExerciseFavorite } from "@/lib/exercises/exercises";
 import { recordTourOutcome } from "@/lib/tour/progress";
+import { markReleaseNotesSeen } from "@/lib/release-notes/seen";
+import { RELEASE_NOTES_FIXTURE } from "./support/release-notes";
 import { listMesocyclesForHome } from "@/lib/plan/queries";
 import { addDays } from "@/lib/plan/calendar";
 import { getTestPrisma } from "./support/db";
@@ -49,6 +51,7 @@ const OWNED_TABLES = [
   "exercise_favorites",
   "profiles",
   "tour_progress",
+  "release_seen",
 ];
 
 /** Everything an account can own, written through the real write modules. */
@@ -97,6 +100,9 @@ async function fullAccount(account: Account, lib: Lib, label: string) {
     isFavorite: true,
   });
   await recordTourOutcome(account, "completed");
+  await markReleaseNotesSeen(account, RELEASE_NOTES_FIXTURE[0].id, {
+    catalog: RELEASE_NOTES_FIXTURE,
+  });
   return plan;
 }
 

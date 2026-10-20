@@ -14,6 +14,9 @@
  * another account, and the availability check answers yes/no only.
  * Onboarding Tour (Pitch 11): tour.int.test.ts proves an account's
  * TourProgress can't be read, changed, or detected by another.
+ * What's New (Pitch 12): release-notes.int.test.ts proves an account's
+ * ReleaseSeen can't be read, changed, or detected by another, and that one
+ * account's dialog never moves another's seen point.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],
@@ -40,4 +43,5 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
     "greeting.int.test.ts",
   ],
   TourProgress: ["tour.int.test.ts", "account-deletion.int.test.ts"],
+  ReleaseSeen: ["release-notes.int.test.ts", "account-deletion.int.test.ts"],
 };

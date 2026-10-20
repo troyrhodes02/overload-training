@@ -7,6 +7,7 @@ import {
   UsernameTakenError,
 } from "@/lib/accounts/username-taken";
 import { isValidTimeZone, todayIso } from "@/lib/plan/calendar";
+import { initialReleaseSeen } from "@/lib/release-notes/seen";
 import {
   createAccountClient,
   type AccountClient,
@@ -76,6 +77,11 @@ export async function resolveAccount(userId: string): Promise<Account> {
  * spec R6). Best effort and never thrown: a failure only means the tour won't
  * open by itself (Settings still replays it), and signup must not undo a
  * complete account over it.
+ *
+ * Then it starts caught up on the release notes: the newest existing entry is
+ * already seen, so there is no backlog (What's New spec R10). Best effort and
+ * never thrown for the same reason; the account floor still keeps older
+ * entries from showing if this write fails (R12).
  */
 export async function establishProfile(
   user: { id: string },
@@ -123,6 +129,22 @@ export async function establishProfile(
   } catch (error) {
     console.error(
       "signup: could not make the new account due its tour",
+      error instanceof Error ? error.name : "unknown",
+    );
+  }
+  try {
+    // Caught up: the newest existing entry is already seen. skipDuplicates
+    // keeps it idempotent; no entries yet means no row.
+    const start = initialReleaseSeen();
+    if (start) {
+      await db.releaseSeen.createMany({
+        data: [{ userId: user.id, ...start }],
+        skipDuplicates: true,
+      });
+    }
+  } catch (error) {
+    console.error(
+      "signup: could not start the new account's release notes",
       error instanceof Error ? error.name : "unknown",
     );
   }

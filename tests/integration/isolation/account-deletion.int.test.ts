@@ -14,11 +14,13 @@ import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 import { createGoal } from "@/lib/goals/goals";
 import { markTourOffered, recordTourOutcome } from "@/lib/tour/progress";
+import { markReleaseNotesSeen } from "@/lib/release-notes/seen";
 import { addDays } from "@/lib/plan/calendar";
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { activePlan, library, startToday, today, type Lib } from "./fixtures";
 import { ownedRowCount, snapshotAccount } from "./support";
+import { RELEASE_NOTES_FIXTURE } from "../support/release-notes";
 
 /**
  * Cross-account isolation — ACCOUNT DELETION (Accounts spec §14.1–14.2).
@@ -88,6 +90,9 @@ async function populate(account: Account, lib: Lib, label: string) {
   });
   await markTourOffered(account);
   await recordTourOutcome(account, "completed");
+  await markReleaseNotesSeen(account, RELEASE_NOTES_FIXTURE[0].id, {
+    catalog: RELEASE_NOTES_FIXTURE,
+  });
   return plan;
 }
 
@@ -115,6 +120,7 @@ const OWNED_TABLES = [
   "planned_cardio",
   "cardio_logs",
   "tour_progress",
+  "release_seen",
 ];
 
 let a: Account;
