@@ -141,6 +141,15 @@ export function TourOverlay({
           prev && prev.top === p.top && prev.left === p.left ? prev : p,
         );
       }
+      // Modal contract: while a step is shown, focus never rests outside the
+      // card (e.g. on <body> after the page underneath unmounted mid-run).
+      if (
+        card &&
+        getComputedStyle(card).visibility === "visible" &&
+        !card.contains(document.activeElement)
+      ) {
+        primaryRef.current?.focus();
+      }
       frame = requestAnimationFrame(tick);
     };
     tick();
