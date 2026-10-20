@@ -3,7 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
-import { isSignupOpen } from "@/lib/accounts/invite";
+import { isSignupOpen } from "@/lib/accounts/signup-gate";
 import { SignupForm } from "./signup-form";
 
 export const metadata: Metadata = {
@@ -30,7 +30,8 @@ export default async function SignupPage() {
       <AuthCard>
         <h1 className="text-lg font-semibold">Signup isn&apos;t open</h1>
         <p className="text-sm text-muted-foreground">
-          Overload is invite-only, and signup is closed right now.
+          New accounts can&apos;t be created right now. If you already have one,
+          sign in.
         </p>
         <Button asChild variant="outline" className="h-11 w-full">
           <Link href="/login">Sign in</Link>

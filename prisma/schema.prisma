@@ -519,6 +519,10 @@ model Profile {
   userId     String     @id @map("user_id") @db.Uuid
   firstName  String?    @map("first_name")
   lastName   String?    @map("last_name")
+  /// Unique handle, stored lowercase (so uniqueness ignores case) and
+  /// checked by a database CHECK constraint (^[a-z0-9_]{3,20}$). Nullable only
+  /// because accounts created before usernames have none; signup requires it.
+  username   String?    @unique
   /// IANA zone name (e.g. "America/Chicago"), validated by isValidTimeZone on write.
   timeZone   String     @map("time_zone")
   /// Appearance preference (Personalization & Navigation Polish); the only

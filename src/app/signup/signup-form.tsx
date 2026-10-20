@@ -21,29 +21,35 @@ import { Label } from "@/components/ui/label";
 import {
   checkEmail,
   checkName,
+  checkUsername,
   PASSWORD_MIN_LENGTH,
+  PASSWORDS_DIFFER,
   PROFILE_NAME_MAX,
+  USERNAME_HELP,
+  USERNAME_MAX,
 } from "@/lib/accounts/validation";
 
 const initial: SignUpState = {
   status: "idle",
   fieldErrors: {},
   formError: null,
-  values: { inviteCode: "", firstName: "", lastName: "", email: "" },
+  values: { firstName: "", lastName: "", username: "", email: "" },
 };
 
 const FIELD_ORDER: SignUpField[] = [
-  "inviteCode",
   "firstName",
   "lastName",
+  "username",
   "email",
   "password",
+  "confirmPassword",
 ];
 
 /**
- * Invite code first, then name, email, password (Accounts design doc Screen
- * 2). Presence is checked here for quick feedback; the invite code is checked
- * only on the server. The device's timezone rides along in a hidden field.
+ * Name, username, email, and the password typed twice (OVE-50). The rules are
+ * checked here for quick feedback and again on the server, which alone knows
+ * whether the username is free. The device's timezone rides along in a
+ * hidden field.
  */
 export function SignupForm() {
   const [state, formAction, isPending] = useActionState(signUpAction, initial);
@@ -51,26 +57,30 @@ export function SignupForm() {
     Partial<Record<SignUpField, string>>
   >({});
   const timeZone = useDeviceTimeZone() ?? "";
-  const inviteCodeRef = useRef<HTMLInputElement>(null);
   const firstNameRef = useRef<HTMLInputElement>(null);
   const lastNameRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
   // Only called from effects and handlers, never during render.
   const refFor = (field: SignUpField): RefObject<HTMLInputElement | null> =>
     ({
-      inviteCode: inviteCodeRef,
       firstName: firstNameRef,
       lastName: lastNameRef,
+      username: usernameRef,
       email: emailRef,
       password: passwordRef,
+      confirmPassword: confirmPasswordRef,
     })[field];
   const errors = { ...state.fieldErrors, ...clientErrors };
 
-  // After a failed submit: clear the password and focus the first problem.
+  // After a failed submit: clear both passwords and focus the first problem.
   useEffect(() => {
     if (state.status !== "error") return;
-    if (passwordRef.current) passwordRef.current.value = "";
+    for (const ref of [passwordRef, confirmPasswordRef]) {
+      if (ref.current) ref.current.value = "";
+    }
     const first = FIELD_ORDER.find((f) => state.fieldErrors[f]);
     refFor(first ?? "email").current?.focus();
   }, [state]);
@@ -79,16 +89,19 @@ export function SignupForm() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const found: Partial<Record<SignUpField, string>> = {};
-    if (!String(data.get("inviteCode") ?? "").trim()) {
-      found.inviteCode = "Enter the invite code.";
-    }
     const first = checkName("firstName", data.get("firstName"));
     if (!first.ok) found.firstName = first.message;
     const last = checkName("lastName", data.get("lastName"));
     if (!last.ok) found.lastName = last.message;
+    const username = checkUsername(data.get("username"));
+    if (!username.ok) found.username = username.message;
     const email = checkEmail(data.get("email"));
     if (!email.ok) found.email = email.message;
-    if (!data.get("password")) found.password = "Enter a password.";
+    const password = String(data.get("password") ?? "");
+    const confirm = String(data.get("confirmPassword") ?? "");
+    if (!password) found.password = "Enter a password.";
+    else if (!confirm) found.confirmPassword = "Enter your password again.";
+    else if (confirm !== password) found.confirmPassword = PASSWORDS_DIFFER;
     setClientErrors(found);
     const firstBad = FIELD_ORDER.find((f) => found[f]);
     if (firstBad) {
@@ -119,25 +132,6 @@ export function SignupForm() {
       <h1 className="text-lg font-semibold">Create your account</h1>
       <input type="hidden" name="timeZone" value={timeZone} />
 
-      <div className="space-y-2">
-        <Label htmlFor="inviteCode">Invite code</Label>
-        <Input
-          ref={inviteCodeRef}
-          id="inviteCode"
-          name="inviteCode"
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          className="h-11 aria-invalid:border-destructive"
-          defaultValue={state.values.inviteCode}
-          aria-invalid={Boolean(errors.inviteCode)}
-          aria-describedby={describedBy("inviteCode")}
-          onChange={() => clear("inviteCode")}
-          autoFocus
-        />
-        {fieldError("inviteCode")}
-      </div>
-
       <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         {(["firstName", "lastName"] as const).map((field) => (
           <div key={field} className="space-y-2">
@@ -157,10 +151,34 @@ export function SignupForm() {
               aria-invalid={Boolean(errors[field])}
               aria-describedby={describedBy(field)}
               onChange={() => clear(field)}
+              autoFocus={field === "firstName"}
             />
             {fieldError(field)}
           </div>
         ))}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="username">Username</Label>
+        <Input
+          ref={usernameRef}
+          id="username"
+          name="username"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          // Room for a leading "@", which checkUsername drops.
+          maxLength={USERNAME_MAX + 1}
+          className="h-11 aria-invalid:border-destructive"
+          defaultValue={state.values.username}
+          aria-invalid={Boolean(errors.username)}
+          aria-describedby={describedBy("username", "username-help")}
+          onChange={() => clear("username")}
+        />
+        <p id="username-help" className="text-sm text-muted-foreground">
+          {USERNAME_HELP}
+        </p>
+        {fieldError("username")}
       </div>
 
       <div className="space-y-2">
@@ -196,6 +214,20 @@ export function SignupForm() {
           At least {PASSWORD_MIN_LENGTH} characters.
         </p>
         {fieldError("password")}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="confirmPassword">Confirm password</Label>
+        <PasswordInput
+          ref={confirmPasswordRef}
+          id="confirmPassword"
+          name="confirmPassword"
+          autoComplete="new-password"
+          aria-invalid={Boolean(errors.confirmPassword)}
+          aria-describedby={describedBy("confirmPassword")}
+          onChange={() => clear("confirmPassword")}
+        />
+        {fieldError("confirmPassword")}
       </div>
 
       {state.formError === "email_taken" ? (

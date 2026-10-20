@@ -28,6 +28,7 @@ export default async function SettingsPage() {
       <ProfileForm
         firstName={profile.firstName}
         lastName={profile.lastName}
+        username={profile.username}
         email={user.email ?? ""}
         timeZone={profile.timeZone}
         timeZones={timeZoneOptions(profile.timeZone)}

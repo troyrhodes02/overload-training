@@ -4,14 +4,15 @@ import { createClient } from "@supabase/supabase-js";
 /**
  * The auth-admin facade (Accounts spec R4): the ONLY module in src/ that reads
  * SUPABASE_SERVICE_ROLE_KEY, and it exposes exactly two auth operations —
- * create a confirmed user (invite-gated signup) and delete a user (account
+ * create a confirmed user (signup) and delete a user (account
  * deletion). It never touches application tables (Prisma owns those; the
  * Supabase client is for auth and Storage only). Imported only by
  * src/lib/accounts/signup.ts and src/lib/accounts/deletion.ts (guard tests).
  *
- * Supabase's own public signup stays DISABLED in every environment: this
- * facade is how an invite-gated account is created, so the anon key that
- * ships to browsers can never create one.
+ * Supabase's own public signup stays DISABLED in every environment, even with
+ * self-signup open (OVE-50): this facade is how every account is created, only
+ * after the app's own checks (signup switch, names, unique username), so the
+ * anon key that ships to browsers can never create an account directly.
  */
 
 function adminAuth() {

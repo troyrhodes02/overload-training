@@ -21,7 +21,6 @@ test.describe.configure({ mode: "serial" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const DB_URL = process.env.DATABASE_URL ?? "";
-const INVITE = process.env.E2E_INVITE_CODE ?? "";
 if (
   !/^http:\/\/127\.0\.0\.1:/.test(URL_) ||
   !/^postgresql:\/\/[^@]*@127\.0\.0\.1:/.test(DB_URL)
@@ -35,8 +34,17 @@ const admin = createClient(URL_, process.env.SUPABASE_SERVICE_ROLE_KEY ?? "", {
 });
 
 const stamp = Date.now();
-const P = { email: `e2e-${stamp}-p@example.test`, password: "pers-pass-123" };
-const Q = { email: `e2e-${stamp}-q@example.test`, password: "pers-pass-456" };
+const tag = String(stamp).slice(-8);
+const P = {
+  email: `e2e-${stamp}-p@example.test`,
+  password: "pers-pass-123",
+  username: `e2e_p_${tag}`,
+};
+const Q = {
+  email: `e2e-${stamp}-q@example.test`,
+  password: "pers-pass-456",
+  username: `e2e_q_${tag}`,
+};
 const PHONE = { width: 375, height: 812 };
 
 let ctx: BrowserContext;
@@ -70,11 +78,12 @@ const checkedAppearance = (p: Page) =>
 
 async function signUp(p: Page, who: typeof P, firstName: string) {
   await p.goto("/signup");
-  await p.getByLabel("Invite code").fill(INVITE);
   await p.getByLabel("First name").fill(firstName);
   await p.getByLabel("Last name").fill("Tester");
+  await p.getByLabel("Username").fill(who.username);
   await p.getByLabel("Email").fill(who.email);
   await p.getByLabel("Password", { exact: true }).fill(who.password);
+  await p.getByLabel("Confirm password", { exact: true }).fill(who.password);
   await p.getByRole("button", { name: "Create account" }).click();
   await expect(p).toHaveURL(/\/$/);
 }
@@ -335,4 +344,39 @@ test("a missing timezone still gets a sensible greeting, not an error", async ()
   await expect(heading).toHaveText(/^(Welcome|Hello)/);
   await expect(page.getByText("No active plan.")).toBeVisible();
   await setOwnTimeZone(P.email, "America/Denver");
+});
+
+/** Test-only: make this suite's own temporary account look pre-usernames. */
+async function clearOwnUsername(email: string) {
+  const db = new Client({ connectionString: DB_URL });
+  await db.connect();
+  try {
+    await db.query(
+      `UPDATE profiles SET username = NULL
+        WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
+      [email],
+    );
+  } finally {
+    await db.end();
+  }
+}
+
+test("an account from before usernames can still save Settings without one (OVE-50)", async () => {
+  await clearOwnUsername(P.email);
+  await page.goto("/settings");
+  await expect(page.getByLabel("Username")).toHaveValue("");
+  await page.getByLabel("Timezone").selectOption("Europe/Berlin");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Settings saved")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Timezone")).toHaveValue("Europe/Berlin");
+  await expect(page.getByLabel("Username")).toHaveValue("");
+  // Choosing one later works; after that it can't be cleared.
+  await page.getByLabel("Username").fill(P.username);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Settings saved")).toBeVisible();
+  await page.getByLabel("Username").fill("");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Choose a username.")).toBeVisible();
+  await expect(page.getByLabel("Username")).toBeFocused();
 });

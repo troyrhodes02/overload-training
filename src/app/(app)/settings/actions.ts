@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { updateProfile } from "@/lib/accounts/profile";
+import type { ProfileInput } from "@/lib/accounts/validation";
 import { updateAppearance } from "@/lib/accounts/appearance";
 import type { Appearance } from "@/lib/appearance/appearance";
 
@@ -14,9 +15,9 @@ import type { Appearance } from "@/lib/appearance/appearance";
 
 export type ProfileFormState = {
   result: ActionResult<{ saved: true }> | null;
-  values: { firstName: string; lastName: string; timeZone: string };
+  values: ProfileInput;
   /** The last values known saved (carried forward on failure). */
-  saved: { firstName: string; lastName: string; timeZone: string };
+  saved: ProfileInput;
 };
 
 export async function updateProfileAction(
@@ -27,6 +28,7 @@ export async function updateProfileAction(
   const raw = {
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
+    username: formData.get("username"),
     timeZone: formData.get("timeZone"),
   };
   let stored: ProfileFormState["saved"] | null = null;
@@ -40,6 +42,7 @@ export async function updateProfileAction(
     values: {
       firstName: String(raw.firstName ?? ""),
       lastName: String(raw.lastName ?? ""),
+      username: String(raw.username ?? ""),
       timeZone: String(raw.timeZone ?? ""),
     },
     saved: stored ?? prev.saved,

@@ -3,7 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 /**
  * The whole Accounts lifecycle against the LOCAL Supabase stack (spec §14.8;
- * pitch §7). Serial: each step builds on the last. Only temporary accounts
+ * pitch §7; OVE-50 open signup + usernames). Serial: each step builds on the
+ * last. Only temporary accounts
  * are created, and every one is deleted (through the app, with an admin
  * sweep as a fallback).
  */
@@ -11,7 +12,6 @@ import { createClient } from "@supabase/supabase-js";
 test.describe.configure({ mode: "serial" });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const INVITE = process.env.E2E_INVITE_CODE ?? "";
 if (!/^http:\/\/127\.0\.0\.1:/.test(URL_)) {
   throw new Error(
     "The Accounts lifecycle suite runs against the local stack only.",
@@ -26,8 +26,19 @@ const anon = () =>
   });
 
 const stamp = Date.now();
-const A = { email: `e2e-${stamp}-a@example.test`, password: "first-pass-123" };
-const B = { email: `e2e-${stamp}-b@example.test`, password: "second-pass-456" };
+// Usernames are 3–20 of [a-z0-9_]; the stamp's tail keeps reruns apart.
+const tag = String(stamp).slice(-8);
+const A = {
+  email: `e2e-${stamp}-a@example.test`,
+  password: "first-pass-123",
+  username: `e2e_a_${tag}`,
+};
+const B = {
+  email: `e2e-${stamp}-b@example.test`,
+  password: "second-pass-456",
+  username: `e2e_b_${tag}`,
+};
+const A_RENAMED = `e2e_r_${tag}`;
 const A_GYM = `A Gym ${stamp}`;
 
 async function userExists(email: string): Promise<boolean> {
@@ -40,13 +51,20 @@ async function canSignIn(email: string, password: string): Promise<boolean> {
   return !error;
 }
 
-async function signUp(page: Page, who: typeof A, inviteCode = INVITE) {
+async function signUp(
+  page: Page,
+  who: typeof A,
+  overrides: { username?: string; email?: string; confirm?: string } = {},
+) {
   await page.goto("/signup");
-  await page.getByLabel("Invite code").fill(inviteCode);
   await page.getByLabel("First name").fill("Test");
   await page.getByLabel("Last name").fill(who === A ? "Alpha" : "Bravo");
-  await page.getByLabel("Email").fill(who.email);
+  await page.getByLabel("Username").fill(overrides.username ?? who.username);
+  await page.getByLabel("Email").fill(overrides.email ?? who.email);
   await page.getByLabel("Password", { exact: true }).fill(who.password);
+  await page
+    .getByLabel("Confirm password", { exact: true })
+    .fill(overrides.confirm ?? who.password);
   await page.getByRole("button", { name: "Create account" }).click();
 }
 
@@ -87,21 +105,24 @@ test.afterAll(async ({ browser }) => {
   }
 });
 
-test("a wrong invite code is rejected and creates nothing", async ({
+test("signup needs no invite; mismatched passwords are rejected and create nothing", async ({
   browser,
 }) => {
   const page = await newPage(browser);
-  await signUp(page, A, "not-the-invite-code");
-  await expect(page.getByText("That invite code isn't valid.")).toBeVisible();
+  await page.goto("/signup");
+  await expect(page.getByLabel("Invite code")).toHaveCount(0);
+  await signUp(page, A, { confirm: "not-the-same-1" });
+  await expect(page.getByText("Passwords don't match.")).toBeVisible();
   await expect(page).toHaveURL(/\/signup$/);
   expect(await userExists(A.email)).toBe(false);
 });
 
-test("a valid invite creates the account and lands on an empty Today", async ({
+test("signup creates the account and lands on an empty Today", async ({
   browser,
 }) => {
   const page = await newPage(browser);
-  await signUp(page, A);
+  // Typed with capitals: stored (and unique) lowercase.
+  await signUp(page, A, { username: A.username.toUpperCase() });
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText("No active plan.")).toBeVisible();
   expect(await userExists(A.email)).toBe(true);
@@ -110,12 +131,17 @@ test("a valid invite creates the account and lands on an empty Today", async ({
   await page.getByLabel("Name").fill(A_GYM);
   await page.getByRole("button", { name: /add gym/i }).click();
   await expect(page.getByText(A_GYM)).toBeVisible();
-  // The same email can't sign up twice (only revealed after a valid code).
+  // The same email can't sign up twice.
   const again = await newPage(browser);
-  await signUp(again, A);
+  await signUp(again, A, { username: `e2e_x_${tag}` });
   await expect(
     again.getByText("An account with this email already exists."),
   ).toBeVisible();
+  // Nor can anyone take the username, in any case; nothing is created.
+  const taken = `e2e-${stamp}-c@example.test`;
+  await signUp(again, A, { username: A.username.toUpperCase(), email: taken });
+  await expect(again.getByText("That username is taken.")).toBeVisible();
+  expect(await userExists(taken)).toBe(false);
 });
 
 test("a second account sees none of the first account's data", async ({
@@ -150,7 +176,7 @@ test("sign out ends access; signing back in returns the same account", async ({
   await expect(signedOut.getByText("Wrong email or password.")).toBeVisible();
 });
 
-test("Settings edits the name and timezone of this account only", async ({
+test("Settings edits the name, username, and timezone of this account only", async ({
   browser,
 }) => {
   const page = await newPage(browser);
@@ -159,14 +185,17 @@ test("Settings edits the name and timezone of this account only", async ({
   await page.getByRole("menuitem", { name: "Settings" }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByLabel("First name")).toHaveValue("Test");
+  await expect(page.getByLabel("Username")).toHaveValue(A.username);
   // The browser's zone was captured at signup.
   await expect(page.getByLabel("Timezone")).toHaveValue("America/Denver");
   await page.getByLabel("First name").fill("Alex");
+  await page.getByLabel("Username").fill(A_RENAMED);
   await page.getByLabel("Timezone").selectOption("Europe/Berlin");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Settings saved")).toBeVisible();
   await page.reload();
   await expect(page.getByLabel("First name")).toHaveValue("Alex");
+  await expect(page.getByLabel("Username")).toHaveValue(A_RENAMED);
   await expect(page.getByLabel("Timezone")).toHaveValue("Europe/Berlin");
 
   const b = await newPage(browser);
@@ -174,6 +203,17 @@ test("Settings edits the name and timezone of this account only", async ({
   await b.goto("/settings");
   await expect(b.getByLabel("First name")).toHaveValue("Test");
   await expect(b.getByLabel("Last name")).toHaveValue("Bravo");
+  await expect(b.getByLabel("Username")).toHaveValue(B.username);
+  // B can't take A's username; B's own stays as it was.
+  await b.getByLabel("Username").fill(A_RENAMED);
+  await b.getByRole("button", { name: "Save" }).click();
+  await expect(b.getByText("That username is taken.")).toBeVisible();
+  await b.reload();
+  await expect(b.getByLabel("Username")).toHaveValue(B.username);
+  // A's old username was freed by the rename.
+  await b.getByLabel("Username").fill(A.username);
+  await b.getByRole("button", { name: "Save" }).click();
+  await expect(b.getByText("Settings saved")).toBeVisible();
 });
 
 test("deletion needs the password and removes only this account", async ({

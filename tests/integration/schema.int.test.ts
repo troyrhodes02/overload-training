@@ -73,6 +73,31 @@ describe("schema invariants", () => {
     expect(labels.map((l) => l.enumlabel)).toEqual(["system", "light", "dark"]);
   });
 
+  it("profiles.username is nullable text with a unique index and the shape CHECK (OVE-50)", async () => {
+    const prisma = getTestPrisma();
+    const [col] = await prisma.$queryRawUnsafe<
+      { is_nullable: string; data_type: string }[]
+    >(
+      `SELECT is_nullable, data_type FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'profiles'
+          AND column_name = 'username'`,
+    );
+    expect(col).toEqual({ is_nullable: "YES", data_type: "text" });
+    const indexes = await prisma.$queryRawUnsafe<{ indexdef: string }[]>(
+      `SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public' AND tablename = 'profiles'
+          AND indexname = 'profiles_username_key'`,
+    );
+    expect(indexes).toHaveLength(1);
+    expect(indexes[0].indexdef).toMatch(/CREATE UNIQUE INDEX/);
+    const checks = await prisma.$queryRawUnsafe<{ def: string }[]>(
+      `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+        WHERE conname = 'profiles_username_format'`,
+    );
+    expect(checks).toHaveLength(1);
+    expect(checks[0].def).toContain("^[a-z0-9_]{3,20}$");
+  });
+
   it("seeds no training data (every application table is empty on a clean migrate)", async () => {
     const prisma = getTestPrisma();
     // after-env truncates before each test; this asserts the baseline is empty.

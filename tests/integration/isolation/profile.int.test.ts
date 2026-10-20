@@ -7,6 +7,8 @@ import {
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { getSettingsProfile, updateProfile } from "@/lib/accounts/profile";
+import { isUsernameAvailable } from "@/lib/data/usernames";
+import { UsernameTakenError } from "@/lib/accounts/username-taken";
 import {
   getAccountAppearance,
   updateAppearance,
@@ -16,7 +18,9 @@ import {
  * Cross-account isolation — Profile and the per-account "today" (spec R17,
  * R18). A profile is private, and each account's day comes from its own
  * stored timezone. Its appearance preference (Personalization & Navigation
- * Polish) is the account's own too.
+ * Polish) is the account's own too. Usernames (OVE-50) are unique across all
+ * accounts; the only thing one account can learn about another's is that a
+ * name it tried is taken.
  */
 
 it("an account never reads another account's profile", async () => {
@@ -74,6 +78,7 @@ describe("Settings profile edits (Accounts)", () => {
     await updateProfile(b, {
       firstName: " Sam ",
       lastName: "Ortiz",
+      username: " Sam_O ",
       timeZone: "Asia/Tokyo",
     });
     const rows = await getTestPrisma().profile.findMany();
@@ -81,11 +86,13 @@ describe("Settings profile edits (Accounts)", () => {
     expect(byId.get(b.userId)).toMatchObject({
       firstName: "Sam",
       lastName: "Ortiz",
+      username: "sam_o",
       timeZone: "Asia/Tokyo",
     });
     expect(byId.get(a.userId)).toMatchObject({
       firstName: null,
       lastName: null,
+      username: null,
       timeZone: "America/Chicago",
     });
   });
@@ -93,11 +100,17 @@ describe("Settings profile edits (Accounts)", () => {
   it("rejects invalid input without writing anything", async () => {
     const a = await createTestAccount("America/Chicago");
     await expect(
-      updateProfile(a, { firstName: "", lastName: "R", timeZone: "Nope/Zone" }),
+      updateProfile(a, {
+        firstName: "",
+        lastName: "R",
+        username: "x",
+        timeZone: "Nope/Zone",
+      }),
     ).rejects.toMatchObject({
       code: "validation_error",
       details: {
         firstName: "Enter your first name.",
+        username: expect.any(String),
         timeZone: "Choose a timezone.",
       },
     });
@@ -105,7 +118,11 @@ describe("Settings profile edits (Accounts)", () => {
       await getTestPrisma().profile.findUniqueOrThrow({
         where: { userId: a.userId },
       }),
-    ).toMatchObject({ firstName: null, timeZone: "America/Chicago" });
+    ).toMatchObject({
+      firstName: null,
+      username: null,
+      timeZone: "America/Chicago",
+    });
   });
 
   it("a saved zone change moves the account's today", async () => {
@@ -114,6 +131,7 @@ describe("Settings profile edits (Accounts)", () => {
     await updateProfile(a, {
       firstName: "W",
       lastName: "R",
+      username: "will_r",
       timeZone: "Pacific/Pago_Pago", // UTC-11
     });
     const reread = await resolveAccount(a.userId);
@@ -122,6 +140,7 @@ describe("Settings profile edits (Accounts)", () => {
     expect(await getSettingsProfile(reread)).toEqual({
       firstName: "W",
       lastName: "R",
+      username: "will_r",
       timeZone: "Pacific/Pago_Pago",
     });
   });
@@ -133,7 +152,12 @@ describe("signup profile (Accounts R9)", () => {
     const id = randomUUID();
     await establishProfile(
       { id },
-      { firstName: "Sam", lastName: "Ortiz", timeZone: "Europe/Berlin" },
+      {
+        firstName: "Sam",
+        lastName: "Ortiz",
+        username: "sam_o",
+        timeZone: "Europe/Berlin",
+      },
     );
     expect(
       await getTestPrisma().profile.findUniqueOrThrow({
@@ -142,6 +166,7 @@ describe("signup profile (Accounts R9)", () => {
     ).toMatchObject({
       firstName: "Sam",
       lastName: "Ortiz",
+      username: "sam_o",
       timeZone: "Europe/Berlin",
     });
     expect(
@@ -156,7 +181,12 @@ describe("signup profile (Accounts R9)", () => {
     await resolveAccount(id); // a concurrent first request made a UTC profile
     await establishProfile(
       { id },
-      { firstName: "Sam", lastName: "Ortiz", timeZone: "Asia/Tokyo" },
+      {
+        firstName: "Sam",
+        lastName: "Ortiz",
+        username: "sam_o",
+        timeZone: "Asia/Tokyo",
+      },
     );
     const rows = await getTestPrisma().profile.findMany({
       where: { userId: id },
@@ -165,6 +195,7 @@ describe("signup profile (Accounts R9)", () => {
       expect.objectContaining({
         firstName: "Sam",
         lastName: "Ortiz",
+        username: "sam_o",
         timeZone: "Asia/Tokyo",
       }),
     ]);
@@ -174,7 +205,12 @@ describe("signup profile (Accounts R9)", () => {
     const id = randomUUID();
     await establishProfile(
       { id },
-      { firstName: "Sam", lastName: "Ortiz", timeZone: "Nope/Zone" },
+      {
+        firstName: "Sam",
+        lastName: "Ortiz",
+        username: "sam_o",
+        timeZone: "Nope/Zone",
+      },
     );
     expect(
       (
@@ -256,5 +292,209 @@ describe("appearance preference (Personalization & Navigation Polish)", () => {
       ),
     ).rejects.toThrow();
     expect(await rawAppearance(a.userId)).toBe("system");
+  });
+});
+
+describe("usernames: unique across accounts, private otherwise (OVE-50)", () => {
+  type TestAccount = Awaited<ReturnType<typeof createTestAccount>>;
+  const usernameOf = async (userId: string) =>
+    (
+      await getTestPrisma().profile.findUniqueOrThrow({
+        where: { userId },
+        select: { username: true },
+      })
+    ).username;
+  const save = (account: TestAccount, username: string) =>
+    updateProfile(account, {
+      firstName: "Test",
+      lastName: "Lifter",
+      username,
+      timeZone: account.timeZone,
+    });
+
+  it("one account can't take another's username, in any case, and learns only that it's taken", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await save(a, "sam_r");
+    for (const attempt of ["sam_r", "Sam_R", "@SAM_R"]) {
+      const error = await save(b, attempt).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(UsernameTakenError);
+      expect(error).toEqual(
+        expect.objectContaining({
+          code: "conflict",
+          message: "That username is taken.",
+          details: { username: "That username is taken." },
+        }),
+      );
+    }
+    expect(await usernameOf(a.userId)).toBe("sam_r");
+    expect(await usernameOf(b.userId)).toBeNull();
+  });
+
+  it("an account without a username can still save its name and timezone (it stays without one)", async () => {
+    const a = await createTestAccount("America/Chicago");
+    await updateProfile(a, {
+      firstName: "William",
+      lastName: "Rhodes",
+      username: "",
+      timeZone: "Europe/Berlin",
+    });
+    expect(
+      await getTestPrisma().profile.findUniqueOrThrow({
+        where: { userId: a.userId },
+      }),
+    ).toMatchObject({
+      firstName: "William",
+      lastName: "Rhodes",
+      username: null,
+      timeZone: "Europe/Berlin",
+    });
+  });
+
+  it("once an account has a username it can be changed but never cleared", async () => {
+    const a = await createTestAccount();
+    await save(a, "keep_me");
+    for (const empty of ["", "   "]) {
+      await expect(save(a, empty)).rejects.toMatchObject({
+        code: "validation_error",
+        details: { username: "Choose a username." },
+      });
+    }
+    expect(await usernameOf(a.userId)).toBe("keep_me");
+  });
+
+  it("re-saving your own username is not a conflict, and changing it frees the old one", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await save(a, "first_name");
+    await save(a, "first_name");
+    await save(a, "second_name");
+    expect(await isUsernameAvailable("first_name")).toBe(true);
+    await save(b, "first_name");
+    expect(await usernameOf(b.userId)).toBe("first_name");
+  });
+
+  it("an account can't change another account's username, even by id", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await save(a, "owner_a");
+    const { count } = await b.db.profile.updateMany({
+      where: { userId: a.userId },
+      data: { username: "stolen" },
+    });
+    expect(count).toBe(0);
+    expect(await usernameOf(a.userId)).toBe("owner_a");
+  });
+
+  it("an account never reads another account's username", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await save(a, "hidden_a");
+    expect(
+      await b.db.profile.findFirst({ where: { username: "hidden_a" } }),
+    ).toBeNull();
+    expect(
+      await b.db.profile.count({ where: { username: { not: null } } }),
+    ).toBe(0);
+  });
+
+  it("the availability check answers yes or no and nothing else", async () => {
+    const a = await createTestAccount();
+    await save(a, "taken_name");
+    await expect(isUsernameAvailable("taken_name")).resolves.toBe(false);
+    await expect(isUsernameAvailable("free_name")).resolves.toBe(true);
+  });
+
+  it("many accounts can have no username yet", async () => {
+    await createTestAccount();
+    await createTestAccount();
+    await createTestAccount();
+    expect(
+      await getTestPrisma().profile.count({ where: { username: null } }),
+    ).toBe(3);
+  });
+
+  it("the database itself refuses a duplicate, an uppercase, or a malformed username", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await save(a, "dup_name");
+    const raw = (value: string, userId: string) =>
+      getTestPrisma().$executeRawUnsafe(
+        `UPDATE "profiles" SET "username" = $1 WHERE "user_id" = $2::uuid`,
+        value,
+        userId,
+      );
+    for (const bad of [
+      "dup_name",
+      "Dup_Name_2",
+      "ab",
+      "a".repeat(21),
+      "has space",
+      "dash-ed",
+    ]) {
+      await expect(raw(bad, b.userId)).rejects.toThrow();
+    }
+    expect(await usernameOf(b.userId)).toBeNull();
+  });
+
+  it("two accounts racing for one username: exactly one wins", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    const results = await Promise.allSettled([
+      save(a, "race_name"),
+      save(b, "race_name"),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const lost = results.find(
+      (r): r is PromiseRejectedResult => r.status === "rejected",
+    );
+    expect(lost?.reason).toMatchObject({ code: "conflict" });
+    expect(
+      await getTestPrisma().profile.count({ where: { username: "race_name" } }),
+    ).toBe(1);
+  });
+
+  it("signup's profile write refuses a taken username and creates nothing", async () => {
+    const a = await createTestAccount();
+    await save(a, "signup_name");
+    const id = randomUUID();
+    await expect(
+      establishProfile(
+        { id },
+        {
+          firstName: "Sam",
+          lastName: "O",
+          username: "signup_name",
+          timeZone: "UTC",
+        },
+      ),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(
+      await getTestPrisma().profile.findUnique({ where: { userId: id } }),
+    ).toBeNull();
+  });
+
+  it("completing a lazy profile with a taken username leaves the lazy profile as it was", async () => {
+    const a = await createTestAccount();
+    await save(a, "lazy_name");
+    const id = randomUUID();
+    await resolveAccount(id); // a concurrent first request made a UTC profile
+    await expect(
+      establishProfile(
+        { id },
+        {
+          firstName: "Sam",
+          lastName: "O",
+          username: "lazy_name",
+          timeZone: "Asia/Tokyo",
+        },
+      ),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(
+      await getTestPrisma().profile.findUniqueOrThrow({
+        where: { userId: id },
+      }),
+    ).toMatchObject({ username: null, timeZone: "UTC" });
+    expect(await usernameOf(a.userId)).toBe("lazy_name");
   });
 });

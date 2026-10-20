@@ -27,7 +27,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
     <AuthCard
       footer={
         <>
-          Have an invite?{" "}
+          New to Overload?{" "}
           <Link
             href="/signup"
             className="font-medium text-primary underline-offset-4 hover:underline"

@@ -2,6 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { requireUser } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/actions/result";
+import {
+  asUsernameConflict,
+  UsernameTakenError,
+} from "@/lib/accounts/username-taken";
 import { isValidTimeZone, todayIso } from "@/lib/plan/calendar";
 import {
   createAccountClient,
@@ -59,15 +63,23 @@ export async function resolveAccount(userId: string): Promise<Account> {
 }
 
 /**
- * Writes a brand-new account's profile at signup (Accounts spec R9): names and
- * the browser's timezone. `user` is the user the auth service itself returned
- * from signing in, in the same server request — never client input. If a lazy
- * profile raced in (a concurrent first request), it is completed, not
- * duplicated. Only the signup module calls this (guard tests).
+ * Writes a brand-new account's profile at signup (Accounts spec R9): names,
+ * username, and the browser's timezone. `user` is the user the auth service
+ * itself returned from signing in, in the same server request — never client
+ * input. If a lazy profile raced in (a concurrent first request), it is
+ * completed, not duplicated. Only the signup module calls this (guard tests).
+ *
+ * Throws UsernameTakenError when the username was taken in the meantime (the
+ * unique index decides; see isUsernameAvailable).
  */
 export async function establishProfile(
   user: { id: string },
-  input: { firstName: string; lastName: string; timeZone: string },
+  input: {
+    firstName: string;
+    lastName: string;
+    username: string;
+    timeZone: string;
+  },
 ): Promise<void> {
   const db = createAccountClient(user.id);
   const timeZone = isValidTimeZone(input.timeZone)
@@ -76,13 +88,23 @@ export async function establishProfile(
   const data = {
     firstName: input.firstName,
     lastName: input.lastName,
+    username: input.username,
     timeZone,
   };
   try {
     await db.profile.create({ data: { userId: user.id, ...data } });
+    return;
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
+    // Either this account's profile already exists (a lazy profile raced in)
+    // or another account holds the username. Only the first is completable.
+    const own = await db.profile.findUnique({ where: { userId: user.id } });
+    if (!own) throw new UsernameTakenError();
+  }
+  try {
     await db.profile.updateMany({ where: { userId: user.id }, data });
+  } catch (error) {
+    throw asUsernameConflict(error);
   }
 }
 
