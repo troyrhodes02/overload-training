@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — implementing OVE-55** (OVE-54 done, PR #73 In Review).
+**Step 8 — implementing OVE-56** (OVE-54 #73 and OVE-55 #74 In Review).
 
 ## Authority used (read before resuming)
 
@@ -62,6 +62,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 ### Ticket branches / PRs
 
 - **OVE-54** — `feat/ove-54-release-notes-seen` (off the feature branch) → PR **#73** (base: feature branch). In Review. Verified: prettier, lint, tsc, prisma validate, unit 51/873, integration 40/481 (release-notes, isolation/release-notes, release-seen-migration, deletion, ownership-enforce, RLS, schema), build (local env) + client-bundle OK; migration 9e applied to the LOCAL stack only (release_seen 0 rows, RLS on, 0 policies, migrate diff local→schema empty, anon Data API refused, 463 sets unchanged). **Spec v1.1.0 (R10):** the signup write moved into `establishProfile` (`initialReleaseSeen()` supplies the start) because the isolation guard forbids a bare `userId` outside src/lib/data; guard not weakened. Two standing guards caught this and a comment naming establishProfile — both fixed in code.
+- **OVE-55** — `feat/ove-55-whats-new-ui` (off OVE-54) → PR **#74** (base: OVE-54 branch). In Review. Verified: prettier, lint, tsc, unit 53/879, integration 40/481, build (local env) + client-bundle OK. **Browser walkthrough** (scratchpad `walk.mjs`; dev server on 3317 against the local stack; temporary uncommitted entries; `git diff --exit-code src/lib/release-notes/entries.ts` clean afterwards): 3 accounts signed up with an empty catalog had no row and no dialog; after 1 significant entry: one-entry dialog, focus on Got it, row moved on open, reload without closing → none; after 3 significant + 1 ordinary: a fresh account got exactly [Exercise history, Clearer recommendations, Logging is faster] ("3 updates since you were last here"), Got it + reload → none; desktop light/dark and phone dark renders; See all updates → page with dialog closed; 375×568 with 5 entries: Got it fully in viewport at 44px, list scrolls, Escape + reload → none; a new account signed up with entries present: tour on first load, no dialog, row = newest id, no dialog after skipping the tour; Settings section + page at 375/1280 light/dark, no horizontal scroll; empty state + back link. All 4 temporary accounts deleted through the app's deletion flow. Screenshots in scratchpad `walk/` compared with preview §01–§05 — hierarchy, copy, controls, tokens match.
 
 ## Resolved Decisions so far
 
