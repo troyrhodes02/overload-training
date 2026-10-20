@@ -175,10 +175,10 @@ function ActiveGoal({
   );
 }
 
-/** Thumb-reach action bar on phones (above the bottom nav); inline at md+. */
+/** Thumb-reach action bar on phones (at the bottom edge); inline at md+. */
 function ThumbAction({ children }: { children: ReactNode }) {
   return (
-    <div className="fixed inset-x-0 bottom-16 z-10 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:static md:border-0 md:bg-transparent md:p-0">
+    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 px-4 py-3 backdrop-blur md:static md:border-0 md:bg-transparent md:p-0">
       {children}
     </div>
   );

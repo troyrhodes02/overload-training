@@ -12,7 +12,7 @@ export function Toaster(props: ToasterProps) {
     <Sonner
       theme="system"
       position="bottom-center"
-      // Sit above the fixed mobile bottom nav.
+      // Sit above the phone thumb-reach action bars (fixed to the bottom edge).
       offset={{ bottom: 80 }}
       mobileOffset={{ bottom: 80 }}
       toastOptions={{
