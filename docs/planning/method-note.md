@@ -104,3 +104,23 @@ Source: `docs/specs/12-whats-new-spec.md` §8 "Release-note content contract" (R
 - **Never** delete, re-order, or re-date a published entry, or change its `id` (each account's seen point refers to it). Correct wording mistakes in place only.
 - **Seen state:** `ReleaseSeen` (one row per account) stores the newest entry shown. A new account starts at the newest entry; an account with no row has been shown nothing; an entry dated before an account's creation (its calendar date in the account's timezone) is never unseen. The dialog opens only on a full page load, never mid-visit. The dialog marks seen when it opens.
 - **No tour link field** exists (R20). The launch catalog is empty (R8).
+
+## Set entry and tap-count method (established by Faster Logging UX)
+
+Source: `docs/specs/13-faster-logging-ux-spec.md` (§5, §7, §11, §14.4; Resolved Decisions R4–R13, R21–R22, R26). Code: `src/lib/logging/set-entry.ts` (active set, offer, context line), `src/components/logging/exercise-card.tsx`, `src/lib/logging/queries.ts` (`previousPerformance`, gym-scoped working weight). Consumed by RIR Logging & Autoregulation ("logging speed is not meaningfully slower") and any later change to the logging card.
+
+### Set-entry rules
+
+- **One active row.** Only the lowest unlogged planned set (or the pending extra after Add set) has inputs. Logged sets render as text from the server's records only ("a box is a draft; a plain number is history"). Upcoming sets are read-only.
+- **The weight carries; reps are never offered.** Set 1 offers the working weight; later sets offer the weight of the highest-numbered logged set in the card. An offer is local state: nothing is written until Log set or Enter in reps. The +5 Progress and 90% deload suggestions never prefill. Bodyweight has no weight field and no offer.
+- **Working weight is gym-scoped for machine/cable** (`isGymVariable`): the gym's baseline, else the latest weight logged at that gym, else none — never another gym's. Gym-consistent: the latest weight logged anywhere. One source feeds the offer and the display-only suggestions.
+- **"Last time"** = the most recent earlier `LoggedExercise` of the performed exercise with ≥ 1 set, on or before the workout's date; machine/cable at this gym only.
+- **Focus only follows the lifter's action**: none on load; next reps after a confirmed set; Next/Finish after the last planned set; the new card's set after Next/Previous. Log set does not take focus.
+- A new control on the card (for example an RIR selector) belongs on the active row only, so logged and upcoming rows stay control-free.
+
+### Tap-count method
+
+- **Representative workout** (`e2e/accounts/support/representative-workout.ts`): Push Day 1 at Downtown Gym, week 2 of a 5-week block — Barbell Bench Press - Medium Grip 3 × 6–8 (history 185 × 8, 8, 7; today the same), Incline Dumbbell Press 3 × 8–10 (history 60 × 10, 10, 9; today 65 × 9, 8, 8), Triceps Pushdown (cable) 3 × 10–12 (history 50 × 12, 12, 11 and a Downtown baseline of 50; today the same), Pushups (bodyweight) 2 × 12–20 (history 18, 15; today 18, 16).
+- **Counted** from the open workout page to the dashboard after Finish, in a 375×812 touch context: a **tap** is one pointer activation on a page element (including tapping a field to focus it; a field the app already focused is not tapped); a **keystroke** is one key. Drivers act only through the counter (no `fill`, `focus`, or script). Replacing a value on a card without select-on-focus costs a tap, an uncounted `End`, one Backspace per character, and the digits.
+- **Results:** Pitch 4 card (`fe34d00`) **29 taps, 28 keystrokes, 12 visible controls** (3-set card with set 1 logged, plus Previous/Next); Faster Logging UX card **18 taps, 18 keystrokes, 8 controls**. Before: `OVERLOAD_TAP_BASELINE=1` run of `e2e/accounts/tap-count-baseline.spec.ts` from a worktree of `fe34d00`. After: `e2e/accounts/faster-logging.spec.ts` (asserts ≤ 18 and < 29).
+- **Limit:** desktop Chrome with touch emulation does not reproduce iOS Safari's keyboard. If iOS drops the keyboard between sets, each set the app focuses costs one extra tap (nine in this workout), so the iOS after-count is at most 27. A later pitch measures the same way and states the same caveat.
