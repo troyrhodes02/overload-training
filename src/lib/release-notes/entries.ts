@@ -26,6 +26,17 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // RIR Logging & Autoregulation (Pitch 14). PROVISIONAL date: written
+    // 2026-10-21 while the feature PR waits for approval. Before merging, set
+    // `date` and the id's date prefix to the merge day (runbook 14 §3); once it
+    // reaches production it is published and never re-dated.
+    id: "2026-10-21-reps-in-reserve",
+    date: "2026-10-21",
+    title: "Reps in reserve",
+    body: "You can now record how many reps you had left on a set, from 0 to 4+, right under the reps. It's optional and adds no taps when you skip it. If you reach the top of your range at 0, Overload holds the weight; if every set had 2 or more to spare, a flat trend no longer holds you back.",
+    significant: true,
+  },
+  {
     // Faster Logging UX (Pitch 13). PROVISIONAL date: written 2026-10-20 while
     // the feature PR waits for approval. Before merging, set `date` and the
     // id's date prefix to the merge day (runbook 13 §2); once it reaches
