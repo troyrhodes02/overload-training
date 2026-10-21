@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 12 — Code review of #76 (inline comments).**
+**COMPLETE — stopped before merge to `main` (spec R3).** Feature PR #76 is open and ready for review, with every ticket PR integrated and the review audit applied. Remaining steps are human: runbook §2 (set the release-note date to the merge day), §3–§4 (real-shaped-data and real-device checks), merge, §6 post-deploy checks; then move OVE-57…60 to Done and decide OVE-61.
 
 ## Authority used (read before resuming)
 
@@ -42,10 +42,10 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 9. Runbook — `docs/runs/13-faster-logging-ux-runbook.md` (no migration; pre-merge release-note date step; real-shaped-data + real-device checks)
 - [x] 10. Ticket PRs squash-merged into the feature branch in order — #77 `d518e48`, #78 `ddd9cbb`, #79 `c0eea87`, #80 `d3f1347`. Each: retarget to the feature branch → merge the feature branch into the ticket branch (conflict only in the progress file; kept the ticket's superset) → tree identical to the reviewed ticket tip, delta vs feature = that ticket only → Vercel pass → squash. Final feature tree == OVE-60 tip. No force-push.
 - [x] 11. Full verification on `d3f1347`: prettier, lint, tsc, prisma validate, no prisma/supabase diff vs main, local migrate status up to date; unit 57/913; integration 41/494; accounts e2e 29 passed + 1 skipped (tap count AFTER 18 taps / 18 keys vs BEFORE 29 / 28; controls 8 vs 12); default e2e 26/26; client-bundle OK; `logged-sets.ts`, log/history actions, baselines, progression, tour + What's New mechanisms unchanged vs main; local DB 3/2/463/0 after.
-- [ ] 12. Code review (inline comments on feature PR)
-- [ ] 13. Review audit
-- [ ] 14. Final verification — STOP before merge
-- [ ] 15. Run report
+- [x] 12. Code review: the `code-review` skill (high) posted 10 inline comments on #76
+- [x] 13. Review audit posted (https://github.com/troyrhodes02/overload-training/pull/76#issuecomment-6307936380) with a reply on each comment: 7 implement (read-only while saving → keyboard kept; error focus; baseline caption `working weight`; conflict copy; parallel reads; setNumber notice; redundant dep), 2 defer (OVE-61 working-weight source; correction never replays baselines — Pitch 4 D53/54), 1 discuss (provisional date kept + merge-blocking checklist). Fixes in `20f1b3b`; spec v1.2.0 (R27–R30).
+- [x] 14. Final verification on `20f1b3b`: prettier, lint, tsc, prisma validate, no prisma diff, migrate status up to date; unit 57/915; integration 41/494; accounts e2e 29 passed + 1 skipped (AFTER 18 taps / 18 keys / 8 controls); default e2e 26/26; client-bundle OK; Vercel pass on #76; local DB 3/2/463/0. #76 marked ready for review — **not merged**. Baseline worktree removed.
+- [x] 15. Run report — `docs/runs/13-faster-logging-ux-report.md`
 
 ## Linear
 
