@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 3 — UI preview.**
+**Step 4 — Spec.**
 
 ## Authority used (read before resuming)
 
@@ -33,7 +33,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/13-faster-logging-ux-design-doc.md` (v1.0)
-- [ ] 3. UI preview — `docs/previews/13-faster-logging-ux-preview.html`
+- [x] 3. UI preview — `docs/previews/13-faster-logging-ux-preview.html` (.html not the run prompt .tsx; 28 frames; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs` (+ `check.mjs`).
 - [ ] 4. Spec — `docs/specs/13-faster-logging-ux-spec.md`
 - [ ] 5. Resolved Decisions in spec
 - [ ] 6. Linear milestone + issues
