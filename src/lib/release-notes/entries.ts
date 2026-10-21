@@ -24,4 +24,16 @@ import type { ReleaseNoteEntry } from "./types";
  *
  * What's New launches with no entries (R8): nothing is backdated to fill it.
  */
-export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [];
+export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
+  {
+    // Faster Logging UX (Pitch 13). PROVISIONAL date: written 2026-10-20 while
+    // the feature PR waits for approval. Before merging, set `date` and the
+    // id's date prefix to the merge day (runbook 13 §2); once it reaches
+    // production it is published and never re-dated.
+    id: "2026-10-20-faster-workout-logging",
+    date: "2026-10-20",
+    title: "Faster workout logging",
+    body: "Logging a set now takes fewer taps. Each exercise shows what you did last time, your weight carries over from set to set, and the next set is ready for its reps as soon as you log one. Tap a logged set to fix a typo.",
+    significant: true,
+  },
+];
