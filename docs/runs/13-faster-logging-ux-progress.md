@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — Implementation: OVE-60 (guidance) next** (branch `feat/ove-60-guidance` off `feat/ove-59-e2e-tap-count`).
+**Step 10 — Integrate ticket PRs #77→#80 into the feature branch (squash, in order).**
 
 ## Authority used (read before resuming)
 
@@ -38,8 +38,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 5. Resolved Decisions in spec (R1–R25)
 - [x] 6. Linear milestone + issues (OVE-57 → OVE-58 → OVE-59 → OVE-60, blockedBy chain)
 - [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#76** https://github.com/troyrhodes02/overload-training/pull/76
-- [ ] 8. Tickets implemented
-- [ ] 9. Runbook
+- [x] 8. Tickets implemented — OVE-57…60 → PRs #77–#80 (stacked), all In Review
+- [x] 9. Runbook — `docs/runs/13-faster-logging-ux-runbook.md` (no migration; pre-merge release-note date step; real-shaped-data + real-device checks)
 - [ ] 10. Ticket PRs squash-merged into feature branch
 - [ ] 11. Full verification + tap-count measurement
 - [ ] 12. Code review (inline comments on feature PR)
@@ -61,6 +61,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - **OVE-57** — `feat/ove-57-previous-performance` (off the feature branch) → PR **#77** (base: feature branch). In Review. Verified: prettier, lint, tsc, unit 55/899, integration 41/494 (new `previous-performance.int.test.ts` 11 tests; `isolation/logging` +1), build (local env) + client-bundle OK. Summary: `getWorkout` gains `previousPerformance` + `loggedSetId`; the machine/cable working weight no longer falls back to another gym; pure `set-entry.ts` helpers + `formatMonthDay`. Integration tests went in a new file rather than `logging-reads` (same coverage; clearer). Nothing renders the new fields until OVE-58.
 - **OVE-58** — `feat/ove-58-active-row-card` (off OVE-57) → PR **#78** (base: OVE-57 branch). In Review. Verified: prettier, lint, tsc, unit 57/913, integration 41/494, production build (accounts webServer, local env) + client-bundle OK. Browser walkthrough (temporary uncommitted spec, kept in scratchpad `zz-walkthrough.spec.ts`; 375×812 touch, 320px, 1280 dark): nothing focused on load; after Log set 1 → `Set 2 reps`; after set 3 → Next; after Next → new card's reps; typing over the offered 60 → 65; logged row opens the correction dialog; 0 page errors. Two layout bugs found and fixed in-browser (weight box clipped `185` at 375px; context line truncated beside the gym label) → spec v1.1.0 **R26** (reps box 88px; below 360px Log set is icon-only with `Log set N` name; context line full width). One failed walkthrough run left a temp account; a cleanup afterAll removed it through the app. Local DB after: 3 users / 2 profiles / 463 sets.
 - **OVE-59** — `feat/ove-59-e2e-tap-count` (off OVE-58) → PR **#79** (base: OVE-58 branch). In Review. **Measured: before (Pitch 4 card, `fe34d00`) 29 taps / 28 keystrokes / 12 controls; after 18 taps / 18 keystrokes / 8 controls.** Baseline run: worktree `C:\Users\wtrho\overload-baseline-fe34d00` (detached at fe34d00, own `npm ci` — Turbopack rejects a junctioned node_modules), seed module + baseline spec copied in, `OVERLOAD_TAP_BASELINE=1 npx playwright test --config playwright.accounts.config.ts e2e/accounts/tap-count-baseline.spec.ts`. Verified: prettier, lint, tsc, unit 57/913, accounts e2e 28 passed + 1 skipped (baseline driver), default e2e 26/26; local DB 3/2/463 after. Baseline spec lives at `e2e/accounts/tap-count-baseline.spec.ts` (ticket text said `support/`; top level keeps it beside the suite it documents). Method note gains "Set entry and tap-count method".
+- **OVE-60** — `feat/ove-60-guidance` (off OVE-59) → PR **#80** (base: OVE-59 branch). In Review. `/overload-onboarding`: mechanisms exist (Pitches 11, 12 on main). **Tour: no step, no copy change** (R24 confirmed: the `logging` step anchors to Today's Start/day block and still reads true). **Release note:** one significant entry `2026-10-20-faster-workout-logging` / "Faster workout logging" — **provisional date**, runbook §2 re-dates it at merge. Tests that pinned the empty launch catalog were made explicit/catalog-aware (page unit test renders `[]`; whats-new e2e reads shipped entries) and a new e2e proves the dialog shows once (375 light, 1280 dark) for an account that predates the entry and never again. Verified: prettier, lint, tsc, unit 57/913, integration 41/494, accounts e2e 29 passed + 1 skipped; local DB 3/2/463/0 release_seen.
 
 ## Resolved Decisions so far
 
