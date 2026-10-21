@@ -17,6 +17,9 @@
  * What's New (Pitch 12): release-notes.int.test.ts proves an account's
  * ReleaseSeen can't be read, changed, or detected by another, and that one
  * account's dialog never moves another's seen point.
+ * Faster Logging UX (Pitch 13): no new owned model; logging.int.test.ts proves
+ * the card's "Last time" context and working weight read only the acting
+ * account's LoggedExercise/LoggedSet/GymExerciseBaseline rows.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],
