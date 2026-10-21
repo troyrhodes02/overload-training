@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -29,6 +29,11 @@ import type { WorkoutDto } from "@/lib/logging/queries";
  * unfinished is listed for confirmation first (no sets → recorded as not done;
  * partly logged → kept as logged). Client island; completion is an explicit,
  * server-validated action.
+ *
+ * Faster Logging UX (Screen 4, R13, R16): Next names the exercise it goes to;
+ * there is no auto-advance. When a confirmed set leaves the card nothing to
+ * log, focus moves to Next (or Finish workout); after Next/Previous the new
+ * card focuses its next set. Nothing is focused on page load.
  */
 export function WorkoutRunner({
   workout,
@@ -42,6 +47,11 @@ export function WorkoutRunner({
 }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
+  // True once the lifter has moved between cards; the first card never
+  // takes focus on its own (R13).
+  const [navigated, setNavigated] = useState(false);
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const focusPrimary = useCallback(() => primaryRef.current?.focus(), []);
   const [changingGym, setChangingGym] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -59,6 +69,12 @@ export function WorkoutRunner({
     }))
     .filter((e) => e.done < e.planned);
   const isLast = index >= exercises.length - 1;
+  const next = exercises[index + 1];
+
+  function go(to: number) {
+    setNavigated(true);
+    setIndex(Math.min(exercises.length - 1, Math.max(0, to)));
+  }
 
   function requestFinish() {
     if (unfinished.length > 0) setConfirming(true);
@@ -101,6 +117,7 @@ export function WorkoutRunner({
             <Button
               variant="ghost"
               size="sm"
+              className="h-11"
               onClick={() => setChangingGym((v) => !v)}
             >
               Change gym
@@ -129,6 +146,9 @@ export function WorkoutRunner({
           exercise={current}
           gymLocked={workout.gymLocked}
           progression={progression[current.loggedExerciseId]}
+          workoutDateIso={workout.scheduledFor}
+          focusOnMount={navigated}
+          onPlannedSetsDone={focusPrimary}
           swapSlot={
             current.sets.some((s) => s.saved) ? (
               <Button variant="secondary" className="w-full" disabled>
@@ -156,23 +176,26 @@ export function WorkoutRunner({
       <div className="flex items-center gap-2">
         <Button
           variant="secondary"
+          className="h-11"
           disabled={index === 0}
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
+          onClick={() => go(index - 1)}
         >
           Previous
         </Button>
         {!isLast ? (
           <Button
-            className="flex-1"
-            onClick={() =>
-              setIndex((i) => Math.min(exercises.length - 1, i + 1))
-            }
+            ref={primaryRef}
+            className="h-11 min-w-0 flex-1"
+            onClick={() => go(index + 1)}
           >
-            Next
+            <span className="truncate">
+              Next: {next?.performedExerciseName}
+            </span>
           </Button>
         ) : (
           <Button
-            className="flex-1"
+            ref={primaryRef}
+            className="h-11 flex-1"
             disabled={!canFinish || pending}
             onClick={requestFinish}
           >

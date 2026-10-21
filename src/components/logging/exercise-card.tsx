@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, Lock, Plus } from "lucide-react";
@@ -10,7 +10,16 @@ import {
   logSetAction,
   setExerciseSkippedAction,
 } from "@/app/(app)/log/actions";
+import { EditSetDialog } from "@/components/logging/edit-set-dialog";
 import type { ExerciseCardDto } from "@/lib/logging/queries";
+import {
+  activeSetNumber,
+  formatPreviousPerformance,
+  formatWeight,
+  loggedRowLabel,
+  offerCaption,
+  offerFor,
+} from "@/lib/logging/set-entry";
 import type { ProgressionTag, SuggestedLoadDto } from "@/lib/progression/types";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
@@ -29,20 +38,37 @@ export type CardProgression = {
 };
 
 /**
- * Guided per-exercise logging card (design Screen 4). All planned working-set
- * rows together; weight + reps entry with positive-only validation; a saved set
- * reads as settled, an unsaved row as draft, and a failed save keeps the numbers.
+ * Guided per-exercise logging card (Guided Workout Logging Screen 4, refined
+ * by Faster Logging UX — design doc v1.1, preview §01–§06, spec §7).
+ *
+ * "A box is a draft; a plain number is history": logged sets render as text
+ * from the server's records only; the one ACTIVE set (the next planned one)
+ * is the only row with inputs. Its weight box holds an offer — the working
+ * weight for the first set, then the weight of the set just logged — that is
+ * local state and is never written on its own; reps are never offered. Only a
+ * Log set press (or Enter in reps) calls logSetAction, and a row turns logged
+ * only once the refreshed record contains it (R4–R7, R15).
+ *
  * A bodyweight exercise (requiresExternalWeight false) has no weight input at
- * all — reps only, and no weight is sent. A client island calling logSetAction;
- * it never touches the database.
+ * all — reps only, and no weight is sent. A client island calling server
+ * actions; it never touches the database.
  */
-type Draft = { weight: string; reps: string };
+type Draft = { weight: string | null; reps: string };
+type FieldError = { message: string; field: "weight" | "reps" };
+/** Where focus should go once the next render shows the confirmed set (R13). */
+type FocusIntent =
+  | { kind: "none" }
+  | { kind: "mount" }
+  | { kind: "after-log"; setNumber: number };
 
 export function ExerciseCard({
   exercise,
   gymLocked,
   swapSlot,
   progression,
+  workoutDateIso,
+  focusOnMount = false,
+  onPlannedSetsDone,
 }: {
   exercise: ExerciseCardDto;
   gymLocked: boolean;
@@ -50,34 +76,89 @@ export function ExerciseCard({
   swapSlot?: React.ReactNode;
   /** Derived progression for this occurrence (OVE-28); omitted → no tag/suggestion. */
   progression?: CardProgression;
+  /** The workout's date: the "Last time" line adds a year only when it differs. */
+  workoutDateIso?: string;
+  /** True only when the lifter moved here with Next/Previous — never on page load. */
+  focusOnMount?: boolean;
+  /** Called once a confirmed set leaves nothing to log, so the runner can focus Next. */
+  onPlannedSetsDone?: () => void;
 }) {
   const router = useRouter();
   const needsWeight = exercise.requiresExternalWeight;
-  const [drafts, setDrafts] = useState<Record<number, Draft>>(() =>
-    Object.fromEntries(
-      exercise.sets.map((s) => [
-        s.setNumber,
-        {
-          weight:
-            s.weightLbs?.toString() ??
-            exercise.suggestedWeightLbs?.toString() ??
-            "",
-          reps: s.reps?.toString() ?? "",
-        },
-      ]),
-    ),
-  );
-  const [errors, setErrors] = useState<Record<number, string>>({});
+  const [drafts, setDrafts] = useState<Record<number, Draft>>({});
+  const [errors, setErrors] = useState<Record<number, FieldError>>({});
+  const [notice, setNotice] = useState<string | null>(null);
   const [pendingSet, setPendingSet] = useState<number | null>(null);
   const [extraRow, setExtraRow] = useState<number | null>(null);
   const [skipError, setSkipError] = useState<string | null>(null);
   const [skipping, startSkip] = useTransition();
   const [, startTransition] = useTransition();
+  const weightRef = useRef<HTMLInputElement>(null);
+  const repsRef = useRef<HTMLInputElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusIntent = useRef<FocusIntent>(
+    focusOnMount ? { kind: "mount" } : { kind: "none" },
+  );
 
   const anySaved = exercise.sets.some((s) => s.saved);
   const plannedDone = exercise.sets
     .filter((s) => !s.extra)
     .every((s) => s.saved);
+  const pendingExtra =
+    extraRow !== null && !exercise.sets.some((s) => s.setNumber === extraRow)
+      ? extraRow
+      : null;
+  const active = activeSetNumber(
+    exercise.sets,
+    exercise.plannedSets,
+    pendingExtra,
+  );
+  const offer = offerFor({
+    requiresExternalWeight: needsWeight,
+    sets: exercise.sets,
+    workingWeightLbs: exercise.suggestedWeightLbs,
+  });
+  const draft: Draft =
+    active !== null
+      ? (drafts[active] ?? { weight: null, reps: "" })
+      : { weight: null, reps: "" };
+  // An untouched box always shows the current offer; a typed one stays theirs.
+  const weightValue =
+    draft.weight ?? (offer ? formatWeight(offer.weightLbs) : "");
+  const showCaption = needsWeight && draft.weight === null && offer !== null;
+  const loggedSetNumbers = exercise.sets
+    .filter((s) => s.saved)
+    .map((s) => s.setNumber)
+    .join(",");
+
+  // Focus only ever follows the lifter's own action (R13): after a confirmed
+  // set (once the refreshed record shows it), or after Next/Previous.
+  useLayoutEffect(() => {
+    const intent = focusIntent.current;
+    if (intent.kind === "none") return;
+    if (
+      intent.kind === "after-log" &&
+      !exercise.sets.some((s) => s.setNumber === intent.setNumber && s.saved)
+    ) {
+      return; // the write's refresh hasn't arrived yet
+    }
+    focusIntent.current = { kind: "none" };
+    if (active !== null) {
+      const weightEmpty = needsWeight && weightValue === "";
+      (weightEmpty ? weightRef : repsRef).current?.focus();
+    } else if (intent.kind === "after-log") {
+      onPlannedSetsDone?.();
+    } else {
+      headingRef.current?.focus();
+    }
+  }, [
+    active,
+    loggedSetNumbers,
+    exercise.sets,
+    needsWeight,
+    weightValue,
+    onPlannedSetsDone,
+  ]);
 
   function markSkipped(skipped: boolean) {
     setSkipError(null);
@@ -155,17 +236,13 @@ export function ExerciseCard({
   }
 
   // Rows: the planned sets, any logged extras, and one pending extra row.
-  const lastSaved = [...exercise.sets].reverse().find((s) => s.saved);
-  const pendingExtra =
-    extraRow !== null && !exercise.sets.some((s) => s.setNumber === extraRow)
-      ? extraRow
-      : null;
   const rows = [
     ...exercise.sets,
     ...(pendingExtra !== null
       ? [
           {
             setNumber: pendingExtra,
+            loggedSetId: null,
             weightLbs: null,
             reps: null,
             saved: false,
@@ -174,39 +251,52 @@ export function ExerciseCard({
         ]
       : []),
   ];
+  const contextLine = formatPreviousPerformance({
+    previous: exercise.previousPerformance,
+    isGymVariable: exercise.isGymVariable,
+    gymName: exercise.gymName,
+    referenceIso: workoutDateIso ?? exercise.previousPerformance?.dateIso ?? "",
+  });
 
   function addExtraSet() {
     const next = Math.max(...exercise.sets.map((s) => s.setNumber)) + 1;
-    setDrafts((d) => ({
-      ...d,
-      [next]: { weight: lastSaved?.weightLbs?.toString() ?? "", reps: "" },
-    }));
+    focusIntent.current = { kind: "mount" };
     setExtraRow(next);
   }
 
   function setDraft(n: number, patch: Partial<Draft>) {
     setDrafts((d) => ({
       ...d,
-      [n]: { ...(d[n] ?? { weight: "", reps: "" }), ...patch },
+      [n]: { ...(d[n] ?? { weight: null, reps: "" }), ...patch },
     }));
   }
 
-  function save(n: number) {
-    const draft = drafts[n] ?? { weight: "", reps: "" };
-    const weight = Number(draft.weight);
+  function fail(n: number, error: FieldError) {
+    setErrors((e) => ({ ...e, [n]: error }));
+    (error.field === "weight" ? weightRef : repsRef).current?.focus();
+  }
+
+  function confirm(n: number) {
+    if (pendingSet !== null) return;
+    const weight = Number(weightValue);
     const reps = Number(draft.reps);
     if (
       needsWeight &&
-      (!draft.weight || !Number.isFinite(weight) || weight <= 0)
+      (!weightValue || !Number.isFinite(weight) || weight <= 0)
     ) {
-      setErrors((e) => ({ ...e, [n]: "Enter a weight above 0." }));
+      fail(n, { message: "Enter a weight above 0.", field: "weight" });
       return;
     }
     if (!draft.reps || !Number.isInteger(reps) || reps <= 0) {
-      setErrors((e) => ({ ...e, [n]: "Enter reps above 0." }));
+      fail(n, { message: "Enter reps above 0.", field: "reps" });
       return;
     }
-    setErrors((e) => ({ ...e, [n]: "" }));
+    setErrors((e) => {
+      const rest = { ...e };
+      delete rest[n];
+      return rest;
+    });
+    setNotice(null);
     setPendingSet(n);
     startTransition(async () => {
       const res = await logSetAction({
@@ -216,45 +306,46 @@ export function ExerciseCard({
         reps,
       });
       setPendingSet(null);
-      if (res.ok) router.refresh();
-      else setErrors((e) => ({ ...e, [n]: res.error.message }));
+      if (res.ok) {
+        focusIntent.current = { kind: "after-log", setNumber: n };
+        router.refresh();
+        return;
+      }
+      if (res.error.code === "conflict") {
+        // Logged elsewhere: show the server's record instead of the draft.
+        setNotice(res.error.message);
+        router.refresh();
+        return;
+      }
+      const details = res.error.details;
+      if (details?.weightLbs) {
+        fail(n, { message: details.weightLbs, field: "weight" });
+      } else if (details?.reps) {
+        fail(n, { message: details.reps, field: "reps" });
+      } else {
+        fail(n, { message: res.error.message, field: "reps" });
+      }
     });
   }
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="font-medium">{exercise.performedExerciseName}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="font-medium outline-none"
+          >
+            {exercise.performedExerciseName}
+          </h2>
           <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
             {exercise.plannedSets} × {exercise.plannedRepRange.min}–
             {exercise.plannedRepRange.max}
             {!needsWeight ? " · bodyweight, reps only" : ""}
-            {needsWeight && exercise.suggestedWeightLbs
-              ? ` · last: ${exercise.suggestedWeightLbs} lbs`
-              : ""}
           </p>
-          {exercise.swapped ? (
-            <p className="text-xs text-muted-foreground">
-              Swapped from {exercise.plannedExerciseName}
-            </p>
-          ) : null}
-          {progression?.scheduledDeloadWeek ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Deload week — recovery, not a verdict.
-            </p>
-          ) : progression?.tag === "stalled" ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Rep target met, but e1RM flat across recent sessions — holding.
-            </p>
-          ) : null}
-          {progression?.suggestion ? (
-            <p className="mt-1">
-              <SuggestedLoad suggestion={progression.suggestion} />
-            </p>
-          ) : null}
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex shrink-0 flex-col items-end gap-1">
           {progression?.tag ? <ProgressTag state={progression.tag} /> : null}
           {exercise.isGymVariable && exercise.gymName ? (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -264,99 +355,275 @@ export function ExerciseCard({
           ) : null}
         </div>
       </div>
+      <p
+        className="truncate text-sm tabular-nums text-muted-foreground"
+        title={contextLine}
+      >
+        {contextLine}
+      </p>
+      {exercise.swapped ? (
+        <p className="text-xs text-muted-foreground">
+          Swapped from {exercise.plannedExerciseName}
+        </p>
+      ) : null}
+      {progression?.scheduledDeloadWeek ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Deload week — recovery, not a verdict.
+        </p>
+      ) : progression?.tag === "stalled" ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Rep target met, but e1RM flat across recent sessions — holding.
+        </p>
+      ) : null}
+      {progression?.suggestion ? (
+        <p className="mt-1">
+          <SuggestedLoad suggestion={progression.suggestion} />
+        </p>
+      ) : null}
 
-      <div className="mt-4 space-y-3 tabular-nums">
+      <div className="mt-4 space-y-1 tabular-nums">
         {rows.map((s) => {
-          const draft = drafts[s.setNumber] ?? {
-            weight: s.weightLbs?.toString() ?? "",
-            reps: s.reps?.toString() ?? "",
-          };
-          const err = errors[s.setNumber];
-          return (
-            <div key={s.setNumber} className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-12 text-sm text-muted-foreground">
-                  Set {s.setNumber}
-                  {s.extra ? (
-                    <span className="block text-[10px] leading-none">
-                      extra
+          if (s.saved && s.loggedSetId && s.reps !== null) {
+            return (
+              <EditSetDialog
+                key={s.setNumber}
+                loggedSetId={s.loggedSetId}
+                setNumber={s.setNumber}
+                exerciseName={exercise.performedExerciseName}
+                requiresExternalWeight={needsWeight}
+                weightLbs={s.weightLbs}
+                reps={s.reps}
+                trigger={
+                  <button
+                    type="button"
+                    aria-label={loggedRowLabel({
+                      setNumber: s.setNumber,
+                      weightLbs: s.weightLbs,
+                      reps: s.reps,
+                    })}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <SetLabel setNumber={s.setNumber} extra={s.extra} />
+                    <span className="flex-1 text-base text-foreground">
+                      {s.weightLbs === null ? (
+                        <>
+                          {s.reps}{" "}
+                          <span className="text-sm text-muted-foreground">
+                            reps
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {formatWeight(s.weightLbs)}{" "}
+                          <span className="text-sm text-muted-foreground">
+                            lbs
+                          </span>{" "}
+                          × {s.reps}
+                        </>
+                      )}
                     </span>
-                  ) : null}
-                </span>
+                    <Check aria-hidden className="size-4 text-primary" />
+                  </button>
+                }
+              />
+            );
+          }
+
+          if (s.setNumber !== active) {
+            return (
+              <div
+                key={s.setNumber}
+                className="flex min-h-9 items-center gap-3 px-2 text-sm text-muted-foreground"
+              >
+                <SetLabel setNumber={s.setNumber} extra={s.extra} />
+                <span aria-hidden>—</span>
+                <span className="sr-only">not logged yet</span>
+              </div>
+            );
+          }
+
+          const err = errors[s.setNumber];
+          const saving = pendingSet === s.setNumber;
+          const captionId = `${exercise.loggedExerciseId}-${s.setNumber}-offer`;
+          const errorId = `${exercise.loggedExerciseId}-${s.setNumber}-error`;
+          return (
+            <form
+              key={s.setNumber}
+              noValidate
+              onSubmit={(e) => {
+                e.preventDefault();
+                confirm(s.setNumber);
+              }}
+              className="space-y-1.5 rounded-md border-l-2 border-primary bg-muted/40 p-2"
+            >
+              <p className="text-sm text-muted-foreground">
+                Set {s.setNumber}
+                {s.extra ? " · extra" : ""}
+              </p>
+              <div className="flex items-center gap-2">
                 {needsWeight ? (
-                  <>
+                  <div className="relative min-w-0 flex-1">
                     <Input
+                      ref={weightRef}
                       aria-label={`Set ${s.setNumber} weight in pounds`}
+                      aria-describedby={
+                        [showCaption ? captionId : "", err ? errorId : ""]
+                          .filter(Boolean)
+                          .join(" ") || undefined
+                      }
+                      aria-invalid={err?.field === "weight" || undefined}
                       inputMode="decimal"
-                      className="h-11 flex-1"
-                      value={draft.weight}
-                      disabled={s.saved}
+                      enterKeyHint="next"
+                      autoComplete="off"
+                      className="h-12 pr-8 text-lg font-medium tracking-tight md:text-lg"
+                      value={weightValue}
+                      disabled={saving}
+                      onFocus={(e) => {
+                        // An offered weight is selected, so typing replaces it.
+                        if (draft.weight !== null) return;
+                        const el = e.currentTarget;
+                        el.select();
+                        requestAnimationFrame(() => {
+                          if (document.activeElement === el) el.select();
+                        });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          repsRef.current?.focus();
+                        }
+                      }}
                       onChange={(e) =>
                         setDraft(s.setNumber, { weight: e.target.value })
                       }
                     />
-                    <span className="text-sm text-muted-foreground">lbs</span>
-                  </>
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground"
+                    >
+                      lbs
+                    </span>
+                  </div>
                 ) : null}
-                <Input
-                  aria-label={`Set ${s.setNumber} reps`}
-                  inputMode="numeric"
-                  className={needsWeight ? "h-11 w-20" : "h-11 flex-1"}
-                  value={draft.reps}
-                  disabled={s.saved}
-                  onChange={(e) =>
-                    setDraft(s.setNumber, { reps: e.target.value })
+                <div
+                  className={
+                    needsWeight
+                      ? "relative w-[5.5rem] shrink-0"
+                      : "relative flex-1"
                   }
-                />
-                <span className="text-sm text-muted-foreground">reps</span>
-                {s.saved ? (
-                  <Check className="size-4 text-primary" aria-label="Saved" />
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={pendingSet === s.setNumber}
-                    onClick={() => save(s.setNumber)}
+                >
+                  <Input
+                    ref={repsRef}
+                    aria-label={`Set ${s.setNumber} reps`}
+                    aria-describedby={err ? errorId : undefined}
+                    aria-invalid={err?.field === "reps" || undefined}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    enterKeyHint="done"
+                    autoComplete="off"
+                    className="h-12 pr-11 text-lg font-medium tracking-tight md:text-lg"
+                    value={draft.reps}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setDraft(s.setNumber, { reps: e.target.value })
+                    }
+                  />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground"
                   >
-                    Save
-                  </Button>
-                )}
+                    reps
+                  </span>
+                </div>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="shrink-0 gap-1.5 px-3 max-[359px]:w-11 max-[359px]:px-0"
+                  aria-label={`Log set ${s.setNumber}`}
+                  disabled={saving}
+                  // Keep focus (and the phone keyboard) in the field (R13).
+                  onPointerDown={(e) => e.preventDefault()}
+                >
+                  {saving ? (
+                    "Saving…"
+                  ) : (
+                    <>
+                      <Check aria-hidden />
+                      {/* Below 360px the check alone carries it (aria-label names it). */}
+                      <span className="max-[359px]:sr-only">Log set</span>
+                    </>
+                  )}
+                </Button>
               </div>
-              {err ? (
-                <p role="alert" className="pl-14 text-xs text-destructive">
-                  {err}
+              {showCaption && offer ? (
+                <p
+                  id={captionId}
+                  className="pl-0.5 text-xs text-muted-foreground"
+                >
+                  {offerCaption(offer)}
                 </p>
               ) : null}
-            </div>
+              {err ? (
+                <p
+                  id={errorId}
+                  role="alert"
+                  className="pl-0.5 text-xs text-destructive"
+                >
+                  {err.message}
+                </p>
+              ) : null}
+            </form>
           );
         })}
       </div>
 
+      {notice ? (
+        <p role="alert" className="mt-2 px-2 text-xs text-destructive">
+          {notice}
+        </p>
+      ) : null}
+
       {plannedDone && pendingExtra === null ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mt-3 h-11 w-full"
-          onClick={addExtraSet}
-        >
-          <Plus aria-hidden />
-          Add set
-        </Button>
+        <>
+          <p className="ml-2 mt-2 text-sm text-muted-foreground">
+            All {exercise.plannedSets} sets logged.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-3 h-11 w-full"
+            onClick={addExtraSet}
+          >
+            <Plus aria-hidden />
+            Add set
+          </Button>
+        </>
       ) : null}
 
       {progression?.hasTrend ? (
-        <div className="mt-3">
+        <div className="mt-1">
           <Link
             href={`/exercises/${exercise.performedExerciseId}`}
-            className="text-sm text-primary"
+            className="inline-flex min-h-11 items-center text-sm text-primary"
           >
             View trend ›
           </Link>
         </div>
       ) : null}
 
-      {swapSlot ? <div className="mt-4">{swapSlot}</div> : null}
+      {swapSlot ? <div className="mt-3">{swapSlot}</div> : null}
       {skipControl}
     </div>
+  );
+}
+
+function SetLabel({ setNumber, extra }: { setNumber: number; extra: boolean }) {
+  return (
+    <span className="w-12 shrink-0 text-sm text-muted-foreground">
+      Set {setNumber}
+      {extra ? (
+        <span className="block text-[10px] leading-none">extra</span>
+      ) : null}
+    </span>
   );
 }

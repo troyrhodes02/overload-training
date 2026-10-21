@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved
 author: Claude Code (autonomous pipeline run)
 last_updated: 2026-10-20
@@ -495,6 +495,7 @@ Recorded under the Autonomous Pipeline Policy. Authority order: approved plannin
 | R23 | Tickets: (1) read path + pure helpers, (2) card + runner UI, (3) e2e + measurement + method note, (4) guidance. Linear chain 1 → 2 → 3 → 4. | Medium-large, coherent PRs; guidance last (pitch §12). | Run prompt; guide §5 step 6 |
 | R24 | Tour: **no new step and no copy change** (to be confirmed by `overload-onboarding` in the guidance ticket). The `logging` step ("enter the weight and reps you lifted") stays accurate; nothing new must be discovered to benefit; in-card correction duplicates History's toured path. | Skill rubric ("a performance improvement" → no step). | `overload-onboarding`; pitch §12 |
 | R25 | Release note: one **significant** entry at the top of `RELEASE_NOTES`, title `Faster workout logging`, body per design doc §13 (final wording by the skill against the shipped behavior). Because the run stops before merge, the entry is committed with a **provisional** date and id (the day the guidance ticket is written) and the runbook's pre-merge step sets `date` and the id's date prefix to the merge day in the same PR before merging; an unpublished entry may be re-dated, a published one never. | What's New contract: "dated the day the change reaches production"; Pitch 12 runbook §8: "add it in the same PR, dated the day you merge". The run cannot know that day, so it is a human step, and the report says the entry has not shipped. | Pitch 12 spec §8; method note; run prompt |
+| R26 | Phone-width sizing refined from the preview during implementation (OVE-58): the reps box is 88px (preview 96px) and, below 360px, **Log set** shows the check icon alone with the accessible name `Log set N` (preview: `Log`). The context line sits full-width under the title row (it truncated beside the gym label). | Measured in the browser: at 375px a 96px reps box plus the labelled button left the weight box ~23px for digits (`185` clipped); at 320px the `Log` label left ~18px. The preview's hierarchy, copy, and states are unchanged. | Preview (theme wins over a picture, `overload-ui-design`); pitch §4.6 |
 
 ## 17. Open questions
 
