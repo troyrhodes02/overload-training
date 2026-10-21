@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 12 — code review on #81.**
+**COMPLETE — stopped before merge to `main` (spec R1).** Feature PR #81 is open and ready for review, with every ticket PR integrated and the review audit applied. Remaining steps are human: runbook §2 (date the release note), §3–§4 (real-shaped-data and real-device checks), §5–§8 (backup, apply `9f` to production, verify) BEFORE merging, then merge, §10 post-deploy checks, and moving OVE-62…65 to Done.
 
 ## Authority used (read before resuming)
 
@@ -42,10 +42,10 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 9. Runbook — `docs/runs/14-rir-logging-autoregulation-runbook.md` + `docs/runs/14-sql/verify-rir.sql` (rehearsed on the local stack: `rir|YES|int4|(none)`, CHECK, RLS t, 0 policies, `463|0`). Migrate production BEFORE merging; never drop the column on rollback; pre-merge release-note date step.
 - [x] 10. Ticket PRs squash-merged into the feature branch in order — #82 `54d5801`, #83 `af3a9d7`, #84 `a109afb`, #85 `4d04bcb`. Each: retarget to the feature branch → merge the feature branch into the ticket branch (conflicts only where the stacked branch and the squash both added/changed the same files; the ticket side kept) → tree identical to the reviewed ticket tip, delta vs feature = that ticket only → Vercel pass → squash. Final feature tree == OVE-65 tip. No force-push.
 - [x] 11. Full verification on `50a3579`: prettier, lint, tsc, prisma validate; prisma/ diff vs main = migration 9f + schema only; local `migrate status` up to date; unit 60/977; integration 44/527 (standing invariants green: history-integrity, logging, bodyweight-logging, gyms, progression, goals, rls, schema, every isolation/*, guards incl. RIR guards); accounts e2e 33 passed + 1 skipped (AC-1 RIR unset 18 taps/18 keys exact; RIR-last 22/18; RIR-every 29/18; AC-3 end to end; History correct/clear; whats-new once; tour 8); default e2e 26/26; client-bundle OK; baselines.ts, e1rm.ts, goals, tour, release-note components/catalog, set-entry.ts unchanged vs main; local DB 3/2/463/0 rir/0 release_seen after. Preview fidelity: card 375 light/dark, 320 (R30 fix), dialog, History, summary, exercise page 375 and 1280 dark, What's New dialog 375 light / 1280 dark — reviewed.
-- [ ] 12. Code review
-- [ ] 13. Review audit
-- [ ] 14. Final verification (stop before merge)
-- [ ] 15. Run report
+- [x] 12. Code review: the `code-review` skill (high) posted 10 inline comments on #81
+- [x] 13. Review audit posted (https://github.com/troyrhodes02/overload-training/pull/81#issuecomment-6321990871) with a reply on each comment: 7 implement (flat-only stall release R33; dialog sends RIR only when changed R34; RIR error as card notice R35; label composition; single sequence computation; computed-once reasons; aria-labelledby), 1 defer (Linear IDs on docs commits — no history rewrite), 1 skip (retry conflict by design R36), 1 discuss (provisional date kept as merge gate). Fixes in `b3ce91a`; spec v1.2.0 (R33–R36).
+- [x] 14. Final verification on `b3ce91a`: prettier, lint, tsc; unit 60/980; integration 44/527; accounts e2e 33 + 1 skipped (18/18, 22/18, 29/18); default e2e 26/26; client-bundle OK; Vercel pass on #81; local DB 3/2/463/0/0. #81 marked ready for review — **not merged**.
+- [x] 15. Run report — `docs/runs/14-rir-logging-autoregulation-report.md`
 
 ## Linear
 
