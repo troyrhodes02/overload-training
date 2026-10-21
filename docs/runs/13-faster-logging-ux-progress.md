@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 4 — Spec.**
+**Step 6 — Linear milestone + tickets.**
 
 ## Authority used (read before resuming)
 
@@ -34,8 +34,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/13-faster-logging-ux-design-doc.md` (v1.0)
 - [x] 3. UI preview — `docs/previews/13-faster-logging-ux-preview.html` (.html not the run prompt .tsx; 28 frames; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs` (+ `check.mjs`).
-- [ ] 4. Spec — `docs/specs/13-faster-logging-ux-spec.md`
-- [ ] 5. Resolved Decisions in spec
+- [x] 4. Spec — `docs/specs/13-faster-logging-ux-spec.md` (v1.0.0; no schema change). Design doc → v1.1 (tap total corrected 17 → 18; gym-variable "First time on this at …" wording generalised; preview footer → v1.1)
+- [x] 5. Resolved Decisions in spec (R1–R25)
 - [ ] 6. Linear milestone + issues
 - [ ] 7. Feature PR
 - [ ] 8. Tickets implemented
@@ -53,7 +53,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Resolved Decisions so far
 
-Design doc §15 lists the design-stage decisions (Last time line; "a box is a draft, a plain number is history"; one active row; reps never prefilled; focus rules; no auto-advance; correction dialog from logged rows; no tour step proposed; one significant release-note entry proposed). Carried into the spec's Resolved Decisions.
+Spec `## Resolved Decisions` R1–R25. Headline: R3 stop before merge; R4 one active row; R6 offer = working weight then highest logged set; R7 reps never prefilled; R9–R10 gym-variable working weight scoped to the workout's gym (removes the cross-gym fallback; Pitch 5 suggestion omits the number in that case); R13 focus only after the lifter's action; R15 no optimistic logged state; R17 logged row opens the existing EditSetDialog; R21–R22 tap-count method (before on fe34d00, committed baseline driver); R24 no tour step; R25 provisional release-note date set to the merge day by the human.
 
 ## Deferred / notes
 

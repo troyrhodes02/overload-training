@@ -1,6 +1,6 @@
 # Faster Logging UX — Design Document
 
-**Version:** 1.0
+**Version:** 1.1
 **Pitch Source:** Overload — Pitch 13: Faster Logging UX (`pitches/13-faster-logging-ux.md`)
 **Focus:** The exercise logging card, refined so an ordinary set is one tap after the reps are typed, without ever logging a number the lifter didn't confirm.
 
@@ -222,7 +222,7 @@ After set 2 logs at 195, set 3 offers 195 (`same as set 2`): reuse always follow
 **Decision.** One line of text under the scheme: `Last time · Oct 13 · 185 × 8, 8, 7`.
 
 - **Which workout.** The most recent earlier workout, on or before this workout's date, in which the lifter logged at least one set of the **performed** exercise (after a swap, the substitute's history). The current workout is never its own "last time". Any mesocycle counts.
-- **Machines and cables (gym-variable).** Only workouts at **this workout's gym** count, and the line says so: `Last time here · Oct 13 · 50 × 12, 12, 11`. If the lifter has history for this machine only at another gym, the line reads `First time on this at Downtown Gym.` — no number. A weight from another gym is never shown or offered for a machine or cable (pitch §4.1, §9.2, Journey D).
+- **Machines and cables (gym-variable).** Only workouts at **this workout's gym** count, and the line says so: `Last time here · Oct 13 · 50 × 12, 12, 11`. With no history at this gym — whether or not other gyms have some — the line reads `First time on this at Downtown Gym.` — no number. A weight from another gym is never shown or offered for a machine or cable (pitch §4.1, §9.2, Journey D). (v1.1: v1.0 named only the other-gym case; the rule is the same sentence either way, and it is true either way.)
 - **Free weights and plate-loaded.** Any gym counts, matching the existing global rule.
 - **Formatting.** Sets in set-number order, extras included. When every set used one weight: `185 × 8, 8, 7`. When the weight changed: `185 × 8, 190 × 6, 190 × 5`. Bodyweight: `12, 10, 9 reps`. Dates use the plan's short format (`Oct 13`); a workout in another calendar year adds the year (`Dec 29, 2025`).
 - **No history.** `First time logging this.` (Journey C). Nothing is invented: no weight, no "suggested" number.
@@ -380,12 +380,12 @@ The spec turns this into a repeatable, scripted measurement (same seeded workout
 
 | Step | Before (today's card) | After (this design) |
 | ---- | --------------------- | ------------------- |
-| An unchanged-weight set | tap reps, tap Save = **2** | tap Log set = **1** (cursor already in reps); the first set of the workout also needs one tap on reps |
+| An unchanged-weight set | tap reps, tap Save = **2** | tap Log set = **1** (cursor already in reps); the very first set of the workout also needs one tap on reps, since nothing is focused on page load |
 | A set with a new weight | tap weight, clear, retype, tap reps, tap Save = **3** | tap weight (selected), type, tap reps, Log set = **3** |
 | A set after a weight change | tap weight, clear, retype, tap reps, tap Save = **3** (the box still says the old weight) | **1** (the new weight carries) |
 | To the next exercise | tap Next = **1** | tap Next = **1** (focus already there; the new card's reps field is ready) |
 | Finish | **1** | **1** |
-| **Workout total** | **29 taps** | **17 taps** (−12) |
+| **Workout total** | **29 taps** | **18 taps** (−11) |
 
 The keyboard work also drops (no clearing the old weight on sets 2 and 3 of a weight change), and the lifter's eyes stay on one row.
 
