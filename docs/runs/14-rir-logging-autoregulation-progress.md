@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 6 — Linear milestone + issues.**
+**Step 8 — tickets. Next: OVE-64** (branch `feat/ove-64-rir-logging-ui` off `feat/ove-63-rir-progression`).
 
 ## Authority used (read before resuming)
 
@@ -36,8 +36,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 3. UI preview — `docs/previews/14-rir-logging-autoregulation-preview.html` (.html not the run prompt's .tsx; 33 frames, 8 sections; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs` (+ `check.mjs`, run from the repo root).
 - [x] 4. Spec — `docs/specs/14-rir-logging-autoregulation-spec.md` (v1.0.0). Migration `9f_logged_set_rir` (nullable `rir` INT + CHECK 0..4); engine `evaluateReactiveDecision` (base ladder unchanged + cases A/B, `rirEffect`); constants `RIR_AT_LIMIT=0`, `RIR_TO_SPARE_MIN=2`, `RIR_MAX=4`.
 - [x] 5. Resolved Decisions — spec R1–R29
-- [ ] 6. Linear milestone + issues
-- [ ] 7. Feature PR
+- [x] 6. Linear milestone + issues (OVE-62 → OVE-63 → OVE-64 → OVE-65, blockedBy chain)
+- [x] 7. Feature PR into `main` (draft, stop before merge per R1) — **#81** https://github.com/troyrhodes02/overload-training/pull/81
 - [ ] 8. Tickets implemented
 - [ ] 9. Runbook
 - [ ] 10. Ticket PRs integrated
@@ -49,7 +49,17 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Linear
 
-(none yet)
+- Milestone: **RIR Logging & Autoregulation** (`b1e44534-261a-4fb1-a444-ff0880d639d5`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-62** — 1: logged-set RIR — migration 9f, canonical write + edit, read DTOs
+  - **OVE-63** — 2: RIR-aware progression — evaluateReactiveDecision (A/B), rirEffect DTOs, reason lines (blockedBy OVE-62)
+  - **OVE-64** — 3: RIR picker on card, dialog, History; e2e + tap count; method note (blockedBy OVE-62, OVE-63)
+  - **OVE-65** — 4: user guidance via /overload-onboarding (blockedBy OVE-62, OVE-63, OVE-64)
+
+### Ticket branches / PRs
+
+- **OVE-62** — `feat/ove-62-logged-set-rir` (off the feature branch) → PR **#82** (base: feature branch). In Review. Commit `28f7269`. Verified: prettier, lint, tsc, unit 58/939, integration 43/517 (new `rir-logging.int.test.ts`, `rir-migration.int.test.ts`; `isolation/logging` extended), build (local env) + client-bundle OK, prisma validate. Local stack migrated with `prisma migrate deploy` (local only): 463 sets, 0 with rir. Summary: nullable `LoggedSet.rir` + CHECK 0..4 (migration 9f, no backfill); `logSet` stores it in the same write, idempotency includes it; `editLoggedSet` undefined=unchanged / null=clear; DTOs carry `rir`; engine untouched.
+- **OVE-63** — `feat/ove-63-rir-progression` (off OVE-62) → PR (base: OVE-62 branch). Verified: prettier, lint, tsc, unit 59/967 (new `progression-rir.test.ts` incl. 500-history no-RIR regression sweep; card reason-line tests), integration 44/527 (new `progression-rir.int.test.ts`; isolation/logging +1), build (local env) + client-bundle OK. Summary: `evaluateReactiveDecision` = unchanged ladder + case A/B, `rirEffect` on every progression DTO, `rir-copy.ts`, reason line on card / summary / exercise page. Summary and exercise-page reason lines are async server components, so their render is verified by OVE-64's e2e (not unit).
 
 ## Resolved Decisions so far
 
@@ -57,4 +67,5 @@ Spec `## Resolved Decisions` R1–R29. Headline: R1 stop before merge; R3 values
 
 ## Deferred / notes
 
-(none yet)
+- Pre-existing (not this pitch): `tests/unit/invariant-guards.test.ts` ~line 293 guard "only signup asks whether a username is free" contains literal backspace bytes (0x08) where `` was intended, so it only matches the `@/lib/data/usernames` import; fixing it would flag a comment in `src/lib/data/account.ts`. Left untouched; list in the report.
+- Python on Windows writes CRLF unless `newline=''` — always pass it (prettier check).

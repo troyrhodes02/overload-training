@@ -20,7 +20,12 @@ import {
   offerCaption,
   offerFor,
 } from "@/lib/logging/set-entry";
-import type { ProgressionTag, SuggestedLoadDto } from "@/lib/progression/types";
+import type {
+  ProgressionTag,
+  RirEffect,
+  SuggestedLoadDto,
+} from "@/lib/progression/types";
+import { rirReason } from "@/lib/progression/rir-copy";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
 
@@ -28,10 +33,12 @@ import { SuggestedLoad } from "@/components/progression/suggested-load";
  * Derived progression shown beside the bar (OVE-28). Display-only: the tag never
  * becomes a control and the suggestion never pre-fills set entry. During a
  * scheduled-deload week the reactive tag is suppressed and only the 90% load
- * shows (R37).
+ * shows (R37). When reported RIR changed the call, one muted line says why
+ * (RIR Logging & Autoregulation R20).
  */
 export type CardProgression = {
   tag: ProgressionTag | null;
+  rirEffect: RirEffect;
   suggestion: SuggestedLoadDto;
   scheduledDeloadWeek: boolean;
   hasTrend: boolean;
@@ -370,6 +377,10 @@ export function ExerciseCard({
       ) : progression?.tag === "stalled" ? (
         <p className="mt-1 text-xs text-muted-foreground">
           Rep target met, but e1RM flat across recent sessions — holding.
+        </p>
+      ) : progression && rirReason(progression.rirEffect) ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {rirReason(progression.rirEffect)}
         </p>
       ) : null}
       {progression?.suggestion ? (

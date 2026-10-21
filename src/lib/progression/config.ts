@@ -35,3 +35,18 @@ export const SCHEDULED_DELOAD_FACTOR = 0.9;
  * suggestion rounds DOWN to this step, never above the raw 90% target (R35).
  */
 export const LOAD_STEP_LBS = 5;
+
+/**
+ * RIR Logging & Autoregulation (spec §6, R12): a planned working set of the
+ * latest qualifying performance reported at or below this RIR was taken to
+ * the limit, so a would-be Progress holds instead (case A).
+ */
+export const RIR_AT_LIMIT = 0;
+
+/**
+ * RIR Logging & Autoregulation (spec §6, R13): when EVERY planned working set
+ * of the latest qualifying performance was reported at or above this RIR, a
+ * flat e1RM trend is the load repeated, not a plateau, so the stall gate's
+ * hold releases to Progress (case B). One unrecorded set means no release.
+ */
+export const RIR_TO_SPARE_MIN = 2;

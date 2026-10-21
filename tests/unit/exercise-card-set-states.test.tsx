@@ -232,6 +232,7 @@ describe("progression suggestions stay display-only (R8)", () => {
         workoutDateIso="2026-10-20"
         progression={{
           tag: "progress",
+          rirEffect: null,
           suggestion: { lbs: 190, kind: "progress_increment" },
           scheduledDeloadWeek: false,
           hasTrend: true,
@@ -240,5 +241,70 @@ describe("progression suggestions stay display-only (R8)", () => {
     );
     expect(html).toContain("Try 190 lb (+5)");
     expect(valueOf(html, "Set 1 weight in pounds")).toBe("185");
+  });
+});
+
+describe("RIR reason lines (RIR Logging & Autoregulation R20–R21)", () => {
+  const render = (p: Parameters<typeof ExerciseCard>[0]["progression"]) =>
+    renderToStaticMarkup(
+      <ExerciseCard
+        exercise={card()}
+        gymLocked={false}
+        workoutDateIso="2026-10-20"
+        progression={p}
+      />,
+    );
+
+  it("a Progress held at the limit shows the case A line and no tag", () => {
+    const html = render({
+      tag: null,
+      rirEffect: "held_at_limit",
+      suggestion: null,
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).toContain(
+      "Top of the range, but at your limit last time (0 RIR) — holding.",
+    );
+    expect(html).not.toContain(">Progress<");
+    expect(html).not.toContain("Hold — trend flat");
+  });
+
+  it("a released stall shows Progress, its suggestion, and the case B line", () => {
+    const html = render({
+      tag: "progress",
+      rirEffect: "released_stall",
+      suggestion: { lbs: 190, kind: "progress_increment" },
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).toContain(">Progress<");
+    expect(html).toContain(
+      "e1RM is flat, but every set last time had 2+ in reserve — ready to go up.",
+    );
+  });
+
+  it("an ordinary call shows no RIR line", () => {
+    const html = render({
+      tag: null,
+      rirEffect: null,
+      suggestion: null,
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).not.toContain("at your limit last time");
+    expect(html).not.toContain("in reserve — ready to go up");
+  });
+
+  it("a scheduled-deload week shows only the deload line", () => {
+    const html = render({
+      tag: null,
+      rirEffect: null,
+      suggestion: { lbs: 165, kind: "scheduled_deload" },
+      scheduledDeloadWeek: true,
+      hasTrend: true,
+    });
+    expect(html).toContain("Deload week — recovery, not a verdict.");
+    expect(html).not.toContain("at your limit");
   });
 });

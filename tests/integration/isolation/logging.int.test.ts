@@ -158,6 +158,8 @@ describe("reads never surface another account's training", () => {
     expect(mine?.points.length).toBeGreaterThan(0);
     expect(theirs?.points).toEqual([]);
     expect(theirs?.tag ?? null).toBeNull();
+    // RIR Logging: A's reps in reserve never qualify B's call.
+    expect(theirs?.rirEffect ?? null).toBeNull();
     expect(await getQualifyingSessionE1rms(b, lib.chestPress.id, null)).toEqual(
       [],
     );
