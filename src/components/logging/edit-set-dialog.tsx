@@ -20,6 +20,10 @@ import { editLoggedSetAction } from "@/app/(app)/history/actions";
  * reps only; positive-only; no delete; no baseline replay. A bodyweight
  * exercise (requiresExternalWeight false) corrects reps only — there is no
  * weight field and none is sent. Client island.
+ *
+ * Faster Logging UX (R17): the logging card opens this same dialog from a
+ * logged row by passing its own `trigger`; History keeps the default "edit"
+ * link. Every open starts from the stored values, never a leftover edit.
  */
 export function EditSetDialog({
   loggedSetId,
@@ -28,6 +32,7 @@ export function EditSetDialog({
   requiresExternalWeight,
   weightLbs,
   reps,
+  trigger,
 }: {
   loggedSetId: string;
   setNumber: number;
@@ -35,6 +40,8 @@ export function EditSetDialog({
   requiresExternalWeight: boolean;
   weightLbs: number | null;
   reps: number;
+  /** The element that opens the dialog; defaults to History's "edit" link. */
+  trigger?: React.ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -44,6 +51,15 @@ export function EditSetDialog({
   const [repsValue, setRepsValue] = useState(String(reps));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function onOpenChange(next: boolean) {
+    if (next) {
+      setWeight(weightLbs === null ? "" : String(weightLbs));
+      setRepsValue(String(reps));
+      setError(null);
+    }
+    setOpen(next);
+  }
 
   function save() {
     const w = Number(weight);
@@ -74,11 +90,13 @@ export function EditSetDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <button className="text-xs text-muted-foreground underline">
-          edit
-        </button>
+        {trigger ?? (
+          <button className="text-xs text-muted-foreground underline">
+            edit
+          </button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

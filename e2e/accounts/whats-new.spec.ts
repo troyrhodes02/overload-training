@@ -8,18 +8,22 @@ import {
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { skipFirstTour, tourCard } from "./tour-support";
+import { RELEASE_NOTES } from "../../src/lib/release-notes/entries";
 
 /**
  * What's New against the LOCAL Supabase stack (spec §14.3; R22, R28): the
  * auth gate on the history page, a new account's first loads (the tour owns
- * them, and no What's New dialog appears — the shipped catalog is empty), the
- * Settings entry point and the page at phone and desktop widths, and that
- * nothing touches training data. The dialog itself can't be reached while
- * the shipped catalog is empty and no test-only content switch exists in
- * production code; its behavior is proven by the integration suite and the
- * recorded browser walkthrough. Serial; only temporary accounts are created,
- * and each is removed through the app's own deletion flow.
+ * them, and no What's New dialog appears — a new account starts caught up),
+ * the Settings entry point and the page at phone and desktop widths, and that
+ * nothing touches training data. Catalog-aware since the first entry shipped
+ * with Faster Logging UX (the assertions read the shipped entries): an
+ * account that existed before the newest significant entry sees the dialog
+ * once, and never again after it closes. Serial; only temporary accounts are
+ * created, and each is removed through the app's own deletion flow.
  */
+
+const NEWEST = RELEASE_NOTES[0] ?? null;
+const NEWEST_SIGNIFICANT = RELEASE_NOTES.find((e) => e.significant) ?? null;
 
 test.describe.configure({ mode: "serial" });
 
@@ -157,20 +161,20 @@ test("a new account's first load is the tour, never a What's New dialog — and 
   // Give a dialog every chance to open before asserting it never does.
   await p.waitForTimeout(2_000);
   await expect(whatsNewDialog(p)).toHaveCount(0);
-  // The shipped catalog is empty: a new account has no starting point yet,
-  // and nothing is unseen (spec R8, R10).
-  const rows = await sql(
-    `SELECT 1 FROM release_seen WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
+  // A new account starts at the newest entry, so it has no backlog; with an
+  // empty catalog it has no starting point yet (spec R8, R10).
+  const rows = await sql<{ last_seen_release_id: string }>(
+    `SELECT last_seen_release_id FROM release_seen WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
     [W.email],
   );
-  expect(rows).toEqual([]);
+  expect(rows).toEqual(NEWEST ? [{ last_seen_release_id: NEWEST.id }] : []);
 });
 
 for (const [label, viewport] of [
   ["375", PHONE],
   ["1280", DESKTOP],
 ] as const) {
-  test(`at ${label}: Settings → What's New → the page (empty at launch) → back`, async ({
+  test(`at ${label}: Settings → What's New → the page → back`, async ({
     browser,
   }) => {
     const p = await newPage(browser, viewport);
@@ -201,11 +205,18 @@ for (const [label, viewport] of [
         .getByText("Every update to Overload, newest first.")
         .filter({ visible: true }),
     ).toHaveCount(1);
-    await expect(
-      p.getByText(
-        "No updates yet. When something changes in Overload, it's listed here.",
-      ),
-    ).toBeVisible();
+    const empty = p.getByText(
+      "No updates yet. When something changes in Overload, it's listed here.",
+    );
+    if (NEWEST) {
+      // Every shipped entry is listed, newest first.
+      await expect(empty).toHaveCount(0);
+      await expect(
+        p.getByRole("heading", { level: 2, name: NEWEST.title }),
+      ).toBeVisible();
+    } else {
+      await expect(empty).toBeVisible();
+    }
     expect(
       await p.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -219,3 +230,65 @@ for (const [label, viewport] of [
     await p.context().close();
   });
 }
+
+test("an account that existed before the newest significant entry sees it once, then never again", async ({
+  browser,
+}) => {
+  test.skip(!NEWEST_SIGNIFICANT, "No significant entry has shipped.");
+  const entry = NEWEST_SIGNIFICANT!;
+  // Test-only, on this suite's own temporary account: make it an account
+  // that existed before the entry shipped and has been shown nothing — the
+  // position every existing lifter is in when an entry deploys.
+  const dayBefore = new Date(`${entry.date}T12:00:00Z`);
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  await sql(
+    `UPDATE profiles SET created_at = $2
+      WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
+    [W.email, dayBefore.toISOString()],
+  );
+
+  // Once per appearance/width (the seen point is reset between them).
+  for (const [label, viewport, scheme] of [
+    ["375-light", PHONE, "light"],
+    ["1280-dark", DESKTOP, "dark"],
+  ] as const) {
+    await sql(
+      `DELETE FROM release_seen
+        WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
+      [W.email],
+    );
+    const p = await newPage(browser, viewport);
+    await p.emulateMedia({ colorScheme: scheme });
+    await signIn(p);
+    const dialog = whatsNewDialog(p);
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+    await expect(dialog.getByText(entry.title, { exact: true })).toBeVisible();
+    await expect(dialog.getByText(entry.body)).toBeVisible();
+    await dialog.evaluate((el) =>
+      Promise.all(el.getAnimations().map((a) => a.finished)),
+    );
+    await p.screenshot({
+      path: `test-results/whats-new/dialog-${label}.png`,
+      fullPage: true,
+    });
+    await dialog.getByRole("button", { name: "Got it" }).click();
+    await expect(dialog).toHaveCount(0);
+    // Never again: a reload and a fresh sign-in find nothing.
+    await p.reload();
+    await expect(p.getByRole("heading", { level: 1 })).toBeVisible();
+    await p.waitForTimeout(2_000);
+    await expect(whatsNewDialog(p)).toHaveCount(0);
+    const seen = await sql<{ last_seen_release_id: string }>(
+      `SELECT last_seen_release_id FROM release_seen WHERE user_id = (SELECT id FROM auth.users WHERE email = $1)`,
+      [W.email],
+    );
+    expect(seen).toEqual([{ last_seen_release_id: NEWEST!.id }]);
+    await p.context().close();
+  }
+  const again = await newPage(browser, PHONE);
+  await signIn(again);
+  await expect(again.getByRole("heading", { level: 1 })).toBeVisible();
+  await again.waitForTimeout(2_000);
+  await expect(whatsNewDialog(again)).toHaveCount(0);
+  await again.context().close();
+});

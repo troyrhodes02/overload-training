@@ -26,7 +26,7 @@ afterEach(() => {
   jest.dontMock("@/lib/release-notes/entries");
 });
 
-async function renderPage(entries?: typeof FIXTURE) {
+async function renderPage(entries?: readonly (typeof FIXTURE)[number][]) {
   if (entries) {
     jest.doMock("@/lib/release-notes/entries", () => ({
       RELEASE_NOTES: entries,
@@ -38,8 +38,10 @@ async function renderPage(entries?: typeof FIXTURE) {
   return renderToStaticMarkup(<Page />);
 }
 
-it("launches with the empty state (no entries ship with the mechanism)", async () => {
-  const html = await renderPage();
+it("shows the empty state when there are no entries", async () => {
+  // An explicit empty catalog: the shipped one gained its first entry with
+  // Faster Logging UX, so the launch state is pinned here, not by entries.ts.
+  const html = await renderPage([]);
   expect(html).toContain("What&#x27;s New</h1>");
   expect(html).toContain('href="/settings"');
   expect(html).toContain(

@@ -125,6 +125,28 @@ describe("reads never surface another account's training", () => {
     }
   });
 
+  it("the card's last-time context and working weight use only the acting account's sets (Faster Logging UX)", async () => {
+    // B: same library exercises, a gym with A's gym's name, the same day, and
+    // started after A logged — so only scoping keeps A's sets out of B's card.
+    const bPlan = await activePlan(b, lib, "A", { activate: false });
+    const { loggedSessionId } = await startToday(b, bPlan);
+    const bCards = (await getWorkout(b, loggedSessionId))!.exercises;
+    expect(bCards.map((c) => c.performedExerciseId).sort()).toEqual(
+      [lib.chestPress.id, lib.bench.id].sort(),
+    );
+    for (const c of bCards) {
+      expect(c.previousPerformance).toBeNull();
+      expect(c.suggestedWeightLbs).toBeNull();
+      expect(c.sets.every((s) => s.loggedSetId === null)).toBe(true);
+    }
+    // The owner's own card still sees its own sets.
+    const mine = (await getWorkout(a, A.loggedSessionId))!.exercises.find(
+      (c) => c.performedExerciseId === lib.chestPress.id,
+    )!;
+    expect(mine.suggestedWeightLbs).toBe(120);
+    expect(mine.sets.filter((s) => s.loggedSetId).length).toBe(3);
+  });
+
   it("progression and e1RM on a shared exercise use only the acting account's sets", async () => {
     const mine = await getExerciseProgression(a, lib.chestPress.id);
     const theirs = await getExerciseProgression(b, lib.chestPress.id);
