@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 9 — runbook** (all four ticket PRs open; next: runbook, then integrate in order).
+**Step 11 — full verification on the integrated feature branch.**
 
 ## Authority used (read before resuming)
 
@@ -39,8 +39,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 6. Linear milestone + issues (OVE-62 → OVE-63 → OVE-64 → OVE-65, blockedBy chain)
 - [x] 7. Feature PR into `main` (draft, stop before merge per R1) — **#81** https://github.com/troyrhodes02/overload-training/pull/81
 - [x] 8. Tickets implemented — OVE-62…65 → PRs #82–#85 (stacked), all In Review
-- [ ] 9. Runbook
-- [ ] 10. Ticket PRs integrated
+- [x] 9. Runbook — `docs/runs/14-rir-logging-autoregulation-runbook.md` + `docs/runs/14-sql/verify-rir.sql` (rehearsed on the local stack: `rir|YES|int4|(none)`, CHECK, RLS t, 0 policies, `463|0`). Migrate production BEFORE merging; never drop the column on rollback; pre-merge release-note date step.
+- [x] 10. Ticket PRs squash-merged into the feature branch in order — #82 `54d5801`, #83 `af3a9d7`, #84 `a109afb`, #85 `4d04bcb`. Each: retarget to the feature branch → merge the feature branch into the ticket branch (conflicts only where the stacked branch and the squash both added/changed the same files; the ticket side kept) → tree identical to the reviewed ticket tip, delta vs feature = that ticket only → Vercel pass → squash. Final feature tree == OVE-65 tip. No force-push.
 - [ ] 11. Full verification
 - [ ] 12. Code review
 - [ ] 13. Review audit
@@ -62,7 +62,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - **OVE-63** — `feat/ove-63-rir-progression` (off OVE-62) → PR **#83** (base: OVE-62 branch). In Review. Commit `9eeb55c`. Verified: prettier, lint, tsc, unit 59/967 (new `progression-rir.test.ts` incl. 500-history no-RIR regression sweep; card reason-line tests), integration 44/527 (new `progression-rir.int.test.ts`; isolation/logging +1), build (local env) + client-bundle OK. Summary: `evaluateReactiveDecision` = unchanged ladder + case A/B, `rirEffect` on every progression DTO, `rir-copy.ts`, reason line on card / summary / exercise page. Summary and exercise-page reason lines are async server components, so their render is verified by OVE-64's e2e (not unit).
 - **OVE-64** — `feat/ove-64-rir-logging-ui` (off OVE-63) → PR **#84** (base: OVE-63 branch). In Review. Commit `07c0191`. Verified: prettier, lint, tsc, unit 60/977 (new `rir-picker.test.tsx`; card RIR tests; control-count accounting), integration 44/527, accounts e2e 33 passed + 1 skipped (new `rir-logging.spec.ts` 4 tests: last-set 22/18, every-set 29/18, History correct/clear, AC-3 end to end; faster-logging asserts exactly 18/18 and chip sizes at 375/320), default e2e 26/26, production build (accounts webServer) + client-bundle OK; local DB 3/2/463/0 after. Browser screenshots reviewed: card 375 light/dark, 320 (overflow found → R30), dialog, History, summary, exercise page. Method note entry "RIR scale and progression qualifiers".
 
-- **OVE-65** — `feat/ove-65-guidance` (off OVE-64) → PR (base: OVE-64 branch). `/overload-onboarding`: mechanisms exist (Pitches 11, 12). **Tour: no step, no copy change** (R28). **Release note:** significant `2026-10-21-reps-in-reserve` / "Reps in reserve", **provisional date**. Verified: prettier, lint, tsc, unit 60/977 (release-notes + tour 117), integration 44/527, accounts e2e 33 + 1 skipped (whats-new: dialog shows once at 375 light / 1280 dark, now listing 2 updates; tour 8 green), screenshots reviewed.
+- **OVE-65** — `feat/ove-65-guidance` (off OVE-64) → PR **#85** (base: OVE-64 branch). In Review. Commit `143750c`. `/overload-onboarding`: mechanisms exist (Pitches 11, 12). **Tour: no step, no copy change** (R28). **Release note:** significant `2026-10-21-reps-in-reserve` / "Reps in reserve", **provisional date**. Verified: prettier, lint, tsc, unit 60/977 (release-notes + tour 117), integration 44/527, accounts e2e 33 + 1 skipped (whats-new: dialog shows once at 375 light / 1280 dark, now listing 2 updates; tour 8 green), screenshots reviewed.
 
 ## Resolved Decisions so far
 
