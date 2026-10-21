@@ -112,6 +112,8 @@ export type ExerciseCardDto = {
     loggedSetId: string | null;
     weightLbs: number | null;
     reps: number | null;
+    /** Recorded reps in reserve; null when not recorded or not saved (never 0). */
+    rir: number | null;
     saved: boolean;
     /** Beyond the plan: recorded, not used by progression. */
     extra: boolean;
@@ -498,6 +500,7 @@ export async function getWorkout(
           loggedSetId: s?.id ?? null,
           weightLbs: s?.weightLbs != null ? Number(s.weightLbs) : null,
           reps: s ? s.reps : null,
+          rir: s ? s.rir : null,
           saved: Boolean(s),
           extra: false,
         };
@@ -509,6 +512,7 @@ export async function getWorkout(
             loggedSetId: s.id,
             weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
             reps: s.reps,
+            rir: s.rir,
             saved: true,
             extra: true,
           });
@@ -722,6 +726,8 @@ export type LoggedWorkoutDetailDto = {
       /** Null for a bodyweight (reps-only) set — shown as reps, never "0 lbs". */
       weightLbs: number | null;
       reps: number;
+      /** Recorded reps in reserve; null = not recorded (never shown as 0). */
+      rir: number | null;
       /** Beyond the plan. */
       extra: boolean;
     }[];
@@ -774,6 +780,7 @@ export async function getLoggedWorkoutDetail(
         setNumber: s.setNumber,
         weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
         reps: s.reps,
+        rir: s.rir,
         extra: s.setNumber > le.plannedSets,
       })),
     })),

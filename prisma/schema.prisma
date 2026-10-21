@@ -391,6 +391,12 @@ model LoggedSet {
   /// which exercises may store NULL is decided by requiresExternalWeight().
   weightLbs        Decimal? @map("weight_lbs") @db.Decimal(6, 2)
   reps             Int
+  /// Reported reps in reserve (RIR Logging & Autoregulation). NULL = not
+  /// recorded — never 0, never inferred or backfilled. 0..4, where 4 means
+  /// "4 or more". CHECK rir IS NULL OR rir BETWEEN 0 AND 4 (migration 9f).
+  /// Written only by src/lib/logging/logged-sets.ts; never read by e1RM,
+  /// baselines, goals, or the weight offer.
+  rir              Int?
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

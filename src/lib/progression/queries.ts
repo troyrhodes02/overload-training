@@ -142,6 +142,7 @@ async function gatherRows(
         setNumber: s.setNumber,
         weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
         reps: s.reps,
+        rir: s.rir,
       }));
     const completed =
       le.loggedSession.status === "complete" &&
