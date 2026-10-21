@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 6 — Linear milestone + tickets.**
+**Step 8 — Implementation: OVE-57 next.**
 
 ## Authority used (read before resuming)
 
@@ -36,7 +36,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 3. UI preview — `docs/previews/13-faster-logging-ux-preview.html` (.html not the run prompt .tsx; 28 frames; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed). Generator: scratchpad `preview/build.mjs` (+ `check.mjs`).
 - [x] 4. Spec — `docs/specs/13-faster-logging-ux-spec.md` (v1.0.0; no schema change). Design doc → v1.1 (tap total corrected 17 → 18; gym-variable "First time on this at …" wording generalised; preview footer → v1.1)
 - [x] 5. Resolved Decisions in spec (R1–R25)
-- [ ] 6. Linear milestone + issues
+- [x] 6. Linear milestone + issues (OVE-57 → OVE-58 → OVE-59 → OVE-60, blockedBy chain)
 - [ ] 7. Feature PR
 - [ ] 8. Tickets implemented
 - [ ] 9. Runbook
@@ -49,7 +49,16 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Linear
 
-(not yet created)
+- Milestone: **Faster Logging UX** (`c2e76baf-f532-4225-8cc9-76382688197b`)
+- Tickets (dependency order, chained via blockedBy):
+  - **OVE-57** — 1: previous performance + gym-scoped working weight + set-entry helpers
+  - **OVE-58** — 2: active-row exercise card, focus flow, in-card correction, runner (blockedBy OVE-57)
+  - **OVE-59** — 3: local-stack e2e, tap-count measurement (before/after), method note (blockedBy OVE-58)
+  - **OVE-60** — 4: user guidance — tour check + What's New entry via /overload-onboarding (blockedBy OVE-57, OVE-58, OVE-59)
+
+### Ticket branches / PRs
+
+(none yet)
 
 ## Resolved Decisions so far
 
