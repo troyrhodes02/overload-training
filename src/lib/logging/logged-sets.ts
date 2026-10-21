@@ -6,6 +6,7 @@ import type { AccountTx } from "@/lib/data/account-db";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import type { EquipmentValue } from "@/lib/exercises/taxonomy";
+import { isRir } from "@/lib/logging/rir";
 
 /**
  * The ONLY path that writes a LoggedSet (CLAUDE.md Layer 1; Resolved Decision 9).
@@ -28,30 +29,42 @@ type Db = AccountTx;
  * `weightLbs` is the external load. A bodyweight exercise (requiresExternalWeight
  * false) logs reps only: omit it or pass null. It is stored as NULL — never 0,
  * never a fake positive number, never a guessed bodyweight.
+ *
+ * `rir` is the optional reps in reserve (RIR Logging & Autoregulation R4):
+ * omitted or null is stored as NULL ("not recorded") — never 0.
  */
 export type LogSetInput = {
   loggedExerciseId: string;
   setNumber: number;
   weightLbs?: number | null;
   reps: number;
+  rir?: number | null;
 };
 
+/**
+ * `rir`: undefined leaves the stored value unchanged, so a payload without it
+ * can never silently erase it; null clears it to "not recorded"; 0..4 sets it
+ * (R9).
+ */
 export type EditLoggedSetInput = {
   loggedSetId: string;
   weightLbs?: number | null;
   reps: number;
+  rir?: number | null;
 };
 
 /**
  * Validates against the PERFORMED exercise's loading mode (Decision 11, extended
  * for bodyweight). External load: weight > 0 and reps > 0. Bodyweight: reps > 0
  * and no weight at all — a supplied weight (including 0) is rejected rather
- * than silently dropped. Returns the weight to store.
+ * than silently dropped. RIR, when given, must be on the 0..4 scale; its
+ * absence is never an error. Returns the weight to store.
  */
 function validateValues(
   exercise: { equipmentType: EquipmentValue },
   weightLbs: number | null | undefined,
   reps: number,
+  rir: number | null | undefined,
 ): Prisma.Decimal | null {
   const details: Record<string, string> = {};
   const external = requiresExternalWeight(exercise);
@@ -74,6 +87,9 @@ function validateValues(
     reps > 1000
   ) {
     details.reps = "Enter reps above 0.";
+  }
+  if (rir !== undefined && rir !== null && !isRir(rir)) {
+    details.rir = "Choose an RIR from 0 to 4+.";
   }
   if (Object.keys(details).length > 0) {
     throw new DomainError(
@@ -156,7 +172,9 @@ async function logSetInTx(
     loggedExercise.exercise,
     input.weightLbs,
     input.reps,
+    input.rir,
   );
+  const rir = input.rir ?? null;
   if (loggedExercise.skippedAt) {
     throw new DomainError(
       "invalid_state_transition",
@@ -173,9 +191,10 @@ async function logSetInTx(
     );
   }
 
-  // Retry conflict on (loggedExerciseId, setNumber): idempotent if identical,
-  // otherwise a conflict — deliberate changes go through editLoggedSet (Decision
-  // 14). Checked up front because catching a unique violation would abort the
+  // Retry conflict on (loggedExerciseId, setNumber): idempotent if identical
+  // (weight, reps, and RIR — a retry carries the same draft), otherwise a
+  // conflict — deliberate changes go through editLoggedSet (Decision 14,
+  // RIR Logging R10). Checked up front because catching a unique violation would abort the
   // surrounding transaction (Postgres cannot continue an errored transaction).
   const existing = await tx.loggedSet.findUnique({
     where: {
@@ -188,7 +207,8 @@ async function logSetInTx(
   if (existing) {
     if (
       sameWeight(existing.weightLbs, weight) &&
-      existing.reps === input.reps
+      existing.reps === input.reps &&
+      existing.rir === rir
     ) {
       return existing;
     }
@@ -206,6 +226,7 @@ async function logSetInTx(
       setNumber: input.setNumber,
       weightLbs: weight,
       reps: input.reps,
+      rir,
     },
   });
 
@@ -220,8 +241,9 @@ async function logSetInTx(
 }
 
 /**
- * Correct a historical set's weight/reps (Decision 51). Weight/reps only — never
- * the exercise, gym, set number, or date. No baseline replay (Decisions 53/54):
+ * Correct a historical set's weight/reps (Decision 51) and its RIR (RIR Logging
+ * & Autoregulation R8–R9). Values only — never the exercise, gym, set number,
+ * or date. No baseline replay (Decisions 53/54):
  * the stored baseline stays the latest value established/corrected by live logging.
  */
 export async function editLoggedSet(
@@ -250,9 +272,14 @@ export async function editLoggedSet(
     existing.loggedExercise.exercise,
     input.weightLbs,
     input.reps,
+    input.rir,
   );
   return tx.loggedSet.update({
     where: { id: input.loggedSetId },
-    data: { weightLbs: weight, reps: input.reps },
+    data: {
+      weightLbs: weight,
+      reps: input.reps,
+      ...(input.rir !== undefined ? { rir: input.rir } : {}),
+    },
   });
 }

@@ -11,6 +11,7 @@ import {
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
 import { ProgressTag } from "@/components/progression/progress-tag";
+import { rirReasonShort } from "@/lib/progression/rir-copy";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
 import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload-banner";
 import { DashboardGoals } from "@/components/goals/dashboard-goals";
@@ -48,30 +49,40 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
         </p>
       ) : summary && summary.exercises.length > 0 ? (
         <ul className="mt-4 space-y-2">
-          {summary.exercises.map((e) => (
-            <li
-              key={e.performedExerciseId}
-              className="flex items-center justify-between gap-2 text-sm"
-            >
-              <span className="flex items-center gap-2">
-                {e.performedExerciseName}
-                <ProgressTag state={e.tag} />
-              </span>
-              <span className="flex items-center gap-3">
-                {e.tag === "progress" && e.suggestion ? (
-                  <SuggestedLoad suggestion={e.suggestion} />
-                ) : null}
-                {e.hasTrend ? (
-                  <Link
-                    href={`/exercises/${e.performedExerciseId}`}
-                    className="text-primary"
-                  >
-                    trend ›
-                  </Link>
-                ) : null}
-              </span>
-            </li>
-          ))}
+          {summary.exercises.map((e) => {
+            const why = rirReasonShort(e.rirEffect);
+            return (
+              <li
+                key={e.performedExerciseId}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <span>
+                    {e.performedExerciseName}
+                    {why ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {why}
+                      </span>
+                    ) : null}
+                  </span>
+                  <ProgressTag state={e.tag} />
+                </span>
+                <span className="flex items-center gap-3">
+                  {e.tag === "progress" && e.suggestion ? (
+                    <SuggestedLoad suggestion={e.suggestion} />
+                  ) : null}
+                  {e.hasTrend ? (
+                    <Link
+                      href={`/exercises/${e.performedExerciseId}`}
+                      className="text-primary"
+                    >
+                      trend ›
+                    </Link>
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       {state.loggedSessionId ? (

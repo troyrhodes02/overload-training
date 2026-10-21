@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import { getLoggedWorkoutDetail } from "@/lib/logging/queries";
 import { EditSetDialog } from "@/components/logging/edit-set-dialog";
 import { requireAccount } from "@/lib/data/account";
+import { rirSuffix } from "@/lib/logging/rir";
 
 export const metadata = { title: "Workout · Overload" };
 
@@ -52,6 +53,11 @@ export default async function LoggedWorkoutPage({
                   {s.weightLbs === null
                     ? `${s.reps} reps`
                     : `${s.weightLbs} lbs × ${s.reps}`}
+                  {rirSuffix(s.rir) ? (
+                    <span className="text-xs text-muted-foreground">
+                      {` ${rirSuffix(s.rir)}`}
+                    </span>
+                  ) : null}
                   {s.extra ? (
                     <span className="text-xs text-muted-foreground">
                       {" "}
@@ -66,6 +72,7 @@ export default async function LoggedWorkoutPage({
                   requiresExternalWeight={ex.requiresExternalWeight}
                   weightLbs={s.weightLbs}
                   reps={s.reps}
+                  rir={s.rir}
                 />
               </div>
             ))}

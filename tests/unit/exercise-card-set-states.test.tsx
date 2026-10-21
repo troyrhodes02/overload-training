@@ -30,6 +30,7 @@ const logged = (n: number, w: number | null, r: number): Row => ({
   loggedSetId: `ls-${n}`,
   weightLbs: w,
   reps: r,
+  rir: null,
   saved: true,
   extra: false,
 });
@@ -38,6 +39,7 @@ const open = (n: number): Row => ({
   loggedSetId: null,
   weightLbs: null,
   reps: null,
+  rir: null,
   saved: false,
   extra: false,
 });
@@ -144,10 +146,17 @@ describe("mid-exercise reuse", () => {
 
   it("AC-2: fewer controls than the Pitch 4 card (6 inputs + 2 Save) with set 1 logged", () => {
     const html = render(card({ sets: [logged(1, 185, 8), open(2), open(3)] }));
-    const buttons = html.match(/<button/g) ?? [];
+    // RIR Logging & Autoregulation adds exactly ONE control to the active row:
+    // the optional RIR group (five chips, one tab stop; design §12, 8 → 9).
+    // It is counted as one control here, never hidden from the count.
+    const chips = html.match(/<button[^>]*role="radio"/g) ?? [];
+    const groups = html.match(/role="radiogroup"/g) ?? [];
+    const buttons = (html.match(/<button/g) ?? []).length - chips.length;
     // 2 inputs + Log set + the logged row (Swap/trend/Previous/Next are slots or runner).
     expect(inputs(html)).toHaveLength(2);
-    expect(buttons.length).toBe(2);
+    expect(buttons).toBe(2);
+    expect(chips).toHaveLength(5);
+    expect(groups).toHaveLength(1);
   });
 });
 
@@ -230,6 +239,7 @@ describe("progression suggestions stay display-only (R8)", () => {
         workoutDateIso="2026-10-20"
         progression={{
           tag: "progress",
+          rirEffect: null,
           suggestion: { lbs: 190, kind: "progress_increment" },
           scheduledDeloadWeek: false,
           hasTrend: true,
@@ -238,5 +248,136 @@ describe("progression suggestions stay display-only (R8)", () => {
     );
     expect(html).toContain("Try 190 lb (+5)");
     expect(valueOf(html, "Set 1 weight in pounds")).toBe("185");
+  });
+});
+
+describe("RIR reason lines (RIR Logging & Autoregulation R20–R21)", () => {
+  const render = (p: Parameters<typeof ExerciseCard>[0]["progression"]) =>
+    renderToStaticMarkup(
+      <ExerciseCard
+        exercise={card()}
+        gymLocked={false}
+        workoutDateIso="2026-10-20"
+        progression={p}
+      />,
+    );
+
+  it("a Progress held at the limit shows the case A line and no tag", () => {
+    const html = render({
+      tag: null,
+      rirEffect: "held_at_limit",
+      suggestion: null,
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).toContain(
+      "Top of the range, but at your limit last time (0 RIR) — holding.",
+    );
+    expect(html).not.toContain(">Progress<");
+    expect(html).not.toContain("Hold — trend flat");
+  });
+
+  it("a released stall shows Progress, its suggestion, and the case B line", () => {
+    const html = render({
+      tag: "progress",
+      rirEffect: "released_stall",
+      suggestion: { lbs: 190, kind: "progress_increment" },
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).toContain(">Progress<");
+    expect(html).toContain(
+      "e1RM is flat, but every set last time had 2+ in reserve — ready to go up.",
+    );
+  });
+
+  it("an ordinary call shows no RIR line", () => {
+    const html = render({
+      tag: null,
+      rirEffect: null,
+      suggestion: null,
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).not.toContain("at your limit last time");
+    expect(html).not.toContain("in reserve — ready to go up");
+  });
+
+  it("a scheduled-deload week shows only the deload line", () => {
+    const html = render({
+      tag: null,
+      rirEffect: null,
+      suggestion: { lbs: 165, kind: "scheduled_deload" },
+      scheduledDeloadWeek: true,
+      hasTrend: true,
+    });
+    expect(html).toContain("Deload week — recovery, not a verdict.");
+    expect(html).not.toContain("at your limit");
+  });
+});
+
+describe("RIR on the card (RIR Logging & Autoregulation preview §01–§03)", () => {
+  const renderCard = (overrides: Partial<ExerciseCardDto> = {}) =>
+    renderToStaticMarkup(
+      <ExerciseCard
+        exercise={card(overrides)}
+        gymLocked={false}
+        workoutDateIso="2026-10-20"
+      />,
+    );
+  const groups = (html: string) =>
+    html.match(
+      /role="radiogroup" aria-label="Set \d+ RIR \(reps in reserve, optional\)"/g,
+    )?.length ?? 0;
+
+  it("the active row offers RIR with nothing chosen; no other row has it", () => {
+    const html = renderCard({
+      sets: [logged(1, 185, 8), open(2), open(3)],
+    });
+    expect(groups(html)).toBe(1);
+    expect(html).toContain(
+      'aria-label="Set 2 RIR (reps in reserve, optional)"',
+    );
+    expect(html).not.toMatch(/aria-checked="true"/);
+  });
+
+  it("a logged set shows its RIR only when one was recorded — 0 included", () => {
+    const html = renderCard({
+      sets: [
+        { ...logged(1, 185, 8), rir: 2 },
+        { ...logged(2, 185, 8), rir: null },
+        { ...logged(3, 185, 8), rir: 0 },
+      ],
+    });
+    expect(html).toContain("· 2 RIR");
+    expect(html).toContain("· 0 RIR");
+    expect(html.match(/· \d\+? RIR/g)).toHaveLength(2);
+    expect(html).toContain(
+      'aria-label="Set 1, 185 pounds, 8 reps, 2 reps in reserve, logged. Correct this set"',
+    );
+    expect(html).toContain(
+      'aria-label="Set 2, 185 pounds, 8 reps, logged. Correct this set"',
+    );
+    // Every planned set is logged: no active row, so no RIR choice.
+    expect(groups(html)).toBe(0);
+  });
+
+  it("4 reads 4+ on a logged row", () => {
+    const html = renderCard({
+      sets: [{ ...logged(1, 185, 8), rir: 4 }, open(2), open(3)],
+    });
+    expect(html).toContain("· 4+ RIR");
+  });
+
+  it("bodyweight keeps reps only, with the same optional RIR", () => {
+    const html = renderCard({
+      requiresExternalWeight: false,
+      suggestedWeightLbs: null,
+      sets: [{ ...logged(1, null, 15), rir: 1 }, open(2)],
+    });
+    expect(html).not.toContain("weight in pounds");
+    expect(html).toContain("15");
+    expect(html).toContain("· 1 RIR");
+    expect(groups(html)).toBe(1);
   });
 });

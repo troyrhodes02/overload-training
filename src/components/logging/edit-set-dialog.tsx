@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { editLoggedSetAction } from "@/app/(app)/history/actions";
+import { RirPicker } from "@/components/logging/rir-picker";
 
 /**
  * Past-log correction (design Screen 9; Resolved Decisions 51–54). Weight and
@@ -24,6 +25,11 @@ import { editLoggedSetAction } from "@/app/(app)/history/actions";
  * Faster Logging UX (R17): the logging card opens this same dialog from a
  * logged row by passing its own `trigger`; History keeps the default "edit"
  * link. Every open starts from the stored values, never a leftover edit.
+ *
+ * RIR Logging & Autoregulation (design Screen 3, preview §04; R9): the stored
+ * RIR can be changed or cleared. Save sends RIR only when the lifter changed
+ * it (null when cleared — "not recorded", never 0); otherwise it is omitted,
+ * so an edit to weight or reps never rewrites the stored RIR (review of #81).
  */
 export function EditSetDialog({
   loggedSetId,
@@ -32,6 +38,7 @@ export function EditSetDialog({
   requiresExternalWeight,
   weightLbs,
   reps,
+  rir,
   trigger,
 }: {
   loggedSetId: string;
@@ -40,6 +47,8 @@ export function EditSetDialog({
   requiresExternalWeight: boolean;
   weightLbs: number | null;
   reps: number;
+  /** The stored reps in reserve; null = not recorded. */
+  rir: number | null;
   /** The element that opens the dialog; defaults to History's "edit" link. */
   trigger?: React.ReactNode;
 }) {
@@ -49,6 +58,7 @@ export function EditSetDialog({
     weightLbs === null ? "" : String(weightLbs),
   );
   const [repsValue, setRepsValue] = useState(String(reps));
+  const [rirValue, setRirValue] = useState<number | null>(rir);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -56,6 +66,7 @@ export function EditSetDialog({
     if (next) {
       setWeight(weightLbs === null ? "" : String(weightLbs));
       setRepsValue(String(reps));
+      setRirValue(rir);
       setError(null);
     }
     setOpen(next);
@@ -78,6 +89,7 @@ export function EditSetDialog({
         loggedSetId,
         weightLbs: requiresExternalWeight ? w : null,
         reps: r,
+        ...(rirValue !== rir ? { rir: rirValue } : {}),
       });
       if (res.ok) {
         toast.success("Set updated");
@@ -130,6 +142,26 @@ export function EditSetDialog({
               value={repsValue}
               onChange={(e) => setRepsValue(e.target.value)}
             />
+          </div>
+          <div>
+            <p id={`rir-${loggedSetId}`} className="text-sm font-medium">
+              RIR (optional)
+            </p>
+            <div className="mt-1">
+              <RirPicker
+                label={`Set ${setNumber} RIR (reps in reserve, optional)`}
+                labelledBy={`rir-${loggedSetId}`}
+                showLabel={false}
+                value={rirValue}
+                disabled={pending}
+                onChange={setRirValue}
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {rirValue === null
+                ? "Not recorded."
+                : "Tap the selected value to clear."}
+            </p>
           </div>
           {error ? (
             <p role="alert" className="text-xs text-destructive">
