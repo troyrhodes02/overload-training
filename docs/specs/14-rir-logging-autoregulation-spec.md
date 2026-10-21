@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved
 author: Claude Code (autonomous pipeline run)
 last_updated: 2026-10-21
@@ -110,7 +110,7 @@ The preview (`docs/previews/14-rir-logging-autoregulation-preview.html`, section
 
 | Component | Contract | Notes |
 | --------- | -------- | ----- |
-| `RirPicker` (new, `src/components/logging/rir-picker.tsx`, client) | `{ value: number \| null; onChange(v: number \| null): void; disabled?: boolean; label: string; showLabel?: boolean }` | Radix `ToggleGroup` (`radix-ui` package, already a dependency) `type="single"`, five items `0…4` rendered `0 1 2 3 4+`; empty string ⇄ `null`. Items `h-11 min-w-11`, outline (shadcn `toggleVariants({variant:"outline"})`), on-state neutral: `data-[state=on]:bg-accent data-[state=on]:text-foreground data-[state=on]:border-foreground/60` — never `primary`. `onPointerDown={e => e.preventDefault()}` on items so focus and the phone keyboard stay in the field (R13 of Faster Logging UX). One tab stop, arrow keys rove (Radix default). Group `aria-label` e.g. `Set 2 reps in reserve (optional)`; item `aria-label` `0`…`4 or more`. Disabled while saving (`aria-disabled`, inert). |
+| `RirPicker` (new, `src/components/logging/rir-picker.tsx`, client) | `{ value: number \| null; onChange(v: number \| null): void; disabled?: boolean; label: string; showLabel?: boolean }` | Radix `ToggleGroup` (`radix-ui` package, already a dependency) `type="single"` (renders a radiogroup, R31), five items `0…4` rendered `0 1 2 3 4+`; empty string ⇄ `null`. Items `h-11 min-w-11`, outline (shadcn `toggleVariants({variant:"outline"})`), on-state neutral: `data-[state=on]:bg-accent data-[state=on]:text-foreground data-[state=on]:border-foreground/60` — never `primary`. `onPointerDown={e => e.preventDefault()}` on items so focus and the phone keyboard stay in the field (R13 of Faster Logging UX). One tab stop, arrow keys rove (Radix default). Group `aria-label` e.g. `Set 2 reps in reserve (optional)`; item `aria-label` `0`…`4 or more`. Disabled while saving (`aria-disabled`, inert). |
 | `ExerciseCard` | `Draft` gains `rir: number \| null` (default `null`, never carried) | picker below fields/caption on the active row only; reset by keying the draft per set number (a new set's draft starts at null); `logSetAction({... rir })`; Enter in reps submits with the selected value |
 | `EditSetDialog` | new prop `rir: number \| null`; state resets to it on open | `RirPicker` under Reps with label `RIR (optional)`; helper `Tap the selected value to clear.` when set, `Not recorded.` when null; Save sends `rir` (explicit `null` when cleared) |
 | `CardProgression` (type in `exercise-card.tsx`) | gains `rirEffect: RirEffect` | reason line in the existing note slot; scheduled-deload line wins (as today) |
@@ -475,6 +475,9 @@ Authority order (CLAUDE.md): 1 approved planning docs · 2 CLAUDE.md and skills 
 | R27 | No new owned model → isolation coverage registry unchanged; the logging isolation test is extended for `rir`. | Ownership via existing `LoggedSet.userId`. | CLAUDE.md first invariant |
 | R28 | Tour: no new step proposed; `/overload-onboarding` decides any copy touch. Release note significant, dated at the merge day by a human. | Skill rubric; no invented ship date. | Pitch §12; What's New content contract |
 | R29 | `evaluateReactive` keeps its signature (returns `.state`) so existing callers/tests remain valid. | Minimal churn; no second engine. | Codebase pattern; pitch §9.4 |
+| R30 | Below 360px the RIR label sits on its own line above the chips and the chips share the row (`flex-1`, `gap-1`), so each stays ≥ 44px and nothing overflows the card at 320px. | Found in the OVE-64 browser walkthrough: the preview's one-line row overflowed by ~30px at 320 (the preview mis-measured the active row's inner width). Same kind of sizing refinement as Faster Logging UX R26. | Judgment; preview §06 intent (no horizontal scroll, 44px targets) |
+| R31 | The picker's accessible semantics are Radix's single-select toggle group as shipped: `role="radiogroup"` with `role="radio"` items and `aria-checked` (not `aria-pressed`). Group name `Set N RIR (reps in reserve, optional)` — it must not contain the substring `Set N reps`, so the reps field's name stays unique. | Uses the existing `radix-ui` primitive unmodified (R22); a radio group is the correct ARIA for one-of-five with an empty state; the name change removed a real label collision found by the e2e. | CLAUDE.md stack; judgment |
+| R32 | Faster Logging UX's control-count checks (unit + e2e) count the RIR group as exactly one control, separately, and still require every other control to stay at its Pitch 13 count; its AC-1 tap test now asserts exactly 18 taps / 18 keystrokes. | Accounts for the one control this pitch deliberately adds (design §12) without weakening any assertion; R25 made exact. | Design §12; R25 |
 
 ## 17. Open questions
 

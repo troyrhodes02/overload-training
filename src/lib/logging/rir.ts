@@ -39,3 +39,17 @@ export function rirSuffix(rir: number | null): string {
 export function rirAccessibleName(rir: number): string {
   return rir >= RIR_MAX ? `${RIR_MAX} or more` : String(rir);
 }
+
+/**
+ * A logged row's accessible name with its RIR spoken, when one was recorded:
+ * "Set 1, 185 pounds, 8 reps, 2 reps in reserve, logged. Correct this set".
+ * Nothing is added for an unrecorded RIR.
+ */
+export function withRirSpoken(rowLabel: string, rir: number | null): string {
+  if (rir === null) return rowLabel;
+  const spoken = `, ${rirAccessibleName(rir)} reps in reserve`;
+  const at = rowLabel.indexOf(", logged");
+  return at < 0
+    ? `${rowLabel}${spoken}`
+    : `${rowLabel.slice(0, at)}${spoken}${rowLabel.slice(at)}`;
+}

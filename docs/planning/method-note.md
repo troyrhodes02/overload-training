@@ -124,3 +124,32 @@ Source: `docs/specs/13-faster-logging-ux-spec.md` (§5, §7, §11, §14.4; Resol
 - **Counted** from the open workout page to the dashboard after Finish, in a 375×812 touch context: a **tap** is one pointer activation on a page element (including tapping a field to focus it; a field the app already focused is not tapped); a **keystroke** is one key. Drivers act only through the counter (no `fill`, `focus`, or script). Replacing a value on a card without select-on-focus costs a tap, an uncounted `End`, one Backspace per character, and the digits.
 - **Results:** Pitch 4 card (`fe34d00`) **29 taps, 28 keystrokes, 12 visible controls** (3-set card with set 1 logged, plus Previous/Next); Faster Logging UX card **18 taps, 18 keystrokes, 8 controls**. Before: `OVERLOAD_TAP_BASELINE=1` run of `e2e/accounts/tap-count-baseline.spec.ts` from a worktree of `fe34d00`. After: `e2e/accounts/faster-logging.spec.ts` (asserts ≤ 18 and < 29).
 - **Limit:** desktop Chrome with touch emulation does not reproduce iOS Safari's keyboard. If iOS drops the keyboard between sets, each set the app focuses costs one extra tap (nine in this workout), so the iOS after-count is at most 27. A later pitch measures the same way and states the same caveat.
+
+## RIR scale and progression qualifiers (established by RIR Logging & Autoregulation)
+
+Source: `docs/specs/14-rir-logging-autoregulation-spec.md` (§5, §6, §11; Resolved Decisions R3–R16, R25, R30). Code: `src/lib/logging/rir.ts` (scale, formatters), `src/lib/logging/logged-sets.ts` (the only writer), `src/lib/progression/config.ts` (`RIR_AT_LIMIT`, `RIR_TO_SPARE_MIN`), `src/lib/progression/engine.ts` (`evaluateReactiveDecision`), `src/lib/progression/rir-copy.ts` (reason lines). Consumed by Smarter & Explainable Progression (evidence lines) and Exercise History & PR Intelligence.
+
+### The stored fact
+
+- **`LoggedSet.rir`** (nullable integer, `CHECK rir IS NULL OR rir BETWEEN 0 AND 4`, migration `9f_logged_set_rir`). `NULL` = not recorded — never 0, never inferred or backfilled. `0` = no rep left; `4` = four **or more** (shown `4+`). RIR is per set, optional on every set, and is never added to reps.
+- Written only by `logSet` in the same write as weight and reps; corrected only by `editLoggedSet` (`rir` undefined = unchanged, `null` = clear). Idempotency compares RIR too.
+- Never read by e1RM, goals, gym baselines, the working weight, or the weight offer (a static guard enforces it).
+
+### The qualifiers (Bucket C, flagged for review)
+
+The Progressive Overload Engine ladder runs first and unchanged. RIR is then read from the **planned working sets of the most recent qualifying performance** (same scope as the rule: completed, all planned sets, not a scheduled-deload week, gym-scoped for machine/cable):
+
+| Base call | Condition | Final call | `rirEffect` |
+| --------- | --------- | ---------- | ----------- |
+| `progress` | any working set `rir <= RIR_AT_LIMIT` (**0**) | `hold` (no tag) | `held_at_limit` |
+| `stalled` | **every** working set `rir >= RIR_TO_SPARE_MIN` (**2**) | `progress` | `released_stall` |
+| anything else | — | unchanged | `null` |
+
+- An unrecorded set never counts as 0 or as 2+. A history with no RIR yields exactly the base call.
+- RIR never creates or cancels a reactive Deload, never changes insufficient history or an ordinary hold, and is ignored in scheduled-deload weeks.
+- `rirEffect` is derived on read, never stored; the reason line is rendered from the constants.
+
+### Interaction cost
+
+- Measured with the "Set entry and tap-count method" above, same workout, 375×812 touch: **RIR unset 18 taps / 18 keystrokes** (equal to Faster Logging UX; `e2e/accounts/faster-logging.spec.ts` asserts exactly 18 / 18); RIR on the last set of each exercise **22 / 18**; RIR on every set **29 / 18** (`e2e/accounts/rir-logging.spec.ts`). Recording RIR costs one tap per set; a chip never takes focus, so the keyboard stays in reps.
+- The RIR group is the one control added to the active row (Faster Logging UX's visible-control count 8 → 9, counting the group once). Below 360px its label sits above the chips so each chip stays 44px.

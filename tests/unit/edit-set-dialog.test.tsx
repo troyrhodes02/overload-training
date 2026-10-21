@@ -21,6 +21,7 @@ const props = {
   requiresExternalWeight: true,
   weightLbs: 185,
   reps: 8,
+  rir: 2,
 };
 
 describe("EditSetDialog trigger", () => {

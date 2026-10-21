@@ -310,6 +310,43 @@ export async function loggedSetsOn(
   });
 }
 
+/** The stored RIR of each of the day's sets, in card order (RIR Logging). */
+export async function rirOn(
+  userId: string,
+  date: string,
+): Promise<(number | null)[]> {
+  return withDb(async (db) => {
+    const r = await db.query<{ rir: number | null }>(
+      `SELECT s.rir
+         FROM logged_sets s
+         JOIN logged_exercises le ON le.id = s.logged_exercise_id
+         JOIN logged_sessions ls ON ls.id = le.logged_session_id
+        WHERE s.user_id = $1 AND ls.scheduled_for = $2
+        ORDER BY le.position, s.set_number`,
+      [userId, date],
+    );
+    return r.rows.map((row) => row.rir);
+  });
+}
+
+/**
+ * Make last time's bench session top-of-range (185 × 8, 8, 8) so today's
+ * matching session forms a Progress candidate (RIR Logging e2e, case A).
+ * Test-only, local stack, the temporary account's own seeded row.
+ */
+export async function benchHistoryAllTop(userId: string): Promise<void> {
+  await withDb(async (db) => {
+    const r = await db.query(
+      `UPDATE logged_sets s SET reps = 8, updated_at = now()
+         FROM logged_exercises le, exercises e
+        WHERE s.logged_exercise_id = le.id AND le.exercise_id = e.id
+          AND s.user_id = $1 AND e.name = $2 AND s.set_number = 3`,
+      [userId, REPRESENTATIVE[0].name],
+    );
+    if (r.rowCount !== 1) throw new Error("Expected one seeded bench set 3");
+  });
+}
+
 /** Account-wide counts used to prove nothing was written. */
 export async function setCount(userId: string): Promise<number> {
   return withDb(async (db) =>

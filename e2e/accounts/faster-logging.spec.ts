@@ -127,6 +127,10 @@ test("AC-1: the representative workout takes fewer taps, and history is exactly 
   );
   expect(c.taps).toBeLessThan(PITCH4_BASELINE.taps);
   expect(c.taps).toBeLessThanOrEqual(18);
+  // RIR Logging & Autoregulation AC-1 (R25): with RIR left unset the workout
+  // costs exactly what Faster Logging UX measured — not one tap or key more.
+  expect(c.taps).toBe(18);
+  expect(c.keystrokes).toBe(18);
 
   // Exactly what was confirmed — the bodyweight sets with no weight at all.
   expect(await loggedSetsOn(seeded.userId, seeded.today)).toEqual(
@@ -198,12 +202,25 @@ test("AC-3 and AC-2: nothing is written without Log set; fewer visible controls;
   const card = page
     .locator("div.rounded-lg")
     .filter({ has: visibleHeading(page, bench) });
-  const cardControls = await card
-    .locator("input:visible, button:visible, a:visible")
-    .count();
+  // RIR Logging & Autoregulation adds exactly one control to the active row,
+  // the optional RIR group (five chips, one tab stop; its design §12: 8 → 9).
+  // It is counted as one control, separately, so nothing else may grow.
+  const rirChips = await card.locator('[role="radio"]:visible').count();
+  const rirGroups = await card.locator('[role="radiogroup"]:visible').count();
+  const cardControls =
+    (await card.locator("input:visible, button:visible, a:visible").count()) -
+    rirChips;
   const barControls = 2; // Previous, Next
-  console.log(`[controls] AFTER card=${cardControls} bar=${barControls}`);
+  console.log(
+    `[controls] AFTER card=${cardControls} bar=${barControls} rir-groups=${rirGroups}`,
+  );
   expect(cardControls + barControls).toBeLessThanOrEqual(8);
+  expect(rirGroups).toBe(1);
+  expect(rirChips).toBe(5);
+  // Nothing is pre-selected: RIR is never carried or guessed.
+  await expect(card.locator('[role="radio"][aria-checked="true"]')).toHaveCount(
+    0,
+  );
 
   // Phone sizing: one line at 375 and 320, 44px targets, no sideways scroll.
   for (const width of [375, 320]) {
@@ -230,6 +247,22 @@ test("AC-3 and AC-2: nothing is written without Log set; fewer visible controls;
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
+    // RIR Logging (R30): the five RIR chips stay 44px targets inside the card.
+    const cardBox = (await card.boundingBox())!;
+    const chipBoxes = await card
+      .locator('[role="radio"]:visible')
+      .evaluateAll((els) =>
+        els.map((e) => {
+          const r = e.getBoundingClientRect();
+          return { w: r.width, h: r.height, right: r.right };
+        }),
+      );
+    expect(chipBoxes).toHaveLength(5);
+    for (const b of chipBoxes) {
+      expect(b.w).toBeGreaterThanOrEqual(43.5);
+      expect(b.h).toBeGreaterThanOrEqual(44);
+      expect(b.right).toBeLessThanOrEqual(cardBox.x + cardBox.width);
+    }
     await page.screenshot({
       path: `${SHOTS}/card-${width}-light.png`,
       fullPage: true,
@@ -246,8 +279,8 @@ test("AC-3 and AC-2: nothing is written without Log set; fewer visible controls;
     dialog.getByRole("heading", { name: `Edit set 1 — ${bench}` }),
   ).toBeVisible();
   await expect(dialog.getByLabel("Weight (lbs)")).toHaveValue("185");
-  await expect(dialog.getByLabel("Reps")).toHaveValue("8");
-  await dialog.getByLabel("Reps").fill("7");
+  await expect(dialog.getByLabel("Reps", { exact: true })).toHaveValue("8");
+  await dialog.getByLabel("Reps", { exact: true }).fill("7");
   await dialog.getByRole("button", { name: "Save" }).tap();
   await expect(page.getByText("Set updated")).toBeVisible();
   await expect(
