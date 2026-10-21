@@ -14,6 +14,7 @@ import { getExercise } from "@/lib/exercises/queries";
 import { getExerciseProgression } from "@/lib/progression/queries";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
+import { rirReason } from "@/lib/progression/rir-copy";
 import { GymSelector } from "@/components/progression/gym-selector";
 import { E1rmChart } from "@/components/progression/e1rm-chart";
 import { requireAccount } from "@/lib/data/account";
@@ -65,6 +66,11 @@ async function ProgressionSection({
             <span>
               Suggested next: <SuggestedLoad suggestion={dto.suggestion} />
             </span>
+          ) : null}
+          {rirReason(dto.rirEffect) ? (
+            <p className="basis-full text-xs text-muted-foreground">
+              {rirReason(dto.rirEffect)}
+            </p>
           ) : null}
         </div>
       )}

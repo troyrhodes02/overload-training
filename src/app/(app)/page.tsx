@@ -11,6 +11,7 @@ import {
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
 import { ProgressTag } from "@/components/progression/progress-tag";
+import { rirReasonShort } from "@/lib/progression/rir-copy";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
 import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload-banner";
 import { DashboardGoals } from "@/components/goals/dashboard-goals";
@@ -54,7 +55,14 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
               className="flex items-center justify-between gap-2 text-sm"
             >
               <span className="flex items-center gap-2">
-                {e.performedExerciseName}
+                <span>
+                  {e.performedExerciseName}
+                  {rirReasonShort(e.rirEffect) ? (
+                    <span className="block text-xs text-muted-foreground">
+                      {rirReasonShort(e.rirEffect)}
+                    </span>
+                  ) : null}
+                </span>
                 <ProgressTag state={e.tag} />
               </span>
               <span className="flex items-center gap-3">

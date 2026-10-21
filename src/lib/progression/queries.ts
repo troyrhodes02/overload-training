@@ -12,13 +12,18 @@ import { currentWorkingWeightLbs } from "@/lib/logging/queries";
 import { PROGRESS_INCREMENT_LBS } from "./config";
 import { isScheduledDeloadWeek, scheduledDeloadLoad } from "./deload";
 import {
-  evaluateReactive,
+  evaluateReactiveDecision,
   qualifyingSequence,
   type Performance,
   type ReactiveState,
 } from "./engine";
 import { bestWorkingSet, loadedSets, sessionE1rm } from "./e1rm";
-import type { E1rmPointDto, ProgressionTag, SuggestedLoadDto } from "./types";
+import type {
+  E1rmPointDto,
+  ProgressionTag,
+  RirEffect,
+  SuggestedLoadDto,
+} from "./types";
 
 /**
  * Server-side read layer for the Progressive Overload Engine (spec §11, §11a,
@@ -35,7 +40,12 @@ import type { E1rmPointDto, ProgressionTag, SuggestedLoadDto } from "./types";
  * gate) and no load suggestion — never a +5 lb or 90% number on a missing weight.
  */
 
-export type { ProgressionTag, SuggestedLoadDto, E1rmPointDto } from "./types";
+export type {
+  ProgressionTag,
+  SuggestedLoadDto,
+  E1rmPointDto,
+  RirEffect,
+} from "./types";
 
 export type ExerciseProgressionDto = {
   exerciseId: string;
@@ -49,6 +59,8 @@ export type ExerciseProgressionDto = {
   selectedGymName: string | null;
   state: ReactiveState;
   tag: ProgressionTag | null;
+  /** The RIR qualifier that changed the call, if any (RIR Logging §6). */
+  rirEffect: RirEffect;
   suggestion: SuggestedLoadDto;
   currentE1rm: number | null;
   qualifyingCount: number;
@@ -59,6 +71,8 @@ export type OccurrenceProgressionDto = {
   loggedExerciseId: string;
   scheduledDeloadWeek: boolean;
   tag: ProgressionTag | null;
+  /** Null in a scheduled-deload week and whenever RIR didn't change the call. */
+  rirEffect: RirEffect;
   suggestion: SuggestedLoadDto;
   hasTrend: boolean;
 };
@@ -70,6 +84,7 @@ export type SessionProgressionSummaryDto = {
     performedExerciseId: string;
     performedExerciseName: string;
     tag: ProgressionTag | null;
+    rirEffect: RirEffect;
     suggestion: SuggestedLoadDto;
     hasTrend: boolean;
   }[];
@@ -330,7 +345,7 @@ export async function getExerciseProgression(
   const rows = await gatherRows(account, exerciseId);
 
   if (!gymVariable) {
-    const state = evaluateReactive(
+    const { state, rirEffect } = evaluateReactiveDecision(
       rows.map((r) => r.perf),
       { e1rmApplicable: externalLoad },
     );
@@ -346,6 +361,7 @@ export async function getExerciseProgression(
       selectedGymName: null,
       state,
       tag,
+      rirEffect,
       suggestion:
         tag === "progress"
           ? await progressSuggestion(
@@ -390,7 +406,9 @@ export async function getExerciseProgression(
   const scopeRows = selectedGymId
     ? rows.filter((r) => r.perf.gymId === selectedGymId)
     : [];
-  const state = evaluateReactive(scopeRows.map((r) => r.perf));
+  const { state, rirEffect } = evaluateReactiveDecision(
+    scopeRows.map((r) => r.perf),
+  );
   const tag = toTag(state);
 
   return {
@@ -404,6 +422,7 @@ export async function getExerciseProgression(
     selectedGymName,
     state,
     tag,
+    rirEffect,
     suggestion:
       tag === "progress"
         ? await progressSuggestion(
@@ -422,6 +441,8 @@ export async function getExerciseProgression(
 
 export type PlannedProgressionDto = {
   tag: ProgressionTag | null;
+  /** Carried for consistency; the dashboard planned list shows no reason line (RIR Logging R20). */
+  rirEffect: RirEffect;
   gymVariable: boolean;
   suggestion: SuggestedLoadDto;
   hasTrend: boolean;
@@ -441,15 +462,28 @@ export async function getPlannedProgression(
 ): Promise<PlannedProgressionDto> {
   const base = await getExerciseProgression(account, exerciseId);
   if (!base) {
-    return { tag: null, gymVariable: false, suggestion: null, hasTrend: false };
+    return {
+      tag: null,
+      rirEffect: null,
+      gymVariable: false,
+      suggestion: null,
+      hasTrend: false,
+    };
   }
   const hasTrend = base.points.length > 0;
   if (base.isGymVariable) {
-    return { tag: null, gymVariable: true, suggestion: null, hasTrend };
+    return {
+      tag: null,
+      rirEffect: null,
+      gymVariable: true,
+      suggestion: null,
+      hasTrend,
+    };
   }
   if (opts.scheduledDeloadWeek) {
     return {
       tag: null,
+      rirEffect: null,
       gymVariable: false,
       suggestion: await scheduledDeloadSuggestion(
         account,
@@ -463,6 +497,7 @@ export async function getPlannedProgression(
   }
   return {
     tag: base.tag,
+    rirEffect: base.rirEffect,
     gymVariable: false,
     suggestion: base.suggestion,
     hasTrend,
@@ -521,6 +556,7 @@ export async function getOccurrenceProgression(
       loggedExerciseId,
       scheduledDeloadWeek: true,
       tag: null,
+      rirEffect: null,
       suggestion: await scheduledDeloadSuggestion(
         account,
         le.exercise.id,
@@ -532,16 +568,16 @@ export async function getOccurrenceProgression(
     };
   }
 
-  const tag = toTag(
-    evaluateReactive(
-      scopeRows.map((r) => r.perf),
-      { e1rmApplicable: externalLoad },
-    ),
+  const { state, rirEffect } = evaluateReactiveDecision(
+    scopeRows.map((r) => r.perf),
+    { e1rmApplicable: externalLoad },
   );
+  const tag = toTag(state);
   return {
     loggedExerciseId,
     scheduledDeloadWeek: false,
     tag,
+    rirEffect,
     suggestion:
       tag === "progress"
         ? await progressSuggestion(
@@ -603,6 +639,7 @@ export async function getSessionProgressionSummary(
         performedExerciseId: le.exercise.id,
         performedExerciseName: le.exercise.name,
         tag: occ?.tag ?? null,
+        rirEffect: occ?.rirEffect ?? null,
         suggestion: occ?.suggestion ?? null,
         hasTrend: occ?.hasTrend ?? false,
       };

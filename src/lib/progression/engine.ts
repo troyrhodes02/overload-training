@@ -18,8 +18,13 @@ import {
   PROGRESS_CONSECUTIVE_SESSIONS,
   DELOAD_CONSECUTIVE_SESSIONS,
   STALL_WINDOW_SESSIONS,
+  RIR_AT_LIMIT,
+  RIR_TO_SPARE_MIN,
 } from "./config";
 import { loadedSets, sessionE1rm } from "./e1rm";
+import type { RirEffect } from "./types";
+
+export type { RirEffect } from "./types";
 
 export type WorkingSet = {
   setNumber: number;
@@ -49,6 +54,17 @@ export type Performance = {
 
 export type ReactiveState =
   "insufficient" | "hold" | "progress" | "deload" | "stalled";
+
+/**
+ * The call plus how it was reached (RIR Logging & Autoregulation spec §11.5).
+ * `base` is the weights-and-reps ladder's answer; `state` is the final call
+ * after the RIR qualifiers; `rirEffect` names the qualifier that changed it.
+ */
+export type ReactiveDecision = {
+  state: ReactiveState;
+  base: ReactiveState;
+  rirEffect: RirEffect;
+};
 
 function byDate(a: Performance, b: Performance): number {
   if (a.dateIso !== b.dateIso) return a.dateIso < b.dateIso ? -1 : 1;
@@ -81,7 +97,28 @@ export function hasBelowMin(p: Performance): boolean {
 }
 
 /**
- * The reactive call over a scope's performances, following the precedence ladder
+ * Case A (R12): at least one planned working set was reported at the limit.
+ * An unrecorded (null) RIR is never taken as 0.
+ */
+export function hasSetAtLimit(p: Performance): boolean {
+  return p.workingSets.some((s) => s.rir !== null && s.rir <= RIR_AT_LIMIT);
+}
+
+/**
+ * Case B (R13): EVERY planned working set was reported with reps to spare.
+ * One unrecorded set fails it: a missing value is never assumed to look like
+ * the recorded ones (R14).
+ */
+export function hasRepsToSpare(p: Performance): boolean {
+  return (
+    p.workingSets.length > 0 &&
+    p.workingSets.every((s) => s.rir !== null && s.rir >= RIR_TO_SPARE_MIN)
+  );
+}
+
+/**
+ * The weights-and-reps call (the Progressive Overload Engine ladder, unchanged
+ * by RIR Logging) over a scope's performances, following the precedence ladder
  * in spec §6: insufficient → reactive Deload → raw Progress (→ stall gate) →
  * Hold. Deload is evaluated before Progress, so in any defensive conflict Deload
  * wins and load is never increased on repeated below-range history (R7 precedence).
@@ -95,7 +132,7 @@ export function hasBelowMin(p: Performance): boolean {
  * hold, but there is no external load to estimate, so the e1RM stall gate is
  * skipped rather than fed a missing weight.
  */
-export function evaluateReactive(
+function evaluateBase(
   perfs: Performance[],
   { e1rmApplicable = true }: { e1rmApplicable?: boolean } = {},
 ): ReactiveState {
@@ -129,4 +166,43 @@ export function evaluateReactive(
   const end = sessionE1rm(loadedSets(window[window.length - 1].workingSets));
   // end > start → trend supports Progress; end <= start → withhold, flag stalled (R23).
   return end > start ? "progress" : "stalled";
+}
+
+/**
+ * The reactive call with RIR as one more signal (RIR Logging & Autoregulation
+ * spec §6, §11.5). The weights-and-reps ladder above runs first and unchanged;
+ * then reported RIR from the planned working sets of the MOST RECENT qualifying
+ * performance may qualify it in exactly two ways:
+ *
+ *   A. base `progress` + any working set at RIR <= RIR_AT_LIMIT → `hold`
+ *      (`held_at_limit`): the top of the range was reached only at failure.
+ *   B. base `stalled` + every working set at RIR >= RIR_TO_SPARE_MIN →
+ *      `progress` (`released_stall`): the flat trend is the load repeated.
+ *
+ * Every other base call — insufficient, reactive Deload, ordinary hold — is
+ * returned as is: RIR never creates or cancels a Deload and never stands in for
+ * reps not done (R15). A history with no RIR yields exactly the base call. A and
+ * B can never meet (no 0 among all-2+ sets), so the order is immaterial.
+ */
+export function evaluateReactiveDecision(
+  perfs: Performance[],
+  opts: { e1rmApplicable?: boolean } = {},
+): ReactiveDecision {
+  const base = evaluateBase(perfs, opts);
+  const latest = qualifyingSequence(perfs).at(-1);
+  if (latest && base === "stalled" && hasRepsToSpare(latest)) {
+    return { state: "progress", base, rirEffect: "released_stall" };
+  }
+  if (latest && base === "progress" && hasSetAtLimit(latest)) {
+    return { state: "hold", base, rirEffect: "held_at_limit" };
+  }
+  return { state: base, base, rirEffect: null };
+}
+
+/** The final call only (kept for callers that need just the state, R29). */
+export function evaluateReactive(
+  perfs: Performance[],
+  opts: { e1rmApplicable?: boolean } = {},
+): ReactiveState {
+  return evaluateReactiveDecision(perfs, opts).state;
 }
