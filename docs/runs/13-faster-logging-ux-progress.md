@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 10 — Integrate ticket PRs #77→#80 into the feature branch (squash, in order).**
+**Step 12 — Code review of #76 (inline comments).**
 
 ## Authority used (read before resuming)
 
@@ -40,8 +40,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#76** https://github.com/troyrhodes02/overload-training/pull/76
 - [x] 8. Tickets implemented — OVE-57…60 → PRs #77–#80 (stacked), all In Review
 - [x] 9. Runbook — `docs/runs/13-faster-logging-ux-runbook.md` (no migration; pre-merge release-note date step; real-shaped-data + real-device checks)
-- [ ] 10. Ticket PRs squash-merged into feature branch
-- [ ] 11. Full verification + tap-count measurement
+- [x] 10. Ticket PRs squash-merged into the feature branch in order — #77 `d518e48`, #78 `ddd9cbb`, #79 `c0eea87`, #80 `d3f1347`. Each: retarget to the feature branch → merge the feature branch into the ticket branch (conflict only in the progress file; kept the ticket's superset) → tree identical to the reviewed ticket tip, delta vs feature = that ticket only → Vercel pass → squash. Final feature tree == OVE-60 tip. No force-push.
+- [x] 11. Full verification on `d3f1347`: prettier, lint, tsc, prisma validate, no prisma/supabase diff vs main, local migrate status up to date; unit 57/913; integration 41/494; accounts e2e 29 passed + 1 skipped (tap count AFTER 18 taps / 18 keys vs BEFORE 29 / 28; controls 8 vs 12); default e2e 26/26; client-bundle OK; `logged-sets.ts`, log/history actions, baselines, progression, tour + What's New mechanisms unchanged vs main; local DB 3/2/463/0 after.
 - [ ] 12. Code review (inline comments on feature PR)
 - [ ] 13. Review audit
 - [ ] 14. Final verification — STOP before merge
