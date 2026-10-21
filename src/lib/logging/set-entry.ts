@@ -38,7 +38,8 @@ export function activeSetNumber(
 export type Offer = {
   weightLbs: number;
   source:
-    { kind: "previous_set"; setNumber: number } | { kind: "working_weight" };
+    | { kind: "previous_set"; setNumber: number }
+    | { kind: "working_weight"; fromBaseline: boolean };
 };
 
 /**
@@ -51,6 +52,8 @@ export function offerFor(args: {
   requiresExternalWeight: boolean;
   sets: readonly CardSet[];
   workingWeightLbs: number | null;
+  /** The working weight is this gym's baseline (a machine or cable). */
+  workingWeightFromBaseline?: boolean;
 }): Offer | null {
   if (!args.requiresExternalWeight) return null;
   const latest = args.sets
@@ -68,17 +71,26 @@ export function offerFor(args: {
   if (args.workingWeightLbs !== null && args.workingWeightLbs > 0) {
     return {
       weightLbs: args.workingWeightLbs,
-      source: { kind: "working_weight" },
+      source: {
+        kind: "working_weight",
+        fromBaseline: args.workingWeightFromBaseline ?? false,
+      },
     };
   }
   return null;
 }
 
-/** The caption under an offered weight: "last time" or "same as set 2". */
+/**
+ * The caption under an offered weight: "same as set 2", "last time", or —
+ * when the offer is a machine/cable's gym baseline, which only moves on a
+ * large deviation and so can differ from the last session — "working weight"
+ * (R27).
+ */
 export function offerCaption(offer: Offer): string {
-  return offer.source.kind === "previous_set"
-    ? `same as set ${offer.source.setNumber}`
-    : "last time";
+  if (offer.source.kind === "previous_set") {
+    return `same as set ${offer.source.setNumber}`;
+  }
+  return offer.source.fromBaseline ? "working weight" : "last time";
 }
 
 /** A weight as the lifter writes it: 185, 182.5 (no trailing zeros). */

@@ -78,7 +78,7 @@ describe("offerFor", () => {
     });
     expect(offer).toEqual({
       weightLbs: 185,
-      source: { kind: "working_weight" },
+      source: { kind: "working_weight", fromBaseline: false },
     });
     expect(offerCaption(offer!)).toBe("last time");
   });
@@ -104,6 +104,20 @@ describe("offerFor", () => {
       weightLbs: 195,
       source: { kind: "previous_set", setNumber: 2 },
     });
+  });
+
+  it("captions a machine/cable gym baseline as 'working weight', not 'last time' (R27)", () => {
+    const offer = offerFor({
+      requiresExternalWeight: true,
+      sets: [row(1), row(2), row(3)],
+      workingWeightLbs: 200,
+      workingWeightFromBaseline: true,
+    });
+    expect(offer).toEqual({
+      weightLbs: 200,
+      source: { kind: "working_weight", fromBaseline: true },
+    });
+    expect(offerCaption(offer!)).toBe("working weight");
   });
 
   it("invents nothing when there is no weight context", () => {

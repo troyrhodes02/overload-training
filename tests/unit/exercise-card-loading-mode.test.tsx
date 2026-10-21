@@ -37,6 +37,7 @@ function card(overrides: Partial<ExerciseCardDto>): ExerciseCardDto {
     plannedSets: 2,
     plannedRepRange: { min: 6, max: 12 },
     suggestedWeightLbs: null,
+    workingWeightFromBaseline: false,
     previousPerformance: null,
     skipped: false,
     sets: [

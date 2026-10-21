@@ -57,6 +57,7 @@ function card(overrides: Partial<ExerciseCardDto> = {}): ExerciseCardDto {
     plannedSets: 3,
     plannedRepRange: { min: 6, max: 8 },
     suggestedWeightLbs: 185,
+    workingWeightFromBaseline: false,
     previousPerformance: {
       dateIso: "2026-10-13",
       gymScoped: false,
@@ -183,6 +184,20 @@ describe("no history and gym scope", () => {
     );
     expect(html).toContain("First time on this at Campus Rec Center.");
     expect(valueOf(html, "Set 1 weight in pounds")).toBe("");
+  });
+
+  it("a gym baseline offer is captioned 'working weight' (R27)", () => {
+    const html = render(
+      card({
+        isGymVariable: true,
+        gymName: "Downtown Gym",
+        suggestedWeightLbs: 200,
+        workingWeightFromBaseline: true,
+      }),
+    );
+    expect(valueOf(html, "Set 1 weight in pounds")).toBe("200");
+    expect(html).toContain(">working weight<");
+    expect(html).not.toContain(">last time<");
   });
 
   it("machine/cable at its gym says 'here'", () => {

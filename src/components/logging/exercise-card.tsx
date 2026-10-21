@@ -117,6 +117,7 @@ export function ExerciseCard({
     requiresExternalWeight: needsWeight,
     sets: exercise.sets,
     workingWeightLbs: exercise.suggestedWeightLbs,
+    workingWeightFromBaseline: exercise.workingWeightFromBaseline,
   });
   const draft: Draft =
     active !== null
@@ -126,10 +127,6 @@ export function ExerciseCard({
   const weightValue =
     draft.weight ?? (offer ? formatWeight(offer.weightLbs) : "");
   const showCaption = needsWeight && draft.weight === null && offer !== null;
-  const loggedSetNumbers = exercise.sets
-    .filter((s) => s.saved)
-    .map((s) => s.setNumber)
-    .join(",");
 
   // Focus only ever follows the lifter's own action (R13): after a confirmed
   // set (once the refreshed record shows it), or after Next/Previous.
@@ -151,14 +148,7 @@ export function ExerciseCard({
     } else {
       headingRef.current?.focus();
     }
-  }, [
-    active,
-    loggedSetNumbers,
-    exercise.sets,
-    needsWeight,
-    weightValue,
-    onPlannedSetsDone,
-  ]);
+  }, [active, exercise.sets, needsWeight, weightValue, onPlannedSetsDone]);
 
   function markSkipped(skipped: boolean) {
     setSkipError(null);
@@ -313,11 +303,18 @@ export function ExerciseCard({
       }
       if (res.error.code === "conflict") {
         // Logged elsewhere: show the server's record instead of the draft.
-        setNotice(res.error.message);
+        // The logged row is right here, so say so rather than the write
+        // module's "edit it from history" (review of #76).
+        setNotice(`Set ${n} was already logged. Tap it above to correct it.`);
         router.refresh();
         return;
       }
       const details = res.error.details;
+      if (details?.setNumber) {
+        // Not a weight or reps problem (e.g. the extra-set limit): a card notice.
+        setNotice(res.error.message);
+        return;
+      }
       if (details?.weightLbs) {
         fail(n, { message: details.weightLbs, field: "weight" });
       } else if (details?.reps) {
@@ -475,9 +472,13 @@ export function ExerciseCard({
                       inputMode="decimal"
                       enterKeyHint="next"
                       autoComplete="off"
-                      className="h-12 pr-8 text-lg font-medium tracking-tight md:text-lg"
+                      className="h-12 pr-8 text-lg font-medium tracking-tight aria-disabled:opacity-50 md:text-lg"
                       value={weightValue}
-                      disabled={saving}
+                      // Read-only, not disabled, while saving: disabling the
+                      // focused field would blur it and drop the phone
+                      // keyboard (R13; review of #76).
+                      readOnly={saving}
+                      aria-disabled={saving || undefined}
                       onFocus={(e) => {
                         // An offered weight is selected, so typing replaces it.
                         if (draft.weight !== null) return;
@@ -521,9 +522,10 @@ export function ExerciseCard({
                     pattern="[0-9]*"
                     enterKeyHint="done"
                     autoComplete="off"
-                    className="h-12 pr-11 text-lg font-medium tracking-tight md:text-lg"
+                    className="h-12 pr-11 text-lg font-medium tracking-tight aria-disabled:opacity-50 md:text-lg"
                     value={draft.reps}
-                    disabled={saving}
+                    readOnly={saving}
+                    aria-disabled={saving || undefined}
                     onChange={(e) =>
                       setDraft(s.setNumber, { reps: e.target.value })
                     }

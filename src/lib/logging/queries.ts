@@ -99,6 +99,8 @@ export type ExerciseCardDto = {
    * context exists. Display/prefill only — never written on its own.
    */
   suggestedWeightLbs: number | null;
+  /** True when that weight is this gym's GymExerciseBaseline (captioned "working weight", not "last time"; R27). */
+  workingWeightFromBaseline: boolean;
   /** The most recent earlier performance in scope (Faster Logging UX R11). */
   previousPerformance: PreviousPerformanceDto | null;
   /** Marked "Didn't do" (or left with no sets when the workout finished). */
@@ -338,12 +340,12 @@ async function buildTodayState(
   };
 }
 
-async function suggestedWeight(
+async function workingWeight(
   account: Account,
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
-): Promise<number | null> {
+): Promise<{ lbs: number; fromBaseline: boolean } | null> {
   if (gymVariable) {
     // A machine/cable weight belongs to its gym: this gym's baseline, else the
     // latest weight logged at this gym — never another gym's (Faster Logging
@@ -352,9 +354,11 @@ async function suggestedWeight(
     const b = await account.db.gymExerciseBaseline.findUnique({
       where: { gymId_exerciseId: { gymId, exerciseId: performedExerciseId } },
     });
-    if (b) return Number(b.weightLbs);
+    if (b) return { lbs: Number(b.weightLbs), fromBaseline: true };
   }
   // Latest REAL load only: a bodyweight (NULL) set is never read back as 0.
+  // Known limit (OVE-61): "latest" is by creation time and includes extra
+  // sets; changing it changes Pitch 5's suggestions, so it is its own ticket.
   const recent = await account.db.loggedSet.findFirst({
     where: {
       loggedExercise: {
@@ -366,7 +370,9 @@ async function suggestedWeight(
     orderBy: { createdAt: "desc" },
     select: { weightLbs: true },
   });
-  return recent?.weightLbs != null ? Number(recent.weightLbs) : null;
+  return recent?.weightLbs != null
+    ? { lbs: Number(recent.weightLbs), fromBaseline: false }
+    : null;
 }
 
 /**
@@ -383,7 +389,13 @@ export async function currentWorkingWeightLbs(
   gymId: string | null,
   gymVariable: boolean,
 ): Promise<number | null> {
-  return suggestedWeight(account, performedExerciseId, gymId, gymVariable);
+  const w = await workingWeight(
+    account,
+    performedExerciseId,
+    gymId,
+    gymVariable,
+  );
+  return w?.lbs ?? null;
 }
 
 /**
@@ -470,67 +482,78 @@ export async function getWorkout(
   const gymLocked = totalSets > 0;
   const gymName = ls.loggedExercises[0]?.gym?.name ?? null;
 
-  const exercises: ExerciseCardDto[] = [];
-  let allComplete = ls.loggedExercises.length > 0;
-  for (const le of ls.loggedExercises) {
-    const variable = isGymVariable(le.exercise);
-    const externalLoad = requiresExternalWeight(le.exercise);
-    const saved = new Map(le.sets.map((s) => [s.setNumber, s]));
-    const rows = Array.from({ length: le.plannedSets }, (_, i) => {
-      const n = i + 1;
-      const s = saved.get(n);
-      return {
-        setNumber: n,
-        loggedSetId: s?.id ?? null,
-        weightLbs: s?.weightLbs != null ? Number(s.weightLbs) : null,
-        reps: s ? s.reps : null,
-        saved: Boolean(s),
-        extra: false,
-      };
-    });
-    for (const s of le.sets) {
-      if (s.setNumber > le.plannedSets) {
-        rows.push({
-          setNumber: s.setNumber,
-          loggedSetId: s.id,
-          weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
-          reps: s.reps,
-          saved: true,
-          extra: true,
-        });
+  // Each exercise's two context reads run in parallel, and the exercises run
+  // in parallel too: this read sits between a confirmed set and the next set
+  // taking focus (review of #76).
+  const exercises: ExerciseCardDto[] = await Promise.all(
+    ls.loggedExercises.map(async (le) => {
+      const variable = isGymVariable(le.exercise);
+      const externalLoad = requiresExternalWeight(le.exercise);
+      const saved = new Map(le.sets.map((s) => [s.setNumber, s]));
+      const rows = Array.from({ length: le.plannedSets }, (_, i) => {
+        const n = i + 1;
+        const s = saved.get(n);
+        return {
+          setNumber: n,
+          loggedSetId: s?.id ?? null,
+          weightLbs: s?.weightLbs != null ? Number(s.weightLbs) : null,
+          reps: s ? s.reps : null,
+          saved: Boolean(s),
+          extra: false,
+        };
+      });
+      for (const s of le.sets) {
+        if (s.setNumber > le.plannedSets) {
+          rows.push({
+            setNumber: s.setNumber,
+            loggedSetId: s.id,
+            weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
+            reps: s.reps,
+            saved: true,
+            extra: true,
+          });
+        }
       }
-    }
-    const archived = le.exercise.deletedAt !== null;
-    const exerciseComplete = !archived && le.sets.length >= le.plannedSets;
-    if (!exerciseComplete) allComplete = false;
-    exercises.push({
-      loggedExerciseId: le.id,
-      performedExerciseName: le.exercise.name,
-      plannedExerciseName: le.plannedExercise.name,
-      performedExerciseId: le.exerciseId,
-      plannedPrimaryMuscle: le.plannedExercise.primaryMuscle,
-      swapped: le.exerciseId !== le.plannedExerciseId,
-      performedArchived: archived,
-      isGymVariable: variable,
-      requiresExternalWeight: externalLoad,
-      gymName: variable ? gymName : null,
-      plannedSets: le.plannedSets,
-      plannedRepRange: { min: le.targetRepMin, max: le.targetRepMax },
-      skipped: le.skippedAt !== null,
-      suggestedWeightLbs: externalLoad
-        ? await suggestedWeight(account, le.exerciseId, le.gymId, variable)
-        : null,
-      previousPerformance: await previousPerformance(account, {
-        id: le.id,
-        exerciseId: le.exerciseId,
-        gymId: le.gymId,
-        gymVariable: variable,
-        scheduledFor: ls.scheduledFor,
-        createdAt: le.createdAt,
-      }),
-      sets: rows,
-    });
-  }
+      const [working, previous] = await Promise.all([
+        externalLoad
+          ? workingWeight(account, le.exerciseId, le.gymId, variable)
+          : null,
+        previousPerformance(account, {
+          id: le.id,
+          exerciseId: le.exerciseId,
+          gymId: le.gymId,
+          gymVariable: variable,
+          scheduledFor: ls.scheduledFor,
+          createdAt: le.createdAt,
+        }),
+      ]);
+      return {
+        loggedExerciseId: le.id,
+        performedExerciseName: le.exercise.name,
+        plannedExerciseName: le.plannedExercise.name,
+        performedExerciseId: le.exerciseId,
+        plannedPrimaryMuscle: le.plannedExercise.primaryMuscle,
+        swapped: le.exerciseId !== le.plannedExerciseId,
+        performedArchived: le.exercise.deletedAt !== null,
+        isGymVariable: variable,
+        requiresExternalWeight: externalLoad,
+        gymName: variable ? gymName : null,
+        plannedSets: le.plannedSets,
+        plannedRepRange: { min: le.targetRepMin, max: le.targetRepMax },
+        skipped: le.skippedAt !== null,
+        suggestedWeightLbs: working?.lbs ?? null,
+        workingWeightFromBaseline: working?.fromBaseline ?? false,
+        previousPerformance: previous,
+        sets: rows,
+      };
+    }),
+  );
+  const allComplete =
+    ls.loggedExercises.length > 0 &&
+    ls.loggedExercises.every(
+      (le) =>
+        le.exercise.deletedAt === null && le.sets.length >= le.plannedSets,
+    );
 
   return {
     loggedSessionId: ls.id,

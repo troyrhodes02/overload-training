@@ -119,6 +119,7 @@ describe("previousPerformance", () => {
       ],
     });
     expect(c.suggestedWeightLbs).toBe(185);
+    expect(c.workingWeightFromBaseline).toBe(false);
   });
 
   it("cable with history only at another gym: no last time and no weight (never cross-gym)", async () => {
@@ -163,6 +164,7 @@ describe("previousPerformance", () => {
       12, 12, 11,
     ]);
     expect(c.suggestedWeightLbs).toBe(50);
+    expect(c.workingWeightFromBaseline).toBe(true);
   });
 
   it("cable at a gym with a partial (no baseline yet): that gym's latest weight, still no other gym's", async () => {
@@ -178,6 +180,7 @@ describe("previousPerformance", () => {
     const today = await train(session.id, W3, b.id, []);
     const c = await card(today.loggedSessionId);
     expect(c.suggestedWeightLbs).toBe(70);
+    expect(c.workingWeightFromBaseline).toBe(false);
     expect(c.previousPerformance).toMatchObject({
       dateIso: W2,
       gymScoped: true,
