@@ -11,6 +11,7 @@ import {
   setExerciseSkippedAction,
 } from "@/app/(app)/log/actions";
 import { EditSetDialog } from "@/components/logging/edit-set-dialog";
+import { RirPicker } from "@/components/logging/rir-picker";
 import type { ExerciseCardDto } from "@/lib/logging/queries";
 import {
   activeSetNumber,
@@ -20,6 +21,7 @@ import {
   offerCaption,
   offerFor,
 } from "@/lib/logging/set-entry";
+import { rirSuffix, withRirSpoken } from "@/lib/logging/rir";
 import type {
   ProgressionTag,
   RirEffect,
@@ -59,8 +61,14 @@ export type CardProgression = {
  * A bodyweight exercise (requiresExternalWeight false) has no weight input at
  * all — reps only, and no weight is sent. A client island calling server
  * actions; it never touches the database.
+ *
+ * RIR Logging & Autoregulation (preview §01–§04): the active row also offers
+ * an optional reps-in-reserve choice. It starts unselected on every set (never
+ * carried, R23), is part of the draft like the numbers, and is sent with them
+ * on Log set — an untouched choice sends null ("not recorded"), never 0.
  */
-type Draft = { weight: string | null; reps: string };
+type Draft = { weight: string | null; reps: string; rir: number | null };
+const EMPTY_DRAFT: Draft = { weight: null, reps: "", rir: null };
 type FieldError = { message: string; field: "weight" | "reps" };
 /** Where focus should go once the next render shows the confirmed set (R13). */
 type FocusIntent =
@@ -127,9 +135,7 @@ export function ExerciseCard({
     workingWeightFromBaseline: exercise.workingWeightFromBaseline,
   });
   const draft: Draft =
-    active !== null
-      ? (drafts[active] ?? { weight: null, reps: "" })
-      : { weight: null, reps: "" };
+    active !== null ? (drafts[active] ?? EMPTY_DRAFT) : EMPTY_DRAFT;
   // An untouched box always shows the current offer; a typed one stays theirs.
   const weightValue =
     draft.weight ?? (offer ? formatWeight(offer.weightLbs) : "");
@@ -264,7 +270,7 @@ export function ExerciseCard({
   function setDraft(n: number, patch: Partial<Draft>) {
     setDrafts((d) => ({
       ...d,
-      [n]: { ...(d[n] ?? { weight: null, reps: "" }), ...patch },
+      [n]: { ...(d[n] ?? EMPTY_DRAFT), ...patch },
     }));
   }
 
@@ -301,6 +307,7 @@ export function ExerciseCard({
         setNumber: n,
         weightLbs: needsWeight ? weight : null,
         reps,
+        rir: draft.rir,
       });
       setPendingSet(null);
       if (res.ok) {
@@ -326,6 +333,9 @@ export function ExerciseCard({
         fail(n, { message: details.weightLbs, field: "weight" });
       } else if (details?.reps) {
         fail(n, { message: details.reps, field: "reps" });
+      } else if (details?.rir) {
+        // Not reachable from the chips; shown under the row like the others.
+        fail(n, { message: details.rir, field: "reps" });
       } else {
         fail(n, { message: res.error.message, field: "reps" });
       }
@@ -401,14 +411,18 @@ export function ExerciseCard({
                 requiresExternalWeight={needsWeight}
                 weightLbs={s.weightLbs}
                 reps={s.reps}
+                rir={s.rir}
                 trigger={
                   <button
                     type="button"
-                    aria-label={loggedRowLabel({
-                      setNumber: s.setNumber,
-                      weightLbs: s.weightLbs,
-                      reps: s.reps,
-                    })}
+                    aria-label={withRirSpoken(
+                      loggedRowLabel({
+                        setNumber: s.setNumber,
+                        weightLbs: s.weightLbs,
+                        reps: s.reps,
+                      }),
+                      s.rir,
+                    )}
                     className="flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <SetLabel setNumber={s.setNumber} extra={s.extra} />
@@ -429,6 +443,12 @@ export function ExerciseCard({
                           × {s.reps}
                         </>
                       )}
+                      {s.rir !== null ? (
+                        <span className="text-sm text-muted-foreground">
+                          {" "}
+                          {rirSuffix(s.rir)}
+                        </span>
+                      ) : null}
                     </span>
                     <Check aria-hidden className="size-4 text-primary" />
                   </button>
@@ -576,6 +596,12 @@ export function ExerciseCard({
                   {offerCaption(offer)}
                 </p>
               ) : null}
+              <RirPicker
+                label={`Set ${s.setNumber} RIR (reps in reserve, optional)`}
+                value={draft.rir}
+                disabled={saving}
+                onChange={(rir) => setDraft(s.setNumber, { rir })}
+              />
               {err ? (
                 <p
                   id={errorId}

@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — tickets. Next: OVE-64** (branch `feat/ove-64-rir-logging-ui` off `feat/ove-63-rir-progression`).
+**Step 8 — tickets. Next: OVE-65** (branch `feat/ove-65-guidance` off `feat/ove-64-rir-logging-ui`).
 
 ## Authority used (read before resuming)
 
@@ -59,11 +59,12 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 ### Ticket branches / PRs
 
 - **OVE-62** — `feat/ove-62-logged-set-rir` (off the feature branch) → PR **#82** (base: feature branch). In Review. Commit `28f7269`. Verified: prettier, lint, tsc, unit 58/939, integration 43/517 (new `rir-logging.int.test.ts`, `rir-migration.int.test.ts`; `isolation/logging` extended), build (local env) + client-bundle OK, prisma validate. Local stack migrated with `prisma migrate deploy` (local only): 463 sets, 0 with rir. Summary: nullable `LoggedSet.rir` + CHECK 0..4 (migration 9f, no backfill); `logSet` stores it in the same write, idempotency includes it; `editLoggedSet` undefined=unchanged / null=clear; DTOs carry `rir`; engine untouched.
-- **OVE-63** — `feat/ove-63-rir-progression` (off OVE-62) → PR (base: OVE-62 branch). Verified: prettier, lint, tsc, unit 59/967 (new `progression-rir.test.ts` incl. 500-history no-RIR regression sweep; card reason-line tests), integration 44/527 (new `progression-rir.int.test.ts`; isolation/logging +1), build (local env) + client-bundle OK. Summary: `evaluateReactiveDecision` = unchanged ladder + case A/B, `rirEffect` on every progression DTO, `rir-copy.ts`, reason line on card / summary / exercise page. Summary and exercise-page reason lines are async server components, so their render is verified by OVE-64's e2e (not unit).
+- **OVE-63** — `feat/ove-63-rir-progression` (off OVE-62) → PR **#83** (base: OVE-62 branch). In Review. Commit `9eeb55c`. Verified: prettier, lint, tsc, unit 59/967 (new `progression-rir.test.ts` incl. 500-history no-RIR regression sweep; card reason-line tests), integration 44/527 (new `progression-rir.int.test.ts`; isolation/logging +1), build (local env) + client-bundle OK. Summary: `evaluateReactiveDecision` = unchanged ladder + case A/B, `rirEffect` on every progression DTO, `rir-copy.ts`, reason line on card / summary / exercise page. Summary and exercise-page reason lines are async server components, so their render is verified by OVE-64's e2e (not unit).
+- **OVE-64** — `feat/ove-64-rir-logging-ui` (off OVE-63) → PR (base: OVE-63 branch). Verified: prettier, lint, tsc, unit 60/977 (new `rir-picker.test.tsx`; card RIR tests; control-count accounting), integration 44/527, accounts e2e 33 passed + 1 skipped (new `rir-logging.spec.ts` 4 tests: last-set 22/18, every-set 29/18, History correct/clear, AC-3 end to end; faster-logging asserts exactly 18/18 and chip sizes at 375/320), default e2e 26/26, production build (accounts webServer) + client-bundle OK; local DB 3/2/463/0 after. Browser screenshots reviewed: card 375 light/dark, 320 (overflow found → R30), dialog, History, summary, exercise page. Method note entry "RIR scale and progression qualifiers".
 
 ## Resolved Decisions so far
 
-Spec `## Resolved Decisions` R1–R29. Headline: R1 stop before merge; R3 values 0–4 (4 = 4+); R4–R6 nullable column, CHECK, no backfill; R7 folder `9f_`; R9 edit undefined=unchanged/null=clear; R10 idempotency incl. rir; R11 latest qualifying performance's planned working sets only; R12 case A; R13 case B; R14 partial coverage; R15 never touches insufficient/deload/ordinary hold; R16 never in e1RM/goals/baselines/offer/Last time line; R20–R21 reason lines (card, summary, exercise page), no new tag; R22 Radix ToggleGroup; R23 never carried; R25 AC-1 = exact 18/18.
+Spec `## Resolved Decisions` R1–R32 (v1.1.0 added R30 narrow layout, R31 radiogroup semantics + label, R32 control-count accounting / exact AC-1). Headline: R1 stop before merge; R3 values 0–4 (4 = 4+); R4–R6 nullable column, CHECK, no backfill; R7 folder `9f_`; R9 edit undefined=unchanged/null=clear; R10 idempotency incl. rir; R11 latest qualifying performance's planned working sets only; R12 case A; R13 case B; R14 partial coverage; R15 never touches insufficient/deload/ordinary hold; R16 never in e1RM/goals/baselines/offer/Last time line; R20–R21 reason lines (card, summary, exercise page), no new tag; R22 Radix ToggleGroup; R23 never carried; R25 AC-1 = exact 18/18.
 
 ## Deferred / notes
 
