@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 8 — Implementation: OVE-57 next.**
+**Step 8 — Implementation: OVE-58 next** (branch `feat/ove-58-active-row-card` off `feat/ove-57-previous-performance`).
 
 ## Authority used (read before resuming)
 
@@ -37,7 +37,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 4. Spec — `docs/specs/13-faster-logging-ux-spec.md` (v1.0.0; no schema change). Design doc → v1.1 (tap total corrected 17 → 18; gym-variable "First time on this at …" wording generalised; preview footer → v1.1)
 - [x] 5. Resolved Decisions in spec (R1–R25)
 - [x] 6. Linear milestone + issues (OVE-57 → OVE-58 → OVE-59 → OVE-60, blockedBy chain)
-- [ ] 7. Feature PR
+- [x] 7. Feature PR into `main` (draft, stop before merge per R3) — **#76** https://github.com/troyrhodes02/overload-training/pull/76
 - [ ] 8. Tickets implemented
 - [ ] 9. Runbook
 - [ ] 10. Ticket PRs squash-merged into feature branch
@@ -58,7 +58,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ### Ticket branches / PRs
 
-(none yet)
+- **OVE-57** — `feat/ove-57-previous-performance` (off the feature branch) → PR **#77** (base: feature branch). In Review. Verified: prettier, lint, tsc, unit 55/899, integration 41/494 (new `previous-performance.int.test.ts` 11 tests; `isolation/logging` +1), build (local env) + client-bundle OK. Summary: `getWorkout` gains `previousPerformance` + `loggedSetId`; the machine/cable working weight no longer falls back to another gym; pure `set-entry.ts` helpers + `formatMonthDay`. Integration tests went in a new file rather than `logging-reads` (same coverage; clearer). Nothing renders the new fields until OVE-58.
 
 ## Resolved Decisions so far
 
