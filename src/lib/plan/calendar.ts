@@ -145,6 +145,29 @@ export function formatPlanDate(iso: string): string {
   return date ? DATE_FMT.format(date) : iso;
 }
 
+const MONTH_DAY_FMT = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+const MONTH_DAY_YEAR_FMT = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * "Oct 13", or "Dec 29, 2025" when the year differs from `referenceIso`'s
+ * (the logging card's "Last time" line; Faster Logging UX §11.4).
+ */
+export function formatMonthDay(iso: string, referenceIso: string): string {
+  const date = parseIsoDate(iso);
+  if (!date) return iso;
+  const sameYear = iso.slice(0, 4) === referenceIso.slice(0, 4);
+  return (sameYear ? MONTH_DAY_FMT : MONTH_DAY_YEAR_FMT).format(date);
+}
+
 /** "Mon, Sep 28 – Sun, Nov 1". */
 export function formatPlanRange(startIso: string, endIso: string): string {
   return `${formatPlanDate(startIso)} – ${formatPlanDate(endIso)}`;

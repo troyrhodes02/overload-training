@@ -33,10 +33,25 @@ function card(overrides: Partial<ExerciseCardDto>): ExerciseCardDto {
     plannedSets: 2,
     plannedRepRange: { min: 6, max: 12 },
     suggestedWeightLbs: null,
+    previousPerformance: null,
     skipped: false,
     sets: [
-      { setNumber: 1, weightLbs: null, reps: 15, saved: true, extra: false },
-      { setNumber: 2, weightLbs: null, reps: null, saved: false, extra: false },
+      {
+        setNumber: 1,
+        loggedSetId: "ls-1",
+        weightLbs: null,
+        reps: 15,
+        saved: true,
+        extra: false,
+      },
+      {
+        setNumber: 2,
+        loggedSetId: null,
+        weightLbs: null,
+        reps: null,
+        saved: false,
+        extra: false,
+      },
     ],
     ...overrides,
   };
@@ -64,9 +79,17 @@ describe("ExerciseCard loading mode", () => {
         suggestedWeightLbs: 185,
         plannedRepRange: { min: 6, max: 8 },
         sets: [
-          { setNumber: 1, weightLbs: 185, reps: 8, saved: true, extra: false },
+          {
+            setNumber: 1,
+            loggedSetId: "ls-1",
+            weightLbs: 185,
+            reps: 8,
+            saved: true,
+            extra: false,
+          },
           {
             setNumber: 2,
+            loggedSetId: null,
             weightLbs: null,
             reps: null,
             saved: false,
