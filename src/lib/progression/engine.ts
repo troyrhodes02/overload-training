@@ -26,6 +26,8 @@ export type WorkingSet = {
   /** External load; null for a pure bodyweight (reps-only) set. */
   weightLbs: number | null;
   reps: number;
+  /** Reported reps in reserve; null = not recorded (never treated as 0). */
+  rir: number | null;
 };
 
 export type Performance = {

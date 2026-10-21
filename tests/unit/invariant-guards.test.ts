@@ -613,3 +613,52 @@ describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () =
     ).toEqual([]);
   });
 });
+
+describe("RIR is a recorded fact, never a load or a rep (RIR Logging & Autoregulation)", () => {
+  const read = (f: string) => fs.readFileSync(f, "utf8");
+  const rel = (f: string) => relPath(f);
+
+  it("e1RM, gym baselines, goals, and the weight offer never read RIR (R16)", () => {
+    const files = [
+      path.join(SRC, "lib", "progression", "e1rm.ts"),
+      path.join(SRC, "lib", "gyms", "baselines.ts"),
+      path.join(SRC, "lib", "logging", "set-entry.ts"),
+      ...walk(path.join(SRC, "lib", "goals")),
+    ];
+    for (const f of files) expect(fs.existsSync(f)).toBe(true);
+    expect(files.filter((f) => /\brir\b/i.test(read(f))).map(rel)).toEqual([]);
+  });
+
+  it("nothing adds RIR to reps (no reps-to-failure arithmetic)", () => {
+    const sum = /\breps\s*\+\s*[\w.?]*\brir\b|\brir\b\s*\+\s*[\w.?]*\breps\b/i;
+    expect(
+      walk(SRC)
+        .filter((f) => sum.test(read(f)))
+        .map(rel),
+    ).toEqual([]);
+  });
+
+  it("LoggedSet.rir is optional in the schema (RIR is never required, R4)", () => {
+    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"));
+    const model = schema.slice(
+      schema.indexOf("model LoggedSet {"),
+      schema.indexOf("}", schema.indexOf("model LoggedSet {")),
+    );
+    expect(model).toMatch(/^\s*rir\s+Int\?/m);
+  });
+
+  it("migration 9f adds the column with no default and backfills nothing (R6)", () => {
+    const sql = read(
+      path.join(
+        REPO_ROOT,
+        "prisma",
+        "migrations",
+        "9f_logged_set_rir",
+        "migration.sql",
+      ),
+    ).replace(/^\s*--.*$/gm, "");
+    expect(sql).toMatch(/ADD\s+COLUMN\s+"rir"\s+INTEGER\s*;/i);
+    expect(sql).not.toMatch(/\bDEFAULT\b|\bUPDATE\b|NOT\s+NULL/i);
+    expect(sql).toMatch(/CHECK\s*\(\s*"rir"\s+IS\s+NULL\s+OR/i);
+  });
+});

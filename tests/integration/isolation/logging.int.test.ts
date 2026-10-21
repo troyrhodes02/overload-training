@@ -69,6 +69,8 @@ beforeEach(async () => {
       setNumber: n,
       weightLbs: 120,
       reps: 8,
+      // RIR Logging: A's history carries reps in reserve (set 3 not recorded).
+      rir: n === 3 ? null : n,
     });
   }
   await logSet(a, {
@@ -138,6 +140,8 @@ describe("reads never surface another account's training", () => {
       expect(c.previousPerformance).toBeNull();
       expect(c.suggestedWeightLbs).toBeNull();
       expect(c.sets.every((s) => s.loggedSetId === null)).toBe(true);
+      // RIR Logging: none of A's reps in reserve reaches B's card.
+      expect(c.sets.every((s) => s.rir === null)).toBe(true);
     }
     // The owner's own card still sees its own sets.
     const mine = (await getWorkout(a, A.loggedSessionId))!.exercises.find(
@@ -145,6 +149,7 @@ describe("reads never surface another account's training", () => {
     )!;
     expect(mine.suggestedWeightLbs).toBe(120);
     expect(mine.sets.filter((s) => s.loggedSetId).length).toBe(3);
+    expect(mine.sets.map((s) => s.rir)).toEqual([1, 2, null]);
   });
 
   it("progression and e1RM on a shared exercise use only the acting account's sets", async () => {
@@ -203,6 +208,17 @@ describe("writes naming another account's history behave like missing ids and ch
       [
         A.setId,
         (id) => editLoggedSet(b, { loggedSetId: id, weightLbs: 999, reps: 1 }),
+      ],
+      [
+        A.setId,
+        // RIR Logging: correcting only the RIR of a foreign set is also missing.
+        (id) =>
+          editLoggedSet(b, {
+            loggedSetId: id,
+            weightLbs: 120,
+            reps: 8,
+            rir: 0,
+          }),
       ],
       [
         A.benchLe,

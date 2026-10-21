@@ -30,6 +30,7 @@ const logged = (n: number, w: number | null, r: number): Row => ({
   loggedSetId: `ls-${n}`,
   weightLbs: w,
   reps: r,
+  rir: null,
   saved: true,
   extra: false,
 });
@@ -38,6 +39,7 @@ const open = (n: number): Row => ({
   loggedSetId: null,
   weightLbs: null,
   reps: null,
+  rir: null,
   saved: false,
   extra: false,
 });

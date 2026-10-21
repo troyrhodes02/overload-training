@@ -31,6 +31,7 @@ function perf(
       setNumber: i + 1,
       weightLbs: opts.workingSets?.[i]?.weightLbs ?? 185,
       reps: r,
+      rir: null,
     })),
   };
 }
@@ -140,9 +141,9 @@ describe("stall window (R22–R25)", () => {
     perf([8, 8, 8], {
       dateIso: date,
       workingSets: [
-        { setNumber: 1, weightLbs: weight, reps: 8 },
-        { setNumber: 2, weightLbs: weight, reps: 8 },
-        { setNumber: 3, weightLbs: weight, reps: 8 },
+        { setNumber: 1, weightLbs: weight, reps: 8, rir: null },
+        { setNumber: 2, weightLbs: weight, reps: 8, rir: null },
+        { setNumber: 3, weightLbs: weight, reps: 8, rir: null },
       ],
     });
 

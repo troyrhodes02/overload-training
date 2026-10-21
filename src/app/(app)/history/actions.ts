@@ -8,8 +8,8 @@ import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { editCardioLog } from "@/lib/cardio/cardio-logs";
 
 /*
- * History server actions. Past-log correction edits weight/reps only (Resolved
- * Decision 51). No deletion exists. Editing never replays gym baselines
+ * History server actions. Past-log correction edits weight, reps, and RIR only
+ * (Resolved Decision 51; RIR Logging R8). No deletion exists. Editing never replays gym baselines
  * (Decisions 53/54); the write module enforces that. After the edit commits,
  * goal completion is reconciled best-effort (Goals spec §11b): a corrected set
  * may complete an active goal; it never reopens a completed one.
@@ -19,6 +19,8 @@ export async function editLoggedSetAction(input: {
   /** Omit / null for a bodyweight exercise (reps only). */
   weightLbs?: number | null;
   reps: number;
+  /** Omit to keep the stored RIR; null clears it (RIR Logging R9). */
+  rir?: number | null;
 }): Promise<ActionResult<{ ok: true }>> {
   const account = await requireAccount();
   const result = await toActionResult(async () => {

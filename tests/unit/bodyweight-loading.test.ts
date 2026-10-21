@@ -72,6 +72,7 @@ function pullUps(reps: number[], scheduledDeload = false): Performance {
       setNumber: i + 1,
       weightLbs: null,
       reps: r,
+      rir: null,
     })),
   };
 }
