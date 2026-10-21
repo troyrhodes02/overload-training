@@ -21,7 +21,7 @@ import {
   offerCaption,
   offerFor,
 } from "@/lib/logging/set-entry";
-import { rirSuffix, withRirSpoken } from "@/lib/logging/rir";
+import { rirSpoken, rirSuffix } from "@/lib/logging/rir";
 import type {
   ProgressionTag,
   RirEffect,
@@ -254,6 +254,9 @@ export function ExerciseCard({
         ]
       : []),
   ];
+  // The RIR reason, computed once (RIR Logging R20); the deload-week and
+  // stall lines take the slot first, as before.
+  const rirLine = progression ? rirReason(progression.rirEffect) : null;
   const contextLine = formatPreviousPerformance({
     previous: exercise.previousPerformance,
     isGymVariable: exercise.isGymVariable,
@@ -334,8 +337,9 @@ export function ExerciseCard({
       } else if (details?.reps) {
         fail(n, { message: details.reps, field: "reps" });
       } else if (details?.rir) {
-        // Not reachable from the chips; shown under the row like the others.
-        fail(n, { message: details.rir, field: "reps" });
+        // Not reachable from the chips (a stale client): a card notice, so
+        // the reps field is never marked invalid for a problem not in reps.
+        setNotice(details.rir);
       } else {
         fail(n, { message: res.error.message, field: "reps" });
       }
@@ -388,10 +392,8 @@ export function ExerciseCard({
         <p className="mt-1 text-xs text-muted-foreground">
           Rep target met, but e1RM flat across recent sessions — holding.
         </p>
-      ) : progression && rirReason(progression.rirEffect) ? (
-        <p className="mt-1 text-xs text-muted-foreground">
-          {rirReason(progression.rirEffect)}
-        </p>
+      ) : rirLine ? (
+        <p className="mt-1 text-xs text-muted-foreground">{rirLine}</p>
       ) : null}
       {progression?.suggestion ? (
         <p className="mt-1">
@@ -402,6 +404,7 @@ export function ExerciseCard({
       <div className="mt-4 space-y-1 tabular-nums">
         {rows.map((s) => {
           if (s.saved && s.loggedSetId && s.reps !== null) {
+            const suffix = rirSuffix(s.rir);
             return (
               <EditSetDialog
                 key={s.setNumber}
@@ -415,13 +418,13 @@ export function ExerciseCard({
                 trigger={
                   <button
                     type="button"
-                    aria-label={withRirSpoken(
-                      loggedRowLabel({
+                    aria-label={loggedRowLabel(
+                      {
                         setNumber: s.setNumber,
                         weightLbs: s.weightLbs,
                         reps: s.reps,
-                      }),
-                      s.rir,
+                      },
+                      rirSpoken(s.rir),
                     )}
                     className="flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
@@ -443,10 +446,9 @@ export function ExerciseCard({
                           × {s.reps}
                         </>
                       )}
-                      {s.rir !== null ? (
+                      {suffix ? (
                         <span className="text-sm text-muted-foreground">
-                          {" "}
-                          {rirSuffix(s.rir)}
+                          {` ${suffix}`}
                         </span>
                       ) : null}
                     </span>

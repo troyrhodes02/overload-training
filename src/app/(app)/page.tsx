@@ -49,37 +49,40 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
         </p>
       ) : summary && summary.exercises.length > 0 ? (
         <ul className="mt-4 space-y-2">
-          {summary.exercises.map((e) => (
-            <li
-              key={e.performedExerciseId}
-              className="flex items-center justify-between gap-2 text-sm"
-            >
-              <span className="flex items-center gap-2">
-                <span>
-                  {e.performedExerciseName}
-                  {rirReasonShort(e.rirEffect) ? (
-                    <span className="block text-xs text-muted-foreground">
-                      {rirReasonShort(e.rirEffect)}
-                    </span>
+          {summary.exercises.map((e) => {
+            const why = rirReasonShort(e.rirEffect);
+            return (
+              <li
+                key={e.performedExerciseId}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <span>
+                    {e.performedExerciseName}
+                    {why ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {why}
+                      </span>
+                    ) : null}
+                  </span>
+                  <ProgressTag state={e.tag} />
+                </span>
+                <span className="flex items-center gap-3">
+                  {e.tag === "progress" && e.suggestion ? (
+                    <SuggestedLoad suggestion={e.suggestion} />
+                  ) : null}
+                  {e.hasTrend ? (
+                    <Link
+                      href={`/exercises/${e.performedExerciseId}`}
+                      className="text-primary"
+                    >
+                      trend ›
+                    </Link>
                   ) : null}
                 </span>
-                <ProgressTag state={e.tag} />
-              </span>
-              <span className="flex items-center gap-3">
-                {e.tag === "progress" && e.suggestion ? (
-                  <SuggestedLoad suggestion={e.suggestion} />
-                ) : null}
-                {e.hasTrend ? (
-                  <Link
-                    href={`/exercises/${e.performedExerciseId}`}
-                    className="text-primary"
-                  >
-                    trend ›
-                  </Link>
-                ) : null}
-              </span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       {state.loggedSessionId ? (

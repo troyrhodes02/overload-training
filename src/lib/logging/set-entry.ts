@@ -149,14 +149,19 @@ export function formatPreviousPerformance(args: {
 }
 
 /** A logged row's visible value: "185 lbs × 8" parts, or "18 reps". */
-export function loggedRowLabel(set: {
-  setNumber: number;
-  weightLbs: number | null;
-  reps: number;
-}): string {
+export function loggedRowLabel(
+  set: {
+    setNumber: number;
+    weightLbs: number | null;
+    reps: number;
+  },
+  /** Spoken after the values when present, e.g. "2 reps in reserve". */
+  detail?: string | null,
+): string {
   const value =
     set.weightLbs === null
       ? `${set.reps} reps`
       : `${formatWeight(set.weightLbs)} pounds, ${set.reps} reps`;
-  return `Set ${set.setNumber}, ${value}, logged. Correct this set`;
+  const extra = detail ? `, ${detail}` : "";
+  return `Set ${set.setNumber}, ${value}${extra}, logged. Correct this set`;
 }

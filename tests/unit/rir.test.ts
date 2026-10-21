@@ -4,8 +4,10 @@ import {
   formatRir,
   isRir,
   rirAccessibleName,
+  rirSpoken,
   rirSuffix,
 } from "@/lib/logging/rir";
+import { loggedRowLabel } from "@/lib/logging/set-entry";
 
 /** The one RIR scale (RIR Logging & Autoregulation §11.1; R3, R4). */
 describe("RIR scale", () => {
@@ -41,6 +43,18 @@ describe("RIR scale", () => {
     expect(rirSuffix(0)).toBe("· 0 RIR");
     expect(rirSuffix(2)).toBe("· 2 RIR");
     expect(rirSuffix(4)).toBe("· 4+ RIR");
+  });
+
+  it("speaks a logged row's RIR through loggedRowLabel's detail, and nothing when unrecorded", () => {
+    const set = { setNumber: 1, weightLbs: 185, reps: 8 };
+    expect(loggedRowLabel(set, rirSpoken(2))).toBe(
+      "Set 1, 185 pounds, 8 reps, 2 reps in reserve, logged. Correct this set",
+    );
+    expect(loggedRowLabel(set, rirSpoken(4))).toBe(
+      "Set 1, 185 pounds, 8 reps, 4 or more reps in reserve, logged. Correct this set",
+    );
+    expect(loggedRowLabel(set, rirSpoken(null))).toBe(loggedRowLabel(set));
+    expect(rirSpoken(0)).toBe("0 reps in reserve");
   });
 
   it("names 4 as '4 or more' for screen readers", () => {

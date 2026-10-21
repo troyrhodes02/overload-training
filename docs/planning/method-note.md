@@ -142,10 +142,10 @@ The Progressive Overload Engine ladder runs first and unchanged. RIR is then rea
 | Base call | Condition | Final call | `rirEffect` |
 | --------- | --------- | ---------- | ----------- |
 | `progress` | any working set `rir <= RIR_AT_LIMIT` (**0**) | `hold` (no tag) | `held_at_limit` |
-| `stalled` | **every** working set `rir >= RIR_TO_SPARE_MIN` (**2**) | `progress` | `released_stall` |
+| `stalled` with an exactly flat e1RM window | **every** working set `rir >= RIR_TO_SPARE_MIN` (**2**) | `progress` | `released_stall` |
 | anything else | — | unchanged | `null` |
 
-- An unrecorded set never counts as 0 or as 2+. A history with no RIR yields exactly the base call.
+- A falling e1RM window is never released, whatever the RIR. An unrecorded set never counts as 0 or as 2+. A history with no RIR yields exactly the base call.
 - RIR never creates or cancels a reactive Deload, never changes insufficient history or an ordinary hold, and is ignored in scheduled-deload weeks.
 - `rirEffect` is derived on read, never stored; the reason line is rendered from the constants.
 

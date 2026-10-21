@@ -208,6 +208,21 @@ describe("case B — every set with reps to spare releases a flat trend (R13)", 
     });
   });
 
+  it("a FALLING trend is never released, even with every set 2+ (R33)", () => {
+    // All-top sessions at a lower load each time: e1RM falls; the stall stands
+    // and the copy's "flat" is never said about a falling trend.
+    const falling = [
+      perf(TOP, { weight: 190 }),
+      perf(TOP, { weight: 185 }),
+      perf(TOP, { weight: 180, rir: [3, 3, 3] }),
+    ];
+    expect(decide(falling)).toEqual({
+      state: "stalled",
+      base: "stalled",
+      rirEffect: null,
+    });
+  });
+
   it("a rising trend is Progress already; RIR 2+ changes nothing", () => {
     const rising = [
       perf(TOP, { weight: 180 }),

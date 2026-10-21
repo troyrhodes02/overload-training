@@ -70,6 +70,20 @@ describe("RirPicker", () => {
     ).not.toContain(">RIR</span>");
   });
 
+  it("can be named by a visible label instead (the correction dialog)", () => {
+    const html = renderToStaticMarkup(
+      <RirPicker
+        label="unused"
+        labelledBy="rir-ls-1"
+        value={null}
+        onChange={() => {}}
+        showLabel={false}
+      />,
+    );
+    expect(html).toContain('aria-labelledby="rir-ls-1"');
+    expect(html).not.toContain('aria-label="unused"');
+  });
+
   it("disables every chip while saving", () => {
     const html = render(2, { disabled: true });
     expect(html.match(/<button[^>]*disabled=""/g)?.length).toBe(5);

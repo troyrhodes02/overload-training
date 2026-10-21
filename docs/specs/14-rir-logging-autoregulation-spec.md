@@ -1,5 +1,5 @@
 ---
-version: 1.1.0
+version: 1.2.0
 status: approved
 author: Claude Code (autonomous pipeline run)
 last_updated: 2026-10-21
@@ -76,8 +76,8 @@ Invariants: RIR is never added to reps; never read by `estimateOneRepMax`, `sess
 | `insufficient` | any | `insufficient` | `null` |
 | `deload` | any | `deload` | `null` |
 | `hold` | any | `hold` | `null` |
-| `stalled` | every working set `rir >= 2` | `progress` | `released_stall` |
-| `stalled` | otherwise | `stalled` | `null` |
+| `stalled` with an exactly flat e1RM window (`end === start`) | every working set `rir >= 2` | `progress` | `released_stall` |
+| `stalled` | otherwise (including any falling window) | `stalled` | `null` |
 | `progress` | any working set `rir <= 0` | `hold` | `held_at_limit` |
 | `progress` | otherwise | `progress` | `null` |
 
@@ -478,6 +478,10 @@ Authority order (CLAUDE.md): 1 approved planning docs · 2 CLAUDE.md and skills 
 | R30 | Below 360px the RIR label sits on its own line above the chips and the chips share the row (`flex-1`, `gap-1`), so each stays ≥ 44px and nothing overflows the card at 320px. | Found in the OVE-64 browser walkthrough: the preview's one-line row overflowed by ~30px at 320 (the preview mis-measured the active row's inner width). Same kind of sizing refinement as Faster Logging UX R26. | Judgment; preview §06 intent (no horizontal scroll, 44px targets) |
 | R31 | The picker's accessible semantics are Radix's single-select toggle group as shipped: `role="radiogroup"` with `role="radio"` items and `aria-checked` (not `aria-pressed`). Group name `Set N RIR (reps in reserve, optional)` — it must not contain the substring `Set N reps`, so the reps field's name stays unique. | Uses the existing `radix-ui` primitive unmodified (R22); a radio group is the correct ARIA for one-of-five with an empty state; the name change removed a real label collision found by the e2e. | CLAUDE.md stack; judgment |
 | R32 | Faster Logging UX's control-count checks (unit + e2e) count the RIR group as exactly one control, separately, and still require every other control to stay at its Pitch 13 count; its AC-1 tap test now asserts exactly 18 taps / 18 keystrokes. | Accounts for the one control this pitch deliberately adds (design §12) without weakening any assertion; R25 made exact. | Design §12; R25 |
+| R33 | Case B releases only an **exactly flat** stall window (`end === start` in the Pitch 5 R23 comparison); a falling window (`end < start`) keeps `Hold — trend flat` whatever the RIR. | Review of #81 (finding 1): releasing a falling trend contradicted the rationale ("the load repeated") and the copy ("flat"); the conservative reading of R13. | Pitch §9.3, §9.5; review audit |
+| R34 | The correction dialog sends `rir` only when the lifter changed it (omitted otherwise, so R9's "undefined = unchanged" applies); a cleared value sends `null`. | Review of #81 (finding 2): an edit to weight or reps must never rewrite a stored RIR, e.g. from a stale render. | Pitch Journey E; R9 |
+| R35 | A server rejection of `rir` (only reachable from a stale client) shows as the card notice, not as a reps-field error. | Review of #81 (finding 4): the reps field must not be marked invalid for a problem not in reps. | Accessibility; judgment |
+| R36 | A retried set whose RIR differs from the committed row stays a `conflict` (R10), surfaced by the card's "already logged — tap it above to correct it" notice; it is never amended silently through `logSet`. | Review of #81 (finding 3) audited as skip: the change is not silent, and amending through the create path would give `logSet` an edit side door (Guided Workout Logging D14). | R10; Pitch 4 D14 |
 
 ## 17. Open questions
 

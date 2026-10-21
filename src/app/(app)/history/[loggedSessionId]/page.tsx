@@ -53,10 +53,9 @@ export default async function LoggedWorkoutPage({
                   {s.weightLbs === null
                     ? `${s.reps} reps`
                     : `${s.weightLbs} lbs × ${s.reps}`}
-                  {s.rir !== null ? (
+                  {rirSuffix(s.rir) ? (
                     <span className="text-xs text-muted-foreground">
-                      {" "}
-                      {rirSuffix(s.rir)}
+                      {` ${rirSuffix(s.rir)}`}
                     </span>
                   ) : null}
                   {s.extra ? (

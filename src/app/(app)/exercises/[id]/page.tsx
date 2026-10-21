@@ -36,6 +36,7 @@ async function ProgressionSection({
   const dto = await getExerciseProgression(account, exerciseId, gymId);
   if (!dto) return null;
 
+  const rirLine = rirReason(dto.rirEffect);
   const scope = dto.isGymVariable ? dto.selectedGymName : null;
   const chartLabel = `e1RM trend for ${dto.exerciseName}${scope ? `, ${scope}` : ""}`;
 
@@ -67,9 +68,9 @@ async function ProgressionSection({
               Suggested next: <SuggestedLoad suggestion={dto.suggestion} />
             </span>
           ) : null}
-          {rirReason(dto.rirEffect) ? (
+          {rirLine ? (
             <p className="basis-full text-xs text-muted-foreground">
-              {rirReason(dto.rirEffect)}
+              {rirLine}
             </p>
           ) : null}
         </div>

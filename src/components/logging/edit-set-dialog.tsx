@@ -27,8 +27,9 @@ import { RirPicker } from "@/components/logging/rir-picker";
  * link. Every open starts from the stored values, never a leftover edit.
  *
  * RIR Logging & Autoregulation (design Screen 3, preview §04; R9): the stored
- * RIR can be changed or cleared. Save always sends it back — the stored value
- * when untouched, null when cleared ("not recorded", never 0).
+ * RIR can be changed or cleared. Save sends RIR only when the lifter changed
+ * it (null when cleared — "not recorded", never 0); otherwise it is omitted,
+ * so an edit to weight or reps never rewrites the stored RIR (review of #81).
  */
 export function EditSetDialog({
   loggedSetId,
@@ -88,7 +89,7 @@ export function EditSetDialog({
         loggedSetId,
         weightLbs: requiresExternalWeight ? w : null,
         reps: r,
-        rir: rirValue,
+        ...(rirValue !== rir ? { rir: rirValue } : {}),
       });
       if (res.ok) {
         toast.success("Set updated");
@@ -149,6 +150,7 @@ export function EditSetDialog({
             <div className="mt-1">
               <RirPicker
                 label={`Set ${setNumber} RIR (reps in reserve, optional)`}
+                labelledBy={`rir-${loggedSetId}`}
                 showLabel={false}
                 value={rirValue}
                 disabled={pending}

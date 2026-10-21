@@ -41,15 +41,11 @@ export function rirAccessibleName(rir: number): string {
 }
 
 /**
- * A logged row's accessible name with its RIR spoken, when one was recorded:
- * "Set 1, 185 pounds, 8 reps, 2 reps in reserve, logged. Correct this set".
- * Nothing is added for an unrecorded RIR.
+ * A logged row's RIR, spoken: "2 reps in reserve" (`4` → "4 or more reps in
+ * reserve"), or null when none was recorded. Passed to loggedRowLabel as its
+ * detail, so the row reads "Set 1, 185 pounds, 8 reps, 2 reps in reserve,
+ * logged. Correct this set".
  */
-export function withRirSpoken(rowLabel: string, rir: number | null): string {
-  if (rir === null) return rowLabel;
-  const spoken = `, ${rirAccessibleName(rir)} reps in reserve`;
-  const at = rowLabel.indexOf(", logged");
-  return at < 0
-    ? `${rowLabel}${spoken}`
-    : `${rowLabel.slice(0, at)}${spoken}${rowLabel.slice(at)}`;
+export function rirSpoken(rir: number | null): string | null {
+  return rir === null ? null : `${rirAccessibleName(rir)} reps in reserve`;
 }

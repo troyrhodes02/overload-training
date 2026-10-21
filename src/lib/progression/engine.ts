@@ -131,13 +131,27 @@ export function hasRepsToSpare(p: Performance): boolean {
  * false): the same rep-range rule decides insufficient / deload / progress /
  * hold, but there is no external load to estimate, so the e1RM stall gate is
  * skipped rather than fed a missing weight.
+ *
+ * Returns the state with the qualifying sequence it was computed from, and —
+ * when the stall gate withheld — whether the trend was exactly flat or falling
+ * (RIR Logging & Autoregulation R33: only a flat trend can be released).
  */
+type BaseCall = {
+  state: ReactiveState;
+  seq: Performance[];
+  stallTrend: "flat" | "falling" | null;
+};
+
 function evaluateBase(
   perfs: Performance[],
   { e1rmApplicable = true }: { e1rmApplicable?: boolean } = {},
-): ReactiveState {
+): BaseCall {
   const seq = qualifyingSequence(perfs);
-  if (seq.length < MIN_QUALIFYING_SESSIONS) return "insufficient";
+  const call = (
+    state: ReactiveState,
+    stallTrend: BaseCall["stallTrend"] = null,
+  ): BaseCall => ({ state, seq, stallTrend });
+  if (seq.length < MIN_QUALIFYING_SESSIONS) return call("insufficient");
 
   // Reactive Deload first (safety precedence over Progress).
   const deloadWindow = seq.slice(-DELOAD_CONSECUTIVE_SESSIONS);
@@ -145,7 +159,7 @@ function evaluateBase(
     deloadWindow.length === DELOAD_CONSECUTIVE_SESSIONS &&
     deloadWindow.every(hasBelowMin)
   ) {
-    return "deload";
+    return call("deload");
   }
 
   // Raw Progress candidate.
@@ -153,19 +167,20 @@ function evaluateBase(
   const progressCandidate =
     progressWindow.length === PROGRESS_CONSECUTIVE_SESSIONS &&
     progressWindow.every(isAllTop);
-  if (!progressCandidate) return "hold";
+  if (!progressCandidate) return call("hold");
 
   // No external load → no e1RM → no stall gate (bodyweight branch).
-  if (!e1rmApplicable) return "progress";
+  if (!e1rmApplicable) return call("progress");
 
   // Stall gate only operates once a full window of qualifying points exists (R24).
-  if (seq.length < STALL_WINDOW_SESSIONS) return "progress";
+  if (seq.length < STALL_WINDOW_SESSIONS) return call("progress");
 
   const window = seq.slice(-STALL_WINDOW_SESSIONS);
   const start = sessionE1rm(loadedSets(window[0].workingSets));
   const end = sessionE1rm(loadedSets(window[window.length - 1].workingSets));
   // end > start → trend supports Progress; end <= start → withhold, flag stalled (R23).
-  return end > start ? "progress" : "stalled";
+  if (end > start) return call("progress");
+  return call("stalled", end === start ? "flat" : "falling");
 }
 
 /**
@@ -176,8 +191,10 @@ function evaluateBase(
  *
  *   A. base `progress` + any working set at RIR <= RIR_AT_LIMIT → `hold`
  *      (`held_at_limit`): the top of the range was reached only at failure.
- *   B. base `stalled` + every working set at RIR >= RIR_TO_SPARE_MIN →
- *      `progress` (`released_stall`): the flat trend is the load repeated.
+ *   B. base `stalled` with an exactly FLAT e1RM window + every working set at
+ *      RIR >= RIR_TO_SPARE_MIN → `progress` (`released_stall`): the flat trend
+ *      is the load repeated, not a plateau. A falling trend is never released
+ *      (R33): the lifter did less than before, and RIR can't argue with that.
  *
  * Every other base call — insufficient, reactive Deload, ordinary hold — is
  * returned as is: RIR never creates or cancels a Deload and never stands in for
@@ -188,9 +205,14 @@ export function evaluateReactiveDecision(
   perfs: Performance[],
   opts: { e1rmApplicable?: boolean } = {},
 ): ReactiveDecision {
-  const base = evaluateBase(perfs, opts);
-  const latest = qualifyingSequence(perfs).at(-1);
-  if (latest && base === "stalled" && hasRepsToSpare(latest)) {
+  const { state: base, seq, stallTrend } = evaluateBase(perfs, opts);
+  const latest = seq.at(-1);
+  if (
+    latest &&
+    base === "stalled" &&
+    stallTrend === "flat" &&
+    hasRepsToSpare(latest)
+  ) {
     return { state: "progress", base, rirEffect: "released_stall" };
   }
   if (latest && base === "progress" && hasSetAtLimit(latest)) {

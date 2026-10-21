@@ -23,6 +23,7 @@ export function RirPicker({
   value,
   onChange,
   label,
+  labelledBy,
   showLabel = true,
   disabled = false,
 }: {
@@ -30,6 +31,8 @@ export function RirPicker({
   onChange: (value: number | null) => void;
   /** Accessible group name, e.g. "Set 2 RIR (reps in reserve, optional)". */
   label: string;
+  /** Id of a visible label to name the group by instead (the dialog's). */
+  labelledBy?: string;
   /** The muted "RIR" prefix on the card; the dialog uses its own label. */
   showLabel?: boolean;
   disabled?: boolean;
@@ -46,7 +49,8 @@ export function RirPicker({
       ) : null}
       <ToggleGroupPrimitive.Root
         type="single"
-        aria-label={label}
+        aria-label={labelledBy ? undefined : label}
+        aria-labelledby={labelledBy}
         value={value === null ? "" : String(value)}
         onValueChange={(v) => onChange(v === "" ? null : Number(v))}
         disabled={disabled}

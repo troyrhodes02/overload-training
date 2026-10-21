@@ -217,6 +217,14 @@ test("History shows RIR only where recorded; correcting and clearing it touches 
   await expect(page.getByText("Set updated")).toBeVisible();
   await expect(benchCard.getByText("· 1 RIR")).toBeVisible();
 
+  // An edit to the reps alone leaves the stored RIR exactly as it was: the
+  // dialog only sends RIR when the lifter changed it (review of #81).
+  await benchCard.getByRole("button", { name: "edit" }).nth(2).tap();
+  await dialog.getByLabel("Reps", { exact: true }).fill("6");
+  await dialog.getByRole("button", { name: "Save" }).tap();
+  await expect(benchCard.getByText(/185 lbs × 6/)).toBeVisible();
+  await expect(benchCard.getByText("· 1 RIR")).toBeVisible();
+
   // Clear it: tap the selected value again → "Not recorded." → NULL, not 0.
   await benchCard.getByRole("button", { name: "edit" }).nth(2).tap();
   await dialog.getByRole("radio", { name: "1" }).tap();
