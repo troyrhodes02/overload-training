@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 11 — full verification on the integrated feature branch.**
+**Step 12 — code review on #81.**
 
 ## Authority used (read before resuming)
 
@@ -41,7 +41,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 8. Tickets implemented — OVE-62…65 → PRs #82–#85 (stacked), all In Review
 - [x] 9. Runbook — `docs/runs/14-rir-logging-autoregulation-runbook.md` + `docs/runs/14-sql/verify-rir.sql` (rehearsed on the local stack: `rir|YES|int4|(none)`, CHECK, RLS t, 0 policies, `463|0`). Migrate production BEFORE merging; never drop the column on rollback; pre-merge release-note date step.
 - [x] 10. Ticket PRs squash-merged into the feature branch in order — #82 `54d5801`, #83 `af3a9d7`, #84 `a109afb`, #85 `4d04bcb`. Each: retarget to the feature branch → merge the feature branch into the ticket branch (conflicts only where the stacked branch and the squash both added/changed the same files; the ticket side kept) → tree identical to the reviewed ticket tip, delta vs feature = that ticket only → Vercel pass → squash. Final feature tree == OVE-65 tip. No force-push.
-- [ ] 11. Full verification
+- [x] 11. Full verification on `50a3579`: prettier, lint, tsc, prisma validate; prisma/ diff vs main = migration 9f + schema only; local `migrate status` up to date; unit 60/977; integration 44/527 (standing invariants green: history-integrity, logging, bodyweight-logging, gyms, progression, goals, rls, schema, every isolation/*, guards incl. RIR guards); accounts e2e 33 passed + 1 skipped (AC-1 RIR unset 18 taps/18 keys exact; RIR-last 22/18; RIR-every 29/18; AC-3 end to end; History correct/clear; whats-new once; tour 8); default e2e 26/26; client-bundle OK; baselines.ts, e1rm.ts, goals, tour, release-note components/catalog, set-entry.ts unchanged vs main; local DB 3/2/463/0 rir/0 release_seen after. Preview fidelity: card 375 light/dark, 320 (R30 fix), dialog, History, summary, exercise page 375 and 1280 dark, What's New dialog 375 light / 1280 dark — reviewed.
 - [ ] 12. Code review
 - [ ] 13. Review audit
 - [ ] 14. Final verification (stop before merge)
