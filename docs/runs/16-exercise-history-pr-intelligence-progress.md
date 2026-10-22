@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 6 — Linear milestone + issues** (in progress).
+**Step 8 — tickets** (OVE-70 next).
 
 ## Authority used (read before resuming)
 
@@ -36,7 +36,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 3. UI preview — `docs/previews/16-exercise-history-pr-intelligence-preview.html` (.html per owner memory; 24 frames, 9 sections; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed; fixes: HTML axis labels (stretched SVG text), no-gym trend caption). Generator: scratchpad `preview/build16.mjs` (records computed from mock sets with the design rules) + `check16.mjs`.
 - [x] 4. Spec — `docs/specs/16-exercise-history-pr-intelligence-spec.md` (v1.0.0): no schema change; `gatherRows` extended + `describeScope` extracted in progression/queries.ts; new pure `progression/history.ts` (records, frontier, callsBySession, points), `history-format.ts`, server `history-queries.ts` (`getExerciseHistory`), `goals/queries.ts` `getExerciseGoals`; entry points `historyHref`.
 - [x] 5. Resolved Decisions — spec R1–R29
-- [ ] 6. Linear milestone + issues
+- [x] 6. Linear milestone "Exercise History & PR Intelligence" (5634ecdb) + issues OVE-70 → OVE-71 → OVE-72 (blockedBy chain)
 - [ ] 7. Feature PR
 - [ ] 8. Tickets
 - [ ] 9. Runbook
@@ -49,7 +49,11 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Tickets
 
-(none yet)
+| Ticket | Branch (base) | PR | Status |
+| ------ | ------------- | -- | ------ |
+| OVE-70 History 1: read layer | `feat/ove-70-history-read-layer` (feature branch) | — | Backlog |
+| OVE-71 History 2: page + entry points + e2e | `feat/ove-71-history-page` (OVE-70) | — | Backlog |
+| OVE-72 History 3: user guidance | `feat/ove-72-guidance` (OVE-71) | — | Backlog |
 
 ## Resolved Decisions so far
 
