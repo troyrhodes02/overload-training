@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 14 — final verification + merge gate** (merge on green: no protected boundary crossed — prisma/, supabase/, src/lib/data/, auth, proxy, logged-sets, gyms, accounts untouched; no new write in src).
+**COMPLETE — merged on green.** #90 squash-merged into `main` after the final suite on `5b41fbf`. Remaining human steps: runbook §4 post-deploy checks, move OVE-70…72 to Done, report §9 follow-ups.
 
 ## Authority used (read before resuming)
 
@@ -44,8 +44,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 11. Verification on `b99e188`: prettier, eslint 0, tsc, prisma validate, `prisma/` diff vs main empty, unit 67/1080, integration 47/564 (incl. RLS, isolation, history integrity, baselines, deload suppression), build + client-bundle OK, accounts e2e run 1: 34 passed + 1 skipped + 1 failed (`faster-logging` — `deleteThroughApp` URL wait; server logged "account deletion failed; nothing was deleted PrismaClientKnownRequestError" in a slow 4.9m run) → `faster-logging` alone 2/2, full re-run 35 passed + 1 skipped (by design); default e2e 26/26. Preview comparison: page screenshots 375 light / 1280 dark match preview (one column per R30); tour step 375 light / 1280 dark; What's New dialog 375 light / 1280 dark.
 - [x] 12. Code review — `code-review` (high) posted 9 inline comments on #90
 - [x] 13. Review audit — Implement 6 (1, 2, 3, 7, 8, 9; commit `231bf9d`; spec v1.3.0 R32) · Defer 3 (4, 5, 6 → OVE-73 created) · Skip 1 (unposted `PlannedProgressionDto.hasTrend`, pre-existing); replies on every comment, implemented threads resolved, summary https://github.com/troyrhodes02/overload-training/pull/90#issuecomment-6347120464; re-verified prettier, eslint, tsc, unit 67/1081, integration 47/564
-- [ ] 14. Final verification + merge gate
-- [ ] 15. Run report
+- [x] 14. Final verification on `5b41fbf`: prettier, eslint 0, tsc, prisma validate + diff empty, unit 67/1081, integration 47/564, build (Next.js 16.4.0 advisory nudge stopped it once; passed on retry) + client-bundle, accounts e2e 35 passed + 1 skipped (by design), default e2e 26/26, Vercel success → merge on green (no protected boundary)
+- [x] 15. Run report — `docs/runs/16-exercise-history-pr-intelligence-report.md`
 
 ## Tickets
 
