@@ -20,6 +20,10 @@
  * Faster Logging UX (Pitch 13): no new owned model; logging.int.test.ts proves
  * the card's "Last time" context and working weight read only the acting
  * account's LoggedExercise/LoggedSet/GymExerciseBaseline rows.
+ * Exercise History & PR Intelligence (Pitch 16): no new owned model;
+ * exercise-history.int.test.ts proves another account sees none of the
+ * acting account's sessions, records, calls, scopes, or goals on a shared
+ * library exercise, and that its custom exercise and gym ids read as missing.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],

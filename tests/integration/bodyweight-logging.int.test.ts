@@ -312,7 +312,9 @@ describe("bodyweight progression: rep-range rule, no load math", () => {
     const occ = (await getOccurrenceProgression(account, w2.loggedExerciseId))!;
     expect(occ.tag).toBe("progress");
     expect(occ.suggestion).toBeNull();
-    expect(occ.hasTrend).toBe(false);
+    // No trend line exists for reps-only lifts, but their history page does
+    // (Exercise History & PR Intelligence R4): the card links to it.
+    expect(occ.historyHref).toBe(`/exercises/${plan.exerciseId}`);
 
     expect(
       await getQualifyingSessionE1rms(account, plan.exerciseId, null),

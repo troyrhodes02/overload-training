@@ -10,6 +10,7 @@ import {
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
+import { exerciseHistoryHref } from "@/lib/progression/history-format";
 import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
 import { favoriteExerciseIds } from "@/lib/exercises/queries";
 import { getCardioWeek, type CardioOccurrenceDto } from "@/lib/cardio/queries";
@@ -744,6 +745,10 @@ export type LoggedWorkoutDetailDto = {
   dateLabel: string;
   gymName: string | null;
   exercises: {
+    /** The PERFORMED exercise (its history is what the lifter did). */
+    exerciseId: string;
+    /** Its history page; a machine/cable opens on this workout's gym. */
+    historyHref: string;
     performedName: string;
     plannedName: string;
     swapped: boolean;
@@ -801,6 +806,11 @@ export async function getLoggedWorkoutDetail(
     dateLabel: formatPlanDate(toIsoDate(ls.scheduledFor)),
     gymName: ls.loggedExercises[0]?.gym?.name ?? null,
     exercises: ls.loggedExercises.map((le) => ({
+      exerciseId: le.exerciseId,
+      historyHref: exerciseHistoryHref(
+        le.exerciseId,
+        isGymVariable(le.exercise) ? le.gymId : null,
+      ),
       performedName: le.exercise.name,
       plannedName: le.plannedExercise.name,
       swapped: le.exerciseId !== le.plannedExerciseId,
