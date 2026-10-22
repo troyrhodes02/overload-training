@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — tickets: OVE-66 (#87) and OVE-67 (#88) done; OVE-68 next (branch `feat/ove-68-guidance` off `feat/ove-67-explainable-ui`).
+Step 10 — integrate ticket PRs #87 → #88 → #89 into the feature branch (squash, in order).
 
 ## Authority used (read before resuming)
 
@@ -39,8 +39,8 @@ Step 8 — tickets: OVE-66 (#87) and OVE-67 (#88) done; OVE-68 next (branch `fea
 - [x] 5. Resolved Decisions — spec R1–R30
 - [x] 6. Linear milestone "Smarter & Explainable Progression" + issues OVE-66 → OVE-67 → OVE-68 (blockedBy chain)
 - [x] 7. Feature PR into `main` (draft, stop before merge per R1) — **#86** https://github.com/troyrhodes02/overload-training/pull/86
-- [ ] 8. Tickets
-- [ ] 9. Runbook
+- [x] 8. Tickets — OVE-66 #87, OVE-67 #88, OVE-68 #89 (all In Review)
+- [x] 9. Runbook — `docs/runs/15-smarter-explainable-progression-runbook.md`
 - [ ] 10. Integrate ticket PRs
 - [ ] 11. Verification
 - [ ] 12. Code review
@@ -54,12 +54,13 @@ Step 8 — tickets: OVE-66 (#87) and OVE-67 (#88) done; OVE-68 next (branch `fea
 | ------ | ------------- | -- | ------ |
 | OVE-66 Engine evidence, builder, read-layer DTOs | `feat/ove-66-explainable-evidence` (feature branch) | #87 | In Review, commit `f838a7f` |
 | OVE-67 UI surfaces + e2e | `feat/ove-67-explainable-ui` (OVE-66) | #88 | In Review, commit `3ae2eb8` |
-| OVE-68 User guidance | `feat/ove-68-guidance` (OVE-67) | — | next |
+| OVE-68 User guidance | `feat/ove-68-guidance` (OVE-67) | #89 | In Review |
 
 ### Ticket summaries
 
 - **OVE-66** — verified: prettier, lint, tsc, unit 62/1024 (new `progression-evidence`, `progression-recommendation` incl. 2,000-history sweep; guards extended; Pitch 2 "no recommend" guard narrowed by exactly the progression vocabulary, R31), integration 45/540 (new `progression-recommendation.int.test.ts` 13 tests; `isolation/logging` extended), build (`.env.local` = local stack) + client-bundle OK; prisma diff empty. `rir-copy.ts` retirement moved to OVE-67 (R32). Known limit carried: the dashboard planned list's right-side `Try …` during an in-progress workout still reads today's sets (pre-existing; no occurrence id there) — report it.
 - **OVE-67** — verified: prettier, lint, tsc, unit 63/1033 (new `recommendation.test.tsx`; card tests via the real builder; rir-copy guard), integration 45/540, accounts e2e 34 passed + 1 skipped (new `explainable-progression.spec.ts`; faster-logging 18/18 unchanged; rir-logging moved sentences + visible filters because Next keeps the hidden previous route mounted), default e2e 26/26, build + client-bundle OK; local DB 3/2/463 after. Screenshots in `test-results/explainable-progression/` reviewed against preview §01/§05/§06 (375 light, 1280 dark). Note: planned-list rows now `flex-wrap`, so a long name pushes the right side under it at 375.
+- **OVE-68** — `/overload-onboarding`: mechanisms shipped; tour unchanged (no new control; logging step still true); one significant entry `2026-10-21-clearer-progression-calls` "Clearer progression calls", PROVISIONAL date (runbook §2). Verified: release-note/tour unit 11/117, whats-new + tour e2e 13 passed (dialog once at 375 light + 1280 dark, new account no backlog, Settings lists it), prettier/lint/tsc/unit 63/1033/build; local DB 3/2/463/0.
 
 ## Resolved Decisions so far
 
