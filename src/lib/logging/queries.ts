@@ -809,7 +809,7 @@ export async function getLoggedWorkoutDetail(
       exerciseId: le.exerciseId,
       historyHref: exerciseHistoryHref(
         le.exerciseId,
-        isGymVariable(le.exercise) ? le.gymId : null,
+        isGymVariable(le.exercise) ? { gymId: le.gymId } : null,
       ),
       performedName: le.exercise.name,
       plannedName: le.plannedExercise.name,

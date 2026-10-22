@@ -58,12 +58,15 @@ export function formatRirLine(
 }
 
 /**
- * Where an exercise's history lives. A machine or cable opens on the gym it
- * was trained at (its history is kept per gym); anything else needs no gym.
+ * Where an exercise's history lives. A machine or cable opens on the scope it
+ * was trained in — its gym, or the legacy "no gym recorded" rows (`none`) —
+ * because its history is kept per gym (Exercise History & PR Intelligence
+ * R5); anything else has one history and needs no scope.
  */
 export function exerciseHistoryHref(
   exerciseId: string,
-  gymId: string | null = null,
+  machine: { gymId: string | null } | null = null,
 ): string {
-  return `/exercises/${exerciseId}${gymId ? `?gym=${gymId}` : ""}`;
+  if (!machine) return `/exercises/${exerciseId}`;
+  return `/exercises/${exerciseId}?gym=${machine.gymId ?? "none"}`;
 }

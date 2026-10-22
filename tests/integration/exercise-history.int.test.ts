@@ -699,6 +699,25 @@ describe("history links on the other surfaces (R4)", () => {
       (await getOccurrenceProgression(account, first.loggedExerciseId))!
         .historyHref,
     ).toBeNull();
+
+    // Review audit of #90: a legacy machine row with no gym links to the
+    // "No gym recorded" scope, not to another gym's history.
+    const legacy = await logPerf({
+      mesocycleId: meso.id,
+      exerciseId: machine.id,
+      gymId: null,
+      scheduledFor: "2026-11-04",
+      sets: three(90, 10, 10, 10),
+    });
+    const legacyHref = `/exercises/${machine.id}?gym=none`;
+    expect(
+      (await getOccurrenceProgression(account, legacy.loggedExerciseId))!
+        .historyHref,
+    ).toBe(legacyHref);
+    expect(
+      (await getLoggedWorkoutDetail(account, legacy.loggedSessionId))!
+        .exercises[0].historyHref,
+    ).toBe(legacyHref);
   });
 });
 

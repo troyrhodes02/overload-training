@@ -78,8 +78,14 @@ describe("formatLoad / exerciseHistoryHref", () => {
     expect(formatLoad(102.5)).toBe("102.5");
     expect(formatLoad(0.1 + 0.2)).toBe("0.3");
   });
-  it("a machine opens on its gym; anything else needs none", () => {
+  it("a machine opens on its gym — or its no-gym rows; anything else needs none", () => {
     expect(exerciseHistoryHref("ex")).toBe("/exercises/ex");
-    expect(exerciseHistoryHref("ex", "gym")).toBe("/exercises/ex?gym=gym");
+    expect(exerciseHistoryHref("ex", { gymId: "gym" })).toBe(
+      "/exercises/ex?gym=gym",
+    );
+    // Review audit of #90: a legacy machine row with no gym keeps its scope.
+    expect(exerciseHistoryHref("ex", { gymId: null })).toBe(
+      "/exercises/ex?gym=none",
+    );
   });
 });

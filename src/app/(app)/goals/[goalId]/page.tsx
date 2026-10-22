@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { exerciseHistoryHref } from "@/lib/progression/history-format";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Archive, CircleCheck } from "lucide-react";
@@ -55,7 +56,11 @@ export default async function GoalDetailPage({
 }
 
 function historyHref(goal: GoalDetailDto): string {
-  return `/exercises/${goal.exerciseId}${goal.gymId ? `?gym=${goal.gymId}` : ""}`;
+  // A machine goal carries its gym; a free-weight goal has none.
+  return exerciseHistoryHref(
+    goal.exerciseId,
+    goal.gymId ? { gymId: goal.gymId } : null,
+  );
 }
 
 function Heading({ goal }: { goal: GoalDetailDto }) {

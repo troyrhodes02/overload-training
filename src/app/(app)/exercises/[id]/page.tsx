@@ -19,7 +19,7 @@ import {
   parseLibraryParams,
 } from "@/lib/exercises/library-params";
 import { getExercise } from "@/lib/exercises/queries";
-import { getExerciseGoals } from "@/lib/goals/queries";
+import { getExerciseGoals, newGoalFormHref } from "@/lib/goals/queries";
 import { getExerciseHistory } from "@/lib/progression/history-queries";
 
 export const metadata = { title: "Exercise · Overload" };
@@ -92,14 +92,12 @@ export default async function ExerciseDetailPage({
   // "Set a goal" opens the existing form; a machine pre-selects the gym the
   // page shows when that gym is still active (R19).
   const newGoalHref = goals.newGoalEligible
-    ? `/goals/new/${exercise.id}${
-        history.gymVariable &&
-        selected &&
-        selected.key !== "none" &&
-        !selected.archived
-          ? `?gymId=${selected.key}`
-          : ""
-      }`
+    ? newGoalFormHref(
+        exercise.id,
+        history.gymVariable && selected && selected.key !== "none"
+          ? { id: selected.key, archived: selected.archived }
+          : null,
+      )
     : null;
 
   return (
@@ -219,6 +217,7 @@ export default async function ExerciseDetailPage({
               weight={history.trend.weight}
               reps={history.trend.reps}
               scopeName={scopeName}
+              noGymScope={noGymScope}
             />
             <SessionHistoryList
               rows={history.sessions.rows}

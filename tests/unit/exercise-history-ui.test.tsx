@@ -372,6 +372,22 @@ describe("ExerciseTrend", () => {
     expect(t).toContain("2 sessions at Downtown Gym · Epley estimate");
   });
 
+  it("the no-gym scope's footnote doesn't put the label in a sentence", () => {
+    const t = text(
+      renderToStaticMarkup(
+        <ExerciseTrend
+          e1rm={trend([240, 247])}
+          weight={null}
+          reps={null}
+          scopeName="No gym recorded"
+          noGymScope
+        />,
+      ),
+    );
+    expect(t).toContain("2 sessions with no gym recorded · Epley estimate");
+    expect(t).not.toContain("at No gym recorded");
+  });
+
   it("bodyweight: one Reps view, no tabs, no load", () => {
     const html = renderToStaticMarkup(
       <ExerciseTrend

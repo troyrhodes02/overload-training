@@ -63,7 +63,9 @@ export function TrendChart({
             />
             <YAxis
               width={48}
-              domain={["dataMin - 5", "dataMax + 5"]}
+              // Never below zero: a reps view (or a light load) mustn't show
+              // an axis that starts at "-2 reps".
+              domain={[(min: number) => Math.max(0, min - 5), "dataMax + 5"]}
               allowDecimals={false}
               tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
               tickLine={false}

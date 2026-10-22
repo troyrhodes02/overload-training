@@ -130,8 +130,6 @@ export type PerformanceRow = {
   gymName: string | null;
   /** The gym was archived after this was logged (history keeps its name). */
   gymArchived: boolean;
-  /** The workout this belongs to hasn't been finished yet. */
-  inProgress: boolean;
   /** Sets beyond the plan (setNumber > plannedSets): shown, never judged. */
   extraSets: Performance["workingSets"];
   /** The exercise the plan named; differs from the performed one after a swap. */
@@ -226,7 +224,6 @@ export async function gatherRows(
       loggedSessionId: le.loggedSessionId,
       gymName: le.gym?.name ?? null,
       gymArchived: le.gym?.deletedAt != null,
-      inProgress: le.loggedSession.status !== "complete",
       extraSets,
       plannedExerciseId: le.plannedExerciseId,
       plannedExerciseName: le.plannedExercise.name,
@@ -743,7 +740,10 @@ export async function getOccurrenceProgression(
     : rows;
   // Any finished workout in scope has a history to link to (R4), bodyweight too.
   const historyHref = scopeRows.some((r) => r.finished)
-    ? exerciseHistoryHref(le.exercise.id, gymVariable ? le.gymId : null)
+    ? exerciseHistoryHref(
+        le.exercise.id,
+        gymVariable ? { gymId: le.gymId } : null,
+      )
     : null;
 
   if (scheduledDeloadWeek) {

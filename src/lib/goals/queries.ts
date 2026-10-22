@@ -236,8 +236,25 @@ function isAlreadyReached(g: GoalRow): boolean {
 /** Where "Set a new goal" leads: blank form for the same lift (and gym, if still active). */
 function newGoalHrefFor(g: GoalRow): string {
   if (g.exercise.deletedAt) return "/goals/new";
-  const gym = g.gymId && g.gym && !g.gym.deletedAt ? `?gymId=${g.gymId}` : "";
-  return `/goals/new/${g.exerciseId}${gym}`;
+  return newGoalFormHref(
+    g.exerciseId,
+    g.gymId && g.gym
+      ? { id: g.gymId, archived: g.gym.deletedAt !== null }
+      : null,
+  );
+}
+
+/**
+ * The goal form for one exercise, with its gym pre-selected only while that
+ * gym is still active (an archived gym can't take a new goal). The one rule
+ * for "Set a new goal" links (Goals; Exercise History & PR Intelligence R19).
+ */
+export function newGoalFormHref(
+  exerciseId: string,
+  gym: { id: string; archived: boolean } | null,
+): string {
+  const query = gym && !gym.archived ? `?gymId=${gym.id}` : "";
+  return `/goals/new/${exerciseId}${query}`;
 }
 
 /** Active goals, oldest first (stable order the lifter set them in; R64). */

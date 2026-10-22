@@ -1,5 +1,5 @@
 ---
-version: 1.2.0
+version: 1.3.0
 status: approved
 author: Claude Code (autonomous pipeline run)
 last_updated: 2026-10-22
@@ -467,6 +467,7 @@ Authority order (CLAUDE.md, Autonomous Pipeline Policy): approved planning docs 
 | R29 | "Current" e1RM header and the Weight/Reps "Last" value come from the latest non-deload point. | Existing `currentE1rm` rule (R42); same for the new views. | Engine spec R42 |
 | R30 | One column at every width; the design doc's and preview's two-column desktop layout is superseded (design doc v1.1, preview regenerated). | The app shell caps every page at `max-w-screen-sm` (640px); a 20rem side column would leave a ~288px main column, narrower than a phone. Desktop gains chart height, not a column — the shell's established rule. Changing the shell is out of scope. Found while implementing OVE-71. | Codebase pattern (`app-shell.tsx`); design doc §10 |
 | R31 | Guidance (`overload-onboarding`, OVE-72): one new tour step `exercises` on `/exercises` after `goals` (rail order), anchored to the Exercises rail item (`nav-exercises`, desktop) and the Exercises heading (`page-exercises`, phone); copy in the design doc's "Tour steps added" table, which the registry test now reads alongside the Onboarding Tour's table. One significant What's New entry `2026-10-22-exercise-history`, dated the merge (production) day. Existing lifters learn of the step from What's New; the tour never re-opens by itself (Onboarding Tour R5). | The history is reached through Exercises, which the tour never visited, so the lifter must discover it (skill rubric: a new screen). Pinned registry tests updated for the ninth step, not weakened. | `overload-onboarding`; Onboarding Tour spec R9; What's New content contract |
+| R32 | Review audit of #90: every history link for a machine/cable occurrence names its scope — its gym, or `?gym=none` for a legacy row with no gym — through the one helper `exerciseHistoryHref` (the goal page uses it too); the no-gym scope's prose says "with no gym recorded" (headings keep the label); the trend axis never goes below zero; the goal-form link rule is one function, `newGoalFormHref`. Read reuse and the per-prefix sort are deferred to OVE-73. | Landing a no-gym row's link on another gym's history would show the wrong book (AC-2). The rest are defects or duplication the pitch introduced. | Review audit; R5, R19, R25 |
 
 ## Open Questions
 

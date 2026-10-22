@@ -27,14 +27,21 @@ export function ExerciseTrend({
   weight,
   reps,
   scopeName,
+  noGymScope = false,
 }: {
   e1rm: TrendDto | null;
   weight: TrendDto | null;
   reps: TrendDto | null;
   /** The gym, for a machine or cable; null otherwise. */
   scopeName: string | null;
+  /** A machine's legacy rows with no gym: the label isn't a place to be "at". */
+  noGymScope?: boolean;
 }) {
-  const at = scopeName ? ` at ${scopeName}` : "";
+  const at = noGymScope
+    ? " with no gym recorded"
+    : scopeName
+      ? ` at ${scopeName}`
+      : "";
   const sessions = (n: number) => `${n} session${n === 1 ? "" : "s"}`;
   const views: View[] = [];
   if (e1rm) {
