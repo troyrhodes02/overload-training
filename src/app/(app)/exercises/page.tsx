@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { tourAnchor } from "@/lib/tour/steps";
 import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,9 @@ export default async function ExerciseLibraryPage({ searchParams }: PageProps) {
   return (
     <section className="space-y-4 pb-20 md:pb-0">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Exercises</h1>
+        <h1 className="text-lg font-semibold" {...tourAnchor("page-exercises")}>
+          Exercises
+        </h1>
         <Button asChild variant="outline" className="hidden md:inline-flex">
           <Link href="/exercises/new">
             <Plus aria-hidden />

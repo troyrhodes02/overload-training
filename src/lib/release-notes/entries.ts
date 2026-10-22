@@ -26,6 +26,16 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Exercise History & PR Intelligence (Pitch 16). Dated the day it reaches
+    // production: the run merges the feature PR on 2026-10-22 (runbook 16 §2
+    // re-dates it if the merge slips to a later day before it ships).
+    id: "2026-10-22-exercise-history",
+    date: "2026-10-22",
+    title: "Exercise history and records",
+    body: "Open any exercise to see every session you've logged, your best set, heaviest weight, and rep records, and how the lift is trending. Each session shows the call it led to, and machines and cables keep their records per gym. Viewing it never changes your plan or your weights.",
+    significant: true,
+  },
+  {
     // Smarter & Explainable Progression (Pitch 15). PROVISIONAL date: written
     // 2026-10-21 while the feature PR waits for approval. Before merging, set
     // `date` and the id's date prefix to the merge day (runbook 15 §2); once it

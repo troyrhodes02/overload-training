@@ -59,6 +59,8 @@ describe("registry validity", () => {
       "plan",
       "history",
       "goals",
+      // Added by Exercise History & PR Intelligence (OVE-72), in rail order.
+      "exercises",
       "gyms",
       "settings",
     ]);
@@ -68,6 +70,7 @@ describe("registry validity", () => {
       "/plan",
       "/history",
       "/goals",
+      "/exercises",
       "/gyms",
       "/settings",
     ]) {
@@ -93,28 +96,49 @@ describe("registry validity", () => {
 });
 
 describe("copy is the design doc's, verbatim (R32)", () => {
+  type Row = { id: string; title: string; body: string };
+  function tableRows(section: string): Row[] {
+    const rows: Row[] = [];
+    for (const line of section.split("\n")) {
+      if (!/^\| (\d+)? *\|/.test(line)) continue;
+      const cols = line
+        .split("|")
+        .slice(1, -1)
+        .map((c) => c.trim());
+      const id = cols[1].replace(/`/g, "") || rows[rows.length - 1].id;
+      rows.push({ id, title: cols[4].replace(/\*\*/g, ""), body: cols[5] });
+    }
+    return rows;
+  }
   const doc = fs.readFileSync(
     path.join(REPO_ROOT, "docs/design/11-onboarding-tour-design-doc.md"),
     "utf8",
   );
-  const section = doc.slice(
-    doc.indexOf("### The initial tour"),
-    doc.indexOf("Width behavior"),
+  const initial = tableRows(
+    doc.slice(
+      doc.indexOf("### The initial tour"),
+      doc.indexOf("Width behavior"),
+    ),
   );
-  type Row = { id: string; title: string; body: string };
-  const rows: Row[] = [];
-  for (const line of section.split("\n")) {
-    if (!/^\| (\d+)? *\|/.test(line)) continue;
-    const cols = line
-      .split("|")
-      .slice(1, -1)
-      .map((c) => c.trim());
-    const id = cols[1].replace(/`/g, "") || rows[rows.length - 1].id;
-    rows.push({ id, title: cols[4].replace(/\*\*/g, ""), body: cols[5] });
-  }
+  // A later pitch that adds a step records its copy in its own design doc,
+  // under "### Tour steps added", in the same columns (overload-onboarding).
+  const designDir = path.join(REPO_ROOT, "docs/design");
+  const added = fs
+    .readdirSync(designDir)
+    .filter((f) => f.endsWith(".md"))
+    .flatMap((f) => {
+      const text = fs.readFileSync(path.join(designDir, f), "utf8");
+      const at = text.indexOf("### Tour steps added");
+      if (at < 0) return [];
+      const rest = text.slice(at + 1);
+      const end = rest.search(/\n#{2,3} /);
+      return tableRows(end < 0 ? rest : rest.slice(0, end));
+    });
+  const rows = [...initial, ...added];
 
-  it("the design doc table was found", () => {
-    expect(rows.length).toBe(9); // eight steps + the logging step's (b) body
+  it("the design doc tables were found", () => {
+    expect(initial.length).toBe(9); // eight steps + the logging step's (b) body
+    expect(added.map((r) => r.id)).toEqual(["exercises"]);
   });
 
   it.each(TOUR_STEPS.map((s) => [s.id, s]))(

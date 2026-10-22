@@ -549,6 +549,14 @@ Every action (gym switch, chart view, view all sessions, goal links, workout lin
 This pitch adds a visible capability, so the last ticket runs `overload-onboarding` (tour and What's New both shipped).
 
 - **Tour step — recommended, the skill decides.** The history lives on a page the tour never visits: the tour mentions "Exercises" only inside the phone menu list. The capability is discovered by opening an exercise, which a new lifter has no reason to do. Recommended: one step on `/exercises`, in journey order after Goals, anchored to the Exercises rail item on desktop and the page heading on a phone (two new anchors, the same pattern the Plan/History/Goals/Gyms steps use). Illustrative copy — **Exercises:** "Every lift in the library. Open one to see its history: your sessions, records, the trend, and what Overload suggests next." Existing steps stay unchanged and keep their ids.
+### Tour steps added
+
+Decided by `overload-onboarding` in OVE-72 (spec R31). Same columns as the Onboarding Tour's initial table; the registry's copy is pinned to this table.
+
+| # | id | Screen | Targets (first visible wins) | Title | Body |
+| - | -- | ------ | ---------------------------- | ----- | ---- |
+| 7 | `exercises` | Exercises `/exercises` | (a) Exercises rail item · (b) Exercises heading | **Exercises** | Every exercise in the library, plus any you add. Open one to see its history: your sessions, best sets, the trend, and what to do next time. |
+
 - **Release note — significant.** Illustrative — **Exercise history and records:** "Open any exercise to see every session you've logged, your best set and heaviest weight, rep records, the e1RM and weight trends, and the call each session led to. Machines and cables keep their records per gym." Dated the day it reaches production (merge day), never earlier.
 
 ---
