@@ -81,6 +81,7 @@ const PHONE_TARGETS = [
   "page-plan",
   "page-history",
   "page-goals",
+  "page-exercises",
   "page-gyms",
   "settings-replay",
 ];
@@ -90,6 +91,7 @@ const DESKTOP_TARGETS = [
   "nav-plan",
   "nav-history",
   "nav-goals",
+  "nav-exercises",
   "nav-gyms",
   "settings-replay",
 ];
@@ -100,6 +102,7 @@ const PHONE_ROUTES = [
   "/plan",
   "/history",
   "/goals",
+  "/exercises",
   "/gyms",
   "/settings",
 ];
@@ -109,6 +112,7 @@ const DESKTOP_ROUTES = [
   "/plan",
   "/history",
   "/goals",
+  "/exercises",
   "/gyms",
   "/settings",
 ];
@@ -221,6 +225,11 @@ async function playThrough(
     );
     expect(step?.route).toBe(routes[n - 1]);
     expect(await sheetOpen(p)).toBe(0);
+    if (anchor?.endsWith("-exercises")) {
+      // The step Exercise History & PR Intelligence added, for review.
+      const width = p.viewportSize()?.width ?? 0;
+      await p.screenshot({ path: `test-results/tour/exercises-${width}.png` });
+    }
     const primary = tourCard(p).getByRole("button", {
       name: n === total ? "Done" : "Next",
     });
@@ -290,6 +299,8 @@ test("replay at 1280 walks the same tour on desktop targets and Done returns to 
   browser,
 }) => {
   const p = await newPage(browser, DESKTOP);
+  // Dark here, light on the phone walk: both appearances are seen.
+  await p.emulateMedia({ colorScheme: "dark" });
   await signIn(p, T);
   await replay(p);
   await playThrough(p, DESKTOP_ROUTES, DESKTOP_TARGETS);
@@ -308,17 +319,17 @@ test("crossing md mid-tour re-picks the target (rail item ↔ heading)", async (
   const p = await newPage(browser, DESKTOP);
   await signIn(p, T);
   await replay(p);
-  await shownStep(p, 1, 7);
+  await shownStep(p, 1, 8);
   await tourCard(p).getByRole("button", { name: "Next" }).click();
-  await shownStep(p, 2, 7);
+  await shownStep(p, 2, 8);
   await tourCard(p).getByRole("button", { name: "Next" }).click();
-  await shownStep(p, 3, 7);
+  await shownStep(p, 3, 8);
   expect(await spotlitAnchor(p)).toBe("nav-plan");
   await p.setViewportSize(PHONE);
   await expect
     .poll(() => spotlitAnchor(p), { timeout: 10_000 })
     .toBe("page-plan");
-  await expect(tourCard(p).locator("p").first()).toHaveText(/of 8$/);
+  await expect(tourCard(p).locator("p").first()).toHaveText(/of 9$/);
   await tourCard(p).getByRole("button", { name: "Skip tour" }).click();
   await expect(tourCard(p)).toHaveCount(0);
 });
@@ -328,9 +339,9 @@ test("another new account still gets its first tour; Skip closes it in place and
 }) => {
   const p = await newPage(browser, PHONE);
   await signUp(p, S);
-  await shownStep(p, 1, 8);
+  await shownStep(p, 1, 9);
   await tourCard(p).getByRole("button", { name: "Next" }).click();
-  await shownStep(p, 2, 8);
+  await shownStep(p, 2, 9);
   // Keyboard: Tab stays inside the card.
   for (let i = 0; i < 4; i++) {
     await p.keyboard.press("Tab");
@@ -358,7 +369,7 @@ test("a skipped account can replay from Settings; Escape ends a replay like Skip
   const p = await newPage(browser, PHONE);
   await signIn(p, S);
   await replay(p);
-  await shownStep(p, 1, 8);
+  await shownStep(p, 1, 9);
   await expect(p).toHaveURL(/\/$/);
   await p.keyboard.press("Escape");
   await expect(tourCard(p)).toHaveCount(0);
@@ -373,17 +384,17 @@ test("abandoning the first tour (a reload mid-tour) spends it; browser Back ends
 }) => {
   const p = await newPage(browser, PHONE);
   await signUp(p, E);
-  await shownStep(p, 1, 8);
+  await shownStep(p, 1, 9);
   await p.reload();
   await p.waitForTimeout(3000);
   await expect(tourCard(p)).toHaveCount(0);
   // Browser Back during a replay ends it and leaves the page usable.
   await replay(p);
   for (const n of [1, 2, 3]) {
-    await shownStep(p, n, 8);
+    await shownStep(p, n, 9);
     await tourCard(p).getByRole("button", { name: "Next" }).click();
   }
-  await shownStep(p, 4, 8);
+  await shownStep(p, 4, 9);
   await expect(p).toHaveURL(/\/plan$/);
   await p.goBack();
   await expect(tourCard(p)).toHaveCount(0);
@@ -396,11 +407,11 @@ test("a due account whose first page is not Today still gets its tour, starting 
 }) => {
   const p = await newPage(browser, PHONE);
   await signUp(p, D);
-  await shownStep(p, 1, 8);
+  await shownStep(p, 1, 9);
   await makeOwnAccountDue(D.email);
   // First page of the "first visit" is /plan (a bookmark or deep link).
   await p.goto("/plan");
-  await shownStep(p, 1, 8);
+  await shownStep(p, 1, 9);
   await expect(p).toHaveURL(/\/$/);
   expect(await spotlitAnchor(p)).toBe("today-heading");
   await tourCard(p).getByRole("button", { name: "Skip tour" }).click();

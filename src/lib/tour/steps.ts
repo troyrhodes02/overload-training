@@ -14,7 +14,8 @@
  * wins (rail item on desktop, heading or menu button on a phone); a target can
  * carry its own body when the step should say something different there. A
  * step with no visible target is skipped. Copy is design doc Screen 2,
- * verbatim (pinned by tests/unit/tour-registry.test.ts).
+ * verbatim, and a later pitch's added step is its design doc's "Tour steps
+ * added" table (both pinned by tests/unit/tour-registry.test.ts).
  */
 
 export const TOUR_ANCHORS = [
@@ -25,10 +26,12 @@ export const TOUR_ANCHORS = [
   "nav-plan",
   "nav-history",
   "nav-goals",
+  "nav-exercises",
   "nav-gyms",
   "page-plan",
   "page-history",
   "page-goals",
+  "page-exercises",
   "page-gyms",
   "settings-replay",
 ] as const;
@@ -115,6 +118,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     targets: [{ anchor: "nav-goals", side: RAIL }, { anchor: "page-goals" }],
     title: "Goals",
     body: "Set a weight-and-reps target for a lift and follow how close your best sets are getting.",
+  },
+  {
+    // Exercise History & PR Intelligence (overload-onboarding, OVE-72): the
+    // history lives behind Exercises, which the tour didn't visit. Copy is
+    // that design doc's "Tour steps added" table, verbatim.
+    id: "exercises",
+    route: "/exercises",
+    targets: [
+      { anchor: "nav-exercises", side: RAIL },
+      { anchor: "page-exercises" },
+    ],
+    title: "Exercises",
+    body: "Every exercise in the library, plus any you add. Open one to see its history: your sessions, best sets, the trend, and what to do next time.",
   },
   {
     id: "gyms",
