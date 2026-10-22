@@ -13,8 +13,7 @@ import {
 import { getExercise } from "@/lib/exercises/queries";
 import { getExerciseProgression } from "@/lib/progression/queries";
 import { ProgressTag } from "@/components/progression/progress-tag";
-import { SuggestedLoad } from "@/components/progression/suggested-load";
-import { rirReason } from "@/lib/progression/rir-copy";
+import { Recommendation } from "@/components/progression/recommendation";
 import { GymSelector } from "@/components/progression/gym-selector";
 import { E1rmChart } from "@/components/progression/e1rm-chart";
 import { requireAccount } from "@/lib/data/account";
@@ -36,7 +35,6 @@ async function ProgressionSection({
   const dto = await getExerciseProgression(account, exerciseId, gymId);
   if (!dto) return null;
 
-  const rirLine = rirReason(dto.rirEffect);
   const scope = dto.isGymVariable ? dto.selectedGymName : null;
   const chartLabel = `e1RM trend for ${dto.exerciseName}${scope ? `, ${scope}` : ""}`;
 
@@ -51,28 +49,12 @@ async function ProgressionSection({
         ) : null}
       </div>
 
-      {dto.state === "insufficient" ? (
-        <p className="text-sm text-muted-foreground">
-          Not enough history yet
-          {scope ? ` at ${scope}` : ""}.
-        </p>
+      {dto.insufficientNote ? (
+        <p className="text-sm text-muted-foreground">{dto.insufficientNote}</p>
       ) : (
-        <div className="flex flex-wrap items-center gap-3">
-          {dto.tag ? (
-            <ProgressTag state={dto.tag} />
-          ) : (
-            <span className="text-sm text-muted-foreground">Holding</span>
-          )}
-          {dto.tag === "progress" && dto.suggestion ? (
-            <span>
-              Suggested next: <SuggestedLoad suggestion={dto.suggestion} />
-            </span>
-          ) : null}
-          {rirLine ? (
-            <p className="basis-full text-xs text-muted-foreground">
-              {rirLine}
-            </p>
-          ) : null}
+        <div>
+          {dto.tag ? <ProgressTag state={dto.tag} /> : null}
+          <Recommendation recommendation={dto.recommendation} />
         </div>
       )}
 

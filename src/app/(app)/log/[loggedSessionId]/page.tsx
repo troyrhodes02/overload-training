@@ -25,8 +25,7 @@ export default async function WorkoutPage({
       const occ = await getOccurrenceProgression(account, e.loggedExerciseId);
       const value: CardProgression = {
         tag: occ?.tag ?? null,
-        rirEffect: occ?.rirEffect ?? null,
-        suggestion: occ?.suggestion ?? null,
+        recommendation: occ?.recommendation ?? null,
         scheduledDeloadWeek: occ?.scheduledDeloadWeek ?? false,
         hasTrend: occ?.hasTrend ?? false,
       };

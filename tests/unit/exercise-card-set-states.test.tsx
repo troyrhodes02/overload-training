@@ -15,6 +15,38 @@ jest.mock("@/app/(app)/history/actions", () => ({
 }));
 
 import { ExerciseCard } from "@/components/logging/exercise-card";
+import {
+  buildRecommendation,
+  type RecommendationInput,
+} from "@/lib/progression/recommendation";
+import type { DecisionEvidence } from "@/lib/progression/types";
+
+/** A recommendation built by the real builder, as the read layer would. */
+const rec = (
+  state: "progress" | "hold" | "stalled" | "deload",
+  evidence: DecisionEvidence,
+  over: Partial<Extract<RecommendationInput, { scheduledDeload: false }>> = {},
+) =>
+  buildRecommendation({
+    scheduledDeload: false,
+    state,
+    rirEffect:
+      evidence.kind === "held_at_limit"
+        ? "held_at_limit"
+        : evidence.kind === "released_stall"
+          ? "released_stall"
+          : null,
+    evidence,
+    externalLoad: true,
+    workingWeightLbs: 185,
+    progressLoadLbs: state === "progress" ? 190 : null,
+    gymName: null,
+    latestIsLastTime: true,
+    referenceIso: "2026-10-20",
+    when: "today",
+    ...over,
+  });
+const LATEST = { loggedExerciseId: "le-prev", dateIso: "2026-10-13" };
 
 /**
  * Faster Logging UX set states (spec §7, §14.1; preview §01–§06; R4–R7, R12,
@@ -231,7 +263,7 @@ describe("no history and gym scope", () => {
 });
 
 describe("progression suggestions stay display-only (R8)", () => {
-  it("a +5 Progress suggestion does not become the offered weight", () => {
+  it("a +5 recommendation does not become the offered weight", () => {
     const html = renderToStaticMarkup(
       <ExerciseCard
         exercise={card()}
@@ -239,19 +271,22 @@ describe("progression suggestions stay display-only (R8)", () => {
         workoutDateIso="2026-10-20"
         progression={{
           tag: "progress",
-          rirEffect: null,
-          suggestion: { lbs: 190, kind: "progress_increment" },
+          recommendation: rec("progress", {
+            kind: "progress",
+            sessions: 2,
+            repMax: 8,
+          }),
           scheduledDeloadWeek: false,
           hasTrend: true,
         }}
       />,
     );
-    expect(html).toContain("Try 190 lb (+5)");
+    expect(html).toContain("Try 190 lb today (+5 lb)");
     expect(valueOf(html, "Set 1 weight in pounds")).toBe("185");
   });
 });
 
-describe("RIR reason lines (RIR Logging & Autoregulation R20–R21)", () => {
+describe("the recommendation lines (Smarter & Explainable Progression, Screen 1)", () => {
   const render = (p: Parameters<typeof ExerciseCard>[0]["progression"]) =>
     renderToStaticMarkup(
       <ExerciseCard
@@ -262,57 +297,112 @@ describe("RIR reason lines (RIR Logging & Autoregulation R20–R21)", () => {
       />,
     );
 
-  it("a Progress held at the limit shows the case A line and no tag", () => {
-    const html = render({
-      tag: null,
-      rirEffect: "held_at_limit",
-      suggestion: null,
-      scheduledDeloadWeek: false,
-      hasTrend: true,
-    });
-    expect(html).toContain(
-      "Top of the range, but at your limit last time (0 RIR) — holding.",
-    );
-    expect(html).not.toContain(">Progress<");
-    expect(html).not.toContain("Hold — trend flat");
-  });
-
-  it("a released stall shows Progress, its suggestion, and the case B line", () => {
+  it("Progress: the tag, the action in the foreground, the evidence muted", () => {
     const html = render({
       tag: "progress",
-      rirEffect: "released_stall",
-      suggestion: { lbs: 190, kind: "progress_increment" },
+      recommendation: rec("progress", {
+        kind: "progress",
+        sessions: 2,
+        repMax: 8,
+      }),
       scheduledDeloadWeek: false,
       hasTrend: true,
     });
     expect(html).toContain(">Progress<");
     expect(html).toContain(
-      "e1RM is flat, but every set last time had 2+ in reserve — ready to go up.",
+      'class="text-sm tabular-nums font-medium text-foreground">Try 190 lb today (+5 lb)<',
+    );
+    expect(html).toContain(
+      'class="text-xs tabular-nums text-muted-foreground">8 reps on every set, 2 sessions running<',
     );
   });
 
-  it("an ordinary call shows no RIR line", () => {
+  it("a Progress held at the limit: no tag, the case A evidence, muted", () => {
     const html = render({
       tag: null,
-      rirEffect: null,
-      suggestion: null,
+      recommendation: rec("hold", {
+        kind: "held_at_limit",
+        rirAtLimit: 0,
+        latest: LATEST,
+      }),
       scheduledDeloadWeek: false,
       hasTrend: true,
     });
-    expect(html).not.toContain("at your limit last time");
-    expect(html).not.toContain("in reserve — ready to go up");
+    expect(html).toContain(
+      "Top of the range, but at your limit last time (0 RIR)",
+    );
+    expect(html).toContain(
+      'class="text-sm tabular-nums text-muted-foreground">Stay at 185 lb today<',
+    );
+    expect(html).not.toContain(">Progress<");
+    expect(html).not.toContain("Hold — trend flat");
   });
 
-  it("a scheduled-deload week shows only the deload line", () => {
+  it("a released stall: Progress, the weight to try, the case B evidence", () => {
+    const html = render({
+      tag: "progress",
+      recommendation: rec("progress", {
+        kind: "released_stall",
+        rirToSpare: 2,
+        latest: LATEST,
+      }),
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).toContain(">Progress<");
+    expect(html).toContain("Try 190 lb today (+5 lb)");
+    expect(html).toContain(
+      "e1RM flat, but every set last time had 2+ in reserve",
+    );
+  });
+
+  it("an ordinary hold: no tag and no colour, what to stay at and why", () => {
     const html = render({
       tag: null,
-      rirEffect: null,
-      suggestion: { lbs: 165, kind: "scheduled_deload" },
+      recommendation: rec("hold", {
+        kind: "hold_short",
+        reps: [8, 7, 6],
+        repMin: 6,
+        repMax: 8,
+        latest: LATEST,
+      }),
+      scheduledDeloadWeek: false,
+      hasTrend: true,
+    });
+    expect(html).toContain("Stay at 185 lb today");
+    expect(html).toContain("Last time: 8, 7, 6 of 6–8");
+    expect(html).not.toMatch(/text-progress|text-deload/);
+    // (The RIR chips' own label says "reps in reserve"; the lines never do here.)
+    expect(html).not.toMatch(/in reserve<|\(0 RIR\)/);
+  });
+
+  it("a scheduled-deload week speaks only for the plan", () => {
+    const html = render({
+      tag: null,
+      recommendation: buildRecommendation({
+        scheduledDeload: true,
+        externalLoad: true,
+        deloadLoadLbs: 165,
+      }),
       scheduledDeloadWeek: true,
       hasTrend: true,
     });
-    expect(html).toContain("Deload week — recovery, not a verdict.");
+    expect(html).toContain("Deload week: 165 lb (90%)");
+    expect(html).toContain(
+      "Planned recovery, not a verdict. Calls resume next week.",
+    );
+    expect(html).not.toContain(">Deload<");
     expect(html).not.toContain("at your limit");
+  });
+
+  it("not enough history: neither line, the card as before", () => {
+    const html = render({
+      tag: null,
+      recommendation: null,
+      scheduledDeloadWeek: false,
+      hasTrend: false,
+    });
+    expect(html).not.toContain("space-y-0.5");
   });
 });
 
