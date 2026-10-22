@@ -220,11 +220,30 @@ describe("no maps, geocoding, or location intelligence", () => {
 
 describe("no automatic personalization or recommendations", () => {
   it("has no recently-used, most-used, suggestion, or recommendation code", () => {
+    // Library & Gyms Setup bans exercise personalization. The one approved use
+    // of the word is the progression call's recommendation (Smarter &
+    // Explainable Progression, spec R31): exactly that vocabulary is set
+    // aside, so any other "recommend" — a verb, recommended exercises, a
+    // recommended program — still fails.
+    const PROGRESSION_VOCABULARY =
+      /\b(build)?recommendations?(dto|input|kind|state)?\b/gi;
+    const re =
+      /recently.?used|most.?used|recommend|suggest(ed)?Exercises?|autoFavorite/i;
     expect(
-      offenders(
-        /recently.?used|most.?used|recommend|suggest(ed)?Exercises?|autoFavorite/i,
-      ),
+      files
+        .filter((f) => re.test(f.src.replace(PROGRESSION_VOCABULARY, "")))
+        .map((f) => f.rel),
     ).toEqual([]);
+  });
+
+  it("a progression recommendation never lists, ranks, or picks exercises", () => {
+    const builder = files.find(
+      (f) => f.rel === "src/lib/progression/recommendation.ts",
+    );
+    expect(builder).toBeDefined();
+    expect(builder!.src).not.toMatch(
+      /@\/lib\/(exercises|library|plan\/actions|goals)|exerciseId|favorite/i,
+    );
   });
 
   it("never writes a favorite except from the lifter's explicit toggle", () => {

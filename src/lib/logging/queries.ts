@@ -347,6 +347,7 @@ async function workingWeight(
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
+  excludeLoggedExerciseId?: string,
 ): Promise<{ lbs: number; fromBaseline: boolean } | null> {
   if (gymVariable) {
     // A machine/cable weight belongs to its gym: this gym's baseline, else the
@@ -366,6 +367,9 @@ async function workingWeight(
       loggedExercise: {
         exerciseId: performedExerciseId,
         ...(gymVariable ? { gymId } : {}),
+        ...(excludeLoggedExerciseId
+          ? { id: { not: excludeLoggedExerciseId } }
+          : {}),
       },
       weightLbs: { not: null },
     },
@@ -384,18 +388,25 @@ async function workingWeight(
  * exercise's reps-only history). The Progressive Overload Engine reuses this for its +5 Progress and
  * ×0.90 scheduled-deload suggestions, so there is never a second weight authority
  * (Resolved Decisions R29, R34). Returns null when no context exists (R31, R36).
+ *
+ * `excludeLoggedExerciseId` reads the weight as it stood before that
+ * occurrence (Smarter & Explainable Progression R9): while a workout is in
+ * progress its call ignores today's unfinished sets, so its numbers must too.
+ * A gym baseline has no per-set history to exclude and is read as is.
  */
 export async function currentWorkingWeightLbs(
   account: Account,
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
+  opts: { excludeLoggedExerciseId?: string } = {},
 ): Promise<number | null> {
   const w = await workingWeight(
     account,
     performedExerciseId,
     gymId,
     gymVariable,
+    opts.excludeLoggedExerciseId,
   );
   return w?.lbs ?? null;
 }

@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — tickets: OVE-66 next.
+Step 8 — tickets: OVE-66 done (PR #87); OVE-67 next (branch `feat/ove-67-explainable-ui` off `feat/ove-66-explainable-evidence`).
 
 ## Authority used (read before resuming)
 
@@ -52,13 +52,17 @@ Step 8 — tickets: OVE-66 next.
 
 | Ticket | Branch (base) | PR | Status |
 | ------ | ------------- | -- | ------ |
-| OVE-66 Engine evidence, builder, read-layer DTOs | `feat/ove-66-explainable-evidence` (feature branch) | — | next |
-| OVE-67 UI surfaces + e2e | `feat/ove-67-explainable-ui` (OVE-66) | — | blocked |
+| OVE-66 Engine evidence, builder, read-layer DTOs | `feat/ove-66-explainable-evidence` (feature branch) | #87 | In Review, commit `f838a7f` |
+| OVE-67 UI surfaces + e2e | `feat/ove-67-explainable-ui` (OVE-66) | — | next |
 | OVE-68 User guidance | `feat/ove-68-guidance` (OVE-67) | — | blocked |
+
+### Ticket summaries
+
+- **OVE-66** — verified: prettier, lint, tsc, unit 62/1024 (new `progression-evidence`, `progression-recommendation` incl. 2,000-history sweep; guards extended; Pitch 2 "no recommend" guard narrowed by exactly the progression vocabulary, R31), integration 45/540 (new `progression-recommendation.int.test.ts` 13 tests; `isolation/logging` extended), build (`.env.local` = local stack) + client-bundle OK; prisma diff empty. `rir-copy.ts` retirement moved to OVE-67 (R32). Known limit carried: the dashboard planned list's right-side `Try …` during an in-progress workout still reads today's sets (pre-existing; no occurrence id there) — report it.
 
 ## Resolved Decisions so far
 
-- See spec `## Resolved Decisions` R1–R30 (binding). Key: R1 stop before merge; R2 .html preview; R3–R5 engine evidence + one builder + strings on DTOs; R6–R8 loads only for Progress (+5) and deload week (90%), no reactive-deload number, bodyweight `go past {repMax}`; R9 card weight as of before the in-progress occurrence; R10 OVE-61 not absorbed; R16 RIR only when rirEffect; R17 last time vs date; R29 tickets 1→2→3.
+- See spec `## Resolved Decisions` R1–R30 (binding). Key: R1 stop before merge; R2 .html preview; R3–R5 engine evidence + one builder + strings on DTOs; R6–R8 loads only for Progress (+5) and deload week (90%), no reactive-deload number, bodyweight `go past {repMax}`; R9 card weight as of before the in-progress occurrence; R10 OVE-61 not absorbed; R16 RIR only when rirEffect; R17 last time vs date; R29 tickets 1→2→3; R31 Pitch 2 guard narrowed by exact vocabulary; R32 rir-copy retired in OVE-67.
 
 ## Deferred / upstream amendments (running list)
 

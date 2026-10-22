@@ -22,9 +22,9 @@ import {
   RIR_TO_SPARE_MIN,
 } from "./config";
 import { loadedSets, sessionE1rm } from "./e1rm";
-import type { RirEffect } from "./types";
+import type { DecisionEvidence, PerformanceRef, RirEffect } from "./types";
 
-export type { RirEffect } from "./types";
+export type { DecisionEvidence, PerformanceRef, RirEffect } from "./types";
 
 export type WorkingSet = {
   setNumber: number;
@@ -64,6 +64,12 @@ export type ReactiveDecision = {
   state: ReactiveState;
   base: ReactiveState;
   rirEffect: RirEffect;
+  /**
+   * The facts the deciding branch read (Smarter & Explainable Progression
+   * spec §6, R3). Produced by the same branch that returned `state`, so the
+   * two can never disagree. Derived on read, never stored.
+   */
+  evidence: DecisionEvidence;
 };
 
 function byDate(a: Performance, b: Performance): number {
@@ -132,15 +138,31 @@ export function hasRepsToSpare(p: Performance): boolean {
  * hold, but there is no external load to estimate, so the e1RM stall gate is
  * skipped rather than fed a missing weight.
  *
- * Returns the state with the qualifying sequence it was computed from, and —
- * when the stall gate withheld — whether the trend was exactly flat or falling
- * (RIR Logging & Autoregulation R33: only a flat trend can be released).
+ * Returns the state with the qualifying sequence it was computed from, the
+ * evidence the deciding branch read (Smarter & Explainable Progression §6),
+ * and — when the stall gate withheld — whether the trend was exactly flat or
+ * falling (RIR Logging & Autoregulation R33: only a flat trend can be released).
+ * The evidence is attached at each return; no condition or order changes.
  */
 type BaseCall = {
   state: ReactiveState;
   seq: Performance[];
   stallTrend: "flat" | "falling" | null;
+  evidence: DecisionEvidence;
 };
+
+function ref(p: Performance): PerformanceRef {
+  return { loggedExerciseId: p.loggedExerciseId, dateIso: p.dateIso };
+}
+
+/** The value every performance in a window agrees on, else null (R14). */
+function sharedValue(
+  perfs: Performance[],
+  pick: (p: Performance) => number,
+): number | null {
+  const first = pick(perfs[0]);
+  return perfs.every((p) => pick(p) === first) ? first : null;
+}
 
 function evaluateBase(
   perfs: Performance[],
@@ -149,9 +171,16 @@ function evaluateBase(
   const seq = qualifyingSequence(perfs);
   const call = (
     state: ReactiveState,
+    evidence: DecisionEvidence,
     stallTrend: BaseCall["stallTrend"] = null,
-  ): BaseCall => ({ state, seq, stallTrend });
-  if (seq.length < MIN_QUALIFYING_SESSIONS) return call("insufficient");
+  ): BaseCall => ({ state, seq, stallTrend, evidence });
+  if (seq.length < MIN_QUALIFYING_SESSIONS) {
+    return call("insufficient", {
+      kind: "insufficient",
+      qualifying: seq.length,
+      required: MIN_QUALIFYING_SESSIONS,
+    });
+  }
 
   // Reactive Deload first (safety precedence over Progress).
   const deloadWindow = seq.slice(-DELOAD_CONSECUTIVE_SESSIONS);
@@ -159,7 +188,11 @@ function evaluateBase(
     deloadWindow.length === DELOAD_CONSECUTIVE_SESSIONS &&
     deloadWindow.every(hasBelowMin)
   ) {
-    return call("deload");
+    return call("deload", {
+      kind: "deload",
+      sessions: DELOAD_CONSECUTIVE_SESSIONS,
+      repMin: sharedValue(deloadWindow, (p) => p.repMin),
+    });
   }
 
   // Raw Progress candidate.
@@ -167,20 +200,58 @@ function evaluateBase(
   const progressCandidate =
     progressWindow.length === PROGRESS_CONSECUTIVE_SESSIONS &&
     progressWindow.every(isAllTop);
-  if (!progressCandidate) return call("hold");
+  if (!progressCandidate) {
+    // Hold: say what the latest counted session showed (spec §6).
+    const latest = seq[seq.length - 1];
+    if (isAllTop(latest)) {
+      return call("hold", {
+        kind: "hold_top_once",
+        repMax: latest.repMax,
+        sessions: PROGRESS_CONSECUTIVE_SESSIONS,
+        latest: ref(latest),
+      });
+    }
+    return call("hold", {
+      kind: "hold_short",
+      reps: latest.workingSets
+        .slice()
+        .sort((a, b) => a.setNumber - b.setNumber)
+        .map((s) => s.reps),
+      repMin: latest.repMin,
+      repMax: latest.repMax,
+      latest: ref(latest),
+    });
+  }
+
+  const progressEvidence: DecisionEvidence = {
+    kind: "progress",
+    sessions: PROGRESS_CONSECUTIVE_SESSIONS,
+    repMax: sharedValue(progressWindow, (p) => p.repMax),
+  };
 
   // No external load → no e1RM → no stall gate (bodyweight branch).
-  if (!e1rmApplicable) return call("progress");
+  if (!e1rmApplicable) return call("progress", progressEvidence);
 
   // Stall gate only operates once a full window of qualifying points exists (R24).
-  if (seq.length < STALL_WINDOW_SESSIONS) return call("progress");
+  if (seq.length < STALL_WINDOW_SESSIONS) {
+    return call("progress", progressEvidence);
+  }
 
   const window = seq.slice(-STALL_WINDOW_SESSIONS);
   const start = sessionE1rm(loadedSets(window[0].workingSets));
   const end = sessionE1rm(loadedSets(window[window.length - 1].workingSets));
   // end > start → trend supports Progress; end <= start → withhold, flag stalled (R23).
-  if (end > start) return call("progress");
-  return call("stalled", end === start ? "flat" : "falling");
+  if (end > start) return call("progress", progressEvidence);
+  return call(
+    "stalled",
+    {
+      kind: "stalled",
+      sessions: PROGRESS_CONSECUTIVE_SESSIONS,
+      window: STALL_WINDOW_SESSIONS,
+      repMax: progressEvidence.repMax,
+    },
+    end === start ? "flat" : "falling",
+  );
 }
 
 /**
@@ -205,7 +276,7 @@ export function evaluateReactiveDecision(
   perfs: Performance[],
   opts: { e1rmApplicable?: boolean } = {},
 ): ReactiveDecision {
-  const { state: base, seq, stallTrend } = evaluateBase(perfs, opts);
+  const { state: base, seq, stallTrend, evidence } = evaluateBase(perfs, opts);
   const latest = seq.at(-1);
   if (
     latest &&
@@ -213,12 +284,30 @@ export function evaluateReactiveDecision(
     stallTrend === "flat" &&
     hasRepsToSpare(latest)
   ) {
-    return { state: "progress", base, rirEffect: "released_stall" };
+    return {
+      state: "progress",
+      base,
+      rirEffect: "released_stall",
+      evidence: {
+        kind: "released_stall",
+        rirToSpare: RIR_TO_SPARE_MIN,
+        latest: ref(latest),
+      },
+    };
   }
   if (latest && base === "progress" && hasSetAtLimit(latest)) {
-    return { state: "hold", base, rirEffect: "held_at_limit" };
+    return {
+      state: "hold",
+      base,
+      rirEffect: "held_at_limit",
+      evidence: {
+        kind: "held_at_limit",
+        rirAtLimit: RIR_AT_LIMIT,
+        latest: ref(latest),
+      },
+    };
   }
-  return { state: base, base, rirEffect: null };
+  return { state: base, base, rirEffect: null, evidence };
 }
 
 /** The final call only (kept for callers that need just the state, R29). */
