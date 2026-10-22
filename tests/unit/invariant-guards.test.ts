@@ -662,3 +662,86 @@ describe("RIR is a recorded fact, never a load or a rep (RIR Logging & Autoregul
     expect(sql).toMatch(/CHECK\s*\(\s*"rir"\s+IS\s+NULL\s+OR/i);
   });
 });
+
+describe("recommendations come from the engine, in one voice (Smarter & Explainable Progression)", () => {
+  const read = (f: string) => fs.readFileSync(f, "utf8");
+  const BUILDER = "src/lib/progression/recommendation.ts";
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("no page or component evaluates history: the engine is reached only through the read layer (R3)", () => {
+    const offenders = walk(SRC)
+      .filter((f) => /^src\/(app|components)\//.test(relPath(f)))
+      .filter((f) =>
+        /@\/lib\/progression\/engine["']|evaluateReactive(Decision)?\s*\(/.test(
+          read(f),
+        ),
+      )
+      .map(relPath);
+    expect(offenders).toEqual([]);
+  });
+
+  it("every recommendation sentence lives only in the builder (R4)", () => {
+    const phrases =
+      /go past|Stay at \$?\{?|Lower the weight|Back off |Hold steady|sessions running|Ready to add weight|hasn't risen/;
+    const offenders = walk(SRC)
+      .filter((f) => relPath(f) !== BUILDER)
+      .filter((f) => phrases.test(stripComments(read(f))))
+      .map(relPath);
+    expect(offenders).toEqual([]);
+  });
+
+  it("the builder is pure: no server-only, Prisma, data-layer, or engine import", () => {
+    const src = read(path.join(REPO_ROOT, BUILDER));
+    expect(src).not.toMatch(
+      /server-only|@prisma\/client|@\/lib\/db["']|@\/lib\/data\/|\.\/engine["']|\.\/queries["']/,
+    );
+  });
+
+  it("the builder hardcodes no figure: numbers come from constants and evidence (R6)", () => {
+    const code = stripComments(read(path.join(REPO_ROOT, BUILDER)))
+      // string contents are copy, checked by the catalog tests
+      .replace(/`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"/g, '""');
+    const literals = code.match(/\b\d+(\.\d+)?\b/g) ?? [];
+    expect(literals.filter((n) => !["0", "1", "100"].includes(n))).toEqual([]);
+  });
+
+  it("the copy in the builder carries no digit: every figure is interpolated", () => {
+    const strings =
+      stripComments(read(path.join(REPO_ROOT, BUILDER))).match(
+        /`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"/g,
+      ) ?? [];
+    const withDigits = strings
+      // interpolations and the metric's own name (e1RM) are not figures
+      .map((s) => s.replace(/\$\{[^}]*\}/g, "").replace(/e1RM/g, ""))
+      .filter((s) => /\d/.test(s));
+    expect(withDigits).toEqual([]);
+  });
+
+  it("recommendations are never stored: no recommendation, evidence, or advice column", () => {
+    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"));
+    expect(schema).not.toMatch(
+      /^\s*(recommendation|evidence|advice|action|tag|e1rm)\w*\s+\w+/im,
+    );
+  });
+
+  it("the retired RIR copy module is gone and nothing imports it (R32)", () => {
+    expect(
+      fs.existsSync(path.join(REPO_ROOT, "src/lib/progression/rir-copy.ts")),
+    ).toBe(false);
+    expect(
+      walk(SRC)
+        .filter((f) => /rir-copy|rirReason/.test(read(f)))
+        .map(relPath),
+    ).toEqual([]);
+  });
+
+  it("the read layer that builds recommendations performs no write", () => {
+    const src = stripComments(
+      read(path.join(REPO_ROOT, "src/lib/progression/queries.ts")),
+    );
+    expect(src).not.toMatch(
+      /\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany|\$executeRaw)\s*\(/,
+    );
+  });
+});

@@ -11,7 +11,7 @@ import {
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
 import { ProgressTag } from "@/components/progression/progress-tag";
-import { rirReasonShort } from "@/lib/progression/rir-copy";
+import { Recommendation } from "@/components/progression/recommendation";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
 import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload-banner";
 import { DashboardGoals } from "@/components/goals/dashboard-goals";
@@ -26,7 +26,11 @@ import { tourAnchor } from "@/lib/tour/steps";
 
 export const metadata = { title: "Today · Overload" };
 
-/** Post-session progression summary on the day-complete state (OVE-28; R52). */
+/**
+ * Post-session progression summary on the day-complete state (OVE-28; R52).
+ * Each lift done today says what to do next time and why (Smarter &
+ * Explainable Progression, design Screen 3; spec R24).
+ */
 async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
   const account = await requireAccount();
   const summary = state.loggedSessionId
@@ -48,41 +52,29 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
           Deload week — recovery, not a verdict.
         </p>
       ) : summary && summary.exercises.length > 0 ? (
-        <ul className="mt-4 space-y-2">
-          {summary.exercises.map((e) => {
-            const why = rirReasonShort(e.rirEffect);
-            return (
-              <li
-                key={e.performedExerciseId}
-                className="flex items-center justify-between gap-2 text-sm"
-              >
+        <ul className="mt-4 space-y-3.5">
+          {summary.exercises.map((e) => (
+            <li key={e.performedExerciseId} className="text-sm">
+              <div className="flex items-start justify-between gap-2">
                 <span className="flex items-center gap-2">
-                  <span>
-                    {e.performedExerciseName}
-                    {why ? (
-                      <span className="block text-xs text-muted-foreground">
-                        {why}
-                      </span>
-                    ) : null}
-                  </span>
+                  {e.performedExerciseName}
                   <ProgressTag state={e.tag} />
                 </span>
-                <span className="flex items-center gap-3">
-                  {e.tag === "progress" && e.suggestion ? (
-                    <SuggestedLoad suggestion={e.suggestion} />
-                  ) : null}
-                  {e.hasTrend ? (
-                    <Link
-                      href={`/exercises/${e.performedExerciseId}`}
-                      className="text-primary"
-                    >
-                      trend ›
-                    </Link>
-                  ) : null}
-                </span>
-              </li>
-            );
-          })}
+                {e.hasTrend ? (
+                  <Link
+                    href={`/exercises/${e.performedExerciseId}`}
+                    className="shrink-0 text-primary"
+                  >
+                    trend ›
+                  </Link>
+                ) : null}
+              </div>
+              <Recommendation
+                recommendation={e.recommendation}
+                className="mt-0.5"
+              />
+            </li>
+          ))}
         </ul>
       ) : null}
       {state.loggedSessionId ? (
@@ -152,13 +144,13 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
             return (
               <li
                 key={i}
-                className="flex items-center justify-between gap-2 text-sm"
+                className="flex flex-wrap items-center justify-between gap-x-2 text-sm"
               >
                 <span className={e.done ? "text-muted-foreground" : ""}>
                   {e.done ? "✓ " : ""}
                   {e.name}
                 </span>
-                <span className="flex items-center gap-2 text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-2 text-muted-foreground">
                   {p.gymVariable ? (
                     <span className="text-xs">once gym is set</span>
                   ) : p.suggestion ? (
@@ -167,6 +159,12 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
                   <ProgressTag state={p.tag} />
                   {!p.tag && !p.gymVariable ? e.scheme : null}
                 </span>
+                {/* A tagged lift's evidence, on its own line (spec R12). */}
+                {p.tag && p.recommendation ? (
+                  <span className="basis-full text-xs text-muted-foreground">
+                    {p.recommendation.evidence}
+                  </span>
+                ) : null}
               </li>
             );
           })}

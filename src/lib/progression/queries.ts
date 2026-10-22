@@ -8,19 +8,26 @@ import {
 } from "@/lib/plan/calendar";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
-import { currentWorkingWeightLbs } from "@/lib/logging/queries";
+import {
+  currentWorkingWeightLbs,
+  type WorkingWeightOptions,
+} from "@/lib/logging/queries";
 import { PROGRESS_INCREMENT_LBS } from "./config";
 import { isScheduledDeloadWeek, scheduledDeloadLoad } from "./deload";
 import {
+  byDate,
   evaluateReactiveDecision,
   qualifyingSequence,
   type Performance,
+  type ReactiveDecision,
   type ReactiveState,
 } from "./engine";
 import { bestWorkingSet, loadedSets, sessionE1rm } from "./e1rm";
+import { buildRecommendation, insufficientNote } from "./recommendation";
 import type {
   E1rmPointDto,
   ProgressionTag,
+  RecommendationDto,
   RirEffect,
   SuggestedLoadDto,
 } from "./types";
@@ -38,12 +45,18 @@ import type {
  * Loading mode (requiresExternalWeight): a pure bodyweight exercise runs the
  * same rep-range rule, but has no e1RM (no points, no current value, no stall
  * gate) and no load suggestion — never a +5 lb or 90% number on a missing weight.
+ *
+ * Recommendations (Smarter & Explainable Progression §11.4): every DTO carries
+ * `recommendation`, built by `buildRecommendation` from the same decision that
+ * produced the tag and the same working-weight source the suggestion uses.
+ * Nothing is stored; a corrected set changes the words on the next read.
  */
 
 export type {
   ProgressionTag,
   SuggestedLoadDto,
   E1rmPointDto,
+  RecommendationDto,
   RirEffect,
 } from "./types";
 
@@ -62,6 +75,10 @@ export type ExerciseProgressionDto = {
   /** The RIR qualifier that changed the call, if any (RIR Logging §6). */
   rirEffect: RirEffect;
   suggestion: SuggestedLoadDto;
+  /** What to do next time and why; null when there is not enough history. */
+  recommendation: RecommendationDto | null;
+  /** The exercise page's not-enough-history line; null otherwise (R20). */
+  insufficientNote: string | null;
   currentE1rm: number | null;
   qualifyingCount: number;
   points: E1rmPointDto[];
@@ -75,6 +92,8 @@ export type OccurrenceProgressionDto = {
   rirEffect: RirEffect;
   suggestion: SuggestedLoadDto;
   hasTrend: boolean;
+  /** Today's advice while the session is in progress, next time's once complete. */
+  recommendation: RecommendationDto | null;
 };
 
 export type SessionProgressionSummaryDto = {
@@ -87,6 +106,7 @@ export type SessionProgressionSummaryDto = {
     rirEffect: RirEffect;
     suggestion: SuggestedLoadDto;
     hasTrend: boolean;
+    recommendation: RecommendationDto | null;
   }[];
 };
 
@@ -131,6 +151,7 @@ async function gatherRows(
       loggedSession: {
         select: {
           status: true,
+          createdAt: true,
           scheduledFor: true,
           mesocycle: {
             select: { startDate: true, deloadEveryWeeks: true },
@@ -286,31 +307,13 @@ function currentE1rm(rows: Row[]): number | null {
     : null;
 }
 
-async function progressSuggestion(
-  account: Account,
-  exerciseId: string,
-  gymId: string | null,
-  gymVariable: boolean,
-  externalLoad: boolean,
-): Promise<SuggestedLoadDto> {
-  // Bodyweight: the lifter decides how to make it harder — never "+5 lb".
-  if (!externalLoad) return null;
-  const base = await currentWorkingWeightLbs(
-    account,
-    exerciseId,
-    gymId,
-    gymVariable,
-  );
-  if (base == null) return null; // fail safe — never fabricate (R31)
-  return { lbs: base + PROGRESS_INCREMENT_LBS, kind: "progress_increment" };
-}
-
 async function scheduledDeloadSuggestion(
   account: Account,
   exerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
   externalLoad: boolean,
+  ww: WorkingWeightOptions = {},
 ): Promise<SuggestedLoadDto> {
   // Bodyweight: no load to reduce to 90% of; show the state without a number.
   if (!externalLoad) return null;
@@ -319,20 +322,110 @@ async function scheduledDeloadSuggestion(
     exerciseId,
     gymId,
     gymVariable,
+    { completedOnly: true, ...ww },
   );
   if (base == null) return null; // show state without a number (R36)
   return { lbs: scheduledDeloadLoad(base), kind: "scheduled_deload" };
 }
 
+/** The most recent finished performance in scope (session complete), or null. */
+function latestFinished(rows: Row[]): Row | null {
+  const done = rows
+    .filter((r) => r.finished)
+    .sort((a, b) => byDate(a.perf, b.perf));
+  return done[done.length - 1] ?? null;
+}
+
+/**
+ * The suggestion and the recommendation for one evaluated decision (spec
+ * §11.4). One place, so the card, the summary, the planned list, and the
+ * exercise page can never word the same evaluation differently.
+ *
+ * The weight is the single working-weight source, read from completed
+ * workouts only (R9) — and printed only when it can be trusted (R33): a free
+ * weight's number must be the load the judged session's last working set
+ * used (otherwise an extra back-off set, or a later unjudged workout, would be
+ * the number); a gym baseline is the machine's authority (Progressive
+ * Overload Engine R30), unless the in-progress workout itself rewrote it.
+ * An untrusted number is withheld, never replaced: "Ready to add weight",
+ * "Hold steady" (Progressive Overload Engine R31).
+ */
+async function describeDecision(
+  account: Account,
+  args: {
+    exerciseId: string;
+    gymId: string | null;
+    gymVariable: boolean;
+    externalLoad: boolean;
+    decision: ReactiveDecision;
+    scopeRows: Row[];
+    gymName: string | null;
+    when: "today" | "next";
+    referenceIso: string;
+    baselineWrittenBefore?: Date;
+  },
+): Promise<{
+  suggestion: SuggestedLoadDto;
+  recommendation: RecommendationDto | null;
+}> {
+  const { decision } = args;
+  const needsWeight =
+    args.externalLoad &&
+    (decision.state === "progress" ||
+      decision.state === "hold" ||
+      decision.state === "stalled");
+  const read = needsWeight
+    ? await currentWorkingWeightLbs(
+        account,
+        args.exerciseId,
+        args.gymId,
+        args.gymVariable,
+        {
+          completedOnly: true,
+          baselineWrittenBefore: args.baselineWrittenBefore,
+        },
+      )
+    : null;
+  const trusted =
+    read !== null && (args.gymVariable || read === decision.latestLoadLbs)
+      ? read
+      : null;
+  // Bodyweight never gets "+5 lb"; no trusted weight → no number (R31).
+  const suggestion: SuggestedLoadDto =
+    decision.state === "progress" && trusted !== null
+      ? { lbs: trusted + PROGRESS_INCREMENT_LBS, kind: "progress_increment" }
+      : null;
+  const e = decision.evidence;
+  const latestId = "latest" in e ? e.latest.loggedExerciseId : null;
+  const recommendation = buildRecommendation({
+    scheduledDeload: false,
+    state: decision.state,
+    rirEffect: decision.rirEffect,
+    evidence: e,
+    externalLoad: args.externalLoad,
+    workingWeightLbs: decision.state === "progress" ? null : trusted,
+    progressLoadLbs: suggestion?.lbs ?? null,
+    gymName: args.gymVariable ? args.gymName : null,
+    latestIsLastTime:
+      latestId !== null &&
+      latestFinished(args.scopeRows)?.perf.loggedExerciseId === latestId,
+    referenceIso: args.referenceIso,
+    when: args.when,
+  });
+  return { suggestion, recommendation };
+}
+
 /**
  * Per-exercise progression state + e1RM trend for the detail page. For a
  * gym-variable exercise the active scope is one gym (selected or most-recent);
- * for a gym-consistent exercise it is the global history.
+ * for a gym-consistent exercise it is the global history. The recommendation
+ * advises the next session (`when: "next"`); the planned list asks for today's.
  */
 export async function getExerciseProgression(
   account: Account,
   exerciseId: string,
   requestedGymId?: string | null,
+  { when = "next" }: { when?: "today" | "next" } = {},
 ): Promise<ExerciseProgressionDto | null> {
   const exercise = await account.db.exercise.findUnique({
     where: { id: exerciseId },
@@ -345,11 +438,22 @@ export async function getExerciseProgression(
   const rows = await gatherRows(account, exerciseId);
 
   if (!gymVariable) {
-    const { state, rirEffect } = evaluateReactiveDecision(
+    const decision = evaluateReactiveDecision(
       rows.map((r) => r.perf),
       { e1rmApplicable: externalLoad },
     );
-    const tag = toTag(state);
+    const { state, rirEffect } = decision;
+    const { suggestion, recommendation } = await describeDecision(account, {
+      exerciseId,
+      gymId: null,
+      gymVariable: false,
+      externalLoad,
+      decision,
+      scopeRows: rows,
+      gymName: null,
+      when,
+      referenceIso: latestFinished(rows)?.perf.dateIso ?? "",
+    });
     return {
       exerciseId: exercise.id,
       exerciseName: exercise.name,
@@ -360,18 +464,11 @@ export async function getExerciseProgression(
       selectedGymId: null,
       selectedGymName: null,
       state,
-      tag,
+      tag: toTag(state),
       rirEffect,
-      suggestion:
-        tag === "progress"
-          ? await progressSuggestion(
-              account,
-              exerciseId,
-              null,
-              false,
-              externalLoad,
-            )
-          : null,
+      suggestion,
+      recommendation,
+      insufficientNote: insufficientNote(decision.evidence, null),
       currentE1rm: externalLoad ? currentE1rm(rows) : null,
       qualifyingCount: qualifyingSequence(rows.map((r) => r.perf)).length,
       points: externalLoad ? toPoints(rows, null) : [],
@@ -406,10 +503,19 @@ export async function getExerciseProgression(
   const scopeRows = selectedGymId
     ? rows.filter((r) => r.perf.gymId === selectedGymId)
     : [];
-  const { state, rirEffect } = evaluateReactiveDecision(
-    scopeRows.map((r) => r.perf),
-  );
-  const tag = toTag(state);
+  const decision = evaluateReactiveDecision(scopeRows.map((r) => r.perf));
+  const { state, rirEffect } = decision;
+  const { suggestion, recommendation } = await describeDecision(account, {
+    exerciseId,
+    gymId: selectedGymId,
+    gymVariable: true,
+    externalLoad: true,
+    decision,
+    scopeRows,
+    gymName: selectedGymName,
+    when,
+    referenceIso: latestFinished(scopeRows)?.perf.dateIso ?? "",
+  });
 
   return {
     exerciseId: exercise.id,
@@ -421,18 +527,14 @@ export async function getExerciseProgression(
     selectedGymId,
     selectedGymName,
     state,
-    tag,
+    tag: toTag(state),
     rirEffect,
-    suggestion:
-      tag === "progress"
-        ? await progressSuggestion(
-            account,
-            exerciseId,
-            selectedGymId,
-            true,
-            true,
-          )
-        : null,
+    suggestion,
+    recommendation,
+    insufficientNote: insufficientNote(
+      decision.evidence,
+      selectedGymId ? selectedGymName : null,
+    ),
     currentE1rm: currentE1rm(scopeRows),
     qualifyingCount: qualifyingSequence(scopeRows.map((r) => r.perf)).length,
     points: toPoints(scopeRows, selectedGymName),
@@ -441,11 +543,13 @@ export async function getExerciseProgression(
 
 export type PlannedProgressionDto = {
   tag: ProgressionTag | null;
-  /** Carried for consistency; the dashboard planned list shows no reason line (RIR Logging R20). */
+  /** Carried for consistency; the planned list renders only the recommendation's evidence. */
   rirEffect: RirEffect;
   gymVariable: boolean;
   suggestion: SuggestedLoadDto;
   hasTrend: boolean;
+  /** Null for gym-variable exercises (no gym yet) and in a scheduled-deload week. */
+  recommendation: RecommendationDto | null;
 };
 
 /**
@@ -460,7 +564,9 @@ export async function getPlannedProgression(
   exerciseId: string,
   opts: { scheduledDeloadWeek: boolean },
 ): Promise<PlannedProgressionDto> {
-  const base = await getExerciseProgression(account, exerciseId);
+  const base = await getExerciseProgression(account, exerciseId, null, {
+    when: "today",
+  });
   if (!base) {
     return {
       tag: null,
@@ -468,6 +574,7 @@ export async function getPlannedProgression(
       gymVariable: false,
       suggestion: null,
       hasTrend: false,
+      recommendation: null,
     };
   }
   const hasTrend = base.points.length > 0;
@@ -478,6 +585,7 @@ export async function getPlannedProgression(
       gymVariable: true,
       suggestion: null,
       hasTrend,
+      recommendation: null,
     };
   }
   if (opts.scheduledDeloadWeek) {
@@ -493,6 +601,7 @@ export async function getPlannedProgression(
         base.requiresExternalWeight,
       ),
       hasTrend,
+      recommendation: null,
     };
   }
   return {
@@ -501,6 +610,7 @@ export async function getPlannedProgression(
     gymVariable: false,
     suggestion: base.suggestion,
     hasTrend,
+    recommendation: base.recommendation,
   };
 }
 
@@ -518,8 +628,11 @@ export async function getOccurrenceProgression(
     where: { id: loggedExerciseId },
     include: {
       exercise: { select: { id: true, equipmentType: true } },
+      gym: { select: { name: true } },
       loggedSession: {
         select: {
+          status: true,
+          createdAt: true,
           scheduledFor: true,
           mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
         },
@@ -542,6 +655,14 @@ export async function getOccurrenceProgression(
     le.loggedSession.mesocycle?.deloadEveryWeeks ?? 0,
   );
 
+  // While the session is in progress the card advises today's workout, judged
+  // on finished history — so its numbers come from finished workouts too,
+  // and a baseline this workout rewrote is not its context (R9, R18, R33).
+  const inProgress = le.loggedSession.status !== "complete";
+  const baselineWrittenBefore = inProgress
+    ? le.loggedSession.createdAt
+    : undefined;
+
   const rows = await gatherRows(account, le.exercise.id);
   const scopeRows = gymVariable
     ? rows.filter((r) => r.perf.gymId === le.gymId)
@@ -551,44 +672,57 @@ export async function getOccurrenceProgression(
 
   if (scheduledDeloadWeek) {
     // Reactive evaluation is suppressed entirely during a scheduled-deload week
-    // (R37): no tag, only the reduced-load suggestion.
+    // (R37): no tag, only the reduced-load suggestion — and no engine call.
+    const suggestion = await scheduledDeloadSuggestion(
+      account,
+      le.exercise.id,
+      le.gymId,
+      gymVariable,
+      externalLoad,
+      { baselineWrittenBefore },
+    );
     return {
       loggedExerciseId,
       scheduledDeloadWeek: true,
       tag: null,
       rirEffect: null,
-      suggestion: await scheduledDeloadSuggestion(
-        account,
-        le.exercise.id,
-        le.gymId,
-        gymVariable,
-        externalLoad,
-      ),
+      suggestion,
       hasTrend,
+      recommendation: buildRecommendation({
+        scheduledDeload: true,
+        externalLoad,
+        deloadLoadLbs: suggestion?.lbs ?? null,
+      }),
     };
   }
 
-  const { state, rirEffect } = evaluateReactiveDecision(
+  const decision = evaluateReactiveDecision(
     scopeRows.map((r) => r.perf),
-    { e1rmApplicable: externalLoad },
+    {
+      e1rmApplicable: externalLoad,
+    },
   );
-  const tag = toTag(state);
+  const { state, rirEffect } = decision;
+  const { suggestion, recommendation } = await describeDecision(account, {
+    exerciseId: le.exercise.id,
+    gymId: le.gymId,
+    gymVariable,
+    externalLoad,
+    decision,
+    scopeRows,
+    gymName: le.gym?.name ?? null,
+    when: inProgress ? "today" : "next",
+    referenceIso: scheduledForIso,
+    baselineWrittenBefore,
+  });
   return {
     loggedExerciseId,
     scheduledDeloadWeek: false,
-    tag,
+    tag: toTag(state),
     rirEffect,
-    suggestion:
-      tag === "progress"
-        ? await progressSuggestion(
-            account,
-            le.exercise.id,
-            le.gymId,
-            gymVariable,
-            externalLoad,
-          )
-        : null,
+    suggestion,
     hasTrend,
+    recommendation,
   };
 }
 
@@ -642,6 +776,7 @@ export async function getSessionProgressionSummary(
         rirEffect: occ?.rirEffect ?? null,
         suggestion: occ?.suggestion ?? null,
         hasTrend: occ?.hasTrend ?? false,
+        recommendation: occ?.recommendation ?? null,
       };
     }),
   );

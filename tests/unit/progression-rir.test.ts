@@ -10,7 +10,7 @@ import {
   RIR_TO_SPARE_MIN,
   STALL_WINDOW_SESSIONS,
 } from "@/lib/progression/config";
-import { rirReason, rirReasonShort } from "@/lib/progression/rir-copy";
+import { buildRecommendation } from "@/lib/progression/recommendation";
 
 /**
  * RIR-aware progression (RIR Logging & Autoregulation spec §6, §14.1;
@@ -54,8 +54,15 @@ function perf(reps: number[], opts: Opts = {}): Performance {
   };
 }
 const TOP = [8, 8, 8];
-const decide = (perfs: Performance[], e1rmApplicable = true) =>
-  evaluateReactiveDecision(perfs, { e1rmApplicable });
+// The call only: these assertions are about state/base/rirEffect, exactly as
+// before. The evidence that now travels with a decision has its own suite
+// (progression-evidence.test.ts; Smarter & Explainable Progression R30).
+const decide = (perfs: Performance[], e1rmApplicable = true) => {
+  const { state, base, rirEffect } = evaluateReactiveDecision(perfs, {
+    e1rmApplicable,
+  });
+  return { state, base, rirEffect };
+};
 
 describe("constants (named, never literals in the engine)", () => {
   it("at the limit is 0 RIR; reps to spare is 2+", () => {
@@ -282,17 +289,50 @@ describe("helpers", () => {
   });
 });
 
-describe("reason copy names the rule that was applied (R20)", () => {
-  it("renders the exact sentences, with the figures from the constants", () => {
-    expect(rirReason("held_at_limit")).toBe(
-      "Top of the range, but at your limit last time (0 RIR) — holding.",
-    );
-    expect(rirReason("released_stall")).toBe(
-      "e1RM is flat, but every set last time had 2+ in reserve — ready to go up.",
-    );
-    expect(rirReason(null)).toBeNull();
-    expect(rirReasonShort("held_at_limit")).toBe("at your limit — holding");
-    expect(rirReasonShort("released_stall")).toBe("reps to spare");
-    expect(rirReasonShort(null)).toBeNull();
+describe("the explanation names the rule that was applied (R20; Smarter & Explainable Progression R16, R30)", () => {
+  // The RIR sentences moved into the recommendation builder; they are still
+  // built from the engine's evidence and the constants, and still appear only
+  // when the RIR qualifier changed the call.
+  const words = (perfs: Performance[]) => {
+    const d = evaluateReactiveDecision(perfs);
+    return buildRecommendation({
+      scheduledDeload: false,
+      state: d.state,
+      rirEffect: d.rirEffect,
+      evidence: d.evidence,
+      externalLoad: true,
+      workingWeightLbs: 185,
+      progressLoadLbs: d.state === "progress" ? 190 : null,
+      gymName: null,
+      latestIsLastTime: true,
+      referenceIso: "2026-08-31",
+      when: "next",
+    });
+  };
+
+  it("case A and case B render their sentences with the constants' figures", () => {
+    expect(words([perf(TOP), perf(TOP, { rir: [2, 1, 0] })])).toEqual({
+      kind: "hold",
+      tone: "quiet",
+      action: "Stay at 185 lb next time",
+      evidence: `Top of the range, but at your limit last time (${RIR_AT_LIMIT} RIR)`,
+    });
+    expect(
+      words([perf(TOP), perf(TOP), perf(TOP, { rir: [3, 2, 2] })]),
+    ).toEqual({
+      kind: "progress",
+      tone: "strong",
+      action: "Try 190 lb next time (+5 lb)",
+      evidence: `e1RM flat, but every set last time had ${RIR_TO_SPARE_MIN}+ in reserve`,
+    });
+  });
+
+  it("no RIR, or RIR that changed nothing, is never mentioned", () => {
+    for (const perfs of [
+      [perf(TOP), perf(TOP)],
+      [perf(TOP), perf([8, 7, 7], { rir: [0, 0, 0] })],
+    ]) {
+      expect(words(perfs)?.evidence).not.toMatch(/RIR|reserve/);
+    }
   });
 });

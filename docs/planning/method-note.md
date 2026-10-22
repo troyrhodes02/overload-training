@@ -153,3 +153,22 @@ The Progressive Overload Engine ladder runs first and unchanged. RIR is then rea
 
 - Measured with the "Set entry and tap-count method" above, same workout, 375×812 touch: **RIR unset 18 taps / 18 keystrokes** (equal to Faster Logging UX; `e2e/accounts/faster-logging.spec.ts` asserts exactly 18 / 18); RIR on the last set of each exercise **22 / 18**; RIR on every set **29 / 18** (`e2e/accounts/rir-logging.spec.ts`). Recording RIR costs one tap per set; a chip never takes focus, so the keyboard stays in reps.
 - The RIR group is the one control added to the active row (Faster Logging UX's visible-control count 8 → 9, counting the group once). Below 360px its label sits above the chips so each chip stays 44px.
+
+## Recommendation and evidence (established by Smarter & Explainable Progression)
+
+Source: `docs/specs/15-smarter-explainable-progression-spec.md` (§6, §11; Resolved Decisions R3–R9, R13–R22, R26). Code: `src/lib/progression/engine.ts` (`DecisionEvidence` on `ReactiveDecision`), `src/lib/progression/recommendation.ts` (`buildRecommendation`, `insufficientNote` — the only copy source), `src/lib/progression/queries.ts` (`recommendation` on every progression DTO). Consumed by Exercise History & PR Intelligence ("the current recommendation and why").
+
+### Evidence comes from the deciding branch
+
+The engine attaches one `evidence` value at each existing return; rules, thresholds, and precedence are unchanged. Kinds: `insufficient` (count, required), `deload` (window, shared `repMin`), `progress` (window, shared `repMax`), `stalled` (rep window, trend window, `repMax`), `hold_top_once` (latest counted session all-top; progress needs the window), `hold_short` (latest counted session's working-set reps and range), `held_at_limit` / `released_stall` (RIR qualifiers, with the constant). `repMin`/`repMax` are `null` when the window's planned ranges differ. A later feature that adds a rule adds a kind and one catalog row; it never words a call outside the builder.
+
+### What the words may claim
+
+- **A load only where the engine has one:** Progress = the working weight + `PROGRESS_INCREMENT_LBS` (no number without a working weight: "Ready to add weight"); the scheduled deload week = the existing `SCHEDULED_DELOAD_FACTOR` load. A reactive Deload has **no** amount ("Lower the weight" / "Back off"). Bodyweight Progress points at the plan's own top ("go past 12 reps or make it harder"), never a weight or a variation.
+- **Hold** = "Stay at {working weight}" (or "Hold steady" without one), no tag, muted.
+- **RIR is named only when `rirEffect` is set.** The stall line names its rule ("e1RM hasn't risen over 3 sessions"), never rounded figures.
+- **"Last time"** only when the latest counted session is also the latest finished one in scope; otherwise its date ("on Nov 9").
+- **When:** "today" while the occurrence's session is in progress (and on the planned list); "next time" once the judged history includes the finished session (day-complete summary, exercise page).
+- **The number is the judged session's, or none.** Progression reads take the working weight from completed workouts only (`currentWorkingWeightLbs(..., { completedOnly: true })`), so logging today's sets never moves today's advice; a free-weight number is printed only when it equals the last working set's load of the latest counted session (`ReactiveDecision.latestLoadLbs`), else it is withheld; a baseline rewritten by the in-progress workout is not that workout's context. The working-weight source itself is unchanged (OVE-61 tracks its extra-set and log-late limits).
+- Machines and cables append " at {gym}"; nothing crosses gyms. Advisory verbs only (Try / Stay at / Lower); no fatigue, recovery (outside the deload week's own line), injury, or certainty words.
+- Computed on every read, carried as strings on DTOs, never stored, never written back to a plan, weight, baseline, or goal.

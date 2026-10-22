@@ -347,6 +347,75 @@ export async function benchHistoryAllTop(userId: string): Promise<void> {
   });
 }
 
+/**
+ * Smarter & Explainable Progression: one more complete Push Day 1, a week
+ * before the seeded "last time", with bench at 185 × 8, 8, 8 — so, with
+ * `benchHistoryAllTop`, bench has two counted sessions at the top of its range
+ * and today's card has a Progress call to explain. Its sets are created
+ * earlier than the seeded ones, so the working weight is unchanged.
+ */
+export async function addEarlierBenchSession(userId: string): Promise<void> {
+  await withDb(async (db) => {
+    await db.query("BEGIN");
+    try {
+      const last = await db.query<{
+        mesocycle_id: string;
+        session_id: string;
+        scheduled_for: string;
+        exercise_id: string;
+        gym_id: string;
+        session_exercise_id: string;
+      }>(
+        `SELECT ls.mesocycle_id, ls.session_id, ls.scheduled_for::text AS scheduled_for,
+                le.exercise_id, le.gym_id, le.session_exercise_id
+           FROM logged_sessions ls
+           JOIN logged_exercises le ON le.logged_session_id = ls.id
+           JOIN exercises e ON e.id = le.exercise_id
+          WHERE ls.user_id = $1 AND ls.status = 'complete' AND e.name = $2`,
+        [userId, REPRESENTATIVE[0].name],
+      );
+      if (last.rowCount !== 1) throw new Error("Expected one seeded bench");
+      const r = last.rows[0];
+      const earlier = addDaysIso(r.scheduled_for, -7);
+      const ls = (
+        await db.query<{ id: string }>(
+          `INSERT INTO logged_sessions (id, user_id, mesocycle_id, session_id, performed_on, scheduled_for, status, completed_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4::date + time '18:00', $4, 'complete', $4::date + time '19:00', now()) RETURNING id`,
+          [userId, r.mesocycle_id, r.session_id, earlier],
+        )
+      ).rows[0].id;
+      const p = REPRESENTATIVE[0];
+      const le = (
+        await db.query<{ id: string }>(
+          `INSERT INTO logged_exercises (id, user_id, logged_session_id, exercise_id, gym_id, position, planned_exercise_id, session_exercise_id, planned_sets, target_rep_min, target_rep_max, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, 0, $3, $5, $6, $7, $8, now()) RETURNING id`,
+          [
+            userId,
+            ls,
+            r.exercise_id,
+            r.gym_id,
+            r.session_exercise_id,
+            p.sets,
+            p.repMin,
+            p.repMax,
+          ],
+        )
+      ).rows[0].id;
+      for (let i = 1; i <= p.sets; i++) {
+        await db.query(
+          `INSERT INTO logged_sets (id, user_id, logged_exercise_id, set_number, weight_lbs, reps, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, 185, 8, now() - interval '30 days', now())`,
+          [userId, le, i],
+        );
+      }
+      await db.query("COMMIT");
+    } catch (e) {
+      await db.query("ROLLBACK");
+      throw e;
+    }
+  });
+}
+
 /** Account-wide counts used to prove nothing was written. */
 export async function setCount(userId: string): Promise<number> {
   return withDb(async (db) =>

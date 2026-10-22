@@ -274,11 +274,22 @@ test("AC-3 end to end: the same reps at 0 RIR hold; correcting that RIR to 2 mak
     .tap();
   await expect(page).toHaveURL(/\/$/);
 
-  // Day-complete summary: bench held, with the short reason.
-  await expect(page.getByText("at your limit — holding")).toBeVisible();
+  // Day-complete summary: bench held, with the case A evidence (the RIR
+  // sentence now lives in the recommendation lines — Smarter & Explainable
+  // Progression R30).
+  await expect(
+    page
+      .getByText("Top of the range, but at your limit last time (0 RIR)")
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Stay at 185 lb next time").filter({ visible: true }),
+  ).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/summary-375-light.png` });
 
-  // Exercise page: Holding + the case A sentence.
+  // Exercise page: the hold's action + the case A sentence. (The Today page
+  // stays mounted, hidden, after the client navigation and says the same
+  // thing, so only the visible copy is asserted.)
   await page
     .getByRole("link", { name: "trend ›" })
     .filter({ visible: true })
@@ -286,11 +297,13 @@ test("AC-3 end to end: the same reps at 0 RIR hold; correcting that RIR to 2 mak
     .click();
   await expect(page).toHaveURL(/\/exercises\/[0-9a-f-]{36}/);
   const exercisePage = page.url();
-  await expect(page.getByText("Holding", { exact: true })).toBeVisible();
   await expect(
-    page.getByText(
-      "Top of the range, but at your limit last time (0 RIR) — holding.",
-    ),
+    page.getByText("Stay at 185 lb next time").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByText("Top of the range, but at your limit last time (0 RIR)")
+      .filter({ visible: true }),
   ).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/exercise-case-a-375.png` });
 
@@ -317,7 +330,9 @@ test("AC-3 end to end: the same reps at 0 RIR hold; correcting that RIR to 2 mak
 
   await page.goto(exercisePage);
   await expect(page.getByText("Progress", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Suggested next/)).toBeVisible();
+  await expect(
+    page.getByText("Try 190 lb next time (+5 lb)").filter({ visible: true }),
+  ).toBeVisible();
   await expect(page.getByText(/at your limit last time/)).toHaveCount(0);
 
   // 1280 dark: the same page and today's summary.
