@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 3 — UI preview.
+Step 4 — spec.
 
 ## Authority used (read before resuming)
 
@@ -34,7 +34,7 @@ Step 3 — UI preview.
 
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/15-smarter-explainable-progression-design-doc.md` (v1.0): two-line model (action + evidence), copy catalog P1–P3, H1–H4, D1, S1, N1; loads only for Progress (+5 on a known weight) and the deload week (90%); RIR named only when `rirEffect` set; "last time" vs date rule; surfaces = card, planned list (evidence on tagged rows only), day complete, exercise page.
-- [ ] 3. UI preview
+- [x] 3. UI preview — `docs/previews/15-smarter-explainable-progression-preview.html` (.html, not the run prompt's .tsx; 27 frames, 9 sections; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed; fixes: 320px RIR wrap, full-width desktop frames, planned-list evidence on its own line). Generator: scratchpad `preview/build.mjs` + `check.mjs` (run from repo root).
 - [ ] 4. Spec
 - [ ] 5. Resolved Decisions
 - [ ] 6. Linear milestone + issues

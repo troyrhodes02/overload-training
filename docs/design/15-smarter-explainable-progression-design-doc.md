@@ -319,7 +319,7 @@ Before starting, see which lifts have a call today and why, without opening each
           [ Start Push Day 1 ]
 ```
 
-**Decision:** the planned list keeps one thing on the right of each row (Pitch 14 R20) and adds only the evidence under the name, only for rows with a tag. Hold rows stay as the scheme; the card says what to do for them. The action already sits on the right (`Try 190 lb`) for Progress; a reactive Deload's right side is the tag only (no number to show).
+**Decision:** the planned list keeps one thing on the right of each row (Pitch 14 R20) and adds only the evidence, on its own full-width line under the row, only for rows with a tag (a full-width line keeps it from squeezing into the name column beside the right-hand items at 375). Hold rows stay as the scheme; the card says what to do for them. The action already sits on the right (`Try 190 lb`) for Progress; a reactive Deload's right side is the tag only (no number to show).
 
 ### Deload week
 Unchanged: banner `Deload week · 90% load across the split`, and each row's 90% load. No evidence lines (there is no reactive call).
@@ -416,7 +416,7 @@ No other flow changes. `trend ›` still opens the exercise page.
 
 | Breakpoint | Behavior |
 | ---------- | -------- |
-| base (320–639) | Lines wrap under the heading block at full card width; no truncation. At 320 the longest evidence (H2 with a gym) wraps to three lines; acceptable, since it is the rarest case. Planned-list evidence indents under the name and wraps; the right side keeps its width. |
+| base (320–639) | Lines wrap under the heading block at full card width; no truncation. At 320 the longest evidence (H2 with a gym) wraps to three lines; acceptable, since it is the rarest case. Planned-list evidence takes its own full-width line under the row and wraps; the right side keeps its width. |
 | `sm`–`md` | Same, wider; most evidence fits on one line. |
 | `lg` | Content column max width unchanged; lines never stretch past it. |
 
