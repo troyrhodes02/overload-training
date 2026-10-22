@@ -628,7 +628,7 @@ export function ExerciseCard({
             href={progression.historyHref}
             className="inline-flex min-h-11 items-center text-sm text-primary"
           >
-            View trend ›
+            View history ›
           </Link>
         </div>
       ) : null}

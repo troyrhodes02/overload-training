@@ -291,7 +291,7 @@ test("AC-3 end to end: the same reps at 0 RIR hold; correcting that RIR to 2 mak
   // stays mounted, hidden, after the client navigation and says the same
   // thing, so only the visible copy is asserted.)
   await page
-    .getByRole("link", { name: "trend ›" })
+    .getByRole("link", { name: "history ›" })
     .filter({ visible: true })
     .first()
     .click();
@@ -329,7 +329,13 @@ test("AC-3 end to end: the same reps at 0 RIR hold; correcting that RIR to 2 mak
   ]);
 
   await page.goto(exercisePage);
-  await expect(page.getByText("Progress", { exact: true })).toBeVisible();
+  // The current call (the page also lists each session's call since Exercise
+  // History & PR Intelligence, so the newest session reads Progress too).
+  await expect(
+    page
+      .getByRole("region", { name: "Next time" })
+      .getByText("Progress", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("Try 190 lb next time (+5 lb)").filter({ visible: true }),
   ).toBeVisible();
@@ -339,7 +345,11 @@ test("AC-3 end to end: the same reps at 0 RIR hold; correcting that RIR to 2 mak
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.emulateMedia({ colorScheme: "dark" });
   await page.reload();
-  await expect(page.getByText("Progress", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Next time" })
+      .getByText("Progress", { exact: true }),
+  ).toBeVisible();
   await page.screenshot({
     path: `${SHOTS}/exercise-progress-1280-dark.png`,
     fullPage: true,
