@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 6 — Linear milestone + issues.
+Step 8 — tickets: OVE-66 next.
 
 ## Authority used (read before resuming)
 
@@ -37,8 +37,8 @@ Step 6 — Linear milestone + issues.
 - [x] 3. UI preview — `docs/previews/15-smarter-explainable-progression-preview.html` (.html, not the run prompt's .tsx; 27 frames, 9 sections; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed; fixes: 320px RIR wrap, full-width desktop frames, planned-list evidence on its own line). Generator: scratchpad `preview/build.mjs` + `check.mjs` (run from repo root).
 - [x] 4. Spec — `docs/specs/15-smarter-explainable-progression-spec.md` (v1.0.0): engine emits `DecisionEvidence` from the deciding branch; one pure builder `src/lib/progression/recommendation.ts` (replaces `rir-copy.ts`); DTOs carry `recommendation`; R9 card working weight as of before the in-progress occurrence (`excludeLoggedExerciseId`); no schema change.
 - [x] 5. Resolved Decisions — spec R1–R30
-- [ ] 6. Linear milestone + issues
-- [ ] 7. Feature PR
+- [x] 6. Linear milestone "Smarter & Explainable Progression" + issues OVE-66 → OVE-67 → OVE-68 (blockedBy chain)
+- [x] 7. Feature PR into `main` (draft, stop before merge per R1) — **#86** https://github.com/troyrhodes02/overload-training/pull/86
 - [ ] 8. Tickets
 - [ ] 9. Runbook
 - [ ] 10. Integrate ticket PRs
@@ -50,7 +50,11 @@ Step 6 — Linear milestone + issues.
 
 ## Tickets
 
-(none yet)
+| Ticket | Branch (base) | PR | Status |
+| ------ | ------------- | -- | ------ |
+| OVE-66 Engine evidence, builder, read-layer DTOs | `feat/ove-66-explainable-evidence` (feature branch) | — | next |
+| OVE-67 UI surfaces + e2e | `feat/ove-67-explainable-ui` (OVE-66) | — | blocked |
+| OVE-68 User guidance | `feat/ove-68-guidance` (OVE-67) | — | blocked |
 
 ## Resolved Decisions so far
 
