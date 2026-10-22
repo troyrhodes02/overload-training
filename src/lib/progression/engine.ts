@@ -70,9 +70,25 @@ export type ReactiveDecision = {
    * two can never disagree. Derived on read, never stored.
    */
   evidence: DecisionEvidence;
+  /**
+   * The load of the last planned working set of the latest counted session
+   * (null with no counted session, or for a bodyweight set). Read layers use
+   * it only to check that the working weight they are about to print is the
+   * one the judged session ended on (Smarter & Explainable Progression R33);
+   * it is never a weight source of its own.
+   */
+  latestLoadLbs: number | null;
 };
 
-function byDate(a: Performance, b: Performance): number {
+/**
+ * Chronological order of performances, with a stable tiebreak so "most
+ * recent" is deterministic for same-day occurrences. Exported so the read
+ * layer's "latest finished" agrees with the engine's "latest counted".
+ */
+export function byDate(
+  a: Pick<Performance, "dateIso" | "loggedExerciseId">,
+  b: Pick<Performance, "dateIso" | "loggedExerciseId">,
+): number {
   if (a.dateIso !== b.dateIso) return a.dateIso < b.dateIso ? -1 : 1;
   // Stable tiebreak so "most recent" is deterministic for same-day occurrences.
   return a.loggedExerciseId < b.loggedExerciseId ? -1 : 1;
@@ -278,6 +294,11 @@ export function evaluateReactiveDecision(
 ): ReactiveDecision {
   const { state: base, seq, stallTrend, evidence } = evaluateBase(perfs, opts);
   const latest = seq.at(-1);
+  const lastSet = latest?.workingSets.reduce<WorkingSet | null>(
+    (last, s) => (!last || s.setNumber > last.setNumber ? s : last),
+    null,
+  );
+  const latestLoadLbs = lastSet?.weightLbs ?? null;
   if (
     latest &&
     base === "stalled" &&
@@ -293,6 +314,7 @@ export function evaluateReactiveDecision(
         rirToSpare: RIR_TO_SPARE_MIN,
         latest: ref(latest),
       },
+      latestLoadLbs,
     };
   }
   if (latest && base === "progress" && hasSetAtLimit(latest)) {
@@ -305,9 +327,10 @@ export function evaluateReactiveDecision(
         rirAtLimit: RIR_AT_LIMIT,
         latest: ref(latest),
       },
+      latestLoadLbs,
     };
   }
-  return { state: base, base, rirEffect: null, evidence };
+  return { state: base, base, rirEffect: null, evidence, latestLoadLbs };
 }
 
 /** The final call only (kept for callers that need just the state, R29). */

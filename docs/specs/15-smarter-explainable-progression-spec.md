@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved
 author: Claude Code (autonomous pipeline run)
 last_updated: 2026-10-21
@@ -237,7 +237,7 @@ Defensive mapping: if `state` and `evidence.kind` ever disagree (they cannot, §
 
 ### 11.3 Working weight `src/lib/logging/queries.ts`
 
-`currentWorkingWeightLbs(account, exerciseId, gymId, gymVariable, opts?: { excludeLoggedExerciseId?: string })`. With the option, the latest-set lookup adds `loggedExercise: { id: { not: excludeLoggedExerciseId } }`. The gym baseline branch is unchanged (a baseline has no per-set history to exclude; R9). Without the option, behaviour is byte-identical (the Faster Logging UX card offer and every other caller are untouched).
+`currentWorkingWeightLbs(account, exerciseId, gymId, gymVariable, opts?: WorkingWeightOptions)` with `{ completedOnly?: boolean; baselineWrittenBefore?: Date }` (v1.1, review audit; supersedes v1.0's `excludeLoggedExerciseId`). `completedOnly` limits the latest-set lookup to completed workouts; `baselineWrittenBefore` treats a baseline written at or after that instant (by the in-progress workout) as no context. Every progression read passes `completedOnly`; the in-progress card also passes its session's `createdAt`. Without options, behaviour is byte-identical (the Faster Logging UX card offer and every other caller are untouched). The read layer then applies the trust gate (R33) before printing a number.
 
 ### 11.4 Read layer `src/lib/progression/queries.ts`
 
@@ -427,7 +427,7 @@ Authority order (CLAUDE.md, Autonomous Pipeline Policy): approved planning docs 
 | R6 | **Loads only where the engine has one**: Progress `{w}+5` (existing `SuggestedLoad`) and the deload week's existing 90%. | Any other number is a new progression rule. | Pitch §4.1, §9.1; Pitch 5 R27, R33 |
 | R7 | **Reactive Deload has no number**: `Lower the weight` / `Back off`. | The engine defines no reactive reduction; borrowing 90% would merge the two deload systems. | Pitch §4.3, §10; CLAUDE.md two deload systems |
 | R8 | **Bodyweight Progress** points at the plan's own top of range: `go past {repMax} reps or make it harder`. | The only rep figure the engine has; no weight, no invented variation. | Pitch §4.4; Pitch 5 bodyweight branch |
-| R9 | **The card's working weight is read as of before the occurrence** while its session is in progress (`excludeLoggedExerciseId`); baselines unchanged. | The call ignores today's unfinished session; its number must too, or the card advises `Try 195` after the lifter logs 190. Same source, same rule, read at the evaluation's point in time — not a second authority. | Pitch §4.7 (AC-2); Pitch 5 R29 |
+| R9 | **The card's numbers are read from finished history** while its session is in progress. *(v1.0 excluded only the current occurrence; superseded by R33 after review.)* | The call ignores today's unfinished session; its number must too, or the card advises `Try 195` after the lifter logs 190. | Pitch §4.7 (AC-2); Pitch 5 R29 |
 | R10 | **OVE-61 is not absorbed** (extra sets and log-late ordering in the working-weight source). The Hold `{w}` uses the same source and inherits its limits. | OVE-61 reserves this for the owner and changes Faster Logging's prefill (what gets written). | OVE-61 acceptance; pitch §10 "no changes to canonical logged-set writes" |
 | R11 | **Ordinary Hold**: no tag, two muted lines on card, summary, page; nothing new on the planned list. | Restrained hold, yet actionable. | Pitch §4.2, §9.6; Pitch 5 R7, R53; design §3.3 |
 | R12 | **Planned list**: evidence on its own full-width line, tagged rows only; right side unchanged. | Keeps one thing on the right (Pitch 14 R20); avoids squeezing at 375 (preview). | Design Screen 2; preview §05 |
@@ -450,6 +450,10 @@ Authority order (CLAUDE.md, Autonomous Pipeline Policy): approved planning docs 
 | R29 | **Tickets**: (1) engine evidence + builder + read layer + R9 + unit/integration/isolation; (2) UI surfaces + component tests + e2e + preview comparison; (3) user guidance. blockedBy chain 1 → 2 → 3. | Coherent medium-large PRs; UI depends on DTOs. | Run prompt; guide §5 step 6 |
 | R31 | The Library & Gyms Setup guard "no recommendation code" (`deliberate-absences.test.ts`) is narrowed by **exactly** the progression vocabulary (`recommendation(s)`, `RecommendationDto/Input/Kind/State`, `buildRecommendation`); any other "recommend" (a verb, recommended exercises or programs) still fails, and a new guard proves the builder never lists, ranks, or picks exercises. | That guard bans exercise-library personalization; the roadmap names progression recommendations as this feature. Narrowing the word, not the intent. | Pitch 2 spec §4, §16; roadmap → Smarter & Explainable Progression |
 | R32 | `rir-copy.ts` is retired in the UI ticket (OVE-67), not OVE-66, because the surfaces that import it change there; the "rir-copy gone" guard lands with it. | Keeps OVE-66 free of UI edits. | Ticket split R29 |
+| R33 | **Review audit (#86 findings 1, 3, 5): the number is the judged session's, or none.** Progression reads take the single working-weight source from **completed workouts only**, and a free-weight number (Hold's `{w}`, Progress's `{w}+5`, and the planned list's `Try …`) is printed only when it equals the load of the **last working set of the latest counted session** (`ReactiveDecision.latestLoadLbs`); otherwise it is withheld ("Hold steady", "Ready to add weight"). Machines and cables keep the gym baseline as authority. | An extra back-off set or a log-late ordering could otherwise print a weight the evidence contradicts; withholding is the safe direction and keeps one weight source. | Pitch 5 R29–R31; guide §4.3 "silence over a weak claim"; OVE-61 |
+| R34 | **Review audit (#86 finding 2): a baseline the in-progress workout rewrote is not that workout's context.** The in-progress card reads the baseline only if it was written before the session started; otherwise the number is withheld. | A ≥15% correction mid-workout would otherwise move today's advice. | Pitch 5 R30; R9 |
+| R35 | **Review audit (#86 finding 6): release-note copy** says a deload "says where your sets fell short" (it names the shortfall rule, not the sets). | Describe only what shipped (pitch §12). | overload-onboarding; What's New spec §8 |
+| R36 | **Review audit dispositions not implemented:** finding 4 (advice around an upcoming / current scheduled-deload week) **deferred to OVE-69** (needs an owner decision about the pre-existing exercise-page tag); finding 7 (derive the weight from the evidence) **deferred to OVE-61**; findings 8 (extra per-hold weight read on the planned list) and 10 (keep `suggestion`/`rirEffect` on DTOs) **skipped** with reasons on #86. | Scope and authority. | Review audit |
 | R30 | Existing tests that assert the retired RIR sentences (`progression-rir.test.ts`, `rir-logging.spec.ts`) are updated to the new strings; their behavioural assertions (state, rirEffect) are untouched. | Copy moved, behaviour didn't; no assertion is weakened. | CLAUDE.md verification honesty |
 
 ## 17. Open questions

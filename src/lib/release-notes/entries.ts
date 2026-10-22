@@ -33,7 +33,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     id: "2026-10-21-clearer-progression-calls",
     date: "2026-10-21",
     title: "Clearer progression calls",
-    body: "Every progression call now says what to do and why. Ready to go up shows the weight to try and the sets that earned it, a hold says what to stay at and what's left to earn the next step, and a deload shows the sets that fell short. Overload never changes your plan or your weights.",
+    body: "Every progression call now says what to do and why. Ready to go up shows the weight to try and the sets that earned it, a hold says what to stay at and what's left to earn the next step, and a deload says where your sets fell short. Overload never changes your plan or your weights.",
     significant: true,
   },
   {

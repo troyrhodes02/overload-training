@@ -8,10 +8,14 @@ import {
 } from "@/lib/plan/calendar";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
-import { currentWorkingWeightLbs } from "@/lib/logging/queries";
+import {
+  currentWorkingWeightLbs,
+  type WorkingWeightOptions,
+} from "@/lib/logging/queries";
 import { PROGRESS_INCREMENT_LBS } from "./config";
 import { isScheduledDeloadWeek, scheduledDeloadLoad } from "./deload";
 import {
+  byDate,
   evaluateReactiveDecision,
   qualifyingSequence,
   type Performance,
@@ -147,6 +151,7 @@ async function gatherRows(
       loggedSession: {
         select: {
           status: true,
+          createdAt: true,
           scheduledFor: true,
           mesocycle: {
             select: { startDate: true, deloadEveryWeeks: true },
@@ -302,34 +307,13 @@ function currentE1rm(rows: Row[]): number | null {
     : null;
 }
 
-async function progressSuggestion(
-  account: Account,
-  exerciseId: string,
-  gymId: string | null,
-  gymVariable: boolean,
-  externalLoad: boolean,
-  excludeLoggedExerciseId?: string,
-): Promise<SuggestedLoadDto> {
-  // Bodyweight: the lifter decides how to make it harder — never "+5 lb".
-  if (!externalLoad) return null;
-  const base = await currentWorkingWeightLbs(
-    account,
-    exerciseId,
-    gymId,
-    gymVariable,
-    { excludeLoggedExerciseId },
-  );
-  if (base == null) return null; // fail safe — never fabricate (R31)
-  return { lbs: base + PROGRESS_INCREMENT_LBS, kind: "progress_increment" };
-}
-
 async function scheduledDeloadSuggestion(
   account: Account,
   exerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
   externalLoad: boolean,
-  excludeLoggedExerciseId?: string,
+  ww: WorkingWeightOptions = {},
 ): Promise<SuggestedLoadDto> {
   // Bodyweight: no load to reduce to 90% of; show the state without a number.
   if (!externalLoad) return null;
@@ -338,7 +322,7 @@ async function scheduledDeloadSuggestion(
     exerciseId,
     gymId,
     gymVariable,
-    { excludeLoggedExerciseId },
+    { completedOnly: true, ...ww },
   );
   if (base == null) return null; // show state without a number (R36)
   return { lbs: scheduledDeloadLoad(base), kind: "scheduled_deload" };
@@ -348,24 +332,23 @@ async function scheduledDeloadSuggestion(
 function latestFinished(rows: Row[]): Row | null {
   const done = rows
     .filter((r) => r.finished)
-    .sort((a, b) =>
-      a.perf.dateIso !== b.perf.dateIso
-        ? a.perf.dateIso < b.perf.dateIso
-          ? -1
-          : 1
-        : a.perf.loggedExerciseId < b.perf.loggedExerciseId
-          ? -1
-          : 1,
-    );
+    .sort((a, b) => byDate(a.perf, b.perf));
   return done[done.length - 1] ?? null;
 }
 
 /**
  * The suggestion and the recommendation for one evaluated decision (spec
  * §11.4). One place, so the card, the summary, the planned list, and the
- * exercise page can never word the same evaluation differently. Both weights
- * come from the single working-weight source; `excludeLoggedExerciseId`
- * reads it as of before an in-progress occurrence (R9).
+ * exercise page can never word the same evaluation differently.
+ *
+ * The weight is the single working-weight source, read from completed
+ * workouts only (R9) — and printed only when it can be trusted (R33): a free
+ * weight's number must be the load the judged session's last working set
+ * used (otherwise an extra back-off set, or a later unjudged workout, would be
+ * the number); a gym baseline is the machine's authority (Progressive
+ * Overload Engine R30), unless the in-progress workout itself rewrote it.
+ * An untrusted number is withheld, never replaced: "Ready to add weight",
+ * "Hold steady" (Progressive Overload Engine R31).
  */
 async function describeDecision(
   account: Account,
@@ -379,34 +362,38 @@ async function describeDecision(
     gymName: string | null;
     when: "today" | "next";
     referenceIso: string;
-    excludeLoggedExerciseId?: string;
+    baselineWrittenBefore?: Date;
   },
 ): Promise<{
   suggestion: SuggestedLoadDto;
   recommendation: RecommendationDto | null;
 }> {
   const { decision } = args;
-  const suggestion =
-    decision.state === "progress"
-      ? await progressSuggestion(
-          account,
-          args.exerciseId,
-          args.gymId,
-          args.gymVariable,
-          args.externalLoad,
-          args.excludeLoggedExerciseId,
-        )
+  const needsWeight =
+    args.externalLoad &&
+    (decision.state === "progress" ||
+      decision.state === "hold" ||
+      decision.state === "stalled");
+  const read = needsWeight
+    ? await currentWorkingWeightLbs(
+        account,
+        args.exerciseId,
+        args.gymId,
+        args.gymVariable,
+        {
+          completedOnly: true,
+          baselineWrittenBefore: args.baselineWrittenBefore,
+        },
+      )
+    : null;
+  const trusted =
+    read !== null && (args.gymVariable || read === decision.latestLoadLbs)
+      ? read
       : null;
-  const holding = decision.state === "hold" || decision.state === "stalled";
-  const workingWeightLbs =
-    holding && args.externalLoad
-      ? await currentWorkingWeightLbs(
-          account,
-          args.exerciseId,
-          args.gymId,
-          args.gymVariable,
-          { excludeLoggedExerciseId: args.excludeLoggedExerciseId },
-        )
+  // Bodyweight never gets "+5 lb"; no trusted weight → no number (R31).
+  const suggestion: SuggestedLoadDto =
+    decision.state === "progress" && trusted !== null
+      ? { lbs: trusted + PROGRESS_INCREMENT_LBS, kind: "progress_increment" }
       : null;
   const e = decision.evidence;
   const latestId = "latest" in e ? e.latest.loggedExerciseId : null;
@@ -416,7 +403,7 @@ async function describeDecision(
     rirEffect: decision.rirEffect,
     evidence: e,
     externalLoad: args.externalLoad,
-    workingWeightLbs,
+    workingWeightLbs: decision.state === "progress" ? null : trusted,
     progressLoadLbs: suggestion?.lbs ?? null,
     gymName: args.gymVariable ? args.gymName : null,
     latestIsLastTime:
@@ -645,6 +632,7 @@ export async function getOccurrenceProgression(
       loggedSession: {
         select: {
           status: true,
+          createdAt: true,
           scheduledFor: true,
           mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
         },
@@ -668,9 +656,12 @@ export async function getOccurrenceProgression(
   );
 
   // While the session is in progress the card advises today's workout, judged
-  // on history before it, so its numbers are read as of before it (R9, R18).
+  // on finished history — so its numbers come from finished workouts too,
+  // and a baseline this workout rewrote is not its context (R9, R18, R33).
   const inProgress = le.loggedSession.status !== "complete";
-  const exclude = inProgress ? le.id : undefined;
+  const baselineWrittenBefore = inProgress
+    ? le.loggedSession.createdAt
+    : undefined;
 
   const rows = await gatherRows(account, le.exercise.id);
   const scopeRows = gymVariable
@@ -688,7 +679,7 @@ export async function getOccurrenceProgression(
       le.gymId,
       gymVariable,
       externalLoad,
-      exclude,
+      { baselineWrittenBefore },
     );
     return {
       loggedExerciseId,
@@ -722,7 +713,7 @@ export async function getOccurrenceProgression(
     gymName: le.gym?.name ?? null,
     when: inProgress ? "today" : "next",
     referenceIso: scheduledForIso,
-    excludeLoggedExerciseId: exclude,
+    baselineWrittenBefore,
   });
   return {
     loggedExerciseId,

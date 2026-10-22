@@ -342,12 +342,30 @@ async function buildTodayState(
   };
 }
 
+/**
+ * Options for reading the working weight from a progression surface
+ * (Smarter & Explainable Progression R9, R33). Absent, the read is exactly
+ * the Pitch 4 source the card's weight offer uses.
+ *
+ * - `completedOnly`: only sets from completed workouts. A progression call
+ *   judges finished history, so its numbers must not move while a workout is
+ *   in progress — on the card, its sibling slots, the planned list, or the
+ *   exercise page.
+ * - `baselineWrittenBefore`: a gym baseline written at or after this instant
+ *   (corrected by the in-progress workout itself) is not that workout's
+ *   context; the number is withheld rather than replaced.
+ */
+export type WorkingWeightOptions = {
+  completedOnly?: boolean;
+  baselineWrittenBefore?: Date;
+};
+
 async function workingWeight(
   account: Account,
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
-  excludeLoggedExerciseId?: string,
+  opts: WorkingWeightOptions = {},
 ): Promise<{ lbs: number; fromBaseline: boolean } | null> {
   if (gymVariable) {
     // A machine/cable weight belongs to its gym: this gym's baseline, else the
@@ -357,7 +375,15 @@ async function workingWeight(
     const b = await account.db.gymExerciseBaseline.findUnique({
       where: { gymId_exerciseId: { gymId, exerciseId: performedExerciseId } },
     });
-    if (b) return { lbs: Number(b.weightLbs), fromBaseline: true };
+    if (b) {
+      if (
+        opts.baselineWrittenBefore &&
+        b.updatedAt >= opts.baselineWrittenBefore
+      ) {
+        return null;
+      }
+      return { lbs: Number(b.weightLbs), fromBaseline: true };
+    }
   }
   // Latest REAL load only: a bodyweight (NULL) set is never read back as 0.
   // Known limit (OVE-61): "latest" is by creation time and includes extra
@@ -367,8 +393,8 @@ async function workingWeight(
       loggedExercise: {
         exerciseId: performedExerciseId,
         ...(gymVariable ? { gymId } : {}),
-        ...(excludeLoggedExerciseId
-          ? { id: { not: excludeLoggedExerciseId } }
+        ...(opts.completedOnly
+          ? { loggedSession: { status: "complete" as const } }
           : {}),
       },
       weightLbs: { not: null },
@@ -388,25 +414,21 @@ async function workingWeight(
  * exercise's reps-only history). The Progressive Overload Engine reuses this for its +5 Progress and
  * ×0.90 scheduled-deload suggestions, so there is never a second weight authority
  * (Resolved Decisions R29, R34). Returns null when no context exists (R31, R36).
- *
- * `excludeLoggedExerciseId` reads the weight as it stood before that
- * occurrence (Smarter & Explainable Progression R9): while a workout is in
- * progress its call ignores today's unfinished sets, so its numbers must too.
- * A gym baseline has no per-set history to exclude and is read as is.
+ * Progression surfaces read it with `WorkingWeightOptions` (above).
  */
 export async function currentWorkingWeightLbs(
   account: Account,
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
-  opts: { excludeLoggedExerciseId?: string } = {},
+  opts: WorkingWeightOptions = {},
 ): Promise<number | null> {
   const w = await workingWeight(
     account,
     performedExerciseId,
     gymId,
     gymVariable,
-    opts.excludeLoggedExerciseId,
+    opts,
   );
   return w?.lbs ?? null;
 }

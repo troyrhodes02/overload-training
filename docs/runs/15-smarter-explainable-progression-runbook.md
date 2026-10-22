@@ -9,7 +9,7 @@ This runbook covers everything a human does outside the codebase to ship Smarter
   - Reactive Deload: `Lower the weight next time` / `A set below 8 reps, 2 sessions running` — no amount, because the engine defines none
   - Bodyweight Progress: `Next time, go past 12 reps or make it harder`
   - RIR named only when it changed the call; the deload week: `Deload week: 165 lb (90%)` / `Planned recovery, not a verdict. Calls resume next week.`
-- while a workout is in progress, the card's `Try …` number no longer moves as today's sets are logged (spec R9)
+- while a workout is in progress, no surface's number moves as today's sets are logged (spec R9, R33)
 - one What's New entry, "Clearer progression calls"
 
 **What changes in the database:** nothing. No migration, column, table, trigger, or RLS change (`git diff main -- prisma/` is empty).
@@ -39,7 +39,7 @@ There is no migration and no production data step. Nothing needs a backup first,
 - Feature PR: https://github.com/troyrhodes02/overload-training/pull/86. Ticket PRs #87–#89 are squash-merged into it.
 - Visual contract: open `docs/previews/15-smarter-explainable-progression-preview.html` in a browser (works offline).
 - Every sentence, in one table: spec §11.2 (and design doc §4.4). The decisions most worth your eye (report §6): no number on a reactive Deload (R7), the bodyweight wording (R8), the card's as-of-before-today weight (R9), and leaving OVE-61 out (R10).
-- Known limit inherited from the working-weight source (OVE-61): if your latest logged set was an **extra** (back-off) set, `Stay at {w}` and `Try {w+5}` use that set's weight. This was already true of `Try …` before this pitch.
+- Numbers are withheld rather than guessed (spec R33–R34): a free-weight `Stay at {w}` / `Try {w+5}` appears only when the working weight equals the last working set of the session the call judged (an extra back-off set, or a later unjudged workout, hides the number: "Hold steady" / "Ready to add weight"); a machine baseline corrected during today's workout hides today's card number. The underlying working-weight source is unchanged (OVE-61).
 
 ## 2. Pre-merge: set the release note's date (required)
 
@@ -92,7 +92,7 @@ Or by hand on the local stack (`npm run build; npm start` with `.env.local`), wi
   - Ordinary holds now show two muted lines on the card, the day-complete summary, and the exercise page. They still have no tag.
   - The exercise page no longer says `Holding` or `Suggested next:`; the action line replaces both.
   - The day-complete summary no longer shows the short RIR phrase (`at your limit — holding`, `reps to spare`); the full RIR sentence appears as the evidence instead.
-  - The card's `Try …` number stays put during the workout (before, logging a set could move it up by 5).
+  - The `Try …` numbers stay put during the workout (before, logging a set could move them up by 5), and a lift whose last workout ended with an extra back-off set shows `Ready to add weight` instead of a number built on the back-off weight.
 
 ## 6. Rollback and recovery
 

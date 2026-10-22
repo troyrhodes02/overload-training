@@ -598,3 +598,173 @@ describe("reading recommendations writes nothing (AC-3)", () => {
     expect(await snapshotAccount(account.userId)).toEqual(before);
   });
 });
+
+describe("review audit of #86: the number is the judged session's, or none (R9, R33)", () => {
+  it("an extra back-off set never becomes the weight to stay at or add to", async () => {
+    const { mesoId, exId } = await setup();
+    await logPerf({
+      mesocycleId: mesoId,
+      exerciseId: exId,
+      scheduledFor: "2026-11-02",
+      reps: TOP,
+    });
+    // Working sets 185 × 8, 7, 6, then a back-off extra 135 × 12 logged last.
+    await logPerf({
+      mesocycleId: mesoId,
+      exerciseId: exId,
+      scheduledFor: "2026-11-09",
+      reps: [8, 7, 6, 12],
+      weights: [185, 185, 185, 135],
+    });
+    const hold = await page(exId);
+    expect(hold.recommendation).toEqual({
+      kind: "hold",
+      tone: "quiet",
+      action: "Hold steady next time",
+      evidence: "Last time: 8, 7, 6 of 6–8",
+    });
+
+    const m2 = mesoId;
+    const e2 = (await createTestExercise({ name: "Overhead Press" })).id;
+    await logPerf({
+      mesocycleId: m2,
+      exerciseId: e2,
+      scheduledFor: "2026-11-02",
+      reps: TOP,
+    });
+    await logPerf({
+      mesocycleId: m2,
+      exerciseId: e2,
+      scheduledFor: "2026-11-09",
+      reps: [8, 8, 8, 12],
+      weights: [185, 185, 185, 135],
+    });
+    const prog = await page(e2);
+    expect(prog.tag).toBe("progress");
+    expect(prog.suggestion).toBeNull();
+    expect(prog.recommendation?.action).toBe("Ready to add weight next time");
+  });
+
+  it("a baseline the in-progress workout corrected is not that workout's context", async () => {
+    const { mesoId, exId } = await setup("cable");
+    const gym = await db().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
+    await db().gymExerciseBaseline.create({
+      data: {
+        userId: account.userId,
+        gymId: gym.id,
+        exerciseId: exId,
+        weightLbs: 100,
+      },
+    });
+    const opts = { mesocycleId: mesoId, exerciseId: exId, gymId: gym.id };
+    await logPerf({
+      ...opts,
+      scheduledFor: "2026-11-02",
+      reps: TOP,
+      weights: [100, 100, 100],
+    });
+    await logPerf({
+      ...opts,
+      scheduledFor: "2026-11-09",
+      reps: TOP,
+      weights: [100, 100, 100],
+    });
+    const t = await inProgress(mesoId, exId, "2026-11-16", gym.id);
+    expect((await occurrence(t.loggedExerciseId)).recommendation?.action).toBe(
+      "Try 105 lb today (+5 lb)",
+    );
+
+    for (const n of [1, 2, 3]) {
+      await logSet(account, {
+        loggedExerciseId: t.loggedExerciseId,
+        setNumber: n,
+        weightLbs: 120,
+        reps: 8,
+      });
+    }
+    const corrected = await db().gymExerciseBaseline.findFirstOrThrow({
+      where: { gymId: gym.id, exerciseId: exId },
+    });
+    expect(Number(corrected.weightLbs)).toBe(120); // the logging path corrected it
+    // The card no longer prints a number it can't stand behind.
+    expect((await occurrence(t.loggedExerciseId)).recommendation?.action).toBe(
+      "Ready to add weight today",
+    );
+  });
+
+  it("the planned list and the exercise page ignore today's unfinished sets, like the card", async () => {
+    const { mesoId, exId } = await setup();
+    await logPerf({
+      mesocycleId: mesoId,
+      exerciseId: exId,
+      scheduledFor: "2026-11-02",
+      reps: TOP,
+    });
+    await logPerf({
+      mesocycleId: mesoId,
+      exerciseId: exId,
+      scheduledFor: "2026-11-09",
+      reps: TOP,
+    });
+    const t = await inProgress(mesoId, exId, "2026-11-16");
+    await logSet(account, {
+      loggedExerciseId: t.loggedExerciseId,
+      setNumber: 1,
+      weightLbs: 200,
+      reps: 8,
+    });
+
+    expect((await planned(exId)).suggestion).toEqual({
+      lbs: 190,
+      kind: "progress_increment",
+    });
+    expect((await page(exId)).recommendation?.action).toBe(
+      "Try 190 lb next time (+5 lb)",
+    );
+    expect((await occurrence(t.loggedExerciseId)).recommendation?.action).toBe(
+      "Try 190 lb today (+5 lb)",
+    );
+  });
+
+  it("a second slot of the same exercise in the same workout ignores the first slot's sets", async () => {
+    const { mesoId, exId } = await setup();
+    await logPerf({
+      mesocycleId: mesoId,
+      exerciseId: exId,
+      scheduledFor: "2026-11-02",
+      reps: TOP,
+    });
+    await logPerf({
+      mesocycleId: mesoId,
+      exerciseId: exId,
+      scheduledFor: "2026-11-09",
+      reps: TOP,
+    });
+    const t = await inProgress(mesoId, exId, "2026-11-16");
+    const second = await db().loggedExercise.create({
+      data: {
+        userId: account.userId,
+        loggedSessionId: t.loggedSessionId,
+        exerciseId: exId,
+        plannedExerciseId: exId,
+        position: 1,
+        plannedSets: 3,
+        targetRepMin: 6,
+        targetRepMax: 8,
+      },
+    });
+    for (const n of [1, 2, 3]) {
+      await logSet(account, {
+        loggedExerciseId: t.loggedExerciseId,
+        setNumber: n,
+        weightLbs: 200,
+        reps: 8,
+      });
+    }
+    expect((await occurrence(second.id)).recommendation?.action).toBe(
+      "Try 190 lb today (+5 lb)",
+    );
+  });
+});

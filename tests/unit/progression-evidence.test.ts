@@ -250,6 +250,32 @@ describe("evidence follows the branch that decided the call", () => {
     expect(evaluateReactiveDecision([perfs[1], perfs[2], perfs[0]])).toEqual(a);
   });
 
+  it("latestLoadLbs is the last working set's load of the latest counted session (R33)", () => {
+    const first = perf(TOP);
+    const pyramid = perf(TOP);
+    pyramid.workingSets = pyramid.workingSets.map((s) => ({
+      ...s,
+      weightLbs: 175 + s.setNumber * 5,
+    }));
+    pyramid.workingSets.reverse(); // stored order must not matter
+    expect(evaluateReactiveDecision([first, pyramid]).latestLoadLbs).toBe(190);
+    // A later uncounted (incomplete) session doesn't move it.
+    expect(
+      evaluateReactiveDecision([
+        perf(TOP, { weight: 185 }),
+        perf(TOP, { weight: 185 }),
+        perf([10], { weight: 200, complete: false }),
+      ]).latestLoadLbs,
+    ).toBe(185);
+    expect(evaluateReactiveDecision([perf(TOP)]).latestLoadLbs).toBe(185);
+    expect(evaluateReactiveDecision([]).latestLoadLbs).toBeNull();
+    const bw = perf(TOP);
+    bw.workingSets = bw.workingSets.map((s) => ({ ...s, weightLbs: null }));
+    expect(
+      evaluateReactiveDecision([bw], { e1rmApplicable: false }).latestLoadLbs,
+    ).toBeNull();
+  });
+
   it("the state is exactly what evaluateReactive returns (no rule change)", () => {
     const histories = [
       [perf(TOP)],
