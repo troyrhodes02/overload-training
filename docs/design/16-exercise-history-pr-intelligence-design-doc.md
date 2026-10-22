@@ -80,7 +80,7 @@ These are the definitions the preview draws and the spec makes exact. They are d
 | **Best e1RM** · *estimate* | That set's e1RM. Same set as Best set by construction, so the two can never disagree; one is what was lifted, the other what it estimates. | `273 lb` · `from 205 × 10` |
 | **Heaviest weight** | The heaviest load on any working set; at that load, the most reps; ties: the earliest. A real completed set — never a planned weight, a suggestion, or an e1RM. | `225 × 3` · date |
 | **Rep records** | For each load, the most reps done at that load **or heavier** — listed only where it beats every heavier load's best. A lighter, longer set never appears "above" a heavier one, and no two loads are scored against each other. Capped at 6 rows, heaviest first. | table: `225 lb — 3 reps`, `215 — 5`, `205 — 10`, `185 — 12` |
-| **Bodyweight: Most reps** | Reps-only lifts have no load and no e1RM: the one record is the most reps in a single working set. | `22 reps` · date |
+| **Bodyweight: Most reps** | Reps-only lifts have no load and no e1RM: the one record is the most reps in a single working set. | `20 reps` · date |
 
 **Decision (rep records).** The pitch asks for rep records that "do not misleadingly equate performances at different loads" (§4.9, §9.6). The rule above is the standard rep-max frontier: a set is listed only if nothing heavier was done for as many reps. Reading down the table, load goes down and reps go up; nothing implies one row is "better" than another. The top row is always the Heaviest weight.
 
@@ -327,7 +327,7 @@ The existing `ProgressTag` + `Recommendation` (two lines, "next time"), exactly 
 | View switch | shadcn `Tabs` (`e1RM`, `Weight`), small, right of the heading | switches the chart; client island; default e1RM; not in the URL |
 | e1RM view | existing `E1rmChart` + `Current 246 lb` + `14 sessions · Epley estimate` (+ `· ▫ deload week` when any) | unchanged |
 | Weight view | the same chart frame plotting the heaviest working-set load per session; tooltip `190 lb × 8, 8, 8`; header `Last 190 lb` | hollow deload points |
-| Bodyweight | no switch; heading `Trend` with a `Reps` chart (most reps in a working set per session); header `Last 18 reps` | |
+| Bodyweight | no switch; heading `Trend` with a `Reps` chart (most reps in a working set per session); header `Last 20 reps` | |
 | Accessible table | visually hidden table with every point (date, value, sets, deload) | as today |
 
 ### Sessions
@@ -451,7 +451,7 @@ Rep records with one session hold that session's frontier (often one row). Nothi
 
 ## Screen 5: Bodyweight (Pushups)
 
-Records: one row `Most reps 22 · Oct 9`. Trend: `Reps` chart, `Last 18 reps`. Sessions: `18 · 16 reps`. Next time: the existing bodyweight lines (`Next time, go past 20 reps or make it harder`). Goals: the one muted line. No e1RM anywhere, no `lb`.
+Records: one row `Most reps in a set 20 · Oct 6`. Trend: `Reps` chart, `Last 20 reps`. Sessions: `20 · 20 reps`. Next time: the existing bodyweight lines (`Next time, go past 20 reps or make it harder`). Goals: the one muted line. No e1RM anywhere, no `lb`.
 
 ## Screen 6: Archived exercise / archived gym
 

@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 3 — UI preview** (in progress).
+**Step 4 — spec** (in progress).
 
 ## Authority used (read before resuming)
 
@@ -33,7 +33,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/16-exercise-history-pr-intelligence-design-doc.md` (v1.0): existing `/exercises/[id]` becomes the history; scopes (gym-consistent: one; machine/cable: per gym + "No gym recorded"); records = best set (bestWorkingSet), best e1RM (estimate, same set), heaviest, rep-record frontier (≤6), bodyweight most reps; calls = engine on history up to each session, computed on read; Weight view = heaviest working-set load; entry links renamed "history", workout-detail names link; tour step recommended on /exercises.
-- [ ] 3. UI preview
+- [x] 3. UI preview — `docs/previews/16-exercise-history-pr-intelligence-preview.html` (.html per owner memory; 24 frames, 9 sections; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed; fixes: HTML axis labels (stretched SVG text), no-gym trend caption). Generator: scratchpad `preview/build16.mjs` (records computed from mock sets with the design rules) + `check16.mjs`.
 - [ ] 4. Spec
 - [ ] 5. Resolved Decisions
 - [ ] 6. Linear milestone + issues
