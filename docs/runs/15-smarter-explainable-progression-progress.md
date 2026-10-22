@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 12 — code review of #86 (inline comments), then 13 review audit.
+**COMPLETE — stopped before merge to `main` (spec R1).** Feature PR #86 is open (draft) with every ticket PR integrated and the review audit applied. Remaining steps are human: runbook §2 (date the release note), §3 (real-shaped-data check), then merge, §5 post-deploy checks, moving OVE-66…68 to Done, and deciding OVE-69 / OVE-61.
 
 ## Authority used (read before resuming)
 
@@ -43,10 +43,10 @@ Step 12 — code review of #86 (inline comments), then 13 review audit.
 - [x] 9. Runbook — `docs/runs/15-smarter-explainable-progression-runbook.md`
 - [x] 10. Integrate ticket PRs — squashed in order: #87 `abd638f`, #88 `7a4da7d`, #89 `2b4d3a2` (retarget → merge feature into ticket, conflicts only in shared docs/guards → ticket side → tree == reviewed tip each time → Vercel pass → squash; final feature tree == OVE-68 tip; no force-push)
 - [x] 11. Verification on `2b4d3a2`: prettier, lint (0), tsc, prisma validate, `prisma/` diff vs main empty, unit 63/1033, integration 45/540, build + client-bundle OK, accounts e2e 34 passed + 1 skipped (baseline driver, by design), default e2e 26/26; local DB 3 users / 2 profiles / 463 sets / 0 release_seen after. Preview comparison: screenshots reviewed (card/today/summary/exercise 375 light; summary 1280 dark; What's New dialog 375 light + 1280 dark).
-- [ ] 12. Code review
-- [ ] 13. Review audit
-- [ ] 14. Final verification + merge gate (stop before merge)
-- [ ] 15. Run report
+- [x] 12. Code review — `code-review` (high) posted 10 inline comments on #86
+- [x] 13. Review audit — Implement 6 (findings 1, 2, 3, 5, 6, 9; commit `c119ea6`; spec v1.1.0 R33–R36) · Defer 2 (4 → OVE-69 created; 7 → OVE-61 comment) · Skip 2 (8, 10); replies on every comment, implemented threads resolved, summary https://github.com/troyrhodes02/overload-training/pull/86#issuecomment-6332033578
+- [x] 14. Final verification on `c119ea6`: prettier, lint, tsc, unit 63/1034, integration 45/544, build + client-bundle, accounts e2e 34 + 1 skipped, default e2e 26; local DB 3/2/463/0. STOPPED BEFORE MERGE (R1); #86 left open (draft), Vercel pass.
+- [x] 15. Run report — `docs/runs/15-smarter-explainable-progression-report.md`
 
 ## Tickets
 
@@ -71,3 +71,4 @@ Step 12 — code review of #86 (inline comments), then 13 review audit.
 - PRD: add Smarter & Explainable Progression's three completion criteria (pitch §8 traceability gap).
 - Pipeline guide D1 lists this feature as merge-on-green while the pitch proposes stop-before-merge; reconcile.
 - Pipeline guide Appendix C/§5 still names `-preview.tsx`.
+- Full list: report §8.
