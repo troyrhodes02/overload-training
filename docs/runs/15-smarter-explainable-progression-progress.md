@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 4 — spec.
+Step 6 — Linear milestone + issues.
 
 ## Authority used (read before resuming)
 
@@ -35,8 +35,8 @@ Step 4 — spec.
 - [x] 1. Pitch pulled + authority read
 - [x] 2. Design doc — `docs/design/15-smarter-explainable-progression-design-doc.md` (v1.0): two-line model (action + evidence), copy catalog P1–P3, H1–H4, D1, S1, N1; loads only for Progress (+5 on a known weight) and the deload week (90%); RIR named only when `rirEffect` set; "last time" vs date rule; surfaces = card, planned list (evidence on tagged rows only), day complete, exercise page.
 - [x] 3. UI preview — `docs/previews/15-smarter-explainable-progression-preview.html` (.html, not the run prompt's .tsx; 27 frames, 9 sections; headless Chrome: 0 console errors, 0 non-file requests, Inter loaded, 0 phone overflow, 0 weights >600, 0 broken images; light+dark screenshots reviewed; fixes: 320px RIR wrap, full-width desktop frames, planned-list evidence on its own line). Generator: scratchpad `preview/build.mjs` + `check.mjs` (run from repo root).
-- [ ] 4. Spec
-- [ ] 5. Resolved Decisions
+- [x] 4. Spec — `docs/specs/15-smarter-explainable-progression-spec.md` (v1.0.0): engine emits `DecisionEvidence` from the deciding branch; one pure builder `src/lib/progression/recommendation.ts` (replaces `rir-copy.ts`); DTOs carry `recommendation`; R9 card working weight as of before the in-progress occurrence (`excludeLoggedExerciseId`); no schema change.
+- [x] 5. Resolved Decisions — spec R1–R30
 - [ ] 6. Linear milestone + issues
 - [ ] 7. Feature PR
 - [ ] 8. Tickets
@@ -54,8 +54,7 @@ Step 4 — spec.
 
 ## Resolved Decisions so far
 
-- Merge: stop before merge (see header).
-- Preview format: `.html` gallery (owner standard), not `.tsx`.
+- See spec `## Resolved Decisions` R1–R30 (binding). Key: R1 stop before merge; R2 .html preview; R3–R5 engine evidence + one builder + strings on DTOs; R6–R8 loads only for Progress (+5) and deload week (90%), no reactive-deload number, bodyweight `go past {repMax}`; R9 card weight as of before the in-progress occurrence; R10 OVE-61 not absorbed; R16 RIR only when rirEffect; R17 last time vs date; R29 tickets 1→2→3.
 
 ## Deferred / upstream amendments (running list)
 
