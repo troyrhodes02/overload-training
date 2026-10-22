@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-**Step 10 — integrate ticket PRs** (#91 → #92 → #93 into the feature branch, in order).
+**Step 12 — code review** of #90 (feature branch vs `main`).
 
 ## Authority used (read before resuming)
 
@@ -40,8 +40,8 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 - [x] 7. Feature PR into `main` (draft) — **#90** https://github.com/troyrhodes02/overload-training/pull/90
 - [x] 8. Tickets — OVE-70 #91, OVE-71 #92, OVE-72 #93 (all In Review)
 - [x] 9. Runbook — `docs/runs/16-exercise-history-pr-intelligence-runbook.md`
-- [ ] 10. Integrate ticket PRs
-- [ ] 11. Verification
+- [x] 10. Integrate ticket PRs — squashed in order: #91 `6fd4337`, #92 `e2b27b9`, #93 `b99e188` (merge feature into ticket, conflicts only in `src/app/(app)/page.tsx` and the spec → ticket side → tree == reviewed tip + feature-only docs; Vercel pass each time; final feature tree == OVE-72 tip; no force-push)
+- [x] 11. Verification on `b99e188`: prettier, eslint 0, tsc, prisma validate, `prisma/` diff vs main empty, unit 67/1080, integration 47/564 (incl. RLS, isolation, history integrity, baselines, deload suppression), build + client-bundle OK, accounts e2e run 1: 34 passed + 1 skipped + 1 failed (`faster-logging` — `deleteThroughApp` URL wait; server logged "account deletion failed; nothing was deleted PrismaClientKnownRequestError" in a slow 4.9m run) → `faster-logging` alone 2/2, full re-run 35 passed + 1 skipped (by design); default e2e 26/26. Preview comparison: page screenshots 375 light / 1280 dark match preview (one column per R30); tour step 375 light / 1280 dark; What's New dialog 375 light / 1280 dark.
 - [ ] 12. Code review
 - [ ] 13. Review audit
 - [ ] 14. Final verification + merge gate
