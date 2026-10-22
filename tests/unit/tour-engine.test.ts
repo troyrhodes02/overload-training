@@ -24,17 +24,18 @@ const avail =
     names.includes(a);
 
 describe("layout", () => {
-  it("desktop is offered 7 steps (no menu step); a phone 8", () => {
+  it("desktop is offered 8 steps (no menu step); a phone 9", () => {
     expect(stepsForLayout(TOUR_STEPS, "desktop").map((s) => s.id)).toEqual([
       "today",
       "logging",
       "plan",
       "history",
       "goals",
+      "exercises",
       "gyms",
       "settings",
     ]);
-    expect(stepsForLayout(TOUR_STEPS, "phone")).toHaveLength(8);
+    expect(stepsForLayout(TOUR_STEPS, "phone")).toHaveLength(9);
   });
 
   it("after crossing md, the current step stays, or a phone-only step moves on", () => {
@@ -94,18 +95,18 @@ describe("start, walk, and counter", () => {
     expect(steps[nextIndex(steps, skipped, 3, 1)].id).toBe("goals");
     expect(steps[nextIndex(steps, skipped, 5, -1)].id).toBe("plan");
     expect(nextIndex(steps, skipped, 0, -1)).toBe(-1);
-    expect(nextIndex(steps, skipped, 7, 1)).toBe(8);
+    expect(nextIndex(steps, skipped, 8, 1)).toBe(9);
   });
 
   it("a skipped step drops out of position and total; positions stay contiguous", () => {
-    expect(counter(steps, new Set(), 0)).toEqual({ position: 1, total: 8 });
+    expect(counter(steps, new Set(), 0)).toEqual({ position: 1, total: 9 });
     const skipped = new Set(["navigation"]);
     const shown = steps
       .map((s, i) => [s, i] as const)
       .filter(([s]) => !skipped.has(s.id))
       .map(([, i]) => counter(steps, skipped, i));
-    expect(shown.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(new Set(shown.map((c) => c.total))).toEqual(new Set([7]));
+    expect(shown.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(new Set(shown.map((c) => c.total))).toEqual(new Set([8]));
   });
 });
 

@@ -236,8 +236,25 @@ function isAlreadyReached(g: GoalRow): boolean {
 /** Where "Set a new goal" leads: blank form for the same lift (and gym, if still active). */
 function newGoalHrefFor(g: GoalRow): string {
   if (g.exercise.deletedAt) return "/goals/new";
-  const gym = g.gymId && g.gym && !g.gym.deletedAt ? `?gymId=${g.gymId}` : "";
-  return `/goals/new/${g.exerciseId}${gym}`;
+  return newGoalFormHref(
+    g.exerciseId,
+    g.gymId && g.gym
+      ? { id: g.gymId, archived: g.gym.deletedAt !== null }
+      : null,
+  );
+}
+
+/**
+ * The goal form for one exercise, with its gym pre-selected only while that
+ * gym is still active (an archived gym can't take a new goal). The one rule
+ * for "Set a new goal" links (Goals; Exercise History & PR Intelligence R19).
+ */
+export function newGoalFormHref(
+  exerciseId: string,
+  gym: { id: string; archived: boolean } | null,
+): string {
+  const query = gym && !gym.archived ? `?gymId=${gym.id}` : "";
+  return `/goals/new/${exerciseId}${query}`;
 }
 
 /** Active goals, oldest first (stable order the lifter set them in; R64). */
@@ -476,4 +493,62 @@ export async function getSessionGoalSummary(
     });
   }
   return rows;
+}
+
+export type ExerciseGoalsDto = {
+  /** The exercise's active goal (the Goals page's own numbers), if any. */
+  active: ActiveGoalDto | null;
+  /** Reached and manually archived goals, most recently archived first. */
+  past: GoalHistoryDto[];
+  /** Active, loaded, and without an active goal: "Set a goal" may be offered. */
+  newGoalEligible: boolean;
+  /** Reps-only lifts can't have a weight × reps goal. */
+  bodyweight: boolean;
+};
+
+/**
+ * Every goal set on one exercise, for its history page (Exercise History &
+ * PR Intelligence spec §11.4, R17–R19). The same DTOs, percentages, and best
+ * values as the Goals pages, measured in each goal's own scope (a machine
+ * goal at its own gym). Read-only: it never reconciles completions — reaching
+ * a target archives the goal only through the Goals surfaces (R18).
+ */
+export async function getExerciseGoals(
+  account: Account,
+  exerciseId: string,
+): Promise<ExerciseGoalsDto> {
+  const exercise = await getExercise(account, exerciseId);
+  if (!exercise) {
+    return {
+      active: null,
+      past: [],
+      newGoalEligible: false,
+      bodyweight: false,
+    };
+  }
+  const bodyweight = !requiresExternalWeight({
+    equipmentType: exercise.equipmentType,
+  });
+  const rows = await account.db.goal.findMany({
+    where: { exerciseId: exercise.id },
+    include: goalInclude,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const tz = account.timeZone;
+  const activeRow = rows.find((g) => g.status === "active") ?? null;
+  const past = rows
+    .filter((g) => g.status === "archived")
+    .sort((a, b) => {
+      const at = (a.archivedAt ?? a.updatedAt).getTime();
+      const bt = (b.archivedAt ?? b.updatedAt).getTime();
+      if (at !== bt) return bt - at;
+      return a.id < b.id ? -1 : 1;
+    })
+    .map((g) => toHistory(g, tz));
+  return {
+    active: activeRow ? await activeDto(account, activeRow, tz) : null,
+    past,
+    newGoalEligible: !exercise.isArchived && !bodyweight && !activeRow,
+    bodyweight,
+  };
 }

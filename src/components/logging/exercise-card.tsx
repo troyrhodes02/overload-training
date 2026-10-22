@@ -41,7 +41,8 @@ export type CardProgression = {
   tag: ProgressionTag | null;
   recommendation: RecommendationDto | null;
   scheduledDeloadWeek: boolean;
-  hasTrend: boolean;
+  /** The exercise's history page for this card's scope, once it has any. */
+  historyHref: string | null;
 };
 
 /**
@@ -621,13 +622,13 @@ export function ExerciseCard({
         </>
       ) : null}
 
-      {progression?.hasTrend ? (
+      {progression?.historyHref ? (
         <div className="mt-1">
           <Link
-            href={`/exercises/${exercise.performedExerciseId}`}
+            href={progression.historyHref}
             className="inline-flex min-h-11 items-center text-sm text-primary"
           >
-            View trend ›
+            View history ›
           </Link>
         </div>
       ) : null}

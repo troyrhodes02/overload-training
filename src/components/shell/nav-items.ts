@@ -34,7 +34,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     tourAnchor: "nav-history",
   },
   { href: "/goals", label: "Goals", icon: Target, tourAnchor: "nav-goals" },
-  { href: "/exercises", label: "Exercises", icon: Dumbbell },
+  {
+    href: "/exercises",
+    label: "Exercises",
+    icon: Dumbbell,
+    tourAnchor: "nav-exercises",
+  },
   { href: "/gyms", label: "Gyms", icon: Building2, tourAnchor: "nav-gyms" },
 ];
 

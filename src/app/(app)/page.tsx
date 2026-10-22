@@ -60,12 +60,9 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
                   {e.performedExerciseName}
                   <ProgressTag state={e.tag} />
                 </span>
-                {e.hasTrend ? (
-                  <Link
-                    href={`/exercises/${e.performedExerciseId}`}
-                    className="shrink-0 text-primary"
-                  >
-                    trend ›
+                {e.historyHref ? (
+                  <Link href={e.historyHref} className="shrink-0 text-primary">
+                    history ›
                   </Link>
                 ) : null}
               </div>

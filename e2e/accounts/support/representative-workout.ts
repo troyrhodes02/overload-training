@@ -113,7 +113,7 @@ function localDbUrl(): string {
   return url;
 }
 
-async function withDb<T>(run: (db: Client) => Promise<T>): Promise<T> {
+export async function withDb<T>(run: (db: Client) => Promise<T>): Promise<T> {
   const db = new Client({ connectionString: localDbUrl() });
   await db.connect();
   try {

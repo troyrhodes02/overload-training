@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { exerciseHistoryHref } from "@/lib/progression/history-format";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Archive, CircleCheck } from "lucide-react";
@@ -54,8 +55,12 @@ export default async function GoalDetailPage({
   );
 }
 
-function trendHref(goal: GoalDetailDto): string {
-  return `/exercises/${goal.exerciseId}${goal.gymId ? `?gym=${goal.gymId}` : ""}`;
+function historyHref(goal: GoalDetailDto): string {
+  // A machine goal carries its gym; a free-weight goal has none.
+  return exerciseHistoryHref(
+    goal.exerciseId,
+    goal.gymId ? { gymId: goal.gymId } : null,
+  );
 }
 
 function Heading({ goal }: { goal: GoalDetailDto }) {
@@ -159,8 +164,8 @@ function ActiveGoal({
             : "Best session across all gyms."}{" "}
           Epley estimate, same as the trend.
         </p>
-        <Link href={trendHref(goal)} className="text-sm text-primary">
-          e1RM trend ›
+        <Link href={historyHref(goal)} className="text-sm text-primary">
+          Exercise history ›
         </Link>
       </div>
 
@@ -237,8 +242,8 @@ function ArchivedGoal({
       </p>
       <p className="text-sm text-muted-foreground">Set {goal.createdLabel}</p>
       <div className="border-t border-border pt-3">
-        <Link href={trendHref(goal)} className="text-sm text-primary">
-          e1RM trend ›
+        <Link href={historyHref(goal)} className="text-sm text-primary">
+          Exercise history ›
         </Link>
       </div>
 

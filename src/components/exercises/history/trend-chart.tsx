@@ -9,36 +9,37 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { E1rmPointDto } from "@/lib/progression/types";
+import type { TrendPointDto } from "@/lib/progression/history-types";
 
 /**
- * The per-exercise e1RM trend (design Screen 4; spec §7, R48–R50). One readable
- * line, not a dashboard: a single series on the accent, light grid, scheduled-
- * deload points marked with a distinct hollow square (shape + muted colour, R39).
- * Read-only — corrections happen through the Pitch 4 history editor.
+ * One trend line of an exercise's history (Exercise History & PR Intelligence
+ * design doc §4.5; preview §03): the e1RM estimate, the heaviest working-set
+ * load, or (bodyweight) the most reps — one point per finished workout. The
+ * Progressive Overload Engine's chart, generalised: a single accent line,
+ * light grid, scheduled-deload points as hollow muted squares (shape + colour,
+ * never colour alone). No arrows, no colour for a drop, no percentages: a
+ * lower point is just lower. Read-only.
  *
- * Styled from theme tokens via CSS variables so it inverts cleanly in dark mode.
- * A visually-hidden table carries the same data for screen readers.
+ * Styled from theme tokens through CSS variables so it inverts with the
+ * theme. A visually hidden table carries every point, with the sets behind
+ * it, for screen readers.
  */
-export function E1rmChart({
+export function TrendChart({
   points,
+  unit,
+  seriesName,
   label,
 }: {
-  points: E1rmPointDto[];
+  points: TrendPointDto[];
+  unit: "lb" | "reps";
+  seriesName: string;
   label: string;
 }) {
-  if (points.length === 0) {
-    return (
-      <div className="flex h-[150px] items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
-        No logged sessions yet. Train this lift to see its trend.
-      </div>
-    );
-  }
-
   const data = points.map((p) => ({
     date: p.dateLabel,
-    e1rm: p.e1rm,
+    value: p.value,
     scheduledDeload: p.scheduledDeload,
+    sets: p.setsLabel,
   }));
 
   return (
@@ -62,7 +63,10 @@ export function E1rmChart({
             />
             <YAxis
               width={48}
-              domain={["dataMin - 5", "dataMax + 5"]}
+              // Never below zero: a reps view (or a light load) mustn't show
+              // an axis that starts at "-2 reps".
+              domain={[(min: number) => Math.max(0, min - 5), "dataMax + 5"]}
+              allowDecimals={false}
               tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
               tickLine={false}
               axisLine={false}
@@ -76,11 +80,14 @@ export function E1rmChart({
                 color: "var(--color-foreground)",
               }}
               labelStyle={{ color: "var(--color-muted-foreground)" }}
-              formatter={(value) => [`${value} lb`, "e1RM"]}
+              formatter={(value, _name, item) => [
+                `${value} ${unit} · ${(item?.payload as { sets?: string })?.sets ?? ""}`,
+                seriesName,
+              ]}
             />
             <Line
               type="monotone"
-              dataKey="e1rm"
+              dataKey="value"
               stroke="var(--color-primary)"
               strokeWidth={2}
               dot={<DeloadAwareDot />}
@@ -91,32 +98,39 @@ export function E1rmChart({
         </ResponsiveContainer>
       </div>
 
-      {/* Accessible equivalent of the line. */}
       <figcaption className="sr-only">{label}</figcaption>
-      <table className="sr-only">
-        <caption>{label}</caption>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>e1RM (lb)</th>
-            <th>Context</th>
-          </tr>
-        </thead>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.dateIso}>
-              <td>{p.dateLabel}</td>
-              <td>{p.e1rm}</td>
-              <td>{p.scheduledDeload ? "scheduled deload" : "normal"}</td>
+      {/* A <table> ignores sr-only's 1px width and lays out at its content
+          width, which scrolls a phone sideways; the wrapper clips it. */}
+      <div className="sr-only">
+        <table>
+          <caption>{label}</caption>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>
+                {seriesName} ({unit})
+              </th>
+              <th>Sets</th>
+              <th>Context</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {points.map((p, i) => (
+              <tr key={`${p.dateIso}-${i}`}>
+                <td>{p.dateLabel}</td>
+                <td>{p.value}</td>
+                <td>{p.setsLabel}</td>
+                <td>{p.scheduledDeload ? "scheduled deload" : "normal"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
 
-/** A normal filled accent dot, or a hollow muted square for a scheduled-deload point. */
+/** A filled accent dot, or a hollow muted square for a scheduled-deload point. */
 function DeloadAwareDot(props: {
   cx?: number;
   cy?: number;
