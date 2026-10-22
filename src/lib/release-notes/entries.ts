@@ -26,6 +26,17 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Smarter & Explainable Progression (Pitch 15). PROVISIONAL date: written
+    // 2026-10-21 while the feature PR waits for approval. Before merging, set
+    // `date` and the id's date prefix to the merge day (runbook 15 §2); once it
+    // reaches production it is published and never re-dated.
+    id: "2026-10-21-clearer-progression-calls",
+    date: "2026-10-21",
+    title: "Clearer progression calls",
+    body: "Every progression call now says what to do and why. Ready to go up shows the weight to try and the sets that earned it, a hold says what to stay at and what's left to earn the next step, and a deload shows the sets that fell short. Overload never changes your plan or your weights.",
+    significant: true,
+  },
+  {
     // RIR Logging & Autoregulation (Pitch 14). PROVISIONAL date: written
     // 2026-10-21 while the feature PR waits for approval. Before merging, set
     // `date` and the id's date prefix to the merge day (runbook 14 §3); once it
