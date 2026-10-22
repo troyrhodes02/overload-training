@@ -23,6 +23,7 @@ import {
   type ReactiveState,
 } from "./engine";
 import { bestWorkingSet, loadedSets, sessionE1rm } from "./e1rm";
+import { exerciseHistoryHref } from "./history-format";
 import { buildRecommendation, insufficientNote } from "./recommendation";
 import type {
   E1rmPointDto,
@@ -91,7 +92,12 @@ export type OccurrenceProgressionDto = {
   /** Null in a scheduled-deload week and whenever RIR didn't change the call. */
   rirEffect: RirEffect;
   suggestion: SuggestedLoadDto;
-  hasTrend: boolean;
+  /**
+   * Where this exercise's history lives (Exercise History & PR Intelligence
+   * R4): set once the occurrence's scope has a finished workout, any loading
+   * mode; a machine/cable link opens on this occurrence's gym.
+   */
+  historyHref: string | null;
   /** Today's advice while the session is in progress, next time's once complete. */
   recommendation: RecommendationDto | null;
 };
@@ -105,7 +111,7 @@ export type SessionProgressionSummaryDto = {
     tag: ProgressionTag | null;
     rirEffect: RirEffect;
     suggestion: SuggestedLoadDto;
-    hasTrend: boolean;
+    historyHref: string | null;
     recommendation: RecommendationDto | null;
   }[];
 };
@@ -118,10 +124,21 @@ function toTag(state: ReactiveState): ProgressionTag | null {
 }
 
 /** One gathered performance plus the display context the chart needs. */
-type Row = {
+export type PerformanceRow = {
   perf: Performance;
   loggedSessionId: string;
   gymName: string | null;
+  /** The gym was archived after this was logged (history keeps its name). */
+  gymArchived: boolean;
+  /** The workout this belongs to hasn't been finished yet. */
+  inProgress: boolean;
+  /** Sets beyond the plan (setNumber > plannedSets): shown, never judged. */
+  extraSets: Performance["workingSets"];
+  /** The exercise the plan named; differs from the performed one after a swap. */
+  plannedExerciseId: string;
+  plannedExerciseName: string;
+  /** The plan's set count for this occurrence (its preserved snapshot). */
+  plannedSets: number;
   completed: boolean; // session complete AND all planned working sets present
   /**
    * Session complete, regardless of how many planned sets were logged. Strength
@@ -131,6 +148,7 @@ type Row = {
    */
   finished: boolean;
 };
+type Row = PerformanceRow;
 
 /**
  * Gather every performance of the PERFORMED exercise (R10), with its preserved
@@ -138,7 +156,7 @@ type Row = {
  * working sets. A performance is `completed` iff its LoggedSession is complete
  * and all planned working sets are present (R9, R44).
  */
-async function gatherRows(
+export async function gatherRows(
   account: Account,
   exerciseId: string,
   db: AccountDb = account.db,
@@ -147,7 +165,8 @@ async function gatherRows(
     where: { exerciseId },
     include: {
       sets: { orderBy: { setNumber: "asc" } },
-      gym: { select: { name: true } },
+      gym: { select: { name: true, deletedAt: true } },
+      plannedExercise: { select: { name: true } },
       loggedSession: {
         select: {
           status: true,
@@ -180,6 +199,14 @@ async function gatherRows(
         reps: s.reps,
         rir: s.rir,
       }));
+    const extraSets = le.sets
+      .filter((s) => s.setNumber > le.plannedSets)
+      .map((s) => ({
+        setNumber: s.setNumber,
+        weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
+        reps: s.reps,
+        rir: s.rir,
+      }));
     const completed =
       le.loggedSession.status === "complete" &&
       workingSets.length >= le.plannedSets;
@@ -198,6 +225,12 @@ async function gatherRows(
       },
       loggedSessionId: le.loggedSessionId,
       gymName: le.gym?.name ?? null,
+      gymArchived: le.gym?.deletedAt != null,
+      inProgress: le.loggedSession.status !== "complete",
+      extraSets,
+      plannedExerciseId: le.plannedExerciseId,
+      plannedExerciseName: le.plannedExercise.name,
+      plannedSets: le.plannedSets,
       completed,
       finished: le.loggedSession.status === "complete",
     };
@@ -415,6 +448,84 @@ async function describeDecision(
   return { suggestion, recommendation };
 }
 
+/** The exercise fields a progression description needs. */
+export type ScopeExercise = {
+  id: string;
+  name: string;
+  equipmentType: Parameters<typeof isGymVariable>[0]["equipmentType"];
+  deletedAt: Date | null;
+};
+
+/** What one scope of an exercise's history says now (one evaluation). */
+export type ScopeDescription = Pick<
+  ExerciseProgressionDto,
+  | "state"
+  | "tag"
+  | "rirEffect"
+  | "suggestion"
+  | "recommendation"
+  | "insufficientNote"
+  | "currentE1rm"
+  | "qualifyingCount"
+  | "points"
+>;
+
+/**
+ * The call, its words, and the e1RM trend for ONE scope of an exercise's
+ * history: every gym for a gym-consistent exercise, one gym for a
+ * gym-variable one (`gym` null → nothing in scope, never another gym's rows).
+ * Shared by the progression section and Exercise History & PR Intelligence
+ * (spec §11.1), so both describe the same rows the same way.
+ */
+export async function describeScope(
+  account: Account,
+  exercise: ScopeExercise,
+  rows: Row[],
+  gym: { id: string; name: string } | null,
+  when: "today" | "next" = "next",
+): Promise<ScopeDescription> {
+  const gymVariable = isGymVariable(exercise);
+  const externalLoad = requiresExternalWeight(exercise);
+  const scopeRows = !gymVariable
+    ? rows
+    : gym
+      ? rows.filter((r) => r.perf.gymId === gym.id)
+      : [];
+  const decision = evaluateReactiveDecision(
+    scopeRows.map((r) => r.perf),
+    gymVariable ? {} : { e1rmApplicable: externalLoad },
+  );
+  const { state, rirEffect } = decision;
+  const { suggestion, recommendation } = await describeDecision(account, {
+    exerciseId: exercise.id,
+    gymId: gymVariable ? (gym?.id ?? null) : null,
+    gymVariable,
+    externalLoad: gymVariable ? true : externalLoad,
+    decision,
+    scopeRows,
+    gymName: gymVariable ? (gym?.name ?? null) : null,
+    when,
+    referenceIso: latestFinished(scopeRows)?.perf.dateIso ?? "",
+  });
+  const trendApplicable = gymVariable || externalLoad;
+  return {
+    state,
+    tag: toTag(state),
+    rirEffect,
+    suggestion,
+    recommendation,
+    insufficientNote: insufficientNote(
+      decision.evidence,
+      gymVariable && gym ? gym.name : null,
+    ),
+    currentE1rm: trendApplicable ? currentE1rm(scopeRows) : null,
+    qualifyingCount: qualifyingSequence(scopeRows.map((r) => r.perf)).length,
+    points: trendApplicable
+      ? toPoints(scopeRows, gymVariable ? (gym?.name ?? null) : null)
+      : [],
+  };
+}
+
 /**
  * Per-exercise progression state + e1RM trend for the detail page. For a
  * gym-variable exercise the active scope is one gym (selected or most-recent);
@@ -436,47 +547,57 @@ export async function getExerciseProgression(
   const gymVariable = isGymVariable(exercise);
   const externalLoad = requiresExternalWeight(exercise);
   const rows = await gatherRows(account, exerciseId);
+  const base = {
+    exerciseId: exercise.id,
+    exerciseName: exercise.name,
+    isArchived: exercise.deletedAt !== null,
+  };
 
   if (!gymVariable) {
-    const decision = evaluateReactiveDecision(
-      rows.map((r) => r.perf),
-      { e1rmApplicable: externalLoad },
-    );
-    const { state, rirEffect } = decision;
-    const { suggestion, recommendation } = await describeDecision(account, {
-      exerciseId,
-      gymId: null,
-      gymVariable: false,
-      externalLoad,
-      decision,
-      scopeRows: rows,
-      gymName: null,
-      when,
-      referenceIso: latestFinished(rows)?.perf.dateIso ?? "",
-    });
     return {
-      exerciseId: exercise.id,
-      exerciseName: exercise.name,
+      ...base,
       isGymVariable: false,
       requiresExternalWeight: externalLoad,
-      isArchived: exercise.deletedAt !== null,
       gyms: [],
       selectedGymId: null,
       selectedGymName: null,
-      state,
-      tag: toTag(state),
-      rirEffect,
-      suggestion,
-      recommendation,
-      insufficientNote: insufficientNote(decision.evidence, null),
-      currentE1rm: externalLoad ? currentE1rm(rows) : null,
-      qualifyingCount: qualifyingSequence(rows.map((r) => r.perf)).length,
-      points: externalLoad ? toPoints(rows, null) : [],
+      ...(await describeScope(account, exercise, rows, null, when)),
     };
   }
 
   // Gym-variable: scope to a single gym (R12–R14). List gyms that have at least
   // one completed performance, most-recent first.
+  const gyms = gymsWithFinishedHistory(rows);
+  const selectedGymId =
+    requestedGymId && gyms.some((g) => g.id === requestedGymId)
+      ? requestedGymId
+      : (gyms[0]?.id ?? null);
+  const selectedGymName =
+    gyms.find((g) => g.id === selectedGymId)?.name ?? null;
+
+  return {
+    ...base,
+    isGymVariable: true,
+    requiresExternalWeight: true,
+    gyms,
+    selectedGymId,
+    selectedGymName,
+    ...(await describeScope(
+      account,
+      exercise,
+      rows,
+      selectedGymId && selectedGymName
+        ? { id: selectedGymId, name: selectedGymName }
+        : null,
+      when,
+    )),
+  };
+}
+
+/** Gyms with at least one finished performance, most recent first (R13). */
+export function gymsWithFinishedHistory(
+  rows: Row[],
+): { id: string; name: string }[] {
   const gymRows = rows.filter((r) => r.finished && r.perf.gymId);
   const latestByGym = new Map<string, { name: string; dateIso: string }>();
   for (const r of gymRows) {
@@ -489,56 +610,9 @@ export async function getExerciseProgression(
       });
     }
   }
-  const gyms = [...latestByGym.entries()]
+  return [...latestByGym.entries()]
     .sort((a, b) => (a[1].dateIso > b[1].dateIso ? -1 : 1))
     .map(([id, v]) => ({ id, name: v.name }));
-
-  const selectedGymId =
-    requestedGymId && gyms.some((g) => g.id === requestedGymId)
-      ? requestedGymId
-      : (gyms[0]?.id ?? null);
-  const selectedGymName =
-    gyms.find((g) => g.id === selectedGymId)?.name ?? null;
-
-  const scopeRows = selectedGymId
-    ? rows.filter((r) => r.perf.gymId === selectedGymId)
-    : [];
-  const decision = evaluateReactiveDecision(scopeRows.map((r) => r.perf));
-  const { state, rirEffect } = decision;
-  const { suggestion, recommendation } = await describeDecision(account, {
-    exerciseId,
-    gymId: selectedGymId,
-    gymVariable: true,
-    externalLoad: true,
-    decision,
-    scopeRows,
-    gymName: selectedGymName,
-    when,
-    referenceIso: latestFinished(scopeRows)?.perf.dateIso ?? "",
-  });
-
-  return {
-    exerciseId: exercise.id,
-    exerciseName: exercise.name,
-    isGymVariable: true,
-    requiresExternalWeight: true,
-    isArchived: exercise.deletedAt !== null,
-    gyms,
-    selectedGymId,
-    selectedGymName,
-    state,
-    tag: toTag(state),
-    rirEffect,
-    suggestion,
-    recommendation,
-    insufficientNote: insufficientNote(
-      decision.evidence,
-      selectedGymId ? selectedGymName : null,
-    ),
-    currentE1rm: currentE1rm(scopeRows),
-    qualifyingCount: qualifyingSequence(scopeRows.map((r) => r.perf)).length,
-    points: toPoints(scopeRows, selectedGymName),
-  };
 }
 
 export type PlannedProgressionDto = {
@@ -667,8 +741,10 @@ export async function getOccurrenceProgression(
   const scopeRows = gymVariable
     ? rows.filter((r) => r.perf.gymId === le.gymId)
     : rows;
-  // A bodyweight exercise has no e1RM trend to link to.
-  const hasTrend = externalLoad && scopeRows.some((r) => r.finished);
+  // Any finished workout in scope has a history to link to (R4), bodyweight too.
+  const historyHref = scopeRows.some((r) => r.finished)
+    ? exerciseHistoryHref(le.exercise.id, gymVariable ? le.gymId : null)
+    : null;
 
   if (scheduledDeloadWeek) {
     // Reactive evaluation is suppressed entirely during a scheduled-deload week
@@ -687,7 +763,7 @@ export async function getOccurrenceProgression(
       tag: null,
       rirEffect: null,
       suggestion,
-      hasTrend,
+      historyHref,
       recommendation: buildRecommendation({
         scheduledDeload: true,
         externalLoad,
@@ -721,7 +797,7 @@ export async function getOccurrenceProgression(
     tag: toTag(state),
     rirEffect,
     suggestion,
-    hasTrend,
+    historyHref,
     recommendation,
   };
 }
@@ -775,7 +851,7 @@ export async function getSessionProgressionSummary(
         tag: occ?.tag ?? null,
         rirEffect: occ?.rirEffect ?? null,
         suggestion: occ?.suggestion ?? null,
-        hasTrend: occ?.hasTrend ?? false,
+        historyHref: occ?.historyHref ?? null,
         recommendation: occ?.recommendation ?? null,
       };
     }),

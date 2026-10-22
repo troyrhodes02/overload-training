@@ -277,7 +277,7 @@ describe("progression suggestions stay display-only (R8)", () => {
             repMax: 8,
           }),
           scheduledDeloadWeek: false,
-          hasTrend: true,
+          historyHref: "/exercises/ex-1",
         }}
       />,
     );
@@ -306,7 +306,7 @@ describe("the recommendation lines (Smarter & Explainable Progression, Screen 1)
         repMax: 8,
       }),
       scheduledDeloadWeek: false,
-      hasTrend: true,
+      historyHref: "/exercises/ex-1",
     });
     expect(html).toContain(">Progress<");
     expect(html).toContain(
@@ -326,7 +326,7 @@ describe("the recommendation lines (Smarter & Explainable Progression, Screen 1)
         latest: LATEST,
       }),
       scheduledDeloadWeek: false,
-      hasTrend: true,
+      historyHref: "/exercises/ex-1",
     });
     expect(html).toContain(
       "Top of the range, but at your limit last time (0 RIR)",
@@ -347,7 +347,7 @@ describe("the recommendation lines (Smarter & Explainable Progression, Screen 1)
         latest: LATEST,
       }),
       scheduledDeloadWeek: false,
-      hasTrend: true,
+      historyHref: "/exercises/ex-1",
     });
     expect(html).toContain(">Progress<");
     expect(html).toContain("Try 190 lb today (+5 lb)");
@@ -367,7 +367,7 @@ describe("the recommendation lines (Smarter & Explainable Progression, Screen 1)
         latest: LATEST,
       }),
       scheduledDeloadWeek: false,
-      hasTrend: true,
+      historyHref: "/exercises/ex-1",
     });
     expect(html).toContain("Stay at 185 lb today");
     expect(html).toContain("Last time: 8, 7, 6 of 6–8");
@@ -385,7 +385,7 @@ describe("the recommendation lines (Smarter & Explainable Progression, Screen 1)
         deloadLoadLbs: 165,
       }),
       scheduledDeloadWeek: true,
-      hasTrend: true,
+      historyHref: "/exercises/ex-1",
     });
     expect(html).toContain("Deload week: 165 lb (90%)");
     expect(html).toContain(
@@ -400,7 +400,7 @@ describe("the recommendation lines (Smarter & Explainable Progression, Screen 1)
       tag: null,
       recommendation: null,
       scheduledDeloadWeek: false,
-      hasTrend: false,
+      historyHref: null,
     });
     expect(html).not.toContain("space-y-0.5");
   });

@@ -27,7 +27,7 @@ export default async function WorkoutPage({
         tag: occ?.tag ?? null,
         recommendation: occ?.recommendation ?? null,
         scheduledDeloadWeek: occ?.scheduledDeloadWeek ?? false,
-        hasTrend: occ?.hasTrend ?? false,
+        historyHref: occ?.historyHref ?? null,
       };
       return [e.loggedExerciseId, value] as const;
     }),
