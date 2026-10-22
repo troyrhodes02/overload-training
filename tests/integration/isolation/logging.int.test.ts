@@ -160,6 +160,13 @@ describe("reads never surface another account's training", () => {
     expect(theirs?.tag ?? null).toBeNull();
     // RIR Logging: A's reps in reserve never qualify B's call.
     expect(theirs?.rirEffect ?? null).toBeNull();
+    // Smarter & Explainable Progression: B's words come from B's history
+    // alone — no recommendation and no count borrowed from A's sessions.
+    expect(theirs?.recommendation ?? null).toBeNull();
+    expect(theirs?.insufficientNote).toBe(
+      "Not enough history yet: 0 of 2 complete sessions.",
+    );
+    expect(JSON.stringify(theirs)).not.toContain(a.userId);
     expect(await getQualifyingSessionE1rms(b, lib.chestPress.id, null)).toEqual(
       [],
     );

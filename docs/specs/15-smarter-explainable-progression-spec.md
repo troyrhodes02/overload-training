@@ -201,7 +201,7 @@ export type RecommendationInput =
     };
 
 export function buildRecommendation(input: RecommendationInput): RecommendationDto | null;
-export function insufficientNote(e: Extract<DecisionEvidence, { kind: "insufficient" }>, gymName: string | null): string;
+export function insufficientNote(e: DecisionEvidence, gymName: string | null): string | null; // null unless kind === "insufficient"
 ```
 
 Rules (the design doc §4.4 catalog, verbatim; `{when}` = `today` / `next time`; `{When}` = `Today` / `Next time`; `{gym}` = ` at ${gymName}` when non-null; `{last}` = `last time` when `latestIsLastTime`, else `on ${formatPlanDate-short(latest.dateIso)}` (e.g. `on Oct 13`), `{Last}` capitalised):
@@ -231,7 +231,7 @@ Evidence strings by `evidence.kind`:
 | `hold_short` | `{Last}: {r1}, {r2}, … of {repMin}–{repMax}{gym}` |
 | `deload` | `A set below {repMin} reps, {n} sessions running{gym}`; `repMin` null → `A set below the range, {n} sessions running{gym}` |
 
-`{inc}` = `PROGRESS_INCREMENT_LBS`, `{pct}` = `Math.round(SCHEDULED_DELOAD_FACTOR * 100)`. Every figure is a constant from `config.ts` or a value from `evidence` / the load context; the module contains no numeric literal other than `100` for the percentage (guard, §14.1).
+`{inc}` = `PROGRESS_INCREMENT_LBS`, `{pct}` = `Math.round(SCHEDULED_DELOAD_FACTOR * 100)`. Every figure is a constant from `config.ts` or a value from `evidence` / the load context; the module contains no numeric literal other than `0`, `1` (string indexing) and `100` (percentage, rounding) (guard, §14.1).
 
 Defensive mapping: if `state` and `evidence.kind` ever disagree (they cannot, §6), `buildRecommendation` throws in development/test and returns `null` in production (never a wrong sentence). `insufficientNote`: `Not enough history yet{gym}: {qualifying} of {required} complete sessions.`
 
@@ -331,7 +331,7 @@ GIVEN scheduled-deload perfs between            THEN excluded from windows (unch
 **Static guards** (extend `invariant-guards.test.ts`):
 - no file under `src/app/` or `src/components/` imports `@/lib/progression/engine` or calls `evaluateReactive*` (no UI-side evaluation);
 - the action/evidence sentences live only in `recommendation.ts` (`go past`, `Stay at`, `Lower the weight`, `sessions running` appear in no other `src/` file);
-- `recommendation.ts` imports nothing server-only or Prisma, and contains no numeric literal other than `100`;
+- `recommendation.ts` imports nothing server-only or Prisma, and contains no numeric literal other than `0`, `1`, `100`;
 - `rir-copy.ts` no longer exists and nothing imports it.
 
 **Components** (`recommendation.test.tsx`, new; `exercise-card-*.test.tsx` extended): renders both lines; tone classes; `null` renders nothing; no element with a role or `tabIndex`; the card renders the recommendation in place of the old note/suggestion and its control count is unchanged.
@@ -448,6 +448,8 @@ Authority order (CLAUDE.md, Autonomous Pipeline Policy): approved planning docs 
 | R27 | **Method note entry** "Recommendation and evidence (established by Smarter & Explainable Progression)": the evidence kinds, the builder as the only copy source, R6–R9, R16–R18. | Exercise History & PR Intelligence consumes it. | Guide §4.5; CLAUDE.md (method-note exception) |
 | R28 | **Guidance (proposed; decided by `/overload-onboarding`)**: no tour change; one significant What's New entry with a provisional date set at merge per the established process. | No new control (pitch §12). | Pitch §12; What's New spec §8 |
 | R29 | **Tickets**: (1) engine evidence + builder + read layer + R9 + unit/integration/isolation; (2) UI surfaces + component tests + e2e + preview comparison; (3) user guidance. blockedBy chain 1 → 2 → 3. | Coherent medium-large PRs; UI depends on DTOs. | Run prompt; guide §5 step 6 |
+| R31 | The Library & Gyms Setup guard "no recommendation code" (`deliberate-absences.test.ts`) is narrowed by **exactly** the progression vocabulary (`recommendation(s)`, `RecommendationDto/Input/Kind/State`, `buildRecommendation`); any other "recommend" (a verb, recommended exercises or programs) still fails, and a new guard proves the builder never lists, ranks, or picks exercises. | That guard bans exercise-library personalization; the roadmap names progression recommendations as this feature. Narrowing the word, not the intent. | Pitch 2 spec §4, §16; roadmap → Smarter & Explainable Progression |
+| R32 | `rir-copy.ts` is retired in the UI ticket (OVE-67), not OVE-66, because the surfaces that import it change there; the "rir-copy gone" guard lands with it. | Keeps OVE-66 free of UI edits. | Ticket split R29 |
 | R30 | Existing tests that assert the retired RIR sentences (`progression-rir.test.ts`, `rir-logging.spec.ts`) are updated to the new strings; their behavioural assertions (state, rirEffect) are untouched. | Copy moved, behaviour didn't; no assertion is weakened. | CLAUDE.md verification honesty |
 
 ## 17. Open questions

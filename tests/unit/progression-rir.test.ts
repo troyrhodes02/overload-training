@@ -54,8 +54,15 @@ function perf(reps: number[], opts: Opts = {}): Performance {
   };
 }
 const TOP = [8, 8, 8];
-const decide = (perfs: Performance[], e1rmApplicable = true) =>
-  evaluateReactiveDecision(perfs, { e1rmApplicable });
+// The call only: these assertions are about state/base/rirEffect, exactly as
+// before. The evidence that now travels with a decision has its own suite
+// (progression-evidence.test.ts; Smarter & Explainable Progression R30).
+const decide = (perfs: Performance[], e1rmApplicable = true) => {
+  const { state, base, rirEffect } = evaluateReactiveDecision(perfs, {
+    e1rmApplicable,
+  });
+  return { state, base, rirEffect };
+};
 
 describe("constants (named, never literals in the engine)", () => {
   it("at the limit is 0 RIR; reps to spare is 2+", () => {
