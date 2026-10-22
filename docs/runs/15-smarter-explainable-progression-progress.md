@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 10 — integrate ticket PRs #87 → #88 → #89 into the feature branch (squash, in order).
+Step 12 — code review of #86 (inline comments), then 13 review audit.
 
 ## Authority used (read before resuming)
 
@@ -41,8 +41,8 @@ Step 10 — integrate ticket PRs #87 → #88 → #89 into the feature branch (sq
 - [x] 7. Feature PR into `main` (draft, stop before merge per R1) — **#86** https://github.com/troyrhodes02/overload-training/pull/86
 - [x] 8. Tickets — OVE-66 #87, OVE-67 #88, OVE-68 #89 (all In Review)
 - [x] 9. Runbook — `docs/runs/15-smarter-explainable-progression-runbook.md`
-- [ ] 10. Integrate ticket PRs
-- [ ] 11. Verification
+- [x] 10. Integrate ticket PRs — squashed in order: #87 `abd638f`, #88 `7a4da7d`, #89 `2b4d3a2` (retarget → merge feature into ticket, conflicts only in shared docs/guards → ticket side → tree == reviewed tip each time → Vercel pass → squash; final feature tree == OVE-68 tip; no force-push)
+- [x] 11. Verification on `2b4d3a2`: prettier, lint (0), tsc, prisma validate, `prisma/` diff vs main empty, unit 63/1033, integration 45/540, build + client-bundle OK, accounts e2e 34 passed + 1 skipped (baseline driver, by design), default e2e 26/26; local DB 3 users / 2 profiles / 463 sets / 0 release_seen after. Preview comparison: screenshots reviewed (card/today/summary/exercise 375 light; summary 1280 dark; What's New dialog 375 light + 1280 dark).
 - [ ] 12. Code review
 - [ ] 13. Review audit
 - [ ] 14. Final verification + merge gate (stop before merge)
@@ -52,9 +52,9 @@ Step 10 — integrate ticket PRs #87 → #88 → #89 into the feature branch (sq
 
 | Ticket | Branch (base) | PR | Status |
 | ------ | ------------- | -- | ------ |
-| OVE-66 Engine evidence, builder, read-layer DTOs | `feat/ove-66-explainable-evidence` (feature branch) | #87 | In Review, commit `f838a7f` |
-| OVE-67 UI surfaces + e2e | `feat/ove-67-explainable-ui` (OVE-66) | #88 | In Review, commit `3ae2eb8` |
-| OVE-68 User guidance | `feat/ove-68-guidance` (OVE-67) | #89 | In Review |
+| OVE-66 Engine evidence, builder, read-layer DTOs | `feat/ove-66-explainable-evidence` (feature branch) | #87 | In Review; squashed `abd638f` |
+| OVE-67 UI surfaces + e2e | `feat/ove-67-explainable-ui` (OVE-66) | #88 | In Review; squashed `7a4da7d` |
+| OVE-68 User guidance | `feat/ove-68-guidance` (OVE-67) | #89 | In Review; squashed `2b4d3a2` |
 
 ### Ticket summaries
 
