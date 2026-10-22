@@ -1,6 +1,6 @@
 # Exercise History & PR Intelligence — Design Document
 
-**Version:** 1.0
+**Version:** 1.1
 **Pitch Source:** Overload — Pitch 16: Exercise History & PR Intelligence (`pitches/16-exercise-history-pr-intelligence.md`)
 **Focus:** One page per exercise that answers "how has this lift actually been going?": what to do next, the records, the trend, every session with the call it led to, and the goals set on it — all read from the logged sets, within the right gym for machines and cables.
 
@@ -292,7 +292,9 @@ Any entry point in §6.
 └───────────────────────────────────────────┴──────────────────────────┘
 ```
 
-**Decision (hierarchy).** Phone order: Next time → Records → Trend → Sessions → Goals → About. Desktop: a main column (Next time, Trend, Sessions) and a 20rem side column (Records, Goals, About). Records lead on the side column so the "best I've done" answer stays above the fold at both widths. The large image moves from the top of the page to About: on a history page the lifter came for numbers; the image is still one scroll away and unchanged for library browsing.
+**Decision (hierarchy).** Order at every width: Next time → Records → Trend → Sessions → Goals → About. The large image moves from the top of the page to About: on a history page the lifter came for numbers; the image is still one scroll away and unchanged for library browsing.
+
+**v1.1 amendment (implementation, spec R30).** The two-column desktop layout above is superseded: the app shell keeps every authenticated page in one centered column (`max-w-screen-sm`, 640px), where a 20rem side column would leave the main column narrower than a phone. Desktop uses the phone order in that column; the chart gains height (240px), not a second column — the same rule as every other page (§10 `lg`: "charts gain width, not more elements"). The preview's desktop frames were regenerated to match.
 
 ### Header
 
@@ -508,7 +510,7 @@ Exercise history ─goal row─▶ Goal page;  ─Set a goal─▶ Goal form (ex
 | ---------- | -------- |
 | base (<640) | single column in the phone order; records block full width (Best e1RM and Heaviest side by side); session rows two to four lines; chart 180px; at 320px the call drops below the date line rather than truncating |
 | `sm` | same, roomier |
-| `md` | main column + 20rem side column; chart 240px; session rows keep the same lines (no table) |
+| `md` | the same single column inside the shell's centered 640px column (R30); chart 240px; session rows keep the same lines (no table) |
 | `lg` | content max width as the shell; chart gains width, not elements |
 
 Every action (gym switch, chart view, view all sessions, goal links, workout links) exists at every width.

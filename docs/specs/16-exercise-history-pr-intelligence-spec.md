@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved
 author: Claude Code (autonomous pipeline run)
 last_updated: 2026-10-22
@@ -116,7 +116,7 @@ Design doc §7 and the preview are binding for hierarchy, copy, and states. This
 | 1 | `requireAccount()`; `getExercise(account, id)` (resolves archived; another account's custom id → null → `notFound()`). |
 | 2 | Parse `searchParams`: `gym` (uuid or the literal `none`; anything else ignored), `sessions` (`all` or ignored), `from` (unchanged back link). |
 | 3 | `getExerciseHistory(account, exercise.id, { scope: gym, allSessions })` and `getExerciseGoals(account, exercise.id)` in parallel. |
-| 4 | Render, phone order: header → scope line (machines/cables with history) → Next time → Records → Trend → Sessions → Goals → About. `md+`: header and scope full width, then `grid md:grid-cols-[minmax(0,1fr)_20rem]` with main = Next time, Trend, Sessions and side = Records, Goals, About. Implementation may render Records in both positions with `md:hidden` / `hidden md:block`, or use grid areas — either is acceptable; the DOM must not duplicate interactive controls. |
+| 4 | Render, at every width: header → scope line (machines/cables with history) → Next time → Records → Trend → Sessions → Goals → About, in one column (R30). |
 | 5 | `metadata.title` stays `"Exercise · Overload"`. `loading.tsx` follows the new order (design doc §7). |
 
 ### 7.2 Components
@@ -465,6 +465,7 @@ Authority order (CLAUDE.md, Autonomous Pipeline Policy): approved planning docs 
 | R27 | Tour step: recommended on `/exercises` (desktop rail item / phone heading), final call by `overload-onboarding`; release note significant, dated the production (merge) day. | Pitch §12; the What's New contract forbids planned or backdated dates. | Pitch §12; method note release-note contract |
 | R28 | The archived exercise keeps its history and loses favourite, archive, and Set a goal; archived gyms stay selectable as `(archived)`. | Archive is never deletion (pitch §4.17). | CLAUDE.md; Goals R39–R41 |
 | R29 | "Current" e1RM header and the Weight/Reps "Last" value come from the latest non-deload point. | Existing `currentE1rm` rule (R42); same for the new views. | Engine spec R42 |
+| R30 | One column at every width; the design doc's and preview's two-column desktop layout is superseded (design doc v1.1, preview regenerated). | The app shell caps every page at `max-w-screen-sm` (640px); a 20rem side column would leave a ~288px main column, narrower than a phone. Desktop gains chart height, not a column — the shell's established rule. Changing the shell is out of scope. Found while implementing OVE-71. | Codebase pattern (`app-shell.tsx`); design doc §10 |
 
 ## Open Questions
 

@@ -10,25 +10,27 @@ import {
 } from "@/components/ui/select";
 
 /**
- * Gym scope selector for a gym-variable exercise's progression (design Screen 4;
- * spec §7, R13). Rendered only when ≥2 gyms have qualifying history. Switching
- * writes `?gym=` and re-renders the server progression region for that gym — no
- * cross-gym machine line is ever shown. Pure navigation; no data access.
+ * Which gym's record book a machine or cable exercise's history shows
+ * (Exercise History & PR Intelligence design doc Screen 2; spec §7.2, R5).
+ * Rendered only when the exercise has history at two or more scopes.
+ * Switching replaces `?gym=` (keeping any other param, e.g. `sessions`) and
+ * re-renders the whole page on the server for that gym — no figure from two
+ * gyms is ever shown together. Pure navigation; no data access.
  */
 export function GymSelector({
-  gyms,
+  options,
   value,
 }: {
-  gyms: { id: string; name: string }[];
+  options: { value: string; label: string }[];
   value: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  function onChange(gymId: string) {
+  function onChange(next: string) {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("gym", gymId);
+    params.set("gym", next);
     router.replace(`${pathname}?${params.toString()}`);
   }
 
@@ -36,15 +38,15 @@ export function GymSelector({
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         size="sm"
-        className="w-[11rem]"
-        aria-label="Gym for this trend"
+        className="w-[12rem]"
+        aria-label="Gym for this history"
       >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {gyms.map((g) => (
-          <SelectItem key={g.id} value={g.id}>
-            {g.name}
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
           </SelectItem>
         ))}
       </SelectContent>

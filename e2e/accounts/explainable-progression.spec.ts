@@ -109,7 +109,7 @@ test("each surface says what to do and why, and follows a correction", async ({
 
   // The exercise page says the same thing.
   await page
-    .getByRole("link", { name: "trend ›" })
+    .getByRole("link", { name: "history ›" })
     .filter({ visible: true })
     .first()
     .click();

@@ -54,7 +54,7 @@ export default async function GoalDetailPage({
   );
 }
 
-function trendHref(goal: GoalDetailDto): string {
+function historyHref(goal: GoalDetailDto): string {
   return `/exercises/${goal.exerciseId}${goal.gymId ? `?gym=${goal.gymId}` : ""}`;
 }
 
@@ -159,8 +159,8 @@ function ActiveGoal({
             : "Best session across all gyms."}{" "}
           Epley estimate, same as the trend.
         </p>
-        <Link href={trendHref(goal)} className="text-sm text-primary">
-          e1RM trend ›
+        <Link href={historyHref(goal)} className="text-sm text-primary">
+          Exercise history ›
         </Link>
       </div>
 
@@ -237,8 +237,8 @@ function ArchivedGoal({
       </p>
       <p className="text-sm text-muted-foreground">Set {goal.createdLabel}</p>
       <div className="border-t border-border pt-3">
-        <Link href={trendHref(goal)} className="text-sm text-primary">
-          e1RM trend ›
+        <Link href={historyHref(goal)} className="text-sm text-primary">
+          Exercise history ›
         </Link>
       </div>
 

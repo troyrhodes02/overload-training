@@ -62,7 +62,7 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
                 </span>
                 {e.historyHref ? (
                   <Link href={e.historyHref} className="shrink-0 text-primary">
-                    trend ›
+                    history ›
                   </Link>
                 ) : null}
               </div>

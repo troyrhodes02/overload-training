@@ -36,7 +36,13 @@ export default async function LoggedWorkoutPage({
       {detail.exercises.map((ex, i) => (
         <div key={i} className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm font-medium">
-            {ex.performedName}{" "}
+            {/* The exercise's history (Exercise History & PR Intelligence R4). */}
+            <Link
+              href={ex.historyHref}
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              {ex.performedName}
+            </Link>{" "}
             <span className="font-normal text-muted-foreground">
               {ex.swapped ? `(swapped from ${ex.plannedName})` : "(as planned)"}
               {ex.archived ? " · archived" : ""}
