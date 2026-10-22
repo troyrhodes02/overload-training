@@ -24,24 +24,22 @@ import {
 import { rirSpoken, rirSuffix } from "@/lib/logging/rir";
 import type {
   ProgressionTag,
-  RirEffect,
-  SuggestedLoadDto,
+  RecommendationDto,
 } from "@/lib/progression/types";
-import { rirReason } from "@/lib/progression/rir-copy";
 import { ProgressTag } from "@/components/progression/progress-tag";
-import { SuggestedLoad } from "@/components/progression/suggested-load";
+import { Recommendation } from "@/components/progression/recommendation";
 
 /**
  * Derived progression shown beside the bar (OVE-28). Display-only: the tag never
- * becomes a control and the suggestion never pre-fills set entry. During a
- * scheduled-deload week the reactive tag is suppressed and only the 90% load
- * shows (R37). When reported RIR changed the call, one muted line says why
- * (RIR Logging & Autoregulation R20).
+ * becomes a control and nothing here pre-fills set entry — the weight box keeps
+ * offering the working weight, whatever the recommendation says. Under the
+ * context line the recommendation gives today's action and its evidence
+ * (Smarter & Explainable Progression, design Screen 1); in a scheduled-deload
+ * week the reactive tag is suppressed and the lines speak only for the plan.
  */
 export type CardProgression = {
   tag: ProgressionTag | null;
-  rirEffect: RirEffect;
-  suggestion: SuggestedLoadDto;
+  recommendation: RecommendationDto | null;
   scheduledDeloadWeek: boolean;
   hasTrend: boolean;
 };
@@ -254,9 +252,6 @@ export function ExerciseCard({
         ]
       : []),
   ];
-  // The RIR reason, computed once (RIR Logging R20); the deload-week and
-  // stall lines take the slot first, as before.
-  const rirLine = progression ? rirReason(progression.rirEffect) : null;
   const contextLine = formatPreviousPerformance({
     previous: exercise.previousPerformance,
     isGymVariable: exercise.isGymVariable,
@@ -384,22 +379,7 @@ export function ExerciseCard({
           Swapped from {exercise.plannedExerciseName}
         </p>
       ) : null}
-      {progression?.scheduledDeloadWeek ? (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Deload week — recovery, not a verdict.
-        </p>
-      ) : progression?.tag === "stalled" ? (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Rep target met, but e1RM flat across recent sessions — holding.
-        </p>
-      ) : rirLine ? (
-        <p className="mt-1 text-xs text-muted-foreground">{rirLine}</p>
-      ) : null}
-      {progression?.suggestion ? (
-        <p className="mt-1">
-          <SuggestedLoad suggestion={progression.suggestion} />
-        </p>
-      ) : null}
+      <Recommendation recommendation={progression?.recommendation ?? null} />
 
       <div className="mt-4 space-y-1 tabular-nums">
         {rows.map((s) => {

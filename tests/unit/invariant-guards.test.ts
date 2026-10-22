@@ -725,6 +725,17 @@ describe("recommendations come from the engine, in one voice (Smarter & Explaina
     );
   });
 
+  it("the retired RIR copy module is gone and nothing imports it (R32)", () => {
+    expect(
+      fs.existsSync(path.join(REPO_ROOT, "src/lib/progression/rir-copy.ts")),
+    ).toBe(false);
+    expect(
+      walk(SRC)
+        .filter((f) => /rir-copy|rirReason/.test(read(f)))
+        .map(relPath),
+    ).toEqual([]);
+  });
+
   it("the read layer that builds recommendations performs no write", () => {
     const src = stripComments(
       read(path.join(REPO_ROOT, "src/lib/progression/queries.ts")),
