@@ -6,6 +6,7 @@ import {
   LogOut,
   MessageSquare,
   Settings,
+  Shield,
 } from "lucide-react";
 import { signOutAction } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function AccountMenu() {
+/**
+ * The ⋮ menu at every width: Settings, Send feedback, and — only when the
+ * server resolved the signed-in account as an admin — Admin (Admin Center &
+ * Feedback design doc Screen 1). The Admin item is left out of the markup for
+ * everyone else; hiding it is courtesy, and requireAdmin() is the check.
+ */
+export function AccountMenu({ isAdmin = false }: { isAdmin?: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -37,6 +44,14 @@ export function AccountMenu() {
             Send feedback
           </Link>
         </DropdownMenuItem>
+        {isAdmin ? (
+          <DropdownMenuItem asChild>
+            <Link href="/admin" className="flex w-full items-center gap-2">
+              <Shield className="size-4" />
+              Admin
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem asChild>
           <form action={signOutAction}>
             <button type="submit" className="flex w-full items-center gap-2">

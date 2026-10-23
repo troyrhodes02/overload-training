@@ -258,7 +258,7 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
     }
   });
 
-  it("the admin facade is imported only by signup and account deletion", () => {
+  it("the admin facade is imported only by signup, account deletion, and the admin account directory", () => {
     const importers = walk(SRC)
       .filter((f) => /["']@\/lib\/supabase\/admin["']/.test(read(f)))
       .map(rel)
@@ -267,6 +267,8 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       expect([
         "src/lib/accounts/deletion.ts",
         "src/lib/accounts/signup.ts",
+        // Admin Center & Feedback (spec R16): emails for the directory, read-only.
+        "src/lib/data/admin/emails.ts",
       ]).toContain(file);
     }
     expect(importers).toContain("src/lib/accounts/signup.ts");

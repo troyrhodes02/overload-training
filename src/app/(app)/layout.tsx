@@ -4,6 +4,7 @@ import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { getTourAutoStart } from "@/lib/tour/progress";
 import { getWhatsNewDialog } from "@/lib/release-notes/seen";
 import { AppShell } from "@/components/shell/app-shell";
+import { isAdminUserId } from "@/lib/data/admin/identity";
 
 // This segment reads the auth session at request time, so it blocks on the
 // server rather than prerendering an instant shell. Instant-navigation
@@ -31,6 +32,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       appearance={appearance}
       tourAutoStart={tourAutoStart}
       whatsNew={whatsNew}
+      // Admin Center & Feedback: only the allowlist decides; the shell gets a
+      // boolean, never the allowlist itself.
+      isAdmin={isAdminUserId(account.userId)}
     >
       {children}
     </AppShell>
