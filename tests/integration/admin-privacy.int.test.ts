@@ -4,6 +4,12 @@ import {
   suspendAccount,
 } from "@/lib/data/admin/accounts";
 import { listAudit } from "@/lib/data/admin/audit-read";
+import {
+  getFeedbackItem,
+  listFeedback,
+  parseInboxQuery,
+  setFeedbackHandled,
+} from "@/lib/data/admin/feedback";
 import { getAdminOverview } from "@/lib/data/admin/metrics";
 import { adminActorFor } from "@/lib/data/admin/identity";
 import type { Account } from "@/lib/data/account";
@@ -106,6 +112,10 @@ it("no admin read returns any training content", async () => {
   await trainingFor(b, lib, "B");
   const actor = adminActorFor(admin.userId, "UTC");
   await suspendAccount(actor, b.userId);
+  const [firstFeedback] = await getTestPrisma().feedback.findMany({
+    where: { userId: a.userId },
+  });
+  await setFeedbackHandled(actor, firstFeedback.id, true);
   const emails = async () =>
     new Map([
       [a.userId, "a@example.test"],
@@ -120,6 +130,8 @@ it("no admin read returns any training content", async () => {
     accountB: await getAdminAccount(actor, b.userId, emails),
     audit: await listAudit(actor, {}, emails),
     auditB: await listAudit(actor, { account: b.userId }, emails),
+    inbox: await listFeedback(actor, parseInboxQuery({ view: "all" }), emails),
+    item: await getFeedbackItem(actor, firstFeedback.id, emails),
   };
   const json = JSON.stringify(responses);
   for (const marker of MARKERS) {

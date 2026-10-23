@@ -293,3 +293,195 @@ test("suspension refuses the lifter's next request; reactivation restores it", a
   });
   await desk.ctx.close();
 });
+
+test("a non-admin replaying an admin server action directly changes nothing", async ({
+  browser,
+}) => {
+  // Capture the real suspend action (id + body) as the admin sends it,
+  // without letting it run.
+  const { ctx, page } = await adminContext(browser);
+  await page.goto(`/admin/accounts/${lifterId}`);
+  let captured: { action: string; body: string } | null = null;
+  await page.route("**/*", async (route) => {
+    const action = route.request().headers()["next-action"];
+    if (action && !captured) {
+      captured = { action, body: route.request().postData() ?? "" };
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "Suspend account…" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Suspend" })
+    .click();
+  await expect.poll(() => captured !== null).toBe(true);
+  await ctx.close();
+
+  const auditBefore = await withDb(
+    async (db) =>
+      (
+        await db.query(
+          "SELECT count(*)::int AS n FROM admin_audit_entries WHERE target_user_id = $1",
+          [lifterId],
+        )
+      ).rows[0].n as number,
+  );
+
+  // The lifter replays it with their own session — through a lifter page
+  // (no proxy check applies) and through the admin path.
+  const lifterCtx = await browser.newContext(PHONE_CONTEXT);
+  const lifter = await lifterCtx.newPage();
+  await signIn(lifter, LIFTER);
+  const { action, body } = captured!;
+  for (const path of ["/", "/feedback", `/admin/accounts/${lifterId}`]) {
+    // From inside the lifter's own page: a real browser request with the
+    // lifter's cookies and origin, exactly what a determined lifter could send.
+    const res = await lifter.evaluate(
+      async ({ path, action, body }) => {
+        const r = await fetch(path, {
+          method: "POST",
+          headers: {
+            "Next-Action": action,
+            Accept: "text/x-component",
+            "Content-Type": "text/plain;charset=UTF-8",
+          },
+          body,
+          redirect: "manual",
+        });
+        return { status: r.status, text: (await r.text()).slice(0, 300) };
+      },
+      { path, action, body },
+    );
+    // The request never reaches the action. A lifter page doesn't carry it,
+    // so Next answers "Server Action unavailable" (409); on the admin path
+    // the proxy rewrites a non-admin to the not-found route, which doesn't
+    // carry it either. Inside the action, requireAdmin() is the last layer
+    // (tests/unit/admin-actions.test.ts invokes every action directly).
+    expect([path, res.status, res.text]).toEqual([
+      path,
+      409,
+      "Server Action unavailable.",
+    ]);
+  }
+  await lifterCtx.close();
+
+  const after = await withDb(async (db) => ({
+    status: (
+      await db.query("SELECT status FROM profiles WHERE user_id = $1", [
+        lifterId,
+      ])
+    ).rows[0].status as string,
+    audit: (
+      await db.query(
+        "SELECT count(*)::int AS n FROM admin_audit_entries WHERE target_user_id = $1",
+        [lifterId],
+      )
+    ).rows[0].n as number,
+  }));
+  expect(after).toEqual({ status: "active", audit: auditBefore });
+});
+
+test("feedback end to end: a lifter sends it, the owner reads, re-files, and handles it", async ({
+  browser,
+}) => {
+  const lifterCtx = await browser.newContext(PHONE_CONTEXT);
+  const lifter = await lifterCtx.newPage();
+  await signIn(lifter, LIFTER);
+  await lifter.goto("/feedback");
+  await lifter.getByLabel("Bug").check();
+  await lifter
+    .getByLabel("Message")
+    .fill("Would love to see last week's weights on the session summary.");
+  await lifter.getByRole("button", { name: "Send" }).click();
+  await expect(
+    lifter.getByRole("heading", { name: "Sent. Thanks for telling us." }),
+  ).toBeVisible();
+  await lifterCtx.close();
+
+  const { ctx, page } = await adminContext(browser);
+  await page.goto("/admin/feedback");
+  const row = page
+    .getByRole("link", { name: /last week's weights/ })
+    .filter({ visible: true });
+  await expect(row).toBeVisible();
+  await page.screenshot({
+    path: `${SHOTS}/inbox-375-light.png`,
+    fullPage: true,
+  });
+  await row.click();
+  await expect(
+    page
+      .getByText(
+        "Would love to see last week's weights on the session summary.",
+      )
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(LIFTER.email, { exact: false }).filter({ visible: true }),
+  ).toBeVisible();
+
+  // Re-file it: the lifter called it a bug; it is an idea.
+  await page
+    .getByLabel("Category")
+    .filter({ visible: true })
+    .selectOption("idea");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(
+    page.getByText("Category saved.").filter({ visible: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Mark handled" }).click();
+  await expect(
+    page.getByText("Marked handled.").filter({ visible: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
+  await expect(
+    page
+      .getByText(/Changed a feedback category from Bug to Idea/)
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Marked feedback handled/).filter({ visible: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `${SHOTS}/item-375-light.png`,
+    fullPage: true,
+  });
+
+  // It left the Open view and is under Handled.
+  await page.goto("/admin/feedback");
+  await expect(
+    page
+      .getByRole("link", { name: /last week's weights/ })
+      .filter({ visible: true }),
+  ).toHaveCount(0);
+  await page.goto("/admin/feedback?view=handled");
+  await expect(
+    page
+      .getByRole("link", { name: /last week's weights/ })
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await page.goto(`/admin/accounts/${lifterId}`);
+  await expect(
+    page.getByText("View in inbox").filter({ visible: true }),
+  ).toBeVisible();
+  await ctx.close();
+
+  const desk = await adminContext(browser, true);
+  await desk.page.goto("/admin/feedback?view=all");
+  await desk.page.screenshot({
+    path: `${SHOTS}/inbox-1280-dark.png`,
+    fullPage: true,
+  });
+  await desk.page
+    .getByRole("link", { name: /last week's weights/ })
+    .filter({ visible: true })
+    .click();
+  await expect(desk.page.getByRole("button", { name: "Reopen" })).toBeVisible();
+  await desk.page.screenshot({
+    path: `${SHOTS}/item-1280-dark.png`,
+    fullPage: true,
+  });
+  await desk.ctx.close();
+});
