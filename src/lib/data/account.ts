@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
-import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { getAuthUser, requireUser } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/actions/result";
 import {
   asUsernameConflict,
@@ -35,32 +36,103 @@ export type Account = {
  */
 export const DEFAULT_PROFILE_TIME_ZONE = "UTC";
 
+/** Whether an account may use Overload (Admin Center & Feedback). */
+export type AccountStatus = "active" | "suspended";
+
+type ResolvedAccount = {
+  account: Account;
+  status: AccountStatus;
+  /** "YYYY-MM-DD", or null before the account's first tracked request. */
+  lastActiveOn: string | null;
+};
+
+const PROFILE_STATE = {
+  timeZone: true,
+  status: true,
+  lastActiveOn: true,
+} as const;
+
+/** A `@db.Date` value as "YYYY-MM-DD" (Prisma maps it to UTC midnight). */
+function isoDate(value: Date | null): string | null {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
 /**
  * Builds the Account for an authenticated user id, creating the profile if
- * it does not exist yet. Only requireAccount() calls this with a session id;
- * a static guard keeps it out of application code.
+ * it does not exist yet, plus the access state requireAccount() enforces.
+ * Only requireAccount() calls this with a session id; a static guard keeps it
+ * out of application code.
  */
-export async function resolveAccount(userId: string): Promise<Account> {
+export async function resolveAccountState(
+  userId: string,
+): Promise<ResolvedAccount> {
   const db = createAccountClient(userId);
-  let profile = await db.profile.findUnique({ where: { userId } });
+  let profile = await db.profile.findUnique({
+    where: { userId },
+    select: PROFILE_STATE,
+  });
   if (!profile) {
     try {
       profile = await db.profile.create({
         data: { userId, timeZone: DEFAULT_PROFILE_TIME_ZONE },
+        select: PROFILE_STATE,
       });
     } catch (error) {
       // Two first requests raced; the other one created it.
       if (!isUniqueViolation(error)) throw error;
-      profile = await db.profile.findUniqueOrThrow({ where: { userId } });
+      profile = await db.profile.findUniqueOrThrow({
+        where: { userId },
+        select: PROFILE_STATE,
+      });
     }
   }
   return {
-    userId,
-    timeZone: isValidTimeZone(profile.timeZone)
-      ? profile.timeZone
-      : DEFAULT_PROFILE_TIME_ZONE,
-    db,
+    account: {
+      userId,
+      timeZone: isValidTimeZone(profile.timeZone)
+        ? profile.timeZone
+        : DEFAULT_PROFILE_TIME_ZONE,
+      db,
+    },
+    status: profile.status,
+    lastActiveOn: isoDate(profile.lastActiveOn),
   };
+}
+
+/** The Account alone (operator-style callers that enforce nothing else). */
+export async function resolveAccount(userId: string): Promise<Account> {
+  return (await resolveAccountState(userId)).account;
+}
+
+/**
+ * Records today as the account's last-active date (Admin Center & Feedback,
+ * spec section 7; R4): a calendar date in the account's own timezone, written
+ * at most once a day. The condition makes the write a no-op once today is
+ * stored, so concurrent first requests of a day cannot move it twice. Best
+ * effort: a failure is logged by error name only and never blocks the
+ * request — it costs a metric, not the lifter's access.
+ */
+export async function touchLastActive(
+  account: Account,
+  lastActiveOn: string | null,
+): Promise<void> {
+  const today = accountToday(account);
+  if (lastActiveOn !== null && lastActiveOn >= today) return;
+  const day = new Date(`${today}T00:00:00.000Z`);
+  try {
+    await account.db.profile.updateMany({
+      where: {
+        userId: account.userId,
+        OR: [{ lastActiveOn: null }, { lastActiveOn: { lt: day } }],
+      },
+      data: { lastActiveOn: day },
+    });
+  } catch (error) {
+    console.error(
+      "last-active: could not record today",
+      error instanceof Error ? error.name : "unknown",
+    );
+  }
 }
 
 /**
@@ -156,8 +228,31 @@ export async function establishProfile(
  */
 export const requireAccount = cache(async (): Promise<Account> => {
   const user = await requireUser();
-  return resolveAccount(user.id);
+  const { account, status, lastActiveOn } = await resolveAccountState(user.id);
+  // Suspension (Admin Center & Feedback, spec section 7): checked on EVERY
+  // authenticated request — every page renders under a layout that calls
+  // this and every server action calls it first — so a session that signed
+  // in before the suspension is refused on its very next request. Nothing is
+  // recorded for a suspended request.
+  if (status === "suspended") redirect("/suspended");
+  await touchLastActive(account, lastActiveOn);
+  return account;
 });
+
+/**
+ * Where the signed-in visitor stands (the /suspended page): signed out, an
+ * account that may use Overload, or a suspended one. From the auth session
+ * only; never creates a profile.
+ */
+export async function getAccessState(): Promise<"signed_out" | AccountStatus> {
+  const user = await getAuthUser();
+  if (!user) return "signed_out";
+  const profile = await createAccountClient(user.id).profile.findUnique({
+    where: { userId: user.id },
+    select: { status: true },
+  });
+  return profile?.status ?? "active";
+}
 
 /** Run in the caller's (scoped) transaction, or open one on the account. */
 export function inAccountTx<T>(

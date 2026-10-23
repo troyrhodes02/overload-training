@@ -72,7 +72,7 @@ Two account-lifecycle rules ride on the existing per-request chokepoint, `requir
 | `Profile.status` | `active` (default) or `suspended`. Changed only by the admin suspend and reactivate operations. |
 | `Profile.lastActiveOn` | A calendar date (`@db.Date`) in the account's own timezone: the last day the account made an authenticated request while active. `NULL` until the first request after this ships. |
 | `Feedback` | An owned row: one message from one lifter to the owner. Category, message, `createdAt`, `handledAt` (`NULL` means open). |
-| `AdminAuditEntry` | An admin-only row (no owner): who (`actorUserId`), what (`action` + optional `detail`), which account (`targetUserId`), when (`createdAt`), and for feedback actions the `feedbackId`. Append-only. |
+| `AdminAuditEntry` | An admin-only row (no owner): who (`actorUserId`), what (`kind` + optional `detail`), which account (`targetUserId`), when (`createdAt`), and for feedback actions the `feedbackId`. Append-only. |
 | **Signup date** | `Profile.createdAt` rendered as a calendar date in the account's own timezone. |
 | **Reference day / month** | "Today" and "this month" for the Overview, in the acting admin's timezone (`accountToday(admin)`). |
 
@@ -124,7 +124,7 @@ export const requireAdmin: () => Promise<AdminActor>; // React cache() per reque
 | `Profile` | `findMany`, `findUnique`, `count`, `updateMany` | reads **must** carry `select` ⊆ `PROFILE_ADMIN_FIELDS` = {userId, firstName, lastName, username, timeZone, status, lastActiveOn, createdAt}; `updateMany.data` keys ⊆ {status}; `where`/`orderBy` keys ⊆ the same fields (+ AND/OR/NOT) |
 | `TourProgress` | `findMany` | `select` ⊆ {userId, outcome} |
 | `Feedback` | `findMany`, `findUnique`, `count`, `updateMany` | `select` ⊆ {id, userId, category, message, createdAt, handledAt}; `updateMany.data` ⊆ {category, handledAt} |
-| `AdminAuditEntry` | `create`, `findMany`, `count` | create data ⊆ {actorUserId, action, targetUserId, feedbackId, detail}; `select` ⊆ all its columns |
+| `AdminAuditEntry` | `create`, `findMany`, `count` | create data ⊆ {actorUserId, kind, targetUserId, feedbackId, detail}; `select` ⊆ all its columns |
 | `Mesocycle`, `LoggedSet` | `groupBy` only | `by` must equal `["userId"]`; no `where`, `having`, `_count`, `_sum`, `_avg`, `_min`, `_max`, `orderBy` other than userId. The result is a list of account ids: "has ≥1 row" |
 | every other model | — | refused (`AdminScopeError`) |
 
@@ -249,7 +249,8 @@ enum AdminAuditAction {
 model AdminAuditEntry {
   id           String           @id @default(uuid()) @db.Uuid
   actorUserId  String           @map("actor_user_id") @db.Uuid
-  action       AdminAuditAction
+  /// "kind", not "action": that word is reserved by the no-stored-recommendation guard.
+  kind         AdminAuditAction
   targetUserId String           @map("target_user_id") @db.Uuid
   feedbackId   String?          @map("feedback_id") @db.Uuid
   /// Only for feedback_recategorized: {"from": category, "to": category}.
@@ -267,7 +268,7 @@ model AdminAuditEntry {
 
 - `ALTER TABLE "profiles" ADD COLUMN "status" "AccountStatus" NOT NULL DEFAULT 'active', ADD COLUMN "last_active_on" DATE;`. Every existing account becomes active with no last-active date, and no row is otherwise written.
 - `CREATE TABLE "feedback"` with FK to `profiles` (RESTRICT/RESTRICT) and `CHECK (char_length(btrim("message")) BETWEEN 1 AND 2000)`. The `overload_user_id_immutable` trigger is attached.
-- `CREATE TABLE "admin_audit_entries"` and `CHECK (("action" = 'feedback_recategorized') = ("detail" IS NOT NULL))`.
+- `CREATE TABLE "admin_audit_entries"` and `CHECK (("kind" = 'feedback_recategorized') = ("detail" IS NOT NULL))` and a matching CHECK that exactly the feedback kinds carry `feedback_id`.
 - `CREATE FUNCTION "overload_reject_change"() RETURNS trigger` (raises `'admin_audit_entries is append-only'`), with `REVOKE ALL … FROM PUBLIC, anon, authenticated` following the existing role-guarded pattern. Also `CREATE TRIGGER … BEFORE UPDATE OR DELETE ON "admin_audit_entries" FOR EACH ROW`.
 - RLS on both new tables, no policies:
 
