@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { listAuthUserEmails } from "@/lib/supabase/admin";
 
 /**
@@ -9,9 +10,12 @@ import { listAuthUserEmails } from "@/lib/supabase/admin";
  */
 export type EmailSource = () => Promise<Map<string, string>>;
 
+/** One listing per server request, however many helpers ask for it. */
+const listOncePerRequest = cache(listAuthUserEmails);
+
 /** Emails by user id, or null when the sign-in system could not be read. */
 export async function readEmails(
-  source: EmailSource = listAuthUserEmails,
+  source: EmailSource = listOncePerRequest,
 ): Promise<Map<string, string> | null> {
   try {
     return await source();

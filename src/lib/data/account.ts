@@ -7,7 +7,7 @@ import {
   asUsernameConflict,
   UsernameTakenError,
 } from "@/lib/accounts/username-taken";
-import { isValidTimeZone, todayIso } from "@/lib/plan/calendar";
+import { isValidTimeZone, toIsoDate, todayIso } from "@/lib/plan/calendar";
 import { initialReleaseSeen } from "@/lib/release-notes/seen";
 import {
   createAccountClient,
@@ -54,7 +54,7 @@ const PROFILE_STATE = {
 
 /** A `@db.Date` value as "YYYY-MM-DD" (Prisma maps it to UTC midnight). */
 function isoDate(value: Date | null): string | null {
-  return value ? value.toISOString().slice(0, 10) : null;
+  return value ? toIsoDate(value) : null;
 }
 
 /**

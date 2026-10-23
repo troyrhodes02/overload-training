@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requireAdmin } from "@/lib/data/admin/identity";
 import { getFeedbackItem } from "@/lib/data/admin/feedback";
 import { FEEDBACK_CATEGORY_LABEL } from "@/lib/admin/types";
-import { instantLabel } from "@/lib/admin/format";
+import { instantDate, instantLabel } from "@/lib/admin/format";
 import { Badge } from "@/components/ui/badge";
 import { CompactAuditList } from "@/components/admin/audit-list";
 import {
@@ -29,7 +29,7 @@ export default async function AdminFeedbackItemPage({ params }: PageProps) {
   const lastHandled = item.history.find((l) => l.kind === "feedback_handled");
   const handledLine =
     item.handledAt && lastHandled
-      ? `Handled ${instantLabel(item.handledAt, actor.timeZone, false).split(" · ")[0]} by ${lastHandled.actorName}`
+      ? `Handled ${instantDate(item.handledAt, actor.timeZone)} by ${lastHandled.actorName}`
       : null;
 
   return (

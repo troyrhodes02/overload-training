@@ -41,6 +41,20 @@ export function monthLabel(month: string): string {
   return MONTH_YEAR.format(utc(`${month}-01`));
 }
 
+/** An instant's calendar day in a timezone: "Oct 21" (or with the year). */
+export function instantDate(
+  isoInstant: string,
+  timeZone: string,
+  withYear = false,
+): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(withYear ? { year: "numeric" } : {}),
+    timeZone,
+  }).format(new Date(isoInstant));
+}
+
 /** An instant in a timezone: "Oct 21, 2026 · 2:14 PM". */
 export function instantLabel(
   isoInstant: string,

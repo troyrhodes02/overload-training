@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 status: approved (autonomous pipeline run — Resolved Decisions recorded below)
 author: Claude Code (autonomous pipeline, Pitch 17)
 last_updated: 2026-10-22
@@ -588,6 +588,9 @@ Resolved by this run (authority order: planning docs → CLAUDE.md/skills → co
 
 - **R26. No tour step for Send feedback, and no existing step changes (overload-onboarding, OVE-78).** The entry is one item in the ⋮ menu and in the phone sheet. The tour already points at both: the Settings step says Settings lives "under the ⋮ menu at the top", and the phone navigation step introduces the sheet. Feedback is a low-frequency utility a lifter does not need trained to benefit from ("a new variant of something the lifter already understands"). The admin area is never toured. *Authority: overload-onboarding rubric ("when it is not clear, default to no step"); design doc §13.*
 - **R27. One significant release note, "Send feedback from Overload"** (`2026-10-22-send-feedback`, top of `src/lib/release-notes/entries.ts`). It adds a capability lifters will notice, so it opens the dialog once. It never mentions the admin area. **Provisional date:** written on 2026-10-22 while the PR waits for human approval. Before the merge, set the date and id prefix to the merge day (runbook §6), as the Pitch 13–15 entries did. *Authority: overload-onboarding ("date it with the shipping date"); What's New spec R5–R8.*
+
+- **R28. The feedback cap's count and insert run in one SERIALIZABLE transaction (review of #94).** Without it, parallel submissions all counted fewer than 10 rows before any committed. Racers now fail with a serialization error, reported as "Couldn't send". *Authority: R19; review audit.*
+- **R29. Review-audit reaffirmations (review of #94).** First, a suspended account cannot reach self-deletion. CLAUDE.md requires a suspended account to be "refused on every authenticated request", and R22 already decided this. Data removal for a suspended account waits for the admin-deletion amendment (R7) or Public Accounts. Second, "Logged a workout" stays a presence check on LoggedSet (R14): `logged_sets.user_id` is indexed, so the `groupBy` is an index-only aggregate, and per-account data is small.
 
 ## Open Questions
 

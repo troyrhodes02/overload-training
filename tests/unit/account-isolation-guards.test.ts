@@ -73,7 +73,7 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     const offenders = walk(SRC)
       .filter((f) => !rel(f).startsWith(DATA_LAYER))
       .filter((f) =>
-        /@\/lib\/data\/operator|\bcreateAccountClient\b|\bresolveAccount\b|\baccountFor\b/.test(
+        /@\/lib\/data\/operator|\bcreateAccountClient\b|\bresolveAccount(State)?\b|\btouchLastActive\b|\baccountFor\b/.test(
           code(f),
         ),
       );
@@ -108,7 +108,7 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
 
   it("the Supabase client never queries application tables", () => {
     const offenders = walk(SRC).filter((f) =>
-      /supabase[\w.]*\.from\(|\.from\(["'](mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen)["']\)/.test(
+      /supabase[\w.]*\.from\(|\.from\(["'](mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen|feedback|admin_audit_entries)["']\)/.test(
         code(f),
       ),
     );

@@ -13,17 +13,18 @@ import { SendFeedback } from "@/components/send-feedback/send-feedback-form";
 
 const count = jest.fn();
 const create = jest.fn();
-const account = {
-  userId: "acting-user",
-  timeZone: "UTC",
-  db: { feedback: { count, create } },
-};
+const transaction = jest.fn();
+const db: Record<string, unknown> = { feedback: { count, create } };
+db.$transaction = transaction;
+const account = { userId: "acting-user", timeZone: "UTC", db };
 
 beforeEach(() => {
   jest.clearAllMocks();
   (requireAccount as jest.Mock).mockResolvedValue(account);
   count.mockResolvedValue(0);
   create.mockResolvedValue({ id: "f1" });
+  // The count and the insert share one serializable transaction.
+  transaction.mockImplementation((run: (tx: unknown) => unknown) => run(db));
 });
 
 const form = (fields: Record<string, string>) => {
@@ -44,6 +45,9 @@ it("sends the acting account's trimmed message and nothing else", async () => {
   );
   expect(state).toEqual({ status: "sent" });
   expect(requireAccount).toHaveBeenCalledTimes(1);
+  expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+    isolationLevel: "Serializable",
+  });
   expect(create).toHaveBeenCalledWith({
     data: {
       userId: "acting-user",

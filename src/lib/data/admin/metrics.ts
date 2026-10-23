@@ -1,5 +1,5 @@
 import "server-only";
-import { todayIso } from "@/lib/plan/calendar";
+import { toIsoDate, todayIso } from "@/lib/plan/calendar";
 import type { AdminOverviewDto } from "@/lib/admin/types";
 import { computeOverview } from "@/lib/admin/overview";
 import { adminDb } from "./db";
@@ -40,9 +40,7 @@ export async function getAdminOverview(
       createdAt: p.createdAt,
       timeZone: p.timeZone,
       status: p.status,
-      lastActiveOn: p.lastActiveOn
-        ? p.lastActiveOn.toISOString().slice(0, 10)
-        : null,
+      lastActiveOn: p.lastActiveOn ? toIsoDate(p.lastActiveOn) : null,
     })),
     withPlan: new Set(plans.map((r) => r.userId)),
     loggedWorkout: new Set(logged.map((r) => r.userId)),

@@ -1,3 +1,10 @@
+import {
+  FEEDBACK_CATEGORY_LABELS,
+  type FeedbackCategoryValue,
+} from "@/lib/feedback/validation";
+
+export type { FeedbackCategoryValue };
+
 /**
  * The admin area's data contracts (Admin Center & Feedback, spec §13). Pure
  * types and labels, safe for client components. Exhaustive by design: no
@@ -7,7 +14,6 @@
 
 export type AccountStatusValue = "active" | "suspended";
 export type TourState = "finished" | "skipped" | "not_yet";
-export type FeedbackCategoryValue = "bug" | "idea" | "question" | "other";
 export type AuditKind =
   | "account_suspend"
   | "account_reactivate"
@@ -100,12 +106,8 @@ export type AuditPageDto = {
   account: { id: string; label: string | null } | null;
 };
 
-export const FEEDBACK_CATEGORY_LABEL: Record<FeedbackCategoryValue, string> = {
-  bug: "Bug",
-  idea: "Idea",
-  question: "Question",
-  other: "Other",
-};
+/** The one category label table (src/lib/feedback/validation.ts). */
+export const FEEDBACK_CATEGORY_LABEL = FEEDBACK_CATEGORY_LABELS;
 
 /** The audit log's wording (design doc Screen 9). */
 export function auditActionText(line: Pick<AuditLineDto, "kind" | "detail">) {

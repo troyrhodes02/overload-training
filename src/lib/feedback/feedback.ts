@@ -32,18 +32,27 @@ export async function submitFeedback(
   }
   const input: FeedbackInput = parsed.value;
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const recent = await account.db.feedback.count({
-    where: { createdAt: { gte: since } },
-  });
-  if (recent >= FEEDBACK_DAILY_LIMIT) {
-    throw new DomainError("conflict", "limit");
-  }
-  return account.db.feedback.create({
-    data: {
-      userId: account.userId,
-      category: input.category,
-      message: input.message,
+  // The count and the insert run in one SERIALIZABLE transaction, so a burst
+  // of parallel submissions (a stuck button, a script) can't all pass the cap
+  // by counting before any of them commits: Postgres aborts the racers with a
+  // serialization failure, which the action reports as "couldn't send".
+  return account.db.$transaction(
+    async (tx) => {
+      const recent = await tx.feedback.count({
+        where: { createdAt: { gte: since } },
+      });
+      if (recent >= FEEDBACK_DAILY_LIMIT) {
+        throw new DomainError("conflict", "limit");
+      }
+      return tx.feedback.create({
+        data: {
+          userId: account.userId,
+          category: input.category,
+          message: input.message,
+        },
+        select: { id: true },
+      });
     },
-    select: { id: true },
-  });
+    { isolationLevel: "Serializable" },
+  );
 }

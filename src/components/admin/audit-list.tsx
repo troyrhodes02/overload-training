@@ -26,7 +26,9 @@ function AccountLink({ line }: { line: AuditLineDto }) {
 }
 
 function FeedbackLink({ line }: { line: AuditLineDto }) {
-  if (!line.feedbackId) return null;
+  // A deleted sender's feedback was deleted with the account; the audit
+  // line keeps the id, but there is nothing left to link to.
+  if (!line.feedbackId || !line.target.label) return null;
   return (
     <>
       {" · "}

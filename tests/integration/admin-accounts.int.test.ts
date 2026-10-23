@@ -242,6 +242,24 @@ describe("directory and account page", () => {
     expect((await resolveAccountState(maya.userId)).status).toBe("active");
   });
 
+  it("'Suspended since' survives many later admin actions on the account (review of #94)", async () => {
+    await suspendAccount(actor(), maya.userId);
+    for (let i = 0; i < 12; i++) {
+      await raw().adminAuditEntry.create({
+        data: {
+          actorUserId: ADMIN_ID,
+          kind: "feedback_handled",
+          targetUserId: maya.userId,
+          feedbackId: randomUUID(),
+        },
+      });
+    }
+    const page = await getAdminAccount(actor(), maya.userId, emailSource);
+    expect(page?.audit).toHaveLength(10);
+    expect(page?.audit.some((l) => l.kind === "account_suspend")).toBe(false);
+    expect(page?.suspendedSince).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
   it("the audit log names accounts, and a removed account reads as deleted", async () => {
     await suspendAccount(actor(), maya.userId);
     await raw().adminAuditEntry.create({

@@ -22,13 +22,20 @@ export type MetricProfile = {
 const pct = (n: number, of: number): number | null =>
   of === 0 ? null : Math.round((100 * n) / of);
 
-function signupDate(p: MetricProfile): string {
+/**
+ * An account's signup day: its creation instant as a calendar date in its
+ * own timezone (UTC if the stored zone is unusable). Shared by the metrics
+ * and the directory.
+ */
+export function signupDay(createdAt: Date, timeZone: string): string {
   try {
-    return isoDateInZone(p.createdAt, p.timeZone);
+    return isoDateInZone(createdAt, timeZone);
   } catch {
-    return isoDateInZone(p.createdAt, "UTC");
+    return isoDateInZone(createdAt, "UTC");
   }
 }
+
+const signupDate = (p: MetricProfile) => signupDay(p.createdAt, p.timeZone);
 
 /** "YYYY-MM" of the month `offset` months before `month` ("YYYY-MM"). */
 function monthBefore(month: string, offset: number): string {

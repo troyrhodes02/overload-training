@@ -56,3 +56,17 @@ it("rejects invalid input without writing", async () => {
   ).rejects.toMatchObject({ code: "validation_error" });
   expect(await getTestPrisma().feedback.count()).toBe(0);
 });
+
+it("a burst of parallel submissions can't get past the daily limit (review of #94)", async () => {
+  const account = await createTestAccount();
+  const results = await Promise.allSettled(
+    Array.from({ length: FEEDBACK_DAILY_LIMIT + 6 }, (_, i) =>
+      submitFeedback(account, { category: "other", message: `burst ${i}` }),
+    ),
+  );
+  const stored = await getTestPrisma().feedback.count({
+    where: { userId: account.userId },
+  });
+  expect(stored).toBeLessThanOrEqual(FEEDBACK_DAILY_LIMIT);
+  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(stored);
+});

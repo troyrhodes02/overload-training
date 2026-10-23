@@ -1,6 +1,7 @@
 import "server-only";
 import { DomainError, isUuid } from "@/lib/actions/result";
-import { isoDateInZone } from "@/lib/plan/calendar";
+import { isoDateInZone, toIsoDate } from "@/lib/plan/calendar";
+import { signupDay } from "@/lib/admin/overview";
 import {
   personName,
   type AdminAccountDto,
@@ -47,15 +48,9 @@ type ProfileMeta = {
   createdAt: Date;
 };
 
-const isoDate = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+const isoDate = (d: Date | null) => (d ? toIsoDate(d) : null);
 
-function signupOn(p: ProfileMeta): string {
-  try {
-    return isoDateInZone(p.createdAt, p.timeZone);
-  } catch {
-    return isoDateInZone(p.createdAt, "UTC");
-  }
-}
+const signupOn = (p: ProfileMeta) => signupDay(p.createdAt, p.timeZone);
 
 function toRow(
   p: ProfileMeta,
@@ -184,23 +179,26 @@ export async function getAdminAccount(
     select: PROFILE_FIELDS,
   });
   if (!profile) return null;
-  const [tour, emails, feedbackCount, audit] = await Promise.all([
+  const [tour, emails, feedbackCount, audit, lastSuspend] = await Promise.all([
     tourOutcomes(db, [id]),
     readEmails(emailSource),
     db.feedback.count({ where: { userId: id } }),
     auditLines(db, { targetUserId: id, take: 10 }, emailSource),
+    // Its own query: the 10 recent lines may no longer include it.
+    db.adminAuditEntry.findMany({
+      select: { createdAt: true },
+      where: { targetUserId: id, kind: "account_suspend" },
+      orderBy: [{ createdAt: "desc" }],
+      take: 1,
+    }),
   ]);
   const row = toRow(profile as ProfileMeta, tour, emails);
-  const lastSuspend =
-    row.status === "suspended"
-      ? audit.find((l) => l.kind === "account_suspend")
-      : undefined;
+  const since =
+    row.status === "suspended" ? lastSuspend[0]?.createdAt : undefined;
   return {
     ...row,
     timeZone: profile.timeZone,
-    suspendedSince: lastSuspend
-      ? isoDateInZone(new Date(lastSuspend.at), actor.timeZone)
-      : null,
+    suspendedSince: since ? isoDateInZone(since, actor.timeZone) : null,
     feedbackCount,
     audit,
   };
