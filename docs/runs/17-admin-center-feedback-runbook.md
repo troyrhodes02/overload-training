@@ -145,7 +145,7 @@ Do these with **your own account** unless a step says otherwise.
 **Feedback and audit** (these audit rows are permanent: the log is append-only)
 - [ ] ⋮ → **Send feedback** → choose Bug, write "Production check", Send → "Sent. Thanks for telling us."
 - [ ] Admin → Feedback shows it under **Open**. Open it, then **Mark handled** → "Marked handled."
-- [ ] Admin → Audit log shows "Owner… marked feedback handled · \<your name\>".
+- [ ] Admin → Audit log shows "\<your name\> marked feedback handled · \<your name\>" (you are both the admin and the sender).
 
 **Suspension.** Optional and consequential: the target can't use Overload until reactivated.
 - [ ] Only with a second account you control: suspend it. In a session already signed in as that account, the next click lands on "Your account is suspended". Reactivate it, and the next click works again. The audit log shows both lines.
