@@ -26,6 +26,19 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Admin Center & Feedback (Pitch 17; overload-onboarding, OVE-78): the
+    // lifter-facing change only — the owner-only admin area is never
+    // announced. PROVISIONAL date: written 2026-10-22 while the feature PR
+    // waits for human approval (stop before merge). Before merging, set `date`
+    // and the id's date prefix to the merge day (runbook 17 §6); once it
+    // reaches production it is published and never re-dated.
+    id: "2026-10-22-send-feedback",
+    date: "2026-10-22",
+    title: "Send feedback from Overload",
+    body: "Found something that needs fixing, or have an idea or a question? Choose Send feedback in the menu at the top to send it straight to the person who runs Overload. Replies aren't sent in the app.",
+    significant: true,
+  },
+  {
     // Exercise History & PR Intelligence (Pitch 16). Dated the day it reaches
     // production: the run merges the feature PR on 2026-10-22 (runbook 16 §2
     // re-dates it if the merge slips to a later day before it ships).
