@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — implementing OVE-75 (OVE-74 done, PR #95).
+Step 8 — implementing OVE-76 (OVE-74 #95, OVE-75 #96 done).
 
 ## Authority used (read before resuming)
 
@@ -62,7 +62,7 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 | Ticket | Branch (base) | PR | Status |
 | ------ | ------------- | -- | ------ |
 | OVE-74 Admin 1: foundation | `feat/ove-74-admin-foundation` (feature) | #95 | In Review |
-| OVE-75 Admin 2: Send feedback | `feat/ove-75-send-feedback` (OVE-74) | — | Todo |
+| OVE-75 Admin 2: Send feedback | `feat/ove-75-send-feedback` (OVE-74) | #96 | In Review |
 | OVE-76 Admin 3: admin center | `feat/ove-76-admin-center` (OVE-75) | — | Todo |
 | OVE-77 Admin 4: inbox + e2e | `feat/ove-77-feedback-inbox` (OVE-76) | — | Todo |
 | OVE-78 Admin 5: guidance | `feat/ove-78-guidance` (OVE-77) | — | Todo |
@@ -71,6 +71,8 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 ### Ticket summaries
 
 - **OVE-74** (#95): migration 9g (profiles.status + last_active_on; feedback owned; admin_audit_entries admin-only + append-only trigger; RLS on both); requireAccount suspension redirect + touchLastActive; /suspended; src/lib/data/admin/{identity,gate,db,audit}.ts; `inAdminTx` registry (Prisma's extended tx client also has `$transaction`, so recordAudit checks a WeakSet of open inAdminTx transactions); audit column named `kind` (invariant-guards reserves `action`). Verified: prettier, eslint 0, tsc, prisma validate, unit 71/1125, integration 49/585, build (security nudge once, retry OK) + client-bundle OK. 9g applied to the LOCAL Supabase stack only.
+
+- **OVE-75** (#96): submitFeedback + action + /feedback + SendFeedback form (src/components/send-feedback/, not components/feedback/ which holds generic UI feedback); Textarea; ⋮ menu + phone sheet entries. Verified: prettier, eslint 0, tsc, unit 73/1134, integration 50/589, e2e send-feedback 2/2 (screens 375 light / 1280 dark reviewed vs preview). E2E web-server build hits the Next.js security nudge once per new build; retry passes.
 
 ## Resolved Decisions so far
 
