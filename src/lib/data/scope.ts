@@ -67,9 +67,23 @@ export function ownedModels(): string[] {
     .sort();
 }
 
-/** Models with no owner column at all: none may exist (the app would leak them). */
+/**
+ * Models that belong to no account (Admin Center & Feedback, spec R11): the
+ * admin audit log is the operator's record, read and written only through the
+ * admin client (src/lib/data/admin/db.ts). They have no owner column, so
+ * scopeArgs refuses them like any unowned model — the account-scoped client
+ * can never reach one.
+ */
+export const ADMIN_ONLY_MODELS: readonly string[] = ["AdminAuditEntry"];
+
+/**
+ * Models with no owner column that are not declared admin-only: none may
+ * exist (the app would leak them).
+ */
 export function unclassifiedModels(): string[] {
-  return [...MODELS.keys()].filter((m) => !hasOwnerField(m)).sort();
+  return [...MODELS.keys()]
+    .filter((m) => !hasOwnerField(m) && !ADMIN_ONLY_MODELS.includes(m))
+    .sort();
 }
 
 const READ_OPS = new Set([

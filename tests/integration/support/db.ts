@@ -28,7 +28,13 @@ export const APP_TABLES = [
   "tour_progress",
   // What's New
   "release_seen",
+  // Admin Center & Feedback (TRUNCATE does not fire the append-only trigger)
+  "feedback",
+  "admin_audit_entries",
 ] as const;
+
+/** Tables that belong to no account (spec 17 R11): no owner column at all. */
+export const ADMIN_ONLY_TABLES: readonly string[] = ["admin_audit_entries"];
 
 let client: PrismaClient | undefined;
 

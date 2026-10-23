@@ -522,20 +522,28 @@ enum Appearance {
 /// Email and password live in Supabase Auth, never here. Names stay nullable
 /// until Accounts (Pitch 9) collects them at signup. RLS deny-all (migration 9).
 model Profile {
-  userId     String     @id @map("user_id") @db.Uuid
-  firstName  String?    @map("first_name")
-  lastName   String?    @map("last_name")
+  userId       String        @id @map("user_id") @db.Uuid
+  firstName    String?       @map("first_name")
+  lastName     String?       @map("last_name")
   /// Unique handle, stored lowercase (so uniqueness ignores case) and
   /// checked by a database CHECK constraint (^[a-z0-9_]{3,20}$). Nullable only
   /// because accounts created before usernames have none; signup requires it.
-  username   String?    @unique
+  username     String?       @unique
   /// IANA zone name (e.g. "America/Chicago"), validated by isValidTimeZone on write.
-  timeZone   String     @map("time_zone")
+  timeZone     String        @map("time_zone")
   /// Appearance preference (Personalization & Navigation Polish); the only
   /// authority — the browser's first-paint mirror is a copy.
-  appearance Appearance @default(system)
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  appearance   Appearance    @default(system)
+  /// Admin Center & Feedback: whether the account may use Overload. Changed
+  /// only by the admin suspend/reactivate operations (each audited); enforced
+  /// by requireAccount() on every authenticated request.
+  status       AccountStatus @default(active)
+  /// The last calendar day (in the account's own timezone) it made an
+  /// authenticated request while active. Date only; written at most once a
+  /// day; NULL until its first request after this shipped.
+  lastActiveOn DateTime?     @map("last_active_on") @db.Date
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   mesocycles           Mesocycle[]
   sessions             Session[]
@@ -553,6 +561,7 @@ model Profile {
   cardioLogs           CardioLog[]
   tourProgress         TourProgress?
   releaseSeen          ReleaseSeen?
+  feedback             Feedback[]
 
   @@map("profiles")
 }
@@ -629,4 +638,77 @@ model ExerciseFavorite {
   @@id([userId, exerciseId])
   @@index([exerciseId])
   @@map("exercise_favorites")
+}
+
+/// Admin Center & Feedback (spec section 8): may this account use Overload.
+enum AccountStatus {
+  active
+  suspended
+}
+
+/// Admin Center & Feedback: what a feedback message is about (spec R5).
+enum FeedbackCategory {
+  bug
+  idea
+  question
+  other
+}
+
+/// A message a lifter chose to send to the owner (Admin Center & Feedback).
+/// Owned by the sender; deleted with the account by the deletion module.
+/// Nothing is attached to it: no route, device, or training context.
+model Feedback {
+  id        String           @id @default(uuid()) @db.Uuid
+  /// Owning account (the sender).
+  userId    String           @map("user_id") @db.Uuid
+  category  FeedbackCategory
+  /// Trimmed, 1-2000 characters (CHECK). Plain text; never rendered as HTML.
+  message   String
+  /// NULL = open. Set by the admin "Mark handled", cleared by "Reopen".
+  handledAt DateTime?        @map("handled_at") @db.Timestamptz
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([handledAt, createdAt])
+  @@map("feedback")
+}
+
+/// What an admin did (Admin Center & Feedback spec section 8). Account
+/// deletion is not an admin action in this build (spec R7).
+enum AdminAuditAction {
+  account_suspend
+  account_reactivate
+  feedback_handled
+  feedback_reopened
+  feedback_recategorized
+}
+
+/// Append-only record of an admin action: who, what, which account, when
+/// (Architecture: AdminAuditEntry; spec R11). ADMIN-ONLY: it has no owner
+/// column, so the account-scoped client refuses it, and it has no foreign
+/// keys, so it never blocks account deletion and outlives it. A database
+/// trigger rejects UPDATE and DELETE. Written only by recordAudit() inside the
+/// transaction of the mutation it records.
+model AdminAuditEntry {
+  id           String           @id @default(uuid()) @db.Uuid
+  /// The admin's auth user id (on the allowlist when the action ran).
+  actorUserId  String           @map("actor_user_id") @db.Uuid
+  /// What was done ("kind", not "action": that word is reserved by the
+  /// no-stored-recommendation guard).
+  kind         AdminAuditAction
+  /// The account the action affected.
+  targetUserId String           @map("target_user_id") @db.Uuid
+  /// The feedback row, for feedback actions.
+  feedbackId   String?          @map("feedback_id") @db.Uuid
+  /// Only for kind feedback_recategorized: {"from": category, "to": category} (CHECK).
+  detail       Json?
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([feedbackId])
+  @@map("admin_audit_entries")
 }

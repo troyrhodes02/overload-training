@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { routeRedirect } from "@/lib/auth-routes";
+import { isAdminPath, routeRedirect } from "@/lib/auth-routes";
+import { isAdminUserId } from "@/lib/admin/allowlist";
+
+/** A path no route answers: rewriting to it renders the ordinary 404. */
+const NOT_FOUND_PATH = "/_not-found-overload";
 
 /**
  * Next.js 16 Proxy (formerly Middleware). Two jobs:
@@ -53,7 +57,28 @@ export async function proxy(request: NextRequest) {
   };
 
   const target = routeRedirect(request.nextUrl.pathname, Boolean(user));
-  return target ? redirectTo(target) : response;
+  if (target) return redirectTo(target);
+
+  // Admin Center & Feedback (spec R23): a signed-in non-admin gets the very
+  // same 404 as a URL that does not exist — status included, which a page
+  // that has started streaming can no longer change — and not one byte of
+  // the admin area. Optimistic like the redirect above: requireAdmin() on
+  // every admin page and action is the authoritative check.
+  if (
+    user &&
+    isAdminPath(request.nextUrl.pathname) &&
+    !isAdminUserId(user.id)
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = NOT_FOUND_PATH;
+    url.search = "";
+    const rewrite = NextResponse.rewrite(url);
+    for (const cookie of response.cookies.getAll()) {
+      rewrite.cookies.set(cookie);
+    }
+    return rewrite;
+  }
+  return response;
 }
 
 export const config = {

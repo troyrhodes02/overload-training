@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   AccountScopeError,
   ownedModels,
+  ADMIN_ONLY_MODELS,
   scopeArgs,
   SHARED_OR_OWNED_MODEL,
   unclassifiedModels,
@@ -31,6 +32,7 @@ const READ_OPS = [
 const OWNED = [
   "CardioLog",
   "ExerciseFavorite",
+  "Feedback",
   "Goal",
   "Gym",
   "GymExerciseBaseline",
@@ -51,9 +53,12 @@ const mine = { userId: ME };
 const libraryOrMine = { OR: [{ userId: null }, { userId: ME }] };
 
 describe("classification", () => {
-  it("every model but Exercise is owned, and none is unclassified", () => {
+  it("every model but Exercise is owned, none is unclassified, and only the audit log is admin-only", () => {
     expect(ownedModels()).toEqual(OWNED);
     expect(unclassifiedModels()).toEqual([]);
+    // Admin Center & Feedback (spec R11): the one model that belongs to no
+    // account. Adding to this list is a reviewed decision, never a shortcut.
+    expect([...ADMIN_ONLY_MODELS]).toEqual(["AdminAuditEntry"]);
     expect(SHARED_OR_OWNED_MODEL).toBe("Exercise");
   });
 
@@ -63,8 +68,13 @@ describe("classification", () => {
       "utf8",
     );
     const models = [...schema.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)];
-    expect(models.length).toBe(OWNED.length + 1);
+    expect(models.length).toBe(OWNED.length + 1 + ADMIN_ONLY_MODELS.length);
     for (const [, name, body] of models) {
+      if (ADMIN_ONLY_MODELS.includes(name)) {
+        // No owner column at all, so the account-scoped client refuses it.
+        expect([name, /^\s+userId\s/m.test(body)]).toEqual([name, false]);
+        continue;
+      }
       expect([name, /^\s+userId\s+String/m.test(body)]).toEqual([name, true]);
     }
   });

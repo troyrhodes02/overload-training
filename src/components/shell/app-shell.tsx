@@ -31,11 +31,14 @@ export function AppShell({
   appearance,
   tourAutoStart,
   whatsNew,
+  isAdmin = false,
   children,
 }: {
   appearance: Appearance;
   tourAutoStart: boolean;
   whatsNew: WhatsNewDialogData | null;
+  /** Server-resolved (admin allowlist): show the Admin menu item. */
+  isAdmin?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -50,7 +53,7 @@ export function AppShell({
             <MobileNav />
             <OverloadLockup size="sm" />
             <div className="ml-auto md:ml-0">
-              <AccountMenu />
+              <AccountMenu isAdmin={isAdmin} />
             </div>
           </header>
 
