@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — implementing OVE-74.
+Step 8 — implementing OVE-75 (OVE-74 done, PR #95).
 
 ## Authority used (read before resuming)
 
@@ -47,7 +47,7 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 - [x] 4. Spec — `docs/specs/17-admin-center-feedback-spec.md` v1.0.0
 - [x] 5. Resolved Decisions — spec R1–R25 (R7 = admin deletion halted)
 - [x] 6. Linear milestone "Admin Center & Feedback" (7cb8b570) + OVE-74 → OVE-75 → OVE-76 → OVE-77 → OVE-78 (blockedBy chain); OVE-79 = BLOCKED admin deletion (not in chain)
-- [ ] 7. Feature PR
+- [x] 7. Feature PR into `main` (draft) — **#94** https://github.com/troyrhodes02/overload-training/pull/94
 - [ ] 8. Tickets
 - [ ] 9. Runbook
 - [ ] 10. Integrate ticket PRs
@@ -61,12 +61,16 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 
 | Ticket | Branch (base) | PR | Status |
 | ------ | ------------- | -- | ------ |
-| OVE-74 Admin 1: foundation | `feat/ove-74-admin-foundation` (feature) | — | Todo |
+| OVE-74 Admin 1: foundation | `feat/ove-74-admin-foundation` (feature) | #95 | In Review |
 | OVE-75 Admin 2: Send feedback | `feat/ove-75-send-feedback` (OVE-74) | — | Todo |
 | OVE-76 Admin 3: admin center | `feat/ove-76-admin-center` (OVE-75) | — | Todo |
 | OVE-77 Admin 4: inbox + e2e | `feat/ove-77-feedback-inbox` (OVE-76) | — | Todo |
 | OVE-78 Admin 5: guidance | `feat/ove-78-guidance` (OVE-77) | — | Todo |
 | OVE-79 BLOCKED admin deletion | — | — | Backlog (not worked) |
+
+### Ticket summaries
+
+- **OVE-74** (#95): migration 9g (profiles.status + last_active_on; feedback owned; admin_audit_entries admin-only + append-only trigger; RLS on both); requireAccount suspension redirect + touchLastActive; /suspended; src/lib/data/admin/{identity,gate,db,audit}.ts; `inAdminTx` registry (Prisma's extended tx client also has `$transaction`, so recordAudit checks a WeakSet of open inAdminTx transactions); audit column named `kind` (invariant-guards reserves `action`). Verified: prettier, eslint 0, tsc, prisma validate, unit 71/1125, integration 49/585, build (security nudge once, retry OK) + client-bundle OK. 9g applied to the LOCAL Supabase stack only.
 
 ## Resolved Decisions so far
 
