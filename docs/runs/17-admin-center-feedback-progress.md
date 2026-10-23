@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 11 — full verification on the integrated feature branch.
+Step 12 — code review on #94.
 
 ## Authority used (read before resuming)
 
@@ -51,7 +51,7 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 - [x] 8. Tickets — OVE-74 #95, OVE-75 #96, OVE-76 #97, OVE-77 #98, OVE-78 #99 (all In Review)
 - [x] 9. Runbook — `docs/runs/17-admin-center-feedback-runbook.md` + `docs/runs/17-sql/verify-admin-center.sql` (rehearsed on the local stack)
 - [x] 10. Integrate ticket PRs — squashed in order: #95 `f8ebb22`, #96 `f7a512c`, #97 `cb3e050`, #98 `f8c2bd2`, #99 `804ce8a` (each: retarget to feature, merge feature into ticket, add/add conflicts resolved to the ticket side, Vercel pass, squash). Final feature tree == OVE-78 tip. No force-push.
-- [ ] 11. Verification
+- [x] 11. Verification on the integrated feature branch: prettier, eslint 0, tsc, prisma validate, unit 75/1151, integration 53/605 (RLS, isolation incl. Feedback, history integrity, baselines, deload, admin gate/privacy/metrics/suspension/feedback), accounts e2e 38 passed + 1 skipped (by design) + 1 failed (personalization phone sheet pinned the old list; updated per design doc Screen 1 → personalization 8/8), default e2e 26/26, build (via e2e web server; Next security nudge on alternate builds) + client-bundle OK. Preview comparison: screenshots 375 light / 1280 dark for every admin screen, /feedback, /suspended, What's New dialog reviewed.
 - [ ] 12. Code review
 - [ ] 13. Review audit
 - [ ] 14. Final verification — STOP BEFORE MERGE
