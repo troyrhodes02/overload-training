@@ -1,22 +1,21 @@
 ---
 name: overload-ui-design
 description: >
-  UI design guidance for Overload, a single-user strength training tracker for one
-  lifter who builds his own splits. Use when generating any Overload UI: the
+  UI design guidance for Overload, a strength training tracker for a small group of
+  lifters who build their own splits. Use when generating any Overload UI: the
   dashboard and its today's-plan and day-complete states, the exercise logging card,
   session summary, week-at-a-glance history, mesocycle and session builders,
   exercise library, gyms, goals, progression charts, cardio log, settings, the
-  missed-day prompt, login, or any empty, loading, or error state. Also use when
-  asked for a UI preview, design preview, mockup, screen gallery, or a viewable
-  rendering of a design doc, which ships as a standalone offline HTML file under
-  docs/previews/ (the mandatory UI-design stage of the pitch pipeline). Produces
-  polished, quiet-and-precise SaaS UI in Overload's brand system. Trigger whenever
-  building, restyling, or mocking up an Overload screen, even for a small component.
+  missed-day prompt, login, or any empty, loading, or error state. Produces polished,
+  quiet-and-precise SaaS UI in Overload's brand system. Trigger whenever building,
+  restyling, or mocking up an Overload screen, even for a small component. Also the
+  mandatory UI design stage of the Overload pitch pipeline for every UI-bearing
+  pitch, where it writes the preview to docs/previews/<slug>-preview.tsx.
 ---
 
 # Overload UI Design
 
-Design guidance for Overload's interface. Overload is a single-user training tracker: one lifter, one account, standing in a gym with a phone in one hand. This skill governs how every Overload screen should look and feel.
+Design guidance for Overload's interface. Overload is a strength training tracker for individual lifters, each with a private account, standing in a gym with a phone in one hand. This skill governs how every Overload screen should look and feel.
 
 ## Design direction: a quiet, precise instrument
 
@@ -26,21 +25,35 @@ Copy is restrained. The only warm touch is a single greeting line on the dashboa
 
 ## Output format
 
-There are two output modes, and the request decides which.
+These rules apply when answering in chat. When invoked as the pipeline's UI design stage, follow Pipeline artifact mode (below): the preview is written to a file, and the single-code-block and brief-response rules do not apply.
 
-**Product UI** is the default: a screen, a component, a restyle, or a ticket touching appearance. Output is application code as described below.
-
-**A UI preview** is a standalone HTML file that renders a design doc's screens for review. Ask for it with "preview", "UI preview", "design preview", "mockup", "show me the screens", "visual", "gallery", or "render the design doc". It is also the mandatory UI-design stage of the pitch pipeline (pitch → design doc → **UI preview** → spec). A preview is a *picture of the design*, not product code, and it is the one place hand-authored CSS is permitted. Read **UI previews** below before writing one.
-
-For product UI:
-
-- Code in TypeScript React (TSX) using shadcn/ui components and Tailwind utility classes, in a single code block. shadcn/ui with Tailwind is Overload's only component and styling system. Do not introduce Material UI, styled-components, CSS modules, inline style objects for layout, or a second component library.
+- Code in TypeScript React (TSX) using shadcn/ui components and Tailwind utility classes, in a single code block. shadcn/ui with Tailwind is Overload's only component and styling system — do not introduce Material UI, styled-components, CSS modules, inline style objects for layout, or a second component library.
 - Start with a brief response, then the code, then a brief closing response.
 - Do not mention the implementation format, styling framework, or markup language in the response text.
 - Use `lucide-react` icons at one stroke weight and one size scale. No filled or multicolor icons, and no emoji as icons.
 - Charts (only if needed): Recharts, always inside `ResponsiveContainer`, styled from theme tokens.
 - Prefer shadcn/ui's built-in transitions and Tailwind hover, focus, and ring states over custom animation code.
 - Mobile-first. The primary context of use is a phone browser in a gym, so design the narrow layout first and let `md:` and up add width, not features.
+
+## Pipeline artifact mode
+
+When invoked as the UI design stage of the Overload pitch pipeline (step 3), this skill produces a file, not a chat reply.
+
+1. Read the completed pitch and `docs/design/<slug>-design-doc.md` first.
+2. Treat the design doc as the authority on product behavior and interaction. Do not invent features, flows, or states it does not contain.
+3. Produce an implementation-grade, interactive preview covering the representative screens and states the pitch needs. Scale it to the pitch: a pitch with a thin UI gets a small preview of exactly those surfaces and states, not a tour of the app.
+4. Write it to `docs/previews/<slug>-preview.tsx`, using the same slug as the pitch and design doc. The file default-exports one React component.
+5. The preview is a downstream contract. `overload-spec` and `overload-ticket-worker` consume it, so it must establish:
+   - visual hierarchy and layout
+   - component treatment (which shadcn/ui components, which variants)
+   - interaction controls, including the one-handed logging controls where relevant
+   - empty, loading, and error states where the pitch has them
+   - mobile-first behavior, with the narrow layout designed first
+   - light and dark appearance, via theme tokens
+6. Keep it self-contained. Realistic mock data lives inline in the file, in lbs, using the mock vocabulary below. Import only shadcn/ui components, `lucide-react`, Recharts, and React. Never import the Prisma client, the Supabase client, a server action, or application data modules, and never make a network request.
+7. A small control that switches between screens, states, and light or dark is allowed as preview chrome. It sits outside the product frame and is not part of the product UI. The rule that appearance selection lives only in Settings applies to the product, not to this chrome.
+8. Do not change product scope to make the preview more interesting. If the design doc leaves a purely visual choice open, resolve it with this skill's design system. If the design doc and this skill conflict on product behavior, the design doc wins. If they conflict only on visual styling, this skill governs.
+9. `docs/previews` is excluded from type-checking, linting, and the production build (see `CLAUDE.md`), so the preview may reference components the application has not built yet.
 
 ## Aesthetic direction
 
@@ -120,6 +133,7 @@ Use realistic training mock data, and units are always **lbs**:
 ### Primary surfaces
 
 - **Dashboard (today's plan pending)** — the greeting line, then today's session as the single focal block: session name, the exercises in order, and a progress or deload tag beside any exercise that has one. One primary action to start or resume.
+- **Greeting** — one line above today's plan, using the first name, chosen from the time of day and the situation: a workout planned and not logged, done for the day, a rest day, no plan yet, a first visit. Several wordings per situation, such as "Good morning, William. Push Day 1 is up.", "Late night workout, William? Push Day 1 is still open.", "Done for today, William.", and "Welcome, William. Build your first plan to get started." Plain text, no emoji, no chat input, no persona, and it does not change while on screen.
 - **Dashboard (day complete)** — the day does not hand off to tomorrow's plan. Show a quiet alternate state: active goal progress as the lead element, and a link to the week at a glance.
 - **Exercise logging card** — one exercise per card, all of its planned sets together as rows. Weight and reps are the largest elements, each an easy tap target with a numeric keypad. Show the planned rep range, the gym, and the tag if any. Nothing else competes.
 - **Session summary** — short. One progression chart or a percentage toward a goal, and nothing resembling a statistics report.
@@ -135,8 +149,15 @@ Use realistic training mock data, and units are always **lbs**:
 
 ### Secondary surfaces
 
-- **Login** — wordmark, email field, the sign-in action, and nothing else. There is no sign-up link, no "forgot" flourish beyond what the login method requires, and no marketing copy. Give each failure its own plain message: wrong credentials, expired session, and network error.
-- **Settings** — appearance (light, dark, system) lives here and only here, plus the gym and archive management links.
+- **Login, signup, and (once Public Accounts ships) password reset** — wordmark, the form, and nothing else, with no marketing copy. Login: email, password, the sign-in action, a quiet "Forgot password?" link once recovery exists, and a link to signup. Signup: first name, last name, email, password, invite code, the create-account action, and a link back to login. Reset: an email field and a submit, then a new-password field. Give each failure its own plain message: wrong credentials, expired session, invalid invite code, email already in use, and network error. A reset request always confirms in the same words.
+- **Settings** — appearance (light, dark, system) lives here and only here, plus the name, a link to replay the tour, What's New, the gym and archive management links, and delete account, which is the one destructive action and uses a confirmation dialog.
+- **Onboarding tour** — a quiet spotlight on the real control with a short popover: a title line, one or two sentences, a step count, and Next, Back, and Skip. No illustration, no animation beyond a short fade, never covering the control it describes, and usable one-handed on a phone.
+- **What's New modal and page** — the modal shows a title, a date, and two or three plain sentences per entry with one dismiss action. The page is a dated list, newest first, in plain text.
+- **Admin center (web-only)** — the same quiet system, utilitarian: a dashboard of a few large numbers, an account list with search, an account page with status, plan state, and actions, a feedback inbox, and an audit log. It never shows any lifter's training. Destructive actions (suspend, delete) use a confirmation dialog that names the account.
+- **Plan import** — a paste area, then a review screen listing each proposed session and exercise with its planned sets and rep range, ambiguous matches as a quiet choice, unmatched exercises as an offer to add a custom exercise, and everything editable. One confirm action. Nothing implies it is saved until confirmed.
+- **Upgrade note and trial status** — where a Pro feature would appear for a Free account, one short plain sentence and a link, dismissible. During the trial, a small line in Settings and nothing that interrupts. No countdowns, badges, or banners.
+- **Feedback** — a short form: category, message, send.
+- **Public pages (landing, pricing, changelog, creator page)** — the same quiet instrument, not a hype page: a clear one-line promise, real screenshots from a demo account, plain feature descriptions, the Free and Pro plans side by side, any offer stated plainly, and one call to action that matches the current mode. No countdowns, fake scarcity, or invented testimonials. Both appearances.
 - **Not found and server error** — a short sentence and a single way back to the dashboard. No illustrations.
 
 ### States
@@ -149,107 +170,6 @@ Use realistic training mock data, and units are always **lbs**:
 ### Goal completion
 
 Reaching 100% on a goal is acknowledged with a calm, full-width card: "Goal reached: Barbell Bench Press 315 × 1", with actions to set a new goal or dismiss. No confetti, no animation beyond a short fade, no sound.
-
-## UI previews
-
-A UI preview is a single self-contained HTML file that renders **every screen and state** of a design doc, in both appearance modes, as a static design-handoff gallery for review before anything is built. It exists because a design doc describes screens in prose and ASCII wireframes, and a reviewer needs to see them. It is also the visual contract the spec and the implementation tickets are held to.
-
-Start from `references/preview-template.html` (in this skill's folder). It carries the scaffolding, Overload's product tokens copied from `src/app/globals.css`, the font, and component recipes that reproduce the app's shadcn/ui components. Copy it and replace the example frames. Do not re-derive the token block or restyle the scaffolding; retyping hex values is how two visual systems start.
-
-### Where it goes
-
-- **Path:** `docs/previews/NN-pitch-slug-preview.html`, matching the pitch and design-doc number and slug (for example `docs/previews/04-guided-workout-logging-preview.html`).
-- **One file per design doc.** A preview covering two features is two files.
-- Never overwrite a pitch, design doc, or spec. If a requested output path is one of those, or names a `.tsx` file, say so and write the `.html` preview to `docs/previews/` instead.
-- The template's asset paths (`assets/fonts/inter-latin-variable.woff2`) are relative to `docs/previews/`. If the preview is written anywhere else, fix them.
-
-### The preview is not product code
-
-This is the rule that keeps the hand-authored CSS from becoming a second styling system:
-
-- The HTML and CSS in a preview are **a rendering of the design and are never copied into the application.** The app is built with Tailwind and shadcn/ui against the theme in `globals.css`.
-- Say so on the page, in the lead's note pill. A reader who finds the file in six months must not mistake it for the implementation.
-- When a preview and the app theme or a shadcn/ui component disagree, **the theme wins** and the preview is wrong. Fix the preview.
-- Previews are review artifacts. They are not linked from the application, are never imported, and never ship inside it.
-
-### Two token layers, kept apart
-
-The template defines both. The separation is the point.
-
-| Layer | Prefix | Rule |
-| ----- | ------ | ---- |
-| Preview chrome | `--pv-*` | The studio around the mocks. **Achromatic, greys only.** Overload's only colors (the accent, progress green, deload amber) carry meaning, so the scaffolding has none and can never be mistaken for a product surface. |
-| Product tokens | `--ov-*`, scoped to `.ov` | `globals.css` values, verbatim: `:root` for light, `.dark` for dark under `.ov[data-ov="dark"]`. If the theme changes, re-copy the block. |
-
-The appearance toggle sets `data-ov` on every `.js-ov` element at once, so all product surfaces flip together. It follows the OS on first load, because system is Overload's default appearance.
-
-**Chrome conventions do not cross into `.ov`.** Uppercase eyebrows, letter-spaced labels, and pill-shaped segments are fine in the chrome. Anything inside a `.mock` obeys the brand system: the `.ov-*` component recipes only, Inter at regular, medium, and semibold weights, tabular numerals on every number, no gradients, shadows only on dialogs, menus, and toasts, and the progress and deload colors only on progress and deload tags.
-
-### Component recipes, not a component library
-
-The `.ov-*` classes in the template (`ov-btn`, `ov-badge`, `ov-input`, `ov-alert`, `ov-select`, `ov-tabs`, `ov-dialog`, `ov-menu`, `ov-toast`, `ov-sk`, `ov-list`, `ov-thumb`, the shell classes) reproduce the repo's own `src/components/ui/*` at their Tailwind sizes: buttons 40px (`h-11` = 44px for primary and thumb actions), inputs 40/44px, 6px control radius, 8px card radius, and the app's `h-11`, `size-11`, `min-h-14`, and `min-h-16` touch targets. Use them as they are. If a screen needs a component the template lacks, add a recipe that matches the shadcn/ui component the implementation will use, and name the mapping in a CSS comment. Never invent a control the app won't have.
-
-### Icons and font
-
-- **Icons are inline Lucide SVG**, using the exact paths of the `lucide-react` version the app ships. Get them with `node scripts/lucide-svg.mjs chevron-right triangle-alert plus` and paste the output. No icon CDN, no icon font, no hand-drawn approximations.
-- **The font is Inter**, the vendored latin variable file in `docs/previews/assets/fonts/` (the same file `next/font` serves the app). No Google Fonts link.
-- **No logo exists.** The studio header and the app header use the wordmark "Overload" in plain text. Do not draw a mark.
-
-### Required structure
-
-In order. The template lays it out.
-
-1. **Studio header** (sticky). `Overload · [Pitch name]`, a one-line scope, jump links to every section, and the Light/Dark appearance toggle.
-2. **Lead.** An eyebrow, a one-sentence thesis in the design doc's north-star language, two or three sentences of scope (what ships, what deliberately does not, and the one commitment to check every frame against), and the note pill stating that this is a rendering rather than product code.
-3. **Numbered sections** (`01`, `02`, …), each with a title and a one-line description of the rule its screens demonstrate. Group by surface or flow, not by component.
-4. **Framed screens.** Every screen sits in a `.pv-frame` whose caption carries its **name**, its **route** in monospace (or `dialog`, `alertdialog`, `toast`), and a right-aligned **tag** for the condition it shows. A screen without its route is not reviewable.
-5. **A states section**: loading, empty, error, read-only, validation, and confirmation, given the same billing as the populated screens.
-6. **A theme specimen**: the tokens this feature uses and the type sizes, with what each is for.
-7. **Closing legend**: two cards restating the design commitments the frames are built to respect, as checkmark lists. This is what makes a preview reviewable rather than merely pretty.
-8. **Footer**: the design doc filename and version it was generated from, plus a one-line summary of the commitments.
-
-The page is static. The only script is the appearance toggle. Show every state as its own frame; do not hide states behind tabs, a screen switcher, or click-to-open dialogs. Dialogs, menus, and toasts are drawn open on a `.ov-stage` with a scrim.
-
-### Frames
-
-- **Phone first.** Every screen appears in a `.mock--phone` (375px) inside the full shell: the `Overload` header, the content, the thumb-reach action bar (`.ov-actions`) where the screen has a primary action, and the bottom nav with the right item active. Phone is the primary context, so this is the frame every screen gets.
-- **Desktop where layout changes.** A screen's main populated state also appears in a `.mock--desktop` beside the phone, showing the md+ left rail and the centered column, so the responsive behavior is reviewed rather than assumed.
-- **Dialogs** render on a phone-width `.ov-stage` with the scrim, with the dialog's real copy and its buttons stacked as they are at the base breakpoint.
-- Use `.pv-grid3` and `.pv-grid2` for families of states and `.pv-row` to pair a phone with a desktop frame or with a short `.pv-aside` note.
-
-### Coverage
-
-A preview is complete when every screen and every state named in the design doc appears. Read its screen specifications and enumerate them. Each screen's empty, loading, error, validation, and read-only states are separate frames, not a note.
-
-Overload-specific coverage that gets skipped and must not be:
-
-- **Both appearance modes**, verified by flipping the toggle rather than assumed.
-- **Hold looks like nothing.** Wherever exercises appear, an ordinary exercise has no tag and no color. Progress and deload tags appear only when the feature computes them; the progress and deload colors never appear anywhere else.
-- **States that are legitimate answers, not failures**: an empty plan, a rest day, nothing planned today, a lift with no history, a scheduled deload week. They carry as much design weight as the populated case.
-- **Archive, don't delete.** Archived exercises and gyms still render where history or an existing plan references them, visibly marked, and the copy says Archive or Remove as the design doc does, never Delete.
-- **Thumb reach.** Every phone frame with a primary action shows it at the bottom, above the nav, at 44px.
-- **Destructive-looking but non-destructive actions** (archive, remove from plan, replace) with their exact confirmation copy.
-
-### Mock data
-
-Use the vocabulary in **Mock data vocabulary** above. Keep numbers and names internally consistent across frames: the same mesocycle has the same dates, the same session has the same exercises and set counts, and the same set shows the same weight × reps everywhere it appears. Dates are real calendar dates whose weekdays are correct. Units are always lbs.
-
-### Verification before handing it over
-
-- [ ] Opens standalone from `docs/previews/` with **no network request**. The font resolves from `assets/fonts/`, and every icon is inline SVG.
-- [ ] The appearance toggle flips every product surface, and both modes are correct on every frame.
-- [ ] Dark surfaces are the theme's near-black. Nothing in dark mode is navy or tinted.
-- [ ] No hex value inside a `.mock` that isn't an `--ov-*` token, and the token block matches `globals.css` exactly.
-- [ ] Every number is tabular. No weight heavier than semibold anywhere in a `.mock`.
-- [ ] No progress or deload color anywhere except a progress or deload tag, and no "Hold" badge.
-- [ ] Shadows only on dialogs, menus, and toasts.
-- [ ] Every frame carries a name and a route.
-- [ ] Every screen from the design doc is present, with its empty, loading, error, validation, and read-only states.
-- [ ] Every screen has a phone frame, and nothing scrolls horizontally inside one.
-- [ ] No illustration, artwork, logo mark, emoji, or confetti anywhere in a `.mock`.
-- [ ] The note pill states that this is a rendering, not product code.
-- [ ] The footer names the design doc and version it came from.
-- [ ] Checked in headless Chrome (Playwright with `channel: "chrome"` is in the repo): zero console errors, zero non-`file:` requests, Inter loaded (`document.fonts.check("16px Inter")`), no `.mock--phone` with `scrollWidth > clientWidth`, and screenshots of key sections in light and dark looked at.
 
 ## Respecting provided input
 

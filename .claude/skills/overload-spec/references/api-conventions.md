@@ -2,7 +2,7 @@
 
 Standard patterns for Overload server actions, route handlers, and documented mutation surfaces.
 
-Overload is a single-user strength training tracker, not a public API product. Every request runs as the one authenticated lifter; nothing here should imply otherwise. Most reads happen in server components through Prisma, and most writes happen through server actions that call the write modules under `lib/`. These conventions apply when specifying server action contracts, the rare route handler, or any documented mutation surface.
+Overload is a strength training tracker for individual lifters, not a public API product. Every request runs as the authenticated lifter making it and acts only on that account's data; nothing here should imply otherwise. No input or DTO carries a `userId`: the acting account comes from the session. Most reads happen in server components through Prisma, and most writes happen through server actions that call the write modules under `lib/`. These conventions apply when specifying server action contracts, the rare route handler, or any documented mutation surface.
 
 For the access model, what infrastructure the project deliberately lacks, and what is deferred, read `CLAUDE.md`. This file covers shape and naming only.
 
@@ -11,7 +11,7 @@ For the access model, what infrastructure the project deliberately lacks, and wh
 Use these conventions for:
 
 - Server actions, which are the default mutation surface
-- Route handlers, only where a server action cannot do the job (an auth callback, for example)
+- Route handlers, only where a server action cannot do the job (an auth callback or the Stripe webhook, for example)
 - Read functions that feed server components, when a spec needs to document their output
 - Any operation needing consistent naming, errors, validation, and result shapes
 
@@ -48,6 +48,13 @@ LoggedSession  startLoggedSession, completeLoggedSession, resolveMissedDay
 LoggedSet      logSet, editLoggedSet
 Goal           createGoal, archiveGoal
 CardioLog      logCardio
+Account        signUp, updateProfile, deleteAccount, exportAccountData (password recovery is added by Public Accounts)
+Admin          listAccounts, getAccount, suspendAccount, reactivateAccount, adminDeleteAccount, grantComp, revokeComp, getAdminMetrics, listFeedback, markFeedbackHandled
+Billing        createCheckoutSession, createPortalSession, and the Stripe webhook route handler
+Plan import    submitPlanImport, confirmPlanImport, discardPlanImport
+Feedback       submitFeedback
+Tour           completeTour, skipTour
+Release notes  markReleaseSeen
 ```
 
 Where a route handler is justified, use plural nouns for collections and nest only where ownership is part of the domain:
@@ -75,6 +82,13 @@ Where a route handler is justified, use plural nouns for collections and nest on
 | `LoggedSet` | One weight-and-reps entry; the source of truth for performance |
 | `Goal` | A per-lift weight × reps target, undated |
 | `CardioLog` | A cardio record: type and duration |
+| `Profile` | The account's first name, last name, and timezone |
+| `TourProgress` | Whether this account finished or skipped the onboarding tour |
+| `ReleaseSeen` | The latest release-notes entry this account has been shown |
+| `Entitlement` | Which plan's capabilities an account has, and why (trial, subscription, comp) |
+| `BillingAccount` | The Stripe customer reference and a read-only mirror of subscription state |
+| `Feedback` | A message from a lifter to the owner |
+| `AdminAuditEntry` | An append-only record of an admin action |
 
 `SessionExercise`, `GymExerciseBaseline`, and `LoggedExercise` are Architecture Doc entities that are managed through their parents, not exposed as standalone resources.
 
@@ -102,7 +116,7 @@ Result shape:
 { items: ExerciseListItemDto[]; total: number; limit: number; offset: number }
 ```
 
-Offset pagination is fine here. This is one user with at most a few thousand exercises and logged sets.
+Offset pagination is fine here. A single account has at most a few thousand exercises and logged sets.
 
 ### Get
 
@@ -169,9 +183,10 @@ swapExercise({ loggedExerciseId: string, replacementExerciseId: string, saveToTe
 | `duplicate_resource` | 409 | A true uniqueness constraint blocked the write |
 | `conflict` | 409 | Incompatible change, such as a retried set colliding with an existing one |
 | `unauthorized` | 401 | Missing or invalid session |
+| `plan_required` | 402 | The capability that gates this operation is not part of the account's plan |
 | `internal_error` | 500 | Unexpected failure |
 
-`forbidden`, `rate_limited`, `unsupported_media_type`, and `payload_too_large` are intentionally absent: there is one user, no throttled surface, and no uploads.
+`forbidden` is intentionally absent: a record owned by another account returns `not_found`, so its existence is never revealed. Likewise a non-admin who calls an admin operation gets `not_found`. `rate_limited`, `unsupported_media_type`, and `payload_too_large` are absent because the app has no throttled surface of its own and no uploads.
 
 ## Duplicate and conflict handling
 
@@ -243,13 +258,18 @@ createGym  archiveGym
 startLoggedSession  logSet  editLoggedSet  swapExercise  resolveMissedDay  completeLoggedSession
 createGoal  archiveGoal
 logCardio
+signUp  updateProfile  deleteAccount  exportAccountData
+completeTour  skipTour  markReleaseSeen
+listAccounts  suspendAccount  grantComp  getAdminMetrics  listFeedback
+createCheckoutSession  createPortalSession  submitPlanImport  confirmPlanImport  submitFeedback
 getTodayPlan  getExerciseProgression  getGoalProgress
 ```
 
 Avoid unless a pitch explicitly scopes them:
 
 ```text
-/users  /teams  /share  /feed  /leaderboard  /follow
+/users  /teams  /share  /feed  /leaderboard  /follow  /impersonate
+anything that returns another account's training content, including from an admin operation
 generateProgram  generateMesocycle  recommendProgram
 cardioProgress  cardioTrends
 /nutrition  /meals  /body-composition

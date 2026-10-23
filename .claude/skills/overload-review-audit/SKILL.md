@@ -50,6 +50,7 @@ Product Brief → PRD → Pitch Roadmap → Pitch → Design Doc → Technical S
 - **`docs/planning/pitch-roadmap.md`** — pitch sequence, dependencies, what each pitch includes and defers.
 - **Expanded pitch** at `pitches/NN-pitch-name.md` — slice-specific problem, scope, boundaries, no-gos, definition of done.
 - **Design doc** — UI/UX behavior, screen states, component expectations. See `overload-design-doc`.
+- **UI preview** at `docs/previews/NN-pitch-name-preview.tsx` — the visual contract for a UI-bearing pitch. See `overload-ui-design`.
 - **Technical spec** — data shape, server behavior, validation, tests, implementation constraints. See `overload-spec`.
 - **Linear ticket** — the actual unit of work being reviewed.
 
@@ -127,7 +128,15 @@ Rate as:
 
 #### Overload-specific technical checks
 
-**Logged history — check first**
+**Account isolation — check first**
+
+- Any path where one account could see, change, or detect another account's data is blocking, whatever the ticket is about.
+- Every owned model carries `userId`, and feature code reaches owned data only through the account-scoped data-access layer. An unscoped query, a raw `prisma.<model>` call on an owned model outside the allowed modules, or an account id taken from client input is blocking.
+- Another account's record must return not-found, never forbidden or any error that reveals it.
+- Uniqueness rules include `userId`. Library exercises are shared and read-only.
+- Account deletion is the single sanctioned way to destroy logged history. Any other path that removes it is blocking.
+
+**Logged history**
 
 - Logged sets are the only source of truth. A real bug is any path that can lose, silently alter, or detach a `LoggedSet` from its exercise and gym. That is not a style nit, whatever the acceptance criteria say.
 - `LoggedSet` rows are written only through `lib/logging/logged-sets.ts`. A write anywhere else is a blocking issue.
@@ -155,11 +164,39 @@ Rate as:
 
 **Auth and privacy**
 
-- There is one user and no ownership column. Do not accept a suggestion to add tenant or user columns, roles, or sharing.
-- Public signups are disabled, and every action re-checks the session. Authentication only in middleware is a gap.
+- Do not accept suggestions to add a role system for lifters, sharing, or visibility between accounts. Admin identity comes from the server-side allowlist and never from a database role. Signup is invite-only until Public Accounts is verified, and every action re-checks the session. Authentication only in middleware is a gap.
 - Row-level security is enabled with no policies on every table, because Supabase's Data API is reachable with the anon key. A new table without RLS is blocking. A policy added for anon or authenticated "to make it work" is blocking.
 - Secrets never appear in `NEXT_PUBLIC_` variables or client bundles.
 - Gym addresses are personal location data, shown only on the gym screens, never linked to a map.
+
+**Admin boundary**
+
+- Every admin operation re-checks admin identity on the server, and a non-admin gets not-found. Hidden navigation is not authorization.
+- Admin code returns account metadata and counts only. Any plan, gym, set, goal, or cardio record in an admin response is blocking.
+- Every admin mutation writes an append-only audit entry. There is no impersonation.
+- Billing state in the admin area is a read-only mirror of Stripe.
+
+**Plans, entitlements, and billing**
+
+- Features check named capabilities on the server. Branching on a plan name, or enforcing only in the UI, is a defect, and a Pro result reaching a Free account is blocking.
+- Capture, history, and export are never gated, and nothing is deleted when access ends.
+- A webhook must verify its signature, record each event by id, and be idempotent, and it must resolve the account from the stored customer id, not the payload alone.
+- Card data is never stored, logged, or handled. Live Stripe keys and real charges are never used by a run.
+- Comped access is an entitlement with a reason, an optional end date, and an audit entry. It is not a role and never touches Stripe.
+- Upgrade prompts stay quiet: no countdowns, banners, or other dark patterns.
+
+**Plan import**
+
+- The model call is server-side only. Pasted text is data, output is validated against a strict schema, and every extracted item traces to the pasted text.
+- Input limits, per-account limits, and the global spend cap with its kill switch exist. Nothing is saved before the lifter confirms, and the existing plan-creation path does the saving.
+- It never generates a program or invents an exercise, set, or load.
+
+**Cross-platform**
+
+- One backend and one training model. A second progression engine or separate mobile training records is blocking.
+- Native capabilities sit behind adapters named by capability, and callers do not branch on the platform.
+- No purchase flow inside an app shell until the store's billing path is decided.
+- A device check that was not run is reported as unverified. Claiming it passed is a defect.
 
 **Storage**
 
@@ -176,6 +213,9 @@ Rate as:
 - Cardio is type and duration only, with no tag, trend, or chart.
 
 **UI/UX**
+
+- Once the tour and What's New exist, a pitch with a visible change should include its guidance: tour steps where warranted and a release-note entry. A missing entry is IN_SCOPE.
+- For a UI-bearing pitch, implemented screens must materially match the UI preview's hierarchy, visible controls, states, and mobile behavior. A departure the pitch did not approve is a defect and is IN_SCOPE; a suggestion that would depart from the preview deliberately is OUT_OF_SCOPE unless a recorded decision changed it.
 
 - The dashboard leads with today's pending session, and a completed day does not hand off to tomorrow's plan.
 - Set entry on the logging card must stay fast and one-handed, and entered numbers must survive a failed save.
@@ -357,7 +397,7 @@ Then a short final judgment naming what belongs in this PR and what does not.
 
 ## Common Overload review patterns
 
-**Implement:** a `LoggedSet` written outside its module; a new table with no row-level security; a baseline update outside the set's transaction; a stored tag or e1RM column; a hard delete of an `Exercise` or `Gym`; a client-side `fetch()` for application data; a missing empty or error state the design doc requires; a failed save that wipes the entered numbers; the reactive deload check firing during the scheduled deload week.
+**Implement:** an admin operation without a server-side admin check; a Pro result reaching a Free account; a webhook that is not idempotent or does not verify its signature; card data logged or stored; a model call from the browser; a purchase flow inside an app shell; a `LoggedSet` written outside its module; a new table with no row-level security; a baseline update outside the set's transaction; a stored tag or e1RM column; a hard delete of an `Exercise` or `Gym`; a client-side `fetch()` for application data; a missing empty or error state the design doc requires; a failed save that wipes the entered numbers; the reactive deload check firing during the scheduled deload week.
 
 **Defer:** progression tags or charts arriving during Guided Workout Logging (Progressive Overload Engine); goal progress arriving during a charts ticket (Goals); dated goals or RPE entry (Post-MVP); heart rate or distance on cardio (deferred to the mobile phase); a map pin or arrival notification for gyms (mobile phase).
 

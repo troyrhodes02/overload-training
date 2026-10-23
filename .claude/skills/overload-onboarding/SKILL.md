@@ -14,7 +14,7 @@ description: >
 
 # Overload Onboarding and Release Notes
 
-Overload is used by a small group of friends, each with a private account. Two things keep a new or returning lifter oriented as the product grows: the onboarding tour, which explains what each part does, and the release notes, which say what changed. This skill keeps both current.
+Overload is used by individual lifters, each with a private account. Two things keep a new or returning lifter oriented as the product grows: the onboarding tour, which explains what each part does, and the release notes, which say what changed. This skill keeps both current.
 
 It does not build either mechanism. The Onboarding Tour pitch builds the tour and What's New builds the release notes. This skill extends them, one visible change at a time.
 
@@ -33,7 +33,7 @@ Add or change a step when the change:
 - changes how a toured control works, so an existing step is now wrong
 - removes or moves a toured control, so a step would point at nothing
 
-Do not add a step for a bug fix, a copy tweak, a performance improvement, a change to something not on the tour, a new variant of something the lifter already understands, or anything internal. A tour that grows a step for every change turns into noise, and lifters stop taking it. When it is not clear, default to no step and record why. In an unattended run, record that as a Resolved Decision.
+Do not add a step for a bug fix, a copy tweak, a performance improvement, a change to something not on the tour, a new variant of something the lifter already understands, or anything internal. A tour that grows a step for every change turns into noise, and lifters stop taking it. A step for a Pro-only feature is warranted only if a Free lifter sees something to tour (its locked state is part of the interface). Otherwise leave it to the release note. When it is not clear, default to no step and record why. In an unattended run, record that as a Resolved Decision.
 
 ## Writing a tour step
 

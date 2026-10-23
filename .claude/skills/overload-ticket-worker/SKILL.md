@@ -29,7 +29,7 @@ Build exactly what the ticket and upstream docs require.
 
 Do not pull in Post-MVP work, adjacent pitches, architectural rewrites, UI redesigns, or "while I'm in here" cleanup unless the ticket explicitly includes it or the user approves it.
 
-Overload is a single-user strength training tracker: one lifter, one account. It is not a social fitness app, a program generator, a nutrition tracker, or an AI coach. Logged sets are the only source of truth, so any change that could lose, rewrite, or detach them is a blocking issue.
+Overload is a strength training tracker for individual lifters, each with a private account, with a free plan and a paid Pro plan. It is not a social fitness app, a program generator, a nutrition tracker, or an AI coach. Two things must never break: no account can see or affect another account's data, and logged sets are the only source of truth. Any change that could expose, lose, rewrite, or detach either is a blocking issue.
 
 ## Technical ground truth
 
@@ -39,6 +39,8 @@ Inlined here because implementation applies them constantly:
 
 - **Styling / components:** Tailwind CSS with shadcn/ui. Do not introduce Material UI, styled-components, CSS modules, or a second component library.
 - **Data access:** server-first. Read through Prisma in server components, and mutate through server actions that call the write modules under `lib/`. Never call `fetch()` from a component for application data, and never query application tables with the Supabase client.
+- **Account scoping:** every owned model carries `userId`. Reach owned data only through the account-scoped data-access layer, take the acting account from the session and never from client input, and return not-found for another account's record. A raw `prisma.<model>` call on an owned model outside the allowed modules is a blocking issue.
+- **Plans and the admin boundary:** features check named capabilities on the server and never branch on a plan name, and a Free account never receives a Pro result. Capture, history, and export are never gated. Admin operations re-check the server-side admin allowlist, return account metadata and counts only, never training content, and write an audit entry for each mutation. Stripe is the only place money and card data live, and runs use test mode only.
 - **Logged history:** write `LoggedSet` rows only through `lib/logging/logged-sets.ts`, never archive by hard-deleting an `Exercise` or `Gym` (set `deletedAt`), and never store a progression tag or e1RM. Both are computed on read. Treat any code path that is unclear about this as a blocking issue.
 
 Do not introduce libraries, background jobs, realtime sync, offline support, or external integrations unless the ticket and `CLAUDE.md` support it.
@@ -49,7 +51,7 @@ Do not introduce libraries, background jobs, realtime sync, offline support, or 
 - GitHub access via MCP, connector, or `gh`
 - Repo-local engineering instructions: `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `README.md`
 - Planning docs at `docs/planning/` — brief, PRD, architecture, pitch roadmap
-- The controlling expanded pitch (`pitches/NN-pitch-name.md`), design doc (`docs/design/NN-pitch-name-design-doc.md`), and technical spec (`docs/specs/NN-pitch-name-spec.md`) for this ticket
+- The controlling expanded pitch (`pitches/NN-pitch-name.md`), design doc (`docs/design/NN-pitch-name-design-doc.md`), UI preview for UI-bearing pitches (`docs/previews/NN-pitch-name-preview.tsx`), and technical spec (`docs/specs/NN-pitch-name-spec.md`) for this ticket
 - Package scripts for test, lint, type-check, build, format
 
 If a tool is unavailable, continue as far as possible and provide the exact manual command the user needs to run. Do not pretend a PR was opened or a ticket was moved if the tool did not do it.
@@ -80,7 +82,7 @@ Search the ticket for referenced paths. Preferred source order:
 
 1. Ticket acceptance criteria
 2. Technical spec
-3. Design doc (for UI behavior)
+3. Design doc (for UI behavior), then the UI preview (for the visual contract)
 4. Expanded pitch
 5. `docs/planning/prd.md` feature section
 6. `docs/planning/architecture.md`
@@ -100,9 +102,9 @@ If instructions conflict, prefer the most specific repo-local instruction, then 
 
 Treat as frontend if it touches: components, the Tailwind and shadcn/ui theme, routes, forms, dialogs, the dashboard, the exercise logging card, session summary, week at a glance, the mesocycle and session builders, the exercise library, gyms, goals, progression charts, the cardio log, settings, the missed-day prompt, login, empty, loading, or error states, accessibility, or responsive behavior.
 
-For frontend work, locate the design source: ticket links, spec references, the design doc, existing component patterns, theme files. See `overload-design-doc` for what a design doc contains and `overload-ui-design` for brand and visual language.
+For frontend work, locate the design source: ticket links, spec references, the design doc, the UI preview, existing component patterns, theme files. See `overload-design-doc` for what a design doc contains and `overload-ui-design` for brand and visual language.
 
-Do not block frontend implementation solely because a visual preview is missing, unless the ticket explicitly requires pixel-perfect implementation from one.
+For a UI-bearing pitch, the UI preview is the visual contract. Read it before implementing any UI, and preserve its hierarchy, interaction model, responsive behavior, states, and visual system. Do not substitute a different layout because another one would be easier to build. If the preview is missing for a UI-bearing pitch, stop and report it. For a ticket that sits outside a pitch run, continue from the ticket and spec, and do not block on a missing preview unless the ticket requires one.
 
 ### 6. Determine the base branch
 
@@ -145,7 +147,7 @@ Before editing code, produce a short implementation plan.
 
 If the ticket is small, clear, and directly implementable, proceed after presenting the plan. If it is large, ambiguous, or touches risky areas, get approval before writing code.
 
-Large-ticket warning signs: multiple unrelated features; schema changes plus large UI work; anything that writes, edits, archives, or deletes logged history; gym baseline correction; new tables or RLS changes; the progression or e1RM logic; the exercise image import or Storage; cross-pitch dependencies; missing spec or acceptance criteria; and any item from `docs/planning/architecture.md` → Open Questions that the ticket quietly assumes an answer to.
+Large-ticket warning signs: multiple unrelated features; schema changes plus large UI work; anything that writes, edits, archives, or deletes logged history; gym baseline correction; ownership, account scoping, authentication, signup, password recovery, account deletion, admin operations, plans and entitlements, billing and webhooks, the language-model call, or the mobile shells; new tables or RLS changes; the progression or e1RM logic; the exercise image import or Storage; cross-pitch dependencies; missing spec or acceptance criteria; and any item from `docs/planning/architecture.md` → Open Questions that the ticket quietly assumes an answer to.
 
 ## Phase 3: Execute
 
@@ -170,6 +172,9 @@ Overload-specific test examples:
 - Editing a past set changes the computed tag with no stored value to update.
 - A swap to an exercise in a different muscle group returns `validation_error`.
 - Choosing shift on a missed day moves only the current week, and the prompt does not return on the next open.
+- A second account cannot read, change, or detect the first account's data by id, by list, or by search.
+- A non-admin cannot reach any admin operation, and admin results contain no training content.
+- A Free account never receives a Pro result, and replaying a webhook changes nothing.
 - Every table in the public schema has row-level security enabled.
 
 **If a test implied by an acceptance criterion cannot be satisfied without contradicting the spec, stop and surface the conflict.** Do not delete or weaken tests to get a green build. A green checkmark obtained that way is a false report about the state of the system.
@@ -206,9 +211,11 @@ Required categories, every one the repo supports: unit tests, component tests, i
 
 If the repo does not define a command, do not invent success. Report that the command is unavailable.
 
-**Frontend visual verification:** compare against the design doc; check a phone-width viewport first, then desktop; check loading, empty, error, and success states; check keyboard navigation and focus behavior in dialogs; check light and dark themes; confirm no competing styling system was introduced.
+**Frontend visual verification:** compare against the design doc and the UI preview, checking hierarchy, visible controls, states, and mobile behavior; check a phone-width viewport first, then desktop; check loading, empty, error, and success states; check keyboard navigation and focus behavior in dialogs; check light and dark themes; confirm no competing styling system was introduced.
 
 **Data and security verification:** migrations apply cleanly; the Prisma client is regenerated; every new table has row-level security enabled; logged history is untouched by the change; no tag or e1RM column exists; the Supabase client is not used for application data; no secret appears in a `NEXT_PUBLIC_` variable. For any change touching `LoggedSet` writes, archival, or baseline correction, verify it on a Vercel preview deployment against the Supabase dev project with realistic data before merging, because there is no staging tier.
+
+**Mobile verification:** a check that needs an Xcode or Android Studio build, an emulator, or a real device cannot be run by an unattended run. Report it as unverified, never as passed, and list the manual steps a human should run. Type-checks, adapter unit tests, and the web build still run and must pass. See `overload-cross-platform`.
 
 **Do not proceed until green.** Do not commit, push, open a PR, or move the ticket until verification passes. If a check fails: fix straightforward failures, re-run, and if the failure reveals a scope or spec conflict, stop and report it.
 
@@ -315,41 +322,7 @@ If partial: state what was completed, what is blocked, why, and the next manual 
 
 ## Common Overload ticket patterns
 
-### Foundation tickets
-
-Likely touches: Supabase Auth and middleware, `schema.prisma` and the first migrations, `lib/db.ts`, the Tailwind and shadcn/ui theme, the app shell and navigation, Vercel configuration.
-
-Watch for:
-
-- A first migration that creates tables without enabling row-level security. Every table needs it from day one.
-- Leaving public signups enabled in Supabase. The single account is created by hand.
-- Constructing a second `PrismaClient`, or using the direct connection string at runtime. Runtime uses the pooled `DATABASE_URL`; `DIRECT_URL` is for migrations only.
-- Checking auth only in middleware. Server actions must re-check it.
-- Reaching for a component library other than shadcn/ui, or hardcoding the progress and deload colors instead of adding theme tokens.
-
-### Library & Gyms Setup tickets
-
-Likely touches: the Prisma seed script, exercise and gym models, Supabase Storage, the library search and muscle-group filter, gym screens.
-
-Watch for:
-
-- Calling free-exercise-db at runtime. It is imported once by a seed script, and the seed must be safe to re-run.
-- Hard-deleting an `Exercise` or `Gym`. Archive sets `deletedAt`, pickers filter on it, and history views must not.
-- Leaving the image bucket's public-or-private posture undecided. It is an open question the spec must settle.
-- Giving custom exercises an image or a placeholder illustration. They have none, and the UI shows a monogram tile.
-- Treating a gym address as anything but free text, or linking it to a map.
-
-### Split & Mesocycle Builder tickets
-
-Likely touches: `Mesocycle`, `Session`, and `SessionExercise` models, the builder screens, the clone-forward action.
-
-Watch for:
-
-- Making a preset (Push / Pull / Legs, Arnold, bro split) populate exercises, sets, or rep ranges. A preset supplies day structure only; filling in a program is generation, which is a permanent non-goal.
-- Letting `cloneMesocycle` copy logged history. It copies the plan, never the logs.
-- Cloning a mesocycle that references archived exercises without flagging those slots.
-- Hardcoding the 5-week, deload-on-week-5 default as a rule. It is a pre-filled, editable default.
-- A duplicated `Session` that still shares state with its source. A copy is independent after creation.
+The patterns below cover the pitches most likely to be touched again. `CLAUDE.md` carries the standing rules for the shipped foundation, library, plan builder, and cardio work.
 
 ### Guided Workout Logging tickets
 
@@ -392,12 +365,116 @@ Watch for:
 - Confetti, animation, or streak language on completion. It is a calm card, then the goal archives.
 - Deleting a completed goal instead of archiving it.
 
-### Cardio Logging tickets
+### Multi-User Foundation tickets
 
-Likely touches: the `CardioLog` model, the day assignment, the cardio log screen.
+Likely touches: `schema.prisma`, the ownership migration, the account-scoped data-access layer, every existing read and write path, the profile record, the isolation test suite.
 
 Watch for:
 
-- Adding distance, pace, calories, or heart rate. Cardio is type and duration only.
-- Reusing the progression or e1RM code for cardio. No tag, trend, or chart ever attaches to it.
-- Introducing HealthKit or any health-data integration. It is unreachable from a website and deferred to the mobile phase.
+- Taking the acting account from anything but the session.
+- A raw `prisma.<model>` call on an owned model left behind in a page, action, or helper. The static check must catch it.
+- A uniqueness rule that does not include `userId`, such as one active goal per exercise.
+- Letting any account write to a shared library exercise, or hide a library exercise for everyone.
+- Making ownership required before every existing row has been backfilled. The migration runs in stages: add, backfill and verify counts, then require.
+- Applying the migration to production from a run. That is a human step from a runbook, with a backup taken first.
+- Computing "today" from the server's zone instead of the account's stored timezone.
+
+### Accounts tickets
+
+Likely touches: the signup and login screens, the invite check, the profile record, account settings, the account-deletion module. Password recovery and email are covered under Public Accounts tickets.
+
+Watch for:
+
+- Enabling public signup in production before Public Accounts is verified there.
+- Checking the invite code on the client, or anywhere but the server, or leaving it out of the secrets rules.
+- A signup error that reveals whether an email has an account beyond "already in use".
+- Adding email confirmation, social login, roles, or an admin screen.
+- Account deletion that removes anything outside the signed-in account, or that is reachable without the confirmation.
+- Logging names or emails.
+
+### Personalization & Navigation Polish tickets
+
+Likely touches: the dashboard greeting, the appearance setting, the mobile navigation.
+
+Watch for:
+
+- A greeting that changes while the lifter is looking at it, or that sounds like an assistant: emoji, a chat input, motivational language.
+- Computing the time of day from the server's zone.
+- Putting the appearance control anywhere but Settings.
+- Changing the desktop sidebar when only the phone layout should change.
+
+### Onboarding Tour, What's New, and guidance tickets
+
+Likely touches: the tour step registry, the tour component, the release-notes content and its modal and page, per-account state.
+
+Watch for:
+
+- Hardcoding a step into the tour mechanism instead of adding it to the registry.
+- A tour step anchored to a control that does not exist at the current screen size.
+- Showing a new account a backlog of old release notes as unread.
+- Showing the modal more than once for the same entry.
+- For a guidance ticket: inventing a second mechanism, or adding a step for a change that does not need one. Use the `overload-onboarding` skill.
+
+### Admin Center & Feedback tickets
+
+Likely touches: the admin allowlist check, the admin metrics layer, account actions, the audit log, the feedback form and inbox, account status enforcement.
+
+Watch for:
+
+- Hiding admin navigation and calling it authorization. Every admin operation re-checks the allowlist on the server.
+- An admin query that returns a plan, gym, set, goal, or cardio record, even "just for the count". Counts come from the aggregate layer.
+- Making admin identity a database role, or something an account can be granted.
+- A suspended account that can still act. Suspension is enforced on every authenticated request.
+- An admin mutation without an audit entry, or an audit log that can be edited.
+- Building impersonation.
+
+### Public Accounts tickets (recovery and signup)
+
+Likely touches: the signup mode setting, abuse protection, password recovery, the email integration, email verification, export, account deletion.
+
+Watch for:
+
+- Turning public signup on in production from a run. That is a human step.
+- Treating password recovery as already built. It was deliberately not shipped and is built here.
+- A recovery response that differs for a known and an unknown email.
+- Using Supabase's built-in email sender, which only reaches the project's own team.
+- An export that includes any other account's data, or a deletion that leaves data behind.
+
+### Plans, Billing & Promo Codes tickets
+
+Likely touches: the entitlement model, capability checks, Stripe Checkout and the Customer Portal, the webhook handler, promo codes, comped access in the admin area.
+
+Watch for:
+
+- Branching on a plan name instead of a capability, or enforcing only in the UI.
+- Gating capture, history, or export, or deleting anything when access ends.
+- A webhook that does not verify its signature, or is not idempotent, or trusts the payload to pick the account.
+- Handling, storing, or logging card data. Use hosted Checkout and the Customer Portal.
+- Touching live Stripe keys or any real charge from a run. Test mode only.
+- Making comped access a role, or creating fake Stripe subscriptions for comps.
+- Countdowns, banners, or other dark patterns in the upgrade note.
+
+### Plan Import tickets
+
+Likely touches: the server-side model call, the strict output schema, matching to the library, the review screen, usage limits, the spend cap and kill switch.
+
+Watch for:
+
+- Calling the model from the browser, or exposing the API key.
+- Treating pasted text as instructions. It is data.
+- Saving anything before the lifter confirms, or creating a second path for creating a plan.
+- Accepting a model output that is not validated against the schema, or one that contains an exercise, set, or load that does not trace back to the pasted text.
+- Missing input limits, per-account limits, or the global cap.
+- Generating a program. It parses a plan the lifter wrote.
+
+### iOS and Android Foundation tickets
+
+Likely touches: the Capacitor projects, signing, the platform adapters, deep links, session persistence, build and test steps.
+
+Watch for:
+
+- Branching on the platform in a caller instead of asking an adapter for a capability.
+- Putting a purchase flow inside a shell. Store rules differ and the billing path is decided later.
+- A second progression engine or separate mobile training records.
+- Reporting a device check as passed when it was not run.
+- A native-only control rendering in the browser.

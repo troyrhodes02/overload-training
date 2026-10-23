@@ -27,13 +27,16 @@ THEN:
 
 This order matches `CLAUDE.md` → Testing and must not disagree with it:
 
-1. **Logged history integrity (adversarial, and first).** Everything the product tells the lifter is derived from logged sets, and a lost or silently altered history cannot be rebuilt. This gates all dependent work.
-2. **Gym baseline isolation and atomicity.** This is the Architecture Doc's biggest technical risk.
-3. **The progression engine.**
-4. **Missed-day handling.**
-5. **Auth and RLS.**
+1. **Cross-account isolation (adversarial, and first).** A leak between accounts cannot be taken back and produces no error. Every owned model and every read and write path is covered.
+2. **Logged history integrity.** Everything the product tells the lifter is derived from logged sets, and a lost or silently altered history cannot be rebuilt.
+3. **Gym baseline isolation and atomicity.** This is the Architecture Doc's biggest technical risk.
+4. **The progression engine.**
+5. **Missed-day handling.**
+6. **Auth, signup, and RLS.**
+7. **Admin authorization and its privacy boundary.**
+8. **Plans, entitlements, and billing.**
 
-Lean tests or manual verification are acceptable for plain CRUD: the exercise library, gym list, and cardio log. Anything that writes or deletes logged history is never lean.
+Lean tests or manual verification are acceptable for plain CRUD: the exercise library, gym list, and cardio log. Anything that scopes data to an account, and anything that writes or deletes logged history, is never lean.
 
 ## Required test categories
 
@@ -112,7 +115,84 @@ THEN:
 
 ### 5. Security and privacy
 
-Overload is single-user, so there is no cross-owner isolation to test. The adversarial work here is about history and the public Data API.
+Overload is multi-user, so account isolation is the first thing to test. The adversarial work also covers history and the public Data API.
+
+```text
+TEST: other_account_cannot_read
+GIVEN: Account A has a mesocycle, a gym, logged sets, and a goal; Account B is signed in
+WHEN: B requests each of them by A's ids, by list, and by search
+THEN:
+  - Every response is not_found or empty, identical to a record that does not exist
+  - No field of A's data appears in any response
+```
+
+```text
+TEST: other_account_cannot_write
+GIVEN: Account A has a gym and a logged set; Account B is signed in
+WHEN: B calls archiveGym and editLoggedSet with A's ids
+THEN:
+  - Both return not_found
+  - A's gym and set are unchanged
+```
+
+```text
+TEST: acting_account_ignores_client_input
+GIVEN: Account B is signed in
+WHEN: A request includes A's userId as a parameter or form field
+THEN:
+  - The server ignores it and acts as B
+```
+
+```text
+TEST: non_admin_cannot_reach_admin
+GIVEN: A signed-in account that is not on the admin allowlist
+WHEN: It requests any admin page, and calls each admin server action directly
+THEN:
+  - Every response is not_found
+  - No admin data is returned and nothing changes
+```
+
+```text
+TEST: admin_results_contain_no_training_content
+GIVEN: An account with a plan, gyms, logged sets, goals, and cardio
+WHEN: The admin lists accounts, opens the account page, and reads the metrics
+THEN:
+  - Only account metadata and counts appear
+  - No plan, gym, set, goal, or cardio field is present in any admin response
+```
+
+```text
+TEST: admin_mutation_is_audited
+GIVEN: An admin
+WHEN: They suspend an account, then grant a comp
+THEN:
+  - Each action adds an append-only audit entry with who, what, which account, and when
+```
+
+```text
+TEST: free_account_never_receives_pro_result
+GIVEN: An account on the Free plan
+WHEN: It calls the server action behind a Pro capability directly
+THEN:
+  - error: plan_required
+  - No Pro result is returned
+```
+
+```text
+TEST: replayed_webhook_changes_nothing
+GIVEN: A verified Stripe event already processed
+WHEN: The same event is delivered again, and an event with a bad signature is delivered
+THEN:
+  - The replay changes no record, and the bad signature is rejected
+```
+
+```text
+TEST: downgrade_deletes_nothing
+GIVEN: A Pro account with history, goals, and a plan
+WHEN: Its trial ends or its subscription lapses
+THEN:
+  - The account is on Free, every record is intact, and logging still works
+```
 
 ```text
 TEST: history_survives_archive
@@ -188,6 +268,20 @@ Draw further edge cases from the PRD: archiving an exercise still assigned to a 
 ### 7. Invariant tests
 
 System properties that must always hold, in the order `CLAUDE.md` ranks them.
+
+```text
+TEST: every_owned_model_has_user_id
+GIVEN: The Prisma schema
+THEN: Every owned model, including child models, has a non-null, indexed userId, and the only ownerless table with application data is the shared exercise library
+VERIFY: A schema check run in CI
+```
+
+```text
+TEST: owned_queries_only_in_the_scoped_layer
+GIVEN: The source tree
+THEN: No file outside the account-scoped data-access layer, the account-deletion module, and operator scripts calls prisma.<model> on an owned model
+VERIFY: A static search of the repository, run in CI
+```
 
 ```text
 TEST: logged_history_never_orphaned
@@ -292,14 +386,15 @@ export async function createTestExercise(
       muscleGroup: "chest",
       equipmentType: "barbell",
       isCustom: false,
+      userId: null, // null is a shared library exercise; pass an owner for a custom one
       ...overrides,
     },
   });
 }
 
-export async function createTestGym(overrides: Partial<Prisma.GymUncheckedCreateInput> = {}) {
+export async function createTestGym(userId: string, overrides: Partial<Prisma.GymUncheckedCreateInput> = {}) {
   return prisma.gym.create({
-    data: { name: "Downtown Gym", address: "Downtown, near the river", ...overrides },
+    data: { userId, name: "Downtown Gym", address: "Downtown, near the river", ...overrides },
   });
 }
 ```
