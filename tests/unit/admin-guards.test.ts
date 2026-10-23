@@ -102,9 +102,11 @@ it("every admin data module except the pure gate is server-only", () => {
 it("admin pages and components import no training module and no deletion path", () => {
   const FORBIDDEN =
     /^@\/lib\/(plan|logging|progression|goals|cardio|gyms|exercises|tour|release-notes)(\/|$)|^@\/lib\/accounts\/deletion$|^@\/lib\/data\/(account-db|operator|scope)$|^@\/lib\/db$/;
+  // The one exception: the pure calendar-date helpers (no data access).
+  const ALLOWED = new Set(["@/lib/plan/calendar"]);
   const offenders = adminSurface().flatMap((f) =>
     importsOf(f)
-      .filter((i) => FORBIDDEN.test(i))
+      .filter((i) => FORBIDDEN.test(i) && !ALLOWED.has(i))
       .map((i) => `${rel(f)} → ${i}`),
   );
   expect(offenders).toEqual([]);
@@ -151,9 +153,9 @@ it("admin actors are made only by identity.ts", () => {
   expect(offenders.map(rel)).toEqual([]);
 });
 
-it("only identity.ts reads the admin allowlist", () => {
+it("only the allowlist module reads the admin allowlist", () => {
   const offenders = all()
-    .filter((f) => rel(f) !== "src/lib/data/admin/identity.ts")
+    .filter((f) => rel(f) !== "src/lib/admin/allowlist.ts")
     .filter((f) => /OVERLOAD_ADMIN_USER_IDS/.test(code(f)));
   expect(offenders.map(rel)).toEqual([]);
   expect(read(path.join(REPO_ROOT, "scripts/check-client-bundle.mjs"))).toMatch(
@@ -161,10 +163,15 @@ it("only identity.ts reads the admin allowlist", () => {
   );
 });
 
-it("no client component imports the admin data layer", () => {
+it("no client component imports the admin data layer or the allowlist", () => {
   const offenders = all()
     .filter((f) => /^["']use client["']/m.test(read(f)))
-    .filter((f) => importsOf(f).some((i) => i.startsWith("@/lib/data/admin")));
+    .filter((f) =>
+      importsOf(f).some(
+        (i) =>
+          i.startsWith("@/lib/data/admin") || i === "@/lib/admin/allowlist",
+      ),
+    );
   expect(offenders.map(rel)).toEqual([]);
 });
 

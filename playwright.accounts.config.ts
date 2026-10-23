@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { defineConfig } from "@playwright/test";
+import { E2E_ADMIN_ID } from "./e2e/accounts/support/admin-id";
 
 /**
  * Accounts lifecycle e2e (Pitch 9, spec §14.8; OVE-50): open self-signup,
@@ -64,6 +65,11 @@ export default defineConfig({
     url: `${BASE_URL}/login`,
     reuseExistingServer: false,
     timeout: 240_000,
-    env: { ...LOCAL, OVERLOAD_SIGNUP_OPEN: "true" },
+    env: {
+      ...LOCAL,
+      OVERLOAD_SIGNUP_OPEN: "true",
+      // Admin Center & Feedback: the one e2e admin (created by the admin suite).
+      OVERLOAD_ADMIN_USER_IDS: E2E_ADMIN_ID,
+    },
   },
 });

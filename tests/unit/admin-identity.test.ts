@@ -107,3 +107,26 @@ describe("requireAdmin", () => {
     expect(notFound).not.toHaveBeenCalled();
   });
 });
+
+describe("isAdminPath (the proxy's early not-found, R23)", () => {
+  it("matches the admin area and nothing that merely starts with the word", async () => {
+    const { isAdminPath } = await import("@/lib/auth-routes");
+    for (const p of [
+      "/admin",
+      "/admin/",
+      "/admin/accounts",
+      "/admin/feedback/x",
+    ]) {
+      expect([p, isAdminPath(p)]).toEqual([p, true]);
+    }
+    for (const p of [
+      "/",
+      "/administrator",
+      "/adminx",
+      "/settings",
+      "/feedback",
+    ]) {
+      expect([p, isAdminPath(p)]).toEqual([p, false]);
+    }
+  });
+});

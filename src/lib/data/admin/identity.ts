@@ -1,43 +1,16 @@
 import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { isUuid } from "@/lib/actions/result";
 import { requireAccount } from "@/lib/data/account";
+import { isAdminUserId } from "@/lib/admin/allowlist";
 
 /**
- * ADMIN IDENTITY (Admin Center & Feedback, spec section 6.1; R1). An admin is
- * an authenticated account whose auth user id is on the server-only allowlist
- * OVERLOAD_ADMIN_USER_IDS. It is not stored in the database, nothing in the
- * app can grant it, and it is read fresh on every call, so changing the
- * variable (and redeploying) is the only way to change who is an admin.
- *
- * Format: auth user UUIDs separated by commas and/or whitespace. Case does
- * not matter. Anything that is not a UUID is ignored, and an unset or empty
- * variable means nobody is an admin (fail closed).
+ * ADMIN IDENTITY (Admin Center & Feedback, spec section 6.1; R1): the
+ * allowlist rule (src/lib/admin/allowlist.ts) applied to the authenticated
+ * account on the server, fresh on every request. The proxy applies the same
+ * rule optimistically for an early 404; this is the authoritative check.
  */
-const ADMIN_ENV = "OVERLOAD_ADMIN_USER_IDS";
-
-export function adminUserIds(
-  env: Record<string, string | undefined> = process.env,
-): ReadonlySet<string> {
-  const raw = env[ADMIN_ENV] ?? "";
-  return new Set(
-    raw
-      .split(/[\s,]+/)
-      .map((id) => id.trim().toLowerCase())
-      .filter((id) => isUuid(id)),
-  );
-}
-
-export function isAdminUserId(
-  userId: string,
-  env: Record<string, string | undefined> = process.env,
-): boolean {
-  return (
-    typeof userId === "string" &&
-    adminUserIds(env).has(userId.trim().toLowerCase())
-  );
-}
+export { adminUserIds, isAdminUserId } from "@/lib/admin/allowlist";
 
 /**
  * The acting admin. Only adminActorFor() makes one, and it refuses an id that

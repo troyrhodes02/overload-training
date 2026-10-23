@@ -15,6 +15,15 @@ export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => matches(pathname, p));
 }
 
+/**
+ * The owner-only admin area (Admin Center & Feedback, spec R23). For a
+ * signed-in account that is not on the allowlist the proxy answers these
+ * paths exactly like a URL that does not exist, before anything renders.
+ */
+export function isAdminPath(pathname: string): boolean {
+  return matches(pathname, "/admin");
+}
+
 /** Where the proxy should redirect this request, or null to let it through. */
 export function routeRedirect(
   pathname: string,
