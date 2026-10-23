@@ -133,3 +133,41 @@ export function personName(p: {
   const name = `${p.firstName} ${p.lastName}`.trim();
   return name.length > 0 ? name : null;
 }
+
+export type FeedbackView = "open" | "handled" | "all";
+
+export type FeedbackSenderDto = {
+  id: string;
+  /** The sender's name, or null (no name, or the account no longer exists). */
+  name: string | null;
+  username: string | null;
+  email: string | null;
+  /** False once the sender's account no longer exists. */
+  exists: boolean;
+};
+
+export type FeedbackRowDto = {
+  id: string;
+  category: FeedbackCategoryValue;
+  /** The whole message, exactly as sent (plain text). */
+  message: string;
+  /** ISO instants. */
+  createdAt: string;
+  handledAt: string | null;
+  sender: FeedbackSenderDto;
+};
+
+export type FeedbackListDto = {
+  rows: FeedbackRowDto[];
+  openCount: number;
+  page: number;
+  hasMore: boolean;
+  view: FeedbackView;
+  category: FeedbackCategoryValue | null;
+  account: { id: string; label: string | null } | null;
+};
+
+export type FeedbackItemDto = FeedbackRowDto & {
+  /** Admin changes to this item, newest first. */
+  history: AuditLineDto[];
+};
