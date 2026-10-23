@@ -93,6 +93,15 @@ async function populate(account: Account, lib: Lib, label: string) {
   await markReleaseNotesSeen(account, RELEASE_NOTES_FIXTURE[0].id, {
     catalog: RELEASE_NOTES_FIXTURE,
   });
+  // Admin Center & Feedback: a message to the owner (scoped create stamps
+  // the owner).
+  await account.db.feedback.create({
+    data: {
+      userId: account.userId,
+      category: "bug",
+      message: `${label} found a bug`,
+    },
+  });
   return plan;
 }
 
@@ -121,6 +130,7 @@ const OWNED_TABLES = [
   "cardio_logs",
   "tour_progress",
   "release_seen",
+  "feedback",
 ];
 
 let a: Account;
@@ -168,6 +178,23 @@ it("deleting A removes every row A owns and nothing of B's or the library's", as
   const total = Object.values(result.deleted).reduce((n, c) => n + c, 0);
   expect(total).toBe(aRowsBefore);
   expect(Object.keys(result.deleted)).toEqual([...ACCOUNT_DELETION_ORDER]);
+});
+
+it("audit entries about A neither block A's deletion nor disappear with it (spec R11)", async () => {
+  const audit = await getTestPrisma().adminAuditEntry.create({
+    data: {
+      actorUserId: b.userId,
+      kind: "account_suspend",
+      targetUserId: a.userId,
+    },
+  });
+  await deleteAccount(a, { deleteAuthUser: async () => "deleted" });
+  expect(await ownedRowCount(a.userId)).toBe(0);
+  expect(
+    await getTestPrisma().adminAuditEntry.findUnique({
+      where: { id: audit.id },
+    }),
+  ).toEqual(audit);
 });
 
 it("is symmetric: deleting B leaves A untouched", async () => {

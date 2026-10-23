@@ -26,6 +26,8 @@ const forbiddenTokens = [
   "SUPABASE_SERVICE_ROLE_KEY",
   // The signup switch is server-only too: the browser never decides it.
   "OVERLOAD_SIGNUP_OPEN",
+  // Admin identity is server-only too (Admin Center & Feedback, spec R1).
+  "OVERLOAD_ADMIN_USER_IDS",
 ];
 
 // Actual secret values present in the build env (never their public NEXT_PUBLIC_ vars).

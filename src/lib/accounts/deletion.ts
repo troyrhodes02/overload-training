@@ -45,6 +45,7 @@ export const ACCOUNT_DELETION_ORDER = [
   "Gym",
   "TourProgress", // Onboarding Tour: references only the profile
   "ReleaseSeen", // What's New: references only the profile
+  "Feedback", // Admin Center & Feedback: the lifter's messages; references only the profile
   "Profile",
 ] as const;
 
@@ -70,6 +71,7 @@ const DELETE: Record<
   Gym: (tx) => tx.gym.deleteMany({}),
   TourProgress: (tx) => tx.tourProgress.deleteMany({}),
   ReleaseSeen: (tx) => tx.releaseSeen.deleteMany({}),
+  Feedback: (tx) => tx.feedback.deleteMany({}),
   Profile: (tx) => tx.profile.deleteMany({}),
 };
 

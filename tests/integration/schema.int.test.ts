@@ -1,4 +1,4 @@
-import { getTestPrisma, APP_TABLES } from "./support/db";
+import { getTestPrisma, APP_TABLES, ADMIN_ONLY_TABLES } from "./support/db";
 
 /**
  * Schema invariants: the Architecture Doc's core entities exist, derived values
@@ -49,7 +49,10 @@ describe("schema invariants", () => {
     expect(rows.map((r) => r.column_name).every((c) => c === "user_id")).toBe(
       true,
     );
-    expect(rows.map((r) => r.table_name)).toEqual([...APP_TABLES].sort());
+    // Admin Center & Feedback: the admin-only audit log has no owner column.
+    expect(rows.map((r) => r.table_name)).toEqual(
+      APP_TABLES.filter((t) => !ADMIN_ONLY_TABLES.includes(t)).sort(),
+    );
   });
 
   it("profiles.appearance is the account's appearance: NOT NULL, default 'system', exactly three values", async () => {
