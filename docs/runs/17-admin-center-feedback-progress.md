@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 2 — design doc.
+Step 8 — implementing OVE-74.
 
 ## Authority used (read before resuming)
 
@@ -42,11 +42,11 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 ## Pipeline status
 
 - [x] 1. Pitch pulled + authority read
-- [ ] 2. Design doc
-- [ ] 3. UI preview
-- [ ] 4. Spec
-- [ ] 5. Resolved Decisions
-- [ ] 6. Linear milestone + tickets
+- [x] 2. Design doc — `docs/design/17-admin-center-feedback-design-doc.md` v1.0 (12 screens; Screen 12 admin delete = deferred contract only)
+- [x] 3. UI preview — `docs/previews/17-admin-center-feedback-preview.tsx` (screen/state/width/appearance switcher; parses clean with TS transpile; excluded from tsc/eslint/prettier)
+- [x] 4. Spec — `docs/specs/17-admin-center-feedback-spec.md` v1.0.0
+- [x] 5. Resolved Decisions — spec R1–R25 (R7 = admin deletion halted)
+- [x] 6. Linear milestone "Admin Center & Feedback" (7cb8b570) + OVE-74 → OVE-75 → OVE-76 → OVE-77 → OVE-78 (blockedBy chain); OVE-79 = BLOCKED admin deletion (not in chain)
 - [ ] 7. Feature PR
 - [ ] 8. Tickets
 - [ ] 9. Runbook
@@ -59,11 +59,18 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 
 ## Tickets
 
-(none created yet)
+| Ticket | Branch (base) | PR | Status |
+| ------ | ------------- | -- | ------ |
+| OVE-74 Admin 1: foundation | `feat/ove-74-admin-foundation` (feature) | — | Todo |
+| OVE-75 Admin 2: Send feedback | `feat/ove-75-send-feedback` (OVE-74) | — | Todo |
+| OVE-76 Admin 3: admin center | `feat/ove-76-admin-center` (OVE-75) | — | Todo |
+| OVE-77 Admin 4: inbox + e2e | `feat/ove-77-feedback-inbox` (OVE-76) | — | Todo |
+| OVE-78 Admin 5: guidance | `feat/ove-78-guidance` (OVE-77) | — | Todo |
+| OVE-79 BLOCKED admin deletion | — | — | Backlog (not worked) |
 
 ## Resolved Decisions so far
 
-Pre-resolved 1–9 from the run prompt (to be recorded in the spec).
+Spec R1–R25 (binding). Key: R7 admin deletion halted; R11 AdminAuditEntry admin-only (no owner, no FKs, append-only trigger); R12–R14 metric definitions; R15 admin layer in src/lib/data/admin behind a gated client; R16 emails via one new auth-facade read; R19 feedback cap 10/24h.
 
 ## Deferred / upstream amendments (running list)
 
