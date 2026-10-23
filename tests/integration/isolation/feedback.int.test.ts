@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Account } from "@/lib/data/account";
 import { AccountScopeError } from "@/lib/data/scope";
+import { submitFeedback } from "@/lib/feedback/feedback";
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { expectForeignLikeMissing } from "./support";
@@ -19,12 +20,10 @@ let aFeedbackId: string;
 beforeEach(async () => {
   a = await createTestAccount();
   b = await createTestAccount();
-  const row = await a.db.feedback.create({
-    data: {
-      userId: a.userId,
-      category: "bug",
-      message: "A's set entry jumps on the second set",
-    },
+  // Through the app's own write module (Send feedback).
+  const row = await submitFeedback(a, {
+    category: "bug",
+    message: "A's set entry jumps on the second set",
   });
   aFeedbackId = row.id;
   await b.db.feedback.create({
@@ -66,6 +65,16 @@ it("naming A's feedback id looks exactly like naming a missing one", async () =>
   await expectForeignLikeMissing(aFeedbackId, (id) =>
     b.db.feedback.findUniqueOrThrow({ where: { id } }),
   );
+});
+
+it("B's daily cap counts only B's messages", async () => {
+  for (let i = 0; i < 9; i++) {
+    await submitFeedback(a, { category: "other", message: `A ${i}` });
+  }
+  // A has sent 10 today; B has sent 1 and can still send.
+  await expect(
+    submitFeedback(b, { category: "idea", message: "B again" }),
+  ).resolves.toEqual({ id: expect.any(String) });
 });
 
 it("B can't change or delete A's feedback", async () => {

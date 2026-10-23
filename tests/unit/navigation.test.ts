@@ -24,10 +24,14 @@ describe("navigation destinations", () => {
     ]);
   });
 
-  it("adds only Settings, as a sheet-only secondary entry", () => {
+  it("adds only Settings and Send feedback, as sheet-only secondary entries (never Admin)", () => {
     expect(SECONDARY_NAV_ITEMS.map((i) => [i.href, i.label])).toEqual([
       ["/settings", "Settings"],
+      ["/feedback", "Send feedback"],
     ]);
+    // Admin Center & Feedback: the admin area is never a navigation entry.
+    const hrefs = [...NAV_ITEMS, ...SECONDARY_NAV_ITEMS].map((i) => i.href);
+    expect(hrefs.some((h) => h.startsWith("/admin"))).toBe(false);
   });
 });
 

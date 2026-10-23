@@ -348,7 +348,7 @@ The preview (`docs/previews/17-admin-center-feedback-preview.tsx`) is binding. I
 | `AccessSection` | `src/components/admin/access-section.tsx` | client island | `{ target: {id, label, email, status, isAdmin} }` → AlertDialog → action, toasts |
 | `AuditList` | `src/components/admin/audit-list.tsx` | server | `AuditLineDto[]`; phone list, md table |
 | `FeedbackInbox`, `FeedbackItemView`, `FeedbackItemControls` | `src/components/admin/feedback-*.tsx` | server + client island for controls | DTOs §13 |
-| `FeedbackForm` | `src/components/feedback/feedback-form.tsx` | client island (`useActionState`) | as preview incl. success state |
+| `SendFeedback` | `src/components/send-feedback/send-feedback-form.tsx` (not `components/feedback/`, which already holds generic UI feedback: toasts, empty states) | client island (`useActionState`) | as preview incl. success state |
 | `Textarea` | `src/components/ui/textarea.tsx` | stock shadcn/ui | |
 | `AccountMenu` | changed: `isAdmin` prop; + "Send feedback" | client | the Admin item only when `isAdmin` |
 | `SECONDARY_NAV_ITEMS` | + `{ href: "/feedback", label: "Send feedback", icon: MessageSquare }` | | |
