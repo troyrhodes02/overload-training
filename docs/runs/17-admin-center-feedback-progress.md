@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 14 — final verification (stop before merge).
+**COMPLETE — STOPPED BEFORE MERGE.** #94 open (ready for review), not merged. Human steps: runbook §1–§8; OVE-79 stays blocked pending the deletion amendment.
 
 ## Authority used (read before resuming)
 
@@ -54,8 +54,8 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 - [x] 11. Verification on the integrated feature branch: prettier, eslint 0, tsc, prisma validate, unit 75/1151, integration 53/605 (RLS, isolation incl. Feedback, history integrity, baselines, deload, admin gate/privacy/metrics/suspension/feedback), accounts e2e 38 passed + 1 skipped (by design) + 1 failed (personalization phone sheet pinned the old list; updated per design doc Screen 1 → personalization 8/8), default e2e 26/26, build (via e2e web server; Next security nudge on alternate builds) + client-bundle OK. Preview comparison: screenshots 375 light / 1280 dark for every admin screen, /feedback, /suspended, What's New dialog reviewed.
 - [x] 12. Code review — `code-review` (high, --comment): 10 findings (9 inline + 1 general comment, outside the diff)
 - [x] 13. Review audit — Implement 8 (1,2,3,5,6,8,9,10; commit `0993ce5`; spec v1.1.0 R28–R29) · Skip 1 (7: R14, indexed) · Discuss 1 (4: keep R22 per CLAUDE.md) · Defer 0. Replies on every thread; implemented threads resolved; summary https://github.com/troyrhodes02/overload-training/pull/94#issuecomment-6356517498. Re-verified prettier, eslint 0, tsc, unit 75/1151, integration 53/607, e2e admin-center 5/5 + send-feedback 2/2.
-- [ ] 14. Final verification — STOP BEFORE MERGE
-- [ ] 15. Run report
+- [x] 14. Final verification on `3c9f2c7`: prettier, eslint 0, tsc, prisma validate, unit 75/1151, integration 53/607, accounts e2e 42 passed + 1 skipped (tap-count baseline, by design), default e2e 26/26, build (via e2e web server) + client-bundle OK → **STOP BEFORE MERGE** (not merged).
+- [x] 15. Run report — `docs/runs/17-admin-center-feedback-report.md`
 
 ## Tickets
 
