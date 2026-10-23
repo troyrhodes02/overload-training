@@ -123,9 +123,12 @@ describe("no workout logging, plan building, or progression", () => {
       .map((d) => d.name)
       .sort();
     // Guided Workout Logging adds `log` and `history`; Goals adds `goals`;
-    // Accounts adds `settings` (profile + account deletion).
+    // Accounts adds `settings` (profile + account deletion); Admin Center &
+    // Feedback adds `feedback` (the lifter's form — the admin area lives
+    // outside the lifter shell, at src/app/admin).
     expect(routes).toEqual([
       "exercises",
+      "feedback",
       "goals",
       "gyms",
       "history",

@@ -4,6 +4,7 @@ import {
   Dumbbell,
   History,
   House,
+  MessageSquare,
   Settings,
   Target,
 } from "lucide-react";
@@ -45,11 +46,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
 
 /**
  * Secondary entries shown only in the phone sheet, below a divider
- * (Personalization & Navigation Polish R10). Settings is already reachable
- * from the account menu at every width; it is not a rail destination.
+ * (Personalization & Navigation Polish R10). Settings and Send feedback
+ * (Admin Center & Feedback) are already reachable from the account menu at
+ * every width; neither is a rail destination.
  */
 export const SECONDARY_NAV_ITEMS: readonly NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/feedback", label: "Send feedback", icon: MessageSquare },
 ];
 
 /**

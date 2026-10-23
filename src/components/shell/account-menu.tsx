@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { EllipsisVertical, LogOut, Settings } from "lucide-react";
+import {
+  EllipsisVertical,
+  LogOut,
+  MessageSquare,
+  Settings,
+} from "lucide-react";
 import { signOutAction } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +29,12 @@ export function AccountMenu() {
           <Link href="/settings" className="flex w-full items-center gap-2">
             <Settings className="size-4" />
             Settings
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/feedback" className="flex w-full items-center gap-2">
+            <MessageSquare className="size-4" />
+            Send feedback
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
