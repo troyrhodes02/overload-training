@@ -986,6 +986,7 @@ Permanent non-goals: program generation or any AI coach, social features, ads, d
 Both the Onboarding Tour and What's New have shipped, so the last ticket runs `overload-onboarding`, which decides the following.
 
 - **Tour step — none recommended.** "Send feedback" is one item in the ⋮ menu and the phone sheet, menus the tour already points at ("Settings … live here, under the ⋮ menu"). It is useful without discovery training. A tour step for a menu item would be noise (skill rubric: "a new variant of something the lifter already understands"). The admin area is never toured: it is owner-only and must not be revealed to lifters. Existing steps keep their ids and copy.
+- **Decided by `overload-onboarding` in OVE-78 (spec R26–R27):** no tour step and no change to existing steps' copy. The release note below is added as proposed, significant, with a provisional date that is set to the merge day before merge.
 - **Release note — significant (proposed).** Illustrative. **Send feedback from Overload:** "Found something that needs fixing, or have an idea or a question? Choose Send feedback from the ⋮ menu to send it straight to the person who runs Overload." Dated the day it reaches production. It does not mention the admin area.
 
 ---

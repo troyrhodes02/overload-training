@@ -586,6 +586,9 @@ Resolved by this run (authority order: planning docs → CLAUDE.md/skills → co
 - **R24. Signup is untouched.** The repository's current gate is OVE-50's `OVERLOAD_SIGNUP_OPEN` switch. CLAUDE.md's invite-only wording predates it (existing upstream amendment). This run neither opens nor loosens signup. *Authority: run prompt ("preserve … signup"); OVE-50 spec.*
 - **R25. The admin shell is separate from the lifter shell** (`src/app/admin/layout.tsx`, wider column, sub-nav), with no tour or What's New. *Authority: design doc Screen 2; preview.*
 
+- **R26. No tour step for Send feedback, and no existing step changes (overload-onboarding, OVE-78).** The entry is one item in the ⋮ menu and in the phone sheet. The tour already points at both: the Settings step says Settings lives "under the ⋮ menu at the top", and the phone navigation step introduces the sheet. Feedback is a low-frequency utility a lifter does not need trained to benefit from ("a new variant of something the lifter already understands"). The admin area is never toured. *Authority: overload-onboarding rubric ("when it is not clear, default to no step"); design doc §13.*
+- **R27. One significant release note, "Send feedback from Overload"** (`2026-10-22-send-feedback`, top of `src/lib/release-notes/entries.ts`). It adds a capability lifters will notice, so it opens the dialog once. It never mentions the admin area. **Provisional date:** written on 2026-10-22 while the PR waits for human approval. Before the merge, set the date and id prefix to the merge day (runbook §6), as the Pitch 13–15 entries did. *Authority: overload-onboarding ("date it with the shipping date"); What's New spec R5–R8.*
+
 ## Open Questions
 
 1. **Admin deletion contract (blocking for that capability only).** It is carried as R7's required upstream amendment. Everything else is decided.
