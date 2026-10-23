@@ -251,6 +251,9 @@ test("phone: no bottom bar; the sheet lists every destination and closes on choi
     "Exercises",
     "Gyms",
     "Settings",
+    // Admin Center & Feedback (design doc Screen 1): every lifter's way to
+    // the owner. The admin area is never a sheet entry.
+    "Send feedback",
   ]);
   await expect(sheet.getByRole("link", { name: "Today" })).toHaveAttribute(
     "aria-current",
