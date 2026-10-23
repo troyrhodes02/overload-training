@@ -12,7 +12,7 @@ transition and ticket boundary. A fresh session resumes from **Current step**.
 
 ## Current step
 
-Step 8 — implementing OVE-77 (OVE-74 #95, OVE-75 #96, OVE-76 #97 done).
+Step 8 — implementing OVE-78 guidance (OVE-74 #95, OVE-75 #96, OVE-76 #97, OVE-77 #98 done).
 
 ## Authority used (read before resuming)
 
@@ -64,7 +64,7 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 | OVE-74 Admin 1: foundation | `feat/ove-74-admin-foundation` (feature) | #95 | In Review |
 | OVE-75 Admin 2: Send feedback | `feat/ove-75-send-feedback` (OVE-74) | #96 | In Review |
 | OVE-76 Admin 3: admin center | `feat/ove-76-admin-center` (OVE-75) | #97 | In Review |
-| OVE-77 Admin 4: inbox + e2e | `feat/ove-77-feedback-inbox` (OVE-76) | — | Todo |
+| OVE-77 Admin 4: inbox + e2e | `feat/ove-77-feedback-inbox` (OVE-76) | #98 | In Review |
 | OVE-78 Admin 5: guidance | `feat/ove-78-guidance` (OVE-77) | — | Todo |
 | OVE-79 BLOCKED admin deletion | — | — | Backlog (not worked) |
 
@@ -74,6 +74,7 @@ Inspected 2026-10-22. The approved documents remain contradictory:
 
 - **OVE-75** (#96): submitFeedback + action + /feedback + SendFeedback form (src/components/send-feedback/, not components/feedback/ which holds generic UI feedback); Textarea; ⋮ menu + phone sheet entries. Verified: prettier, eslint 0, tsc, unit 73/1134, integration 50/589, e2e send-feedback 2/2 (screens 375 light / 1280 dark reviewed vs preview). E2E web-server build hits the Next.js security nudge once per new build; retry passes.
 - **OVE-76** (#97): admin shell/nav/layout, metrics layer (pure src/lib/admin/overview.ts + gated reads), directory + account page (emails via src/lib/data/admin/emails.ts, the one new auth-facade read), suspend/reactivate (inAdminTx + recordAudit), audit log page, proxy early 404 for signed-in non-admins on /admin/** (streamed notFound keeps 200 — R23 amended), allowlist parser moved to src/lib/admin/allowlist.ts. E2E admin = fixed auth id e2e0ad00-0000-4000-8000-000000000017 allowlisted in playwright.accounts.config.ts. Verified: prettier, eslint 0, tsc, unit 74/1142, integration 52/599, e2e admin-center 3/3 (screens reviewed), bundle OK. Next 16 keeps prior routes hidden in DOM → e2e getByText must filter visible.
+- **OVE-77** (#98): src/lib/data/admin/feedback.ts + inbox/item pages + actions; unit admin-actions (each admin action invoked directly as a non-admin → notFound, data layer untouched); e2e admin-center 5/5 incl. replay of the captured suspend action by the lifter → 409 "Server Action unavailable" on lifter paths AND the admin path (proxy rewrite target doesn't carry the action), DB unchanged. Verified: prettier, eslint 0, tsc, unit 75/1151, integration 53/605, bundle OK.
 
 ## Resolved Decisions so far
 
