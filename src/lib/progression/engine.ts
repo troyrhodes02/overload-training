@@ -71,13 +71,16 @@ export type ReactiveDecision = {
    */
   evidence: DecisionEvidence;
   /**
-   * The load of the last planned working set of the latest counted session
-   * (null with no counted session, or for a bodyweight set). Read layers use
-   * it only to check that the working weight they are about to print is the
-   * one the judged session ended on (Smarter & Explainable Progression R33);
-   * it is never a weight source of its own.
+   * The load of the TOP (heaviest) planned working set of the latest counted
+   * session (null with no counted session, or for a bodyweight set). Read
+   * layers use it only to check that the working weight they are about to print
+   * is the top set the judged session actually used — the single working-weight
+   * source anchors on the same set (OVE-61; Smarter & Explainable Progression
+   * R33). It is never a weight source of its own. For straight sets the top set
+   * is every set; it diverges only when the session used different loads (a
+   * descending/back-off scheme), where the heaviest set is the anchor.
    */
-  latestLoadLbs: number | null;
+  latestTopLoadLbs: number | null;
 };
 
 /**
@@ -294,11 +297,20 @@ export function evaluateReactiveDecision(
 ): ReactiveDecision {
   const { state: base, seq, stallTrend, evidence } = evaluateBase(perfs, opts);
   const latest = seq.at(-1);
-  const lastSet = latest?.workingSets.reduce<WorkingSet | null>(
-    (last, s) => (!last || s.setNumber > last.setNumber ? s : last),
-    null,
-  );
-  const latestLoadLbs = lastSet?.weightLbs ?? null;
+  // The top (heaviest) planned working set of the latest counted session — the
+  // anchor the single working-weight source agrees with (OVE-61). A pure
+  // bodyweight set (null load) never counts.
+  let latestTopLoadLbs: number | null = null;
+  if (latest) {
+    for (const s of latest.workingSets) {
+      if (
+        s.weightLbs !== null &&
+        (latestTopLoadLbs === null || s.weightLbs > latestTopLoadLbs)
+      ) {
+        latestTopLoadLbs = s.weightLbs;
+      }
+    }
+  }
   if (
     latest &&
     base === "stalled" &&
@@ -314,7 +326,7 @@ export function evaluateReactiveDecision(
         rirToSpare: RIR_TO_SPARE_MIN,
         latest: ref(latest),
       },
-      latestLoadLbs,
+      latestTopLoadLbs,
     };
   }
   if (latest && base === "progress" && hasSetAtLimit(latest)) {
@@ -327,10 +339,10 @@ export function evaluateReactiveDecision(
         rirAtLimit: RIR_AT_LIMIT,
         latest: ref(latest),
       },
-      latestLoadLbs,
+      latestTopLoadLbs,
     };
   }
-  return { state: base, base, rirEffect: null, evidence, latestLoadLbs };
+  return { state: base, base, rirEffect: null, evidence, latestTopLoadLbs };
 }
 
 /** The final call only (kept for callers that need just the state, R29). */

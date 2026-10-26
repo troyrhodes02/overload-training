@@ -373,9 +373,10 @@ function latestFinished(rows: Row[]): Row | null {
  *
  * The weight is the single working-weight source, read from completed
  * workouts only (R9) — and printed only when it can be trusted (R33): a free
- * weight's number must be the load the judged session's last working set
- * used (otherwise an extra back-off set, or a later unjudged workout, would be
- * the number); a gym baseline is the machine's authority (Progressive
+ * weight's number must be the load of the judged session's TOP working set
+ * (the same top-set anchor the source uses, OVE-61; otherwise an extra back-off
+ * set, or a later unjudged workout, would be the number); a gym baseline is the
+ * machine's authority (Progressive
  * Overload Engine R30), unless the in-progress workout itself rewrote it.
  * An untrusted number is withheld, never replaced: "Ready to add weight",
  * "Hold steady" (Progressive Overload Engine R31).
@@ -417,7 +418,7 @@ async function describeDecision(
       )
     : null;
   const trusted =
-    read !== null && (args.gymVariable || read === decision.latestLoadLbs)
+    read !== null && (args.gymVariable || read === decision.latestTopLoadLbs)
       ? read
       : null;
   // Bodyweight never gets "+5 lb"; no trusted weight → no number (R31).

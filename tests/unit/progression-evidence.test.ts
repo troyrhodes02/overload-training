@@ -250,7 +250,7 @@ describe("evidence follows the branch that decided the call", () => {
     expect(evaluateReactiveDecision([perfs[1], perfs[2], perfs[0]])).toEqual(a);
   });
 
-  it("latestLoadLbs is the last working set's load of the latest counted session (R33)", () => {
+  it("latestTopLoadLbs is the TOP (heaviest) working set's load of the latest counted session (R33, OVE-61)", () => {
     const first = perf(TOP);
     const pyramid = perf(TOP);
     pyramid.workingSets = pyramid.workingSets.map((s) => ({
@@ -258,21 +258,36 @@ describe("evidence follows the branch that decided the call", () => {
       weightLbs: 175 + s.setNumber * 5,
     }));
     pyramid.workingSets.reverse(); // stored order must not matter
-    expect(evaluateReactiveDecision([first, pyramid]).latestLoadLbs).toBe(190);
+    // Ascending: the top set is also the last set (180, 185, 190).
+    expect(evaluateReactiveDecision([first, pyramid]).latestTopLoadLbs).toBe(
+      190,
+    );
+    // Descending/back-off: the heaviest set is the first, not the last one
+    // logged — the anchor is the top set, not the final set (195, 185, 185).
+    const descending = perf(TOP);
+    descending.workingSets = descending.workingSets.map((s) => ({
+      ...s,
+      weightLbs: s.setNumber === 1 ? 195 : 185,
+    }));
+    descending.workingSets.reverse(); // stored order must not matter
+    expect(evaluateReactiveDecision([first, descending]).latestTopLoadLbs).toBe(
+      195,
+    );
     // A later uncounted (incomplete) session doesn't move it.
     expect(
       evaluateReactiveDecision([
         perf(TOP, { weight: 185 }),
         perf(TOP, { weight: 185 }),
         perf([10], { weight: 200, complete: false }),
-      ]).latestLoadLbs,
+      ]).latestTopLoadLbs,
     ).toBe(185);
-    expect(evaluateReactiveDecision([perf(TOP)]).latestLoadLbs).toBe(185);
-    expect(evaluateReactiveDecision([]).latestLoadLbs).toBeNull();
+    expect(evaluateReactiveDecision([perf(TOP)]).latestTopLoadLbs).toBe(185);
+    expect(evaluateReactiveDecision([]).latestTopLoadLbs).toBeNull();
     const bw = perf(TOP);
     bw.workingSets = bw.workingSets.map((s) => ({ ...s, weightLbs: null }));
     expect(
-      evaluateReactiveDecision([bw], { e1rmApplicable: false }).latestLoadLbs,
+      evaluateReactiveDecision([bw], { e1rmApplicable: false })
+        .latestTopLoadLbs,
     ).toBeNull();
   });
 
