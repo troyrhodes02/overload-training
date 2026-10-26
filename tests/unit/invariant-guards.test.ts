@@ -631,12 +631,47 @@ describe("RIR is a recorded fact, never a load or a rep (RIR Logging & Autoregul
     expect(files.filter((f) => /\brir\b/i.test(read(f))).map(rel)).toEqual([]);
   });
 
-  it("nothing adds RIR to reps (no reps-to-failure arithmetic)", () => {
-    const sum = /\breps\s*\+\s*[\w.?]*\brir\b|\brir\b\s*\+\s*[\w.?]*\breps\b/i;
+  it("nothing adds RIR to reps, except the one sanctioned projection (R16; OVE-80)", () => {
+    // Adding reserved reps to performed reps turns a reported fact into a
+    // speculative load, and is banned on every surface that speaks with
+    // authority (e1RM, the engine, goals, baselines, the weight offer). R16 is
+    // narrowed to permit it in ONE place: the opt-in, presentation-only RIR
+    // projection overlay. Its single arithmetic line carries the marker below
+    // (on the line or directly above it), and the next test proves that place
+    // stays isolated. The marker is the audit trail — grep it to find the one
+    // exception. The pattern also catches parenthesised/cast forms, so the
+    // exception cannot be taken silently by wrapping the arithmetic.
+    const sum =
+      /\breps\s*\+\s*[\w.?()\s]*\brir\b|\brir\b\s*\+\s*[\w.?()\s]*\breps\b/i;
+    const SANCTION = "reps-to-failure-ok";
+    const offenders = new Set<string>();
+    for (const f of walk(SRC)) {
+      const lines = read(f).split("\n");
+      lines.forEach((line, i) => {
+        if (!sum.test(line)) return;
+        const sanctioned =
+          line.includes(SANCTION) || (i > 0 && lines[i - 1].includes(SANCTION));
+        if (!sanctioned) offenders.add(rel(f));
+      });
+    }
+    expect([...offenders]).toEqual([]);
+  });
+
+  it("the RIR projection stays isolated: e1RM, the engine, goals, baselines, and the weight offer never import it (R16; OVE-80)", () => {
+    // The projection folds RIR into reps; proving nothing authoritative reaches
+    // it is what lets R16 be narrowed safely. The read/DTO layer (history.ts,
+    // history-queries.ts) is its only caller.
+    const forbidden = [
+      path.join(SRC, "lib", "progression", "e1rm.ts"),
+      path.join(SRC, "lib", "progression", "engine.ts"),
+      path.join(SRC, "lib", "progression", "recommendation.ts"),
+      path.join(SRC, "lib", "gyms", "baselines.ts"),
+      path.join(SRC, "lib", "logging", "set-entry.ts"),
+      ...walk(path.join(SRC, "lib", "goals")),
+    ];
+    for (const f of forbidden) expect(fs.existsSync(f)).toBe(true);
     expect(
-      walk(SRC)
-        .filter((f) => sum.test(read(f)))
-        .map(rel),
+      forbidden.filter((f) => /projectedE1rm/i.test(read(f))).map(rel),
     ).toEqual([]);
   });
 

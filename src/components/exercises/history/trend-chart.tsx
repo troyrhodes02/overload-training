@@ -29,17 +29,25 @@ export function TrendChart({
   unit,
   seriesName,
   label,
+  showProjected = false,
 }: {
   points: TrendPointDto[];
   unit: "lb" | "reps";
   seriesName: string;
   label: string;
+  /**
+   * Draw the speculative RIR-projected line as a second dotted, muted series
+   * (OVE-80). Off by default; the e1RM view toggles it on. Pure presentation —
+   * the projected values are read straight from each point's `projected`.
+   */
+  showProjected?: boolean;
 }) {
   const data = points.map((p) => ({
     date: p.dateLabel,
     value: p.value,
     scheduledDeload: p.scheduledDeload,
     sets: p.setsLabel,
+    projected: p.projected ?? null,
   }));
 
   return (
@@ -80,11 +88,33 @@ export function TrendChart({
                 color: "var(--color-foreground)",
               }}
               labelStyle={{ color: "var(--color-muted-foreground)" }}
-              formatter={(value, _name, item) => [
-                `${value} ${unit} · ${(item?.payload as { sets?: string })?.sets ?? ""}`,
-                seriesName,
-              ]}
+              formatter={(value, _name, item) =>
+                item?.dataKey === "projected"
+                  ? [`${value} ${unit}`, "Projected (RIR)"]
+                  : [
+                      `${value} ${unit} · ${(item?.payload as { sets?: string })?.sets ?? ""}`,
+                      seriesName,
+                    ]
+              }
             />
+            {showProjected ? (
+              <Line
+                type="monotone"
+                dataKey="projected"
+                stroke="var(--color-muted-foreground)"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                connectNulls
+                dot={{
+                  r: 2.5,
+                  fill: "var(--color-background)",
+                  stroke: "var(--color-muted-foreground)",
+                  strokeWidth: 1.5,
+                }}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+              />
+            ) : null}
             <Line
               type="monotone"
               dataKey="value"
@@ -110,6 +140,7 @@ export function TrendChart({
               <th>
                 {seriesName} ({unit})
               </th>
+              {showProjected ? <th>Projected from RIR ({unit})</th> : null}
               <th>Sets</th>
               <th>Context</th>
             </tr>
@@ -119,6 +150,9 @@ export function TrendChart({
               <tr key={`${p.dateIso}-${i}`}>
                 <td>{p.dateLabel}</td>
                 <td>{p.value}</td>
+                {showProjected ? (
+                  <td>{p.projected ?? "no RIR reported"}</td>
+                ) : null}
                 <td>{p.setsLabel}</td>
                 <td>{p.scheduledDeload ? "scheduled deload" : "normal"}</td>
               </tr>

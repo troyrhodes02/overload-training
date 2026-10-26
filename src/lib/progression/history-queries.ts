@@ -11,6 +11,7 @@ import {
   computeRecords,
   e1rmPoints,
   latestValue,
+  projectedE1rmPoints,
   RECENT_SESSIONS,
   repsPoints,
   weightPoints,
@@ -222,7 +223,18 @@ export async function getExerciseHistory(
           repRecords: rec.repRecords.map(recordDto),
         };
 
-  const trendOf = (pts: TrendPoint[]): TrendDto => ({
+  // Projected-capacity overlay for the e1RM view (OVE-80): a speculative point
+  // per session that had a projectable set, keyed by its loggedExerciseId so it
+  // attaches to the concrete e1RM point for the same session. Never alters the
+  // concrete `value` or `latest`.
+  const projectedByExercise = new Map(
+    projectedE1rmPoints(historyRows).map((p) => [p.loggedExerciseId, p.value]),
+  );
+
+  const trendOf = (
+    pts: TrendPoint[],
+    opts?: { projected?: boolean },
+  ): TrendDto => ({
     points: pts.map((p) => ({
       dateIso: p.dateIso,
       dateLabel: label(p.dateIso),
@@ -232,6 +244,9 @@ export async function getExerciseHistory(
         { workingSets: p.workingSets, extraSets: [] },
         externalLoad,
       ),
+      ...(opts?.projected
+        ? { projected: projectedByExercise.get(p.loggedExerciseId) ?? null }
+        : {}),
     })),
     latest: latestValue(pts),
   });
@@ -262,7 +277,10 @@ export async function getExerciseHistory(
     next,
     records,
     trend: {
-      e1rm: externalLoad && selected ? trendOf(e1rmPoints(historyRows)) : null,
+      e1rm:
+        externalLoad && selected
+          ? trendOf(e1rmPoints(historyRows), { projected: true })
+          : null,
       weight:
         externalLoad && selected ? trendOf(weightPoints(historyRows)) : null,
       reps: !externalLoad && selected ? trendOf(repsPoints(historyRows)) : null,
