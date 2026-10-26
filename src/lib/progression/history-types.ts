@@ -55,6 +55,13 @@ export type TrendPointDto = {
   scheduledDeload: boolean;
   /** The working sets behind the point, for the tooltip and hidden table. */
   setsLabel: string;
+  /**
+   * Speculative e1RM projected from this session's reported RIR (OVE-80), or
+   * null when no set that session could project (no RIR, or 4+). Set only on
+   * the e1RM trend; always null on the weight and reps trends. Presentation
+   * only — never stored, never read by the engine, goals, or baselines.
+   */
+  projected?: number | null;
 };
 
 export type TrendDto = {

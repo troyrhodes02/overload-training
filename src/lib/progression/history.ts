@@ -27,6 +27,7 @@ import {
   loadedSets,
   sessionE1rm,
 } from "./e1rm";
+import { RIR_MAX } from "@/lib/logging/rir";
 
 /** Rows shown in Sessions before "View all" (R16). Display constant, Bucket C. */
 export const RECENT_SESSIONS = 10;
@@ -256,6 +257,43 @@ export function repsPoints(rows: HistoryRow[]): TrendPoint[] {
   return points(rows, (sets) =>
     sets.length > 0 ? Math.max(...sets.map((s) => s.reps)) : null,
   );
+}
+
+/**
+ * Speculative "what-if" e1RM projected from reported RIR (OVE-80), for the
+ * optional overlay on the e1RM view. A set's reserved reps are the lifter's
+ * estimate of how many were left, so performed reps plus that reserve is the
+ * reps-to-failure the set implies; its projected e1RM is that run through the
+ * SAME `estimateOneRepMax` — there is never a second formula.
+ *
+ * This is the ONE place RIR is folded into reps, and R16 is narrowed to allow
+ * it here only: the arithmetic line below carries the sanction marker the
+ * invariant guard checks, and an isolation guard proves this function is never
+ * imported by e1RM, the engine, goals, the weight offer, or baselines — the
+ * surfaces that speak with authority, which still never see RIR. This overlay
+ * is presentation-only and never stored.
+ *
+ * A set projects only when it carries an external load AND a recorded RIR
+ * strictly below the 4+ cap: `4+` is a floor, not a number, so it can't place
+ * a point, and a null RIR is "not recorded", never treated as 0. A session
+ * with no projectable set yields no point, so this series is sparser than the
+ * concrete one by design.
+ */
+export function projectedE1rmPoints(rows: HistoryRow[]): TrendPoint[] {
+  return points(rows, (sets) => {
+    const projectable = loadedSets(sets).filter(
+      (s) => s.rir !== null && s.rir < RIR_MAX,
+    );
+    if (projectable.length === 0) return null;
+    return Math.round(
+      Math.max(
+        ...projectable.map((s) =>
+          // reps-to-failure-ok (R16/OVE-80): sanctioned only for this overlay.
+          estimateOneRepMax(s.weightLbs, s.reps + (s.rir as number)),
+        ),
+      ),
+    );
+  });
 }
 
 /** The latest point outside a scheduled-deload week (R29), or null. */

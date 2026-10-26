@@ -26,6 +26,17 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Projected e1RM overlay (OVE-80; overload-onboarding). An opt-in extra on
+    // an existing chart that changes no existing behavior, so it is NOT
+    // significant: it belongs in the What's New list, not the modal. Dated the
+    // day it reaches production (the merge day); re-date if the merge slips.
+    id: "2026-10-26-projected-rir-trend",
+    date: "2026-10-26",
+    title: "See a projected trend from your RIR",
+    body: "On an exercise's e1RM trend, turn on Projected (RIR) to see a dotted line estimating what you might have had, based on the reps in reserve you logged. It's an estimate for the curious, not a fact and not a target — your real trend, records, and progression never use it.",
+    significant: false,
+  },
+  {
     // Admin Center & Feedback (Pitch 17; overload-onboarding, OVE-78): the
     // lifter-facing change only — the owner-only admin area is never
     // announced. PROVISIONAL date: written 2026-10-22 while the feature PR

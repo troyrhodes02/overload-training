@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
 import type { TrendDto } from "@/lib/progression/history-types";
 import { TrendChart } from "./trend-chart";
 
@@ -128,6 +131,12 @@ export function ExerciseTrend({
 
 function TrendView({ view }: { view: View }) {
   const { points, latest } = view.trend;
+  // The projected-RIR overlay is e1RM-only and shows only when at least one
+  // session had a set that could project (OVE-80). Local presentation state,
+  // off by default: the concrete line is what loads.
+  const canProject =
+    view.key === "e1rm" && points.some((p) => p.projected != null);
+  const [showProjected, setShowProjected] = useState(false);
   if (points.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">No finished workouts yet.</p>
@@ -141,28 +150,54 @@ function TrendView({ view }: { view: View }) {
       </p>
     );
   }
+  const projecting = canProject && showProjected;
   return (
     <div className="space-y-2">
-      {latest !== null ? (
-        <div className="text-right">
-          <div className="text-[11px] text-muted-foreground">
-            {view.latestLabel}
+      <div className="flex items-end justify-between gap-3">
+        {canProject ? (
+          <Toggle
+            size="sm"
+            variant="outline"
+            pressed={showProjected}
+            onPressedChange={setShowProjected}
+            aria-label="Show projected capacity from the RIR you logged"
+            className="text-xs"
+          >
+            <Sparkles className="size-3.5" />
+            Projected (RIR)
+          </Toggle>
+        ) : (
+          <span />
+        )}
+        {latest !== null ? (
+          <div className="text-right">
+            <div className="text-[11px] text-muted-foreground">
+              {view.latestLabel}
+            </div>
+            <div className="text-lg font-semibold tabular-nums tracking-tight">
+              {latest} {view.unit}
+            </div>
           </div>
-          <div className="text-lg font-semibold tabular-nums tracking-tight">
-            {latest} {view.unit}
-          </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       <TrendChart
         points={points}
         unit={view.unit}
         seriesName={view.seriesName}
         label={`${view.seriesName} per session`}
+        showProjected={projecting}
       />
       <p className="text-xs text-muted-foreground">
         {view.footnote(points.length)}
         {points.some((p) => p.scheduledDeload) ? " · ▫ deload week" : ""}
       </p>
+      {projecting ? (
+        <p className="text-xs text-muted-foreground">
+          The dotted line projects each set to failure from the RIR you logged —
+          an estimate of what you might have had, not what you did, and never a
+          target. Your e1RM, records, and progression never use it.
+        </p>
+      ) : null}
     </div>
   );
 }
