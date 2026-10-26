@@ -88,14 +88,20 @@ export function TrendChart({
                 color: "var(--color-foreground)",
               }}
               labelStyle={{ color: "var(--color-muted-foreground)" }}
-              formatter={(value, _name, item) =>
-                item?.dataKey === "projected"
-                  ? [`${value} ${unit}`, "Projected (RIR)"]
-                  : [
-                      `${value} ${unit} · ${(item?.payload as { sets?: string })?.sets ?? ""}`,
-                      seriesName,
-                    ]
-              }
+              formatter={(value, _name, item) => {
+                // A session with no projectable set has a null projected value;
+                // Recharts still lists the series, so drop that row rather than
+                // print "null lb" (OVE-80).
+                if (item?.dataKey === "projected") {
+                  return value == null
+                    ? null
+                    : [`${value} ${unit}`, "Projected (RIR)"];
+                }
+                return [
+                  `${value} ${unit} · ${(item?.payload as { sets?: string })?.sets ?? ""}`,
+                  seriesName,
+                ];
+              }}
             />
             {showProjected ? (
               <Line
