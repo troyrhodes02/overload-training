@@ -361,12 +361,28 @@ export type WorkingWeightOptions = {
   baselineWrittenBefore?: Date;
 };
 
+/**
+ * The workout whose top set anchors the working weight (OVE-61): the current
+ * card's own occurrence excluded, bounded to workouts on or before its date, so
+ * a later-dated workout logged out of order (a missed day logged late) never
+ * supplies the number — consistent with the card's "Last time" line
+ * (`previousPerformance`). Progression surfaces omit it and read the most recent
+ * qualifying workout overall; in-progress history is already excluded there by
+ * `completedOnly`.
+ */
+type WorkingWeightBefore = {
+  loggedExerciseId: string;
+  scheduledFor: Date;
+  createdAt: Date;
+};
+
 async function workingWeight(
   account: Account,
   performedExerciseId: string,
   gymId: string | null,
   gymVariable: boolean,
   opts: WorkingWeightOptions = {},
+  before?: WorkingWeightBefore,
 ): Promise<{ lbs: number; fromBaseline: boolean } | null> {
   if (gymVariable) {
     // A machine/cable weight belongs to its gym: this gym's baseline, else the
@@ -386,26 +402,51 @@ async function workingWeight(
       return { lbs: Number(b.weightLbs), fromBaseline: true };
     }
   }
-  // Latest REAL load only: a bodyweight (NULL) set is never read back as 0.
-  // Known limit (OVE-61): "latest" is by creation time and includes extra
-  // sets; changing it changes Pitch 5's suggestions, so it is its own ticket.
-  const recent = await account.db.loggedSet.findFirst({
+  // The TOP (heaviest) planned working set of the most recent qualifying
+  // workout, ordered by workout date then creation (OVE-61): an extra/back-off
+  // set (setNumber > plannedSets) is never the working weight, and a later-
+  // dated workout logged out of order never supplies it. A pure bodyweight
+  // (NULL) set is never read back as 0.
+  const le = await account.db.loggedExercise.findFirst({
     where: {
-      loggedExercise: {
-        exerciseId: performedExerciseId,
-        ...(gymVariable ? { gymId } : {}),
-        ...(opts.completedOnly
-          ? { loggedSession: { status: "complete" as const } }
-          : {}),
-      },
-      weightLbs: { not: null },
+      exerciseId: performedExerciseId,
+      sets: { some: { weightLbs: { not: null } } },
+      ...(gymVariable ? { gymId } : {}),
+      ...(opts.completedOnly
+        ? { loggedSession: { status: "complete" as const } }
+        : {}),
+      ...(before
+        ? {
+            id: { not: before.loggedExerciseId },
+            OR: [
+              { loggedSession: { scheduledFor: { lt: before.scheduledFor } } },
+              {
+                loggedSession: { scheduledFor: before.scheduledFor },
+                createdAt: { lt: before.createdAt },
+              },
+            ],
+          }
+        : {}),
     },
-    orderBy: { createdAt: "desc" },
-    select: { weightLbs: true },
+    orderBy: [
+      { loggedSession: { scheduledFor: "desc" } },
+      { createdAt: "desc" },
+    ],
+    select: {
+      plannedSets: true,
+      sets: { select: { setNumber: true, weightLbs: true } },
+    },
   });
-  return recent?.weightLbs != null
-    ? { lbs: Number(recent.weightLbs), fromBaseline: false }
-    : null;
+  if (!le) return null;
+  let top: number | null = null;
+  for (const s of le.sets) {
+    // Planned working sets only — an extra set never becomes the anchor.
+    if (s.setNumber < 1 || s.setNumber > le.plannedSets) continue;
+    if (s.weightLbs === null) continue;
+    const w = Number(s.weightLbs);
+    if (top === null || w > top) top = w;
+  }
+  return top !== null ? { lbs: top, fromBaseline: false } : null;
 }
 
 /**
@@ -554,7 +595,18 @@ export async function getWorkout(
       }
       const [working, previous] = await Promise.all([
         externalLoad
-          ? workingWeight(account, le.exerciseId, le.gymId, variable)
+          ? workingWeight(
+              account,
+              le.exerciseId,
+              le.gymId,
+              variable,
+              {},
+              {
+                loggedExerciseId: le.id,
+                scheduledFor: ls.scheduledFor,
+                createdAt: le.createdAt,
+              },
+            )
           : null,
         previousPerformance(account, {
           id: le.id,

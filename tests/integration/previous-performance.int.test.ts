@@ -300,6 +300,63 @@ describe("previousPerformance", () => {
   });
 });
 
+describe("working weight anchors on the top (heaviest) planned set (OVE-61)", () => {
+  it("descending/back-off scheme: the heaviest set is the working weight, not the last", async () => {
+    const { session } = await plan();
+    const a = await gym("Downtown Gym");
+    // Top set 245, back-offs 235 — the lifter starts heavy and drops.
+    await train(session.id, W1, a.id, [
+      { w: 245, r: 4 },
+      { w: 235, r: 5 },
+      { w: 235, r: 4 },
+    ]);
+    const today = await train(session.id, W2, a.id, []);
+    const c = await card(today.loggedSessionId);
+    expect(c.suggestedWeightLbs).toBe(245); // the top set, not the final 235
+    expect(c.workingWeightFromBaseline).toBe(false);
+  });
+
+  it("an extra/back-off set beyond the plan never becomes the working weight", async () => {
+    const { session } = await plan();
+    const a = await gym("Downtown Gym");
+    // Plan is 3 sets; a 4th extra back-off at 135 is logged after them.
+    const w1 = await train(session.id, W1, a.id, [
+      { w: 185, r: 8 },
+      { w: 185, r: 8 },
+      { w: 185, r: 7 },
+    ]);
+    await logSet(account, {
+      loggedExerciseId: w1.loggedExerciseId,
+      setNumber: 4,
+      weightLbs: 135,
+      reps: 12,
+    });
+    const today = await train(session.id, W2, a.id, []);
+    expect((await card(today.loggedSessionId)).suggestedWeightLbs).toBe(185);
+  });
+
+  it("logging a past day late anchors to the workout before it, not a later-dated one", async () => {
+    const { session } = await plan();
+    const a = await gym("Downtown Gym");
+    await train(session.id, W1, a.id, [{ w: 175, r: 8 }]);
+    await train(session.id, W3, a.id, [{ w: 205, r: 8 }]); // later week, logged first
+    const late = await train(session.id, W2, a.id, []); // week 2, logged late
+    expect((await card(late.loggedSessionId)).suggestedWeightLbs).toBe(175);
+  });
+
+  it("straight sets are unchanged: every set is the heaviest", async () => {
+    const { session } = await plan();
+    const a = await gym("Downtown Gym");
+    await train(session.id, W1, a.id, [
+      { w: 185, r: 8 },
+      { w: 185, r: 8 },
+      { w: 185, r: 8 },
+    ]);
+    const today = await train(session.id, W2, a.id, []);
+    expect((await card(today.loggedSessionId)).suggestedWeightLbs).toBe(185);
+  });
+});
+
 describe("working weight feeds the display-only suggestions gym-scoped (R10)", () => {
   it("a cable exercise in a scheduled-deload week at a gym with no history shows the state without a number", async () => {
     const { session } = await plan("cable", "Triceps Pushdown");

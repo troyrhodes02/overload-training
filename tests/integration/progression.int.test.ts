@@ -115,6 +115,33 @@ describe("free-weight (gym-consistent) progression is global across gyms", () =>
     expect(dto.points).toHaveLength(2); // one global series across both gyms
     expect(dto.suggestion).toEqual({ lbs: 190, kind: "progress_increment" });
   });
+
+  it("descending/back-off sets: progress is +5 on the heaviest (top) set, not the last (OVE-61)", async () => {
+    const meso = await createTestMesocycle({ status: "active" });
+    const bench = await createTestExercise({ equipmentType: "barbell" });
+    const a = await db().gym.create({
+      data: { userId: account.userId, name: "Downtown Gym" },
+    });
+    // Two completed sessions, every set at the top of the range (8), on a
+    // descending load scheme: top set 245, back-offs 235.
+    for (const scheduledFor of ["2026-11-02", "2026-11-09"]) {
+      await logPerf({
+        mesocycleId: meso.id,
+        exerciseId: bench.id,
+        gymId: a.id,
+        scheduledFor,
+        reps: [8, 8, 8],
+        weights: [245, 235, 235],
+      });
+    }
+
+    const dto = (await getExerciseProgression(account, bench.id))!;
+    expect(dto.tag).toBe("progress");
+    // 245 (top set) + 5 — the trust check passes because the source and the
+    // engine's anchor are the same top set, not the final 235 (which would
+    // give 240, or withhold the number entirely).
+    expect(dto.suggestion).toEqual({ lbs: 250, kind: "progress_increment" });
+  });
 });
 
 describe("machine (gym-variable) progression is scoped per (exercise, gym)", () => {

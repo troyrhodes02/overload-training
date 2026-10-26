@@ -86,8 +86,11 @@ describe("getWorkout", () => {
       weightLbs: 120,
       reps: 8,
     });
-    // Suggested weight comes from the most recent logged set when no baseline yet.
-    expect(card.suggestedWeightLbs).toBe(120);
+    // No prior workout and no baseline yet → no "last time" weight (OVE-61):
+    // the working weight is the top set of the most recent EARLIER workout, and
+    // the current in-progress occurrence is never its own anchor. The active
+    // row still offers 120 via offerFor's "same as set 1" path.
+    expect(card.suggestedWeightLbs).toBeNull();
   });
 
   it("returns null for an unknown workout", async () => {

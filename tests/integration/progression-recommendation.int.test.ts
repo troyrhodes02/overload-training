@@ -617,10 +617,12 @@ describe("review audit of #86: the number is the judged session's, or none (R9, 
       weights: [185, 185, 185, 135],
     });
     const hold = await page(exId);
+    // The extra 135 is excluded; the number is the judged session's TOP planned
+    // set (185), not the back-off set and not withheld (OVE-61, R33).
     expect(hold.recommendation).toEqual({
       kind: "hold",
       tone: "quiet",
-      action: "Hold steady next time",
+      action: "Stay at 185 lb next time",
       evidence: "Last time: 8, 7, 6 of 6–8",
     });
 
@@ -641,8 +643,10 @@ describe("review audit of #86: the number is the judged session's, or none (R9, 
     });
     const prog = await page(e2);
     expect(prog.tag).toBe("progress");
-    expect(prog.suggestion).toBeNull();
-    expect(prog.recommendation?.action).toBe("Ready to add weight next time");
+    // The back-off 135 is excluded, so the +5 is on the top set (185 → 190),
+    // not withheld and never 135-based (OVE-61, R33).
+    expect(prog.suggestion).toEqual({ lbs: 190, kind: "progress_increment" });
+    expect(prog.recommendation?.action).toBe("Try 190 lb next time (+5 lb)");
   });
 
   it("a baseline the in-progress workout corrected is not that workout's context", async () => {
