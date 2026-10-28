@@ -103,6 +103,22 @@ async function fullAccount(account: Account, lib: Lib, label: string) {
   await markReleaseNotesSeen(account, RELEASE_NOTES_FIXTURE[0].id, {
     catalog: RELEASE_NOTES_FIXTURE,
   });
+  // Feedback with a screenshot, so the feedback_attachments -> feedback
+  // same-owner relation has a row on both sides to exercise.
+  const feedback = await account.db.feedback.create({
+    data: { userId: account.userId, category: "bug", message: `${label} bug` },
+    select: { id: true },
+  });
+  await account.db.feedbackAttachment.create({
+    data: {
+      userId: account.userId,
+      feedbackId: feedback.id,
+      objectPath: `${account.userId}/g/0.png`,
+      contentType: "image/png",
+      sizeBytes: 100,
+      position: 0,
+    },
+  });
   return plan;
 }
 
@@ -253,9 +269,9 @@ describe("same-owner triggers (database second layer)", () => {
     });
   }
 
-  it("covers every owned relation (20 triggers)", async () => {
+  it("covers every owned relation (21 triggers)", async () => {
     const triggers = await installedTriggers();
-    expect(triggers).toHaveLength(20);
+    expect(triggers).toHaveLength(21);
     // Every foreign key from an owned table to an owned or exercise parent.
     const fks = await raw().$queryRawUnsafe<
       { tbl: string; col: string; ref: string }[]

@@ -263,10 +263,18 @@ describe("no automatic personalization or recommendations", () => {
   });
 });
 
-describe("no user image upload path", () => {
-  it("has no file inputs, Storage client use, or uploads in application code", () => {
-    expect(
-      offenders(/type=["']file["']|\.upload\s*\(|\.storage\b|createBucket/),
-    ).toEqual([]);
+describe("the only user image upload path is feedback screenshots", () => {
+  it("file inputs and Storage writes appear only in the feedback-screenshot picker and store", () => {
+    // Admin Center & Feedback: lifters may attach screenshots to a feedback
+    // message. That is the ONE sanctioned user-upload path. The bytes live in
+    // the private feedback-screenshots bucket, written and signed only by the
+    // server-only store module; the only file input is its picker. No other
+    // image or file upload exists anywhere in the app.
+    expect(offenders(/type=["']file["']/)).toEqual([
+      "src/components/send-feedback/screenshot-picker.tsx",
+    ]);
+    expect(offenders(/\.upload\s*\(|\.storage\b|createBucket/)).toEqual([
+      "src/lib/feedback/screenshots.ts",
+    ]);
   });
 });

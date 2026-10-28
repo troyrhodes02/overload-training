@@ -172,4 +172,6 @@ export type FeedbackListDto = {
 export type FeedbackItemDto = FeedbackRowDto & {
   /** Admin changes to this item, newest first. */
   history: AuditLineDto[];
+  /** Screenshots the sender attached, in display order (paths, not URLs). */
+  attachments: { objectPath: string; position: number }[];
 };

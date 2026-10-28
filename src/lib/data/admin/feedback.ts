@@ -183,11 +183,25 @@ export async function getFeedbackItem(
     select: FIELDS,
   })) as FeedbackRow | null;
   if (!row) return null;
-  const [who, history] = await Promise.all([
+  // Attachments are read as their own scalar query (the admin boundary refuses
+  // relation selects); they carry object paths and metadata only, no image.
+  const [who, history, attachments] = await Promise.all([
     senders(db, [row.userId], emailSource),
     auditLines(db, { feedbackId: id, take: 50 }, emailSource),
+    db.feedbackAttachment.findMany({
+      where: { feedbackId: id },
+      select: { objectPath: true, position: true },
+      orderBy: { position: "asc" },
+    }),
   ]);
-  return { ...toRow(row, who), history };
+  return {
+    ...toRow(row, who),
+    history,
+    attachments: attachments.map((a) => ({
+      objectPath: a.objectPath,
+      position: a.position,
+    })),
+  };
 }
 
 export type FeedbackChange = { changed: boolean };

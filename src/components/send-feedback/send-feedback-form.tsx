@@ -12,6 +12,7 @@ import {
   FEEDBACK_CATEGORY_LABELS,
   FEEDBACK_MESSAGE_MAX,
 } from "@/lib/feedback/validation";
+import { ScreenshotPicker } from "@/components/send-feedback/screenshot-picker";
 import { StickyActions } from "@/components/plan/plan-bits";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,8 @@ function SendFeedbackForm({ onAnother }: { onAnother: () => void }) {
           </span>
         </div>
       </div>
+
+      <ScreenshotPicker serverError={fieldErrors.screenshots} />
 
       {formError ? (
         <Alert>

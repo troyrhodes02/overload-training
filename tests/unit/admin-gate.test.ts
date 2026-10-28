@@ -39,6 +39,7 @@ it("reaches only the declared models", () => {
   expect(ADMIN_REACHABLE_MODELS).toEqual([
     "AdminAuditEntry",
     "Feedback",
+    "FeedbackAttachment",
     "LoggedSet",
     "Mesocycle",
     "Profile",
@@ -167,6 +168,19 @@ it("Feedback: read the message, write only category and handled state", () => {
   refused("Feedback", "findMany", { select: { profile: true } });
   for (const op of ["create", "delete", "deleteMany"])
     refused("Feedback", op, {});
+});
+
+it("FeedbackAttachment: read scalar metadata only, never a relation or a write", () => {
+  allowed("FeedbackAttachment", "findMany", {
+    where: { feedbackId: "f" },
+    select: { objectPath: true, position: true },
+    orderBy: { position: "asc" },
+  });
+  refused("FeedbackAttachment", "findMany", {
+    select: { feedback: true },
+  });
+  for (const op of ["create", "update", "updateMany", "delete", "deleteMany"])
+    refused("FeedbackAttachment", op, {});
 });
 
 it("AdminAuditEntry: create and read only — never update or delete", () => {

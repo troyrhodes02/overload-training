@@ -94,12 +94,23 @@ async function populate(account: Account, lib: Lib, label: string) {
     catalog: RELEASE_NOTES_FIXTURE,
   });
   // Admin Center & Feedback: a message to the owner (scoped create stamps
-  // the owner).
-  await account.db.feedback.create({
+  // the owner), with a screenshot attached.
+  const feedback = await account.db.feedback.create({
     data: {
       userId: account.userId,
       category: "bug",
       message: `${label} found a bug`,
+    },
+    select: { id: true },
+  });
+  await account.db.feedbackAttachment.create({
+    data: {
+      userId: account.userId,
+      feedbackId: feedback.id,
+      objectPath: `${account.userId}/g/0.png`,
+      contentType: "image/png",
+      sizeBytes: 100,
+      position: 0,
     },
   });
   return plan;
@@ -131,6 +142,7 @@ const OWNED_TABLES = [
   "tour_progress",
   "release_seen",
   "feedback",
+  "feedback_attachments",
 ];
 
 let a: Account;

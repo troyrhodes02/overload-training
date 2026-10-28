@@ -27,6 +27,9 @@
  * Admin Center & Feedback (Pitch 17): feedback.int.test.ts proves another
  * account can't read, count, change, or detect an account's Feedback, and
  * that the admin-only AdminAuditEntry is unreachable through account.db.
+ * Feedback screenshots (OVE follow-up): feedback.int.test.ts also proves
+ * another account can't read, count, change, or detect a FeedbackAttachment,
+ * and can't attach one to this account's feedback (same-owner trigger).
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],
@@ -55,4 +58,5 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
   TourProgress: ["tour.int.test.ts", "account-deletion.int.test.ts"],
   ReleaseSeen: ["release-notes.int.test.ts", "account-deletion.int.test.ts"],
   Feedback: ["feedback.int.test.ts", "account-deletion.int.test.ts"],
+  FeedbackAttachment: ["feedback.int.test.ts", "account-deletion.int.test.ts"],
 };

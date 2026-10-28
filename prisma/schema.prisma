@@ -562,6 +562,7 @@ model Profile {
   tourProgress         TourProgress?
   releaseSeen          ReleaseSeen?
   feedback             Feedback[]
+  feedbackAttachments  FeedbackAttachment[]
 
   @@map("profiles")
 }
@@ -669,11 +670,39 @@ model Feedback {
   createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz
 
-  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  profile     Profile              @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  attachments FeedbackAttachment[]
 
   @@index([userId, createdAt])
   @@index([handledAt, createdAt])
   @@map("feedback")
+}
+
+/// A screenshot a lifter attached to a Feedback message (Admin Center &
+/// Feedback). Owned by the sender. The image bytes live in the private
+/// feedback-screenshots Storage bucket (service-role only, like every app
+/// table); this row holds only the object path and metadata. Deleted with the
+/// account, and before its Feedback parent, by the deletion module.
+model FeedbackAttachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Owning account (the sender), stamped by the account-scoped client.
+  userId     String   @map("user_id") @db.Uuid
+  feedbackId String   @map("feedback_id") @db.Uuid
+  /// Object path within the feedback-screenshots bucket (owner-prefixed).
+  objectPath String   @map("object_path")
+  /// image/png, image/jpeg, or image/webp (CHECK).
+  contentType String  @map("content_type")
+  /// Stored byte size, 1..3,000,000 (CHECK).
+  sizeBytes  Int      @map("size_bytes")
+  /// Display order within the message, 0..3 (CHECK).
+  position   Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  profile  Profile  @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([feedbackId, position])
+  @@map("feedback_attachments")
 }
 
 /// What an admin did (Admin Center & Feedback spec section 8). Account

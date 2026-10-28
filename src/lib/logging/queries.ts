@@ -797,6 +797,8 @@ export type LoggedWorkoutDetailDto = {
   dateLabel: string;
   gymName: string | null;
   exercises: {
+    /** The LoggedExercise row id — the target of a planned-sets correction. */
+    loggedExerciseId: string;
     /** The PERFORMED exercise (its history is what the lifter did). */
     exerciseId: string;
     /** Its history page; a machine/cable opens on this workout's gym. */
@@ -858,6 +860,7 @@ export async function getLoggedWorkoutDetail(
     dateLabel: formatPlanDate(toIsoDate(ls.scheduledFor)),
     gymName: ls.loggedExercises[0]?.gym?.name ?? null,
     exercises: ls.loggedExercises.map((le) => ({
+      loggedExerciseId: le.id,
       exerciseId: le.exerciseId,
       historyHref: exerciseHistoryHref(
         le.exerciseId,

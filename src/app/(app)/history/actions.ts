@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { editLoggedSet } from "@/lib/logging/logged-sets";
+import { editPlannedSets } from "@/lib/logging/sessions";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { editCardioLog } from "@/lib/cardio/cardio-logs";
 
@@ -27,6 +28,30 @@ export async function editLoggedSetAction(input: {
     await editLoggedSet(account, input);
     return { ok: true as const };
   }, "Couldn't update the set.");
+  if (result.ok) {
+    await reconcileGoalCompletionsSafely(account);
+    refresh();
+  }
+  return result;
+}
+
+/**
+ * Correct the planned-set target on one past logged exercise when the lifter
+ * cut a set on purpose (the shorter count was the real plan that day). Lowering
+ * it lets a complete-but-short session count toward progression again. Scoped to
+ * the one LoggedExercise; the Session template is never touched. The tag is
+ * computed on read, so the corrected session re-qualifies on refresh; goal
+ * completion is reconciled best-effort, exactly as for a set correction.
+ */
+export async function editPlannedSetsAction(input: {
+  loggedExerciseId: string;
+  plannedSets: number;
+}): Promise<ActionResult<{ ok: true }>> {
+  const account = await requireAccount();
+  const result = await toActionResult(async () => {
+    await editPlannedSets(account, input);
+    return { ok: true as const };
+  }, "Couldn't update the planned sets.");
   if (result.ok) {
     await reconcileGoalCompletionsSafely(account);
     refresh();

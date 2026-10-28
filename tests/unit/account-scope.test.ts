@@ -33,6 +33,7 @@ const OWNED = [
   "CardioLog",
   "ExerciseFavorite",
   "Feedback",
+  "FeedbackAttachment",
   "Goal",
   "Gym",
   "GymExerciseBaseline",

@@ -71,6 +71,21 @@ const RULES: Record<string, Rule> = {
     ),
     writable: set("category", "handledAt"),
   },
+  FeedbackAttachment: {
+    // Screenshots the lifter chose to send with a message: feedback content,
+    // not training content. Read-only, scalar metadata only (no image bytes
+    // live here); the bytes are reached only through a signed Storage URL.
+    ops: set("findMany"),
+    fields: set(
+      "id",
+      "feedbackId",
+      "objectPath",
+      "contentType",
+      "sizeBytes",
+      "position",
+      "createdAt",
+    ),
+  },
   AdminAuditEntry: {
     ops: set("create", "findMany", "count"),
     fields: set(

@@ -29,6 +29,58 @@ it("stores the trimmed message, category, and owner as open, with nothing attach
   });
 });
 
+it("stores attached screenshots in order, each stamped with the sender's own id", async () => {
+  const account = await createTestAccount();
+  const prefix = `${account.userId}/group`;
+  const { id } = await submitFeedback(account, {
+    category: "bug",
+    message: "The log button overlaps the header.",
+    attachments: [
+      {
+        objectPath: `${prefix}/0.png`,
+        contentType: "image/png",
+        sizeBytes: 1234,
+      },
+      {
+        objectPath: `${prefix}/1.jpg`,
+        contentType: "image/jpeg",
+        sizeBytes: 5678,
+      },
+    ],
+  });
+  const rows = await getTestPrisma().feedbackAttachment.findMany({
+    where: { feedbackId: id },
+    orderBy: { position: "asc" },
+  });
+  expect(
+    rows.map((r) => ({
+      userId: r.userId,
+      feedbackId: r.feedbackId,
+      objectPath: r.objectPath,
+      contentType: r.contentType,
+      sizeBytes: r.sizeBytes,
+      position: r.position,
+    })),
+  ).toEqual([
+    {
+      userId: account.userId,
+      feedbackId: id,
+      objectPath: `${prefix}/0.png`,
+      contentType: "image/png",
+      sizeBytes: 1234,
+      position: 0,
+    },
+    {
+      userId: account.userId,
+      feedbackId: id,
+      objectPath: `${prefix}/1.jpg`,
+      contentType: "image/jpeg",
+      sizeBytes: 5678,
+      position: 1,
+    },
+  ]);
+});
+
 it("refuses the message after the daily limit, and allows it again after 24 hours", async () => {
   const account = await createTestAccount();
   for (let i = 0; i < FEEDBACK_DAILY_LIMIT; i++) {

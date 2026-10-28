@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requireAdmin } from "@/lib/data/admin/identity";
 import { getFeedbackItem } from "@/lib/data/admin/feedback";
+import { signFeedbackScreenshotUrls } from "@/lib/feedback/screenshots";
 import { FEEDBACK_CATEGORY_LABEL } from "@/lib/admin/types";
 import { instantDate, instantLabel } from "@/lib/admin/format";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,15 @@ export default async function AdminFeedbackItemPage({ params }: PageProps) {
   const { id } = await params;
   const item = await getFeedbackItem(actor, id);
   if (!item) notFound();
+
+  // Short-lived signed URLs for the sender's own attached screenshots (the
+  // bucket is private). Not training content: the lifter chose to send these.
+  const screenshotUrls =
+    item.attachments.length > 0
+      ? await signFeedbackScreenshotUrls(
+          item.attachments.map((a) => a.objectPath),
+        )
+      : new Map<string, string | null>();
 
   const lastHandled = item.history.find((l) => l.kind === "feedback_handled");
   const handledLine =
@@ -51,6 +61,37 @@ export default async function AdminFeedbackItemPage({ params }: PageProps) {
       <p className="rounded-lg border border-border bg-card p-4 text-sm break-words whitespace-pre-wrap">
         {item.message}
       </p>
+
+      {item.attachments.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Screenshots
+          </h2>
+          <ul className="flex flex-wrap gap-2">
+            {item.attachments.map((a) => {
+              const url = screenshotUrls.get(a.objectPath) ?? null;
+              return (
+                <li key={a.objectPath}>
+                  {url ? (
+                    <a href={url} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={`Screenshot ${a.position + 1}`}
+                        className="size-28 rounded-md border border-border object-cover"
+                      />
+                    </a>
+                  ) : (
+                    <div className="flex size-28 items-center justify-center rounded-md border border-border text-xs text-muted-foreground">
+                      Unavailable
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <dl className="space-y-3 text-sm">
         <div className="grid grid-cols-[5.5rem_1fr] gap-2">
