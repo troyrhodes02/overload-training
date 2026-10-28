@@ -1,9 +1,15 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { requireAccount } from "@/lib/data/account";
 import { DomainError } from "@/lib/actions/result";
 import { submitFeedback } from "@/lib/feedback/feedback";
 import type { FeedbackFieldErrors } from "@/lib/feedback/validation";
+import { validateScreenshots } from "@/lib/feedback/attachment-validation";
+import {
+  removeFeedbackScreenshots,
+  uploadFeedbackScreenshots,
+} from "@/lib/feedback/screenshots";
 
 export type SubmitFeedbackState =
   | { status: "idle" }
@@ -32,10 +38,51 @@ export async function submitFeedbackAction(
     category: typeof category === "string" ? category : "",
     message: typeof message === "string" ? message : "",
   };
+
+  // Screenshots are optional; keep only non-empty files the browser attached.
+  const files = formData
+    .getAll("screenshots")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  const screenshotCheck = validateScreenshots(
+    files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
+  );
+  if (!screenshotCheck.ok) {
+    return {
+      status: "error",
+      fieldErrors: { screenshots: screenshotCheck.error },
+      formError: null,
+      draft,
+    };
+  }
+
+  let uploadedPaths: string[] = [];
   try {
-    await submitFeedback(account, { category, message });
+    if (files.length > 0) {
+      const bytes = await Promise.all(
+        files.map(async (f) => ({
+          bytes: new Uint8Array(await f.arrayBuffer()),
+          contentType: f.type,
+          sizeBytes: f.size,
+        })),
+      );
+      const uploaded = await uploadFeedbackScreenshots(
+        `${account.userId}/${randomUUID()}`,
+        bytes,
+      );
+      uploadedPaths = uploaded.map((u) => u.objectPath);
+      await submitFeedback(account, {
+        category,
+        message,
+        attachments: uploaded,
+      });
+    } else {
+      await submitFeedback(account, { category, message });
+    }
     return { status: "sent" };
   } catch (error) {
+    // The message never saved, so its uploaded screenshots must not linger.
+    if (uploadedPaths.length > 0)
+      await removeFeedbackScreenshots(uploadedPaths);
     if (error instanceof DomainError && error.code === "validation_error") {
       return {
         status: "error",

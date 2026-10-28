@@ -2,6 +2,7 @@ import "server-only";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
 import { deleteAuthUser } from "@/lib/supabase/admin";
+import { removeFeedbackScreenshots } from "@/lib/feedback/screenshots";
 
 /**
  * THE ACCOUNT-DELETION MODULE (CLAUDE.md first invariant; Accounts spec R12).
@@ -45,6 +46,7 @@ export const ACCOUNT_DELETION_ORDER = [
   "Gym",
   "TourProgress", // Onboarding Tour: references only the profile
   "ReleaseSeen", // What's New: references only the profile
+  "FeedbackAttachment", // Admin Center & Feedback: before its Feedback parent (onDelete: Restrict)
   "Feedback", // Admin Center & Feedback: the lifter's messages; references only the profile
   "Profile",
 ] as const;
@@ -71,6 +73,7 @@ const DELETE: Record<
   Gym: (tx) => tx.gym.deleteMany({}),
   TourProgress: (tx) => tx.tourProgress.deleteMany({}),
   ReleaseSeen: (tx) => tx.releaseSeen.deleteMany({}),
+  FeedbackAttachment: (tx) => tx.feedbackAttachment.deleteMany({}),
   Feedback: (tx) => tx.feedback.deleteMany({}),
   Profile: (tx) => tx.profile.deleteMany({}),
 };
@@ -91,6 +94,14 @@ export async function deleteAccount(
   account: Account,
   deps: AccountDeletionDeps = { deleteAuthUser },
 ): Promise<AccountDeletionResult> {
+  // Capture the feedback-screenshot object paths before the rows are deleted;
+  // the image bytes live in Storage and are swept best-effort once the rows go.
+  const screenshotPaths = (
+    await account.db.feedbackAttachment.findMany({
+      select: { objectPath: true },
+    })
+  ).map((a) => a.objectPath);
+
   const deleted = await account.db.$transaction(
     async (tx) => {
       const counts = {} as Record<AccountDeletionModel, number>;
@@ -101,6 +112,10 @@ export async function deleteAccount(
     },
     { timeout: TRANSACTION_TIMEOUT_MS, maxWait: TRANSACTION_TIMEOUT_MS },
   );
+
+  // The attachment rows are gone; remove their Storage objects so none of the
+  // account's personal data is left behind. Best-effort (never throws).
+  await removeFeedbackScreenshots(screenshotPaths);
 
   let identityRemoved = false;
   try {

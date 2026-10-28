@@ -106,6 +106,82 @@ it("ownership of a feedback row never changes (database trigger)", async () => {
   ).rejects.toThrow();
 });
 
+describe("FeedbackAttachment", () => {
+  let aAttachmentId: string;
+  beforeEach(async () => {
+    const att = await a.db.feedbackAttachment.create({
+      data: {
+        userId: a.userId,
+        feedbackId: aFeedbackId,
+        objectPath: `${a.userId}/g/0.png`,
+        contentType: "image/png",
+        sizeBytes: 100,
+        position: 0,
+      },
+    });
+    aAttachmentId = att.id;
+  });
+
+  it("a scoped create is stamped with the acting account", async () => {
+    const row = await getTestPrisma().feedbackAttachment.findUniqueOrThrow({
+      where: { id: aAttachmentId },
+    });
+    expect(row.userId).toBe(a.userId);
+  });
+
+  it("B can't read, list, or count A's attachments", async () => {
+    expect(
+      await b.db.feedbackAttachment.findUnique({
+        where: { id: aAttachmentId },
+      }),
+    ).toBeNull();
+    expect(await b.db.feedbackAttachment.findMany()).toEqual([]);
+    expect(await b.db.feedbackAttachment.count()).toBe(0);
+  });
+
+  it("naming A's attachment id looks exactly like naming a missing one", async () => {
+    await expectForeignLikeMissing(aAttachmentId, (id) =>
+      b.db.feedbackAttachment.findUniqueOrThrow({ where: { id } }),
+    );
+  });
+
+  it("B can't attach to A's feedback, even stamped as B (same-owner trigger)", async () => {
+    await expect(
+      b.db.feedbackAttachment.create({
+        data: {
+          userId: b.userId,
+          feedbackId: aFeedbackId,
+          objectPath: `${b.userId}/g/0.png`,
+          contentType: "image/png",
+          sizeBytes: 100,
+          position: 0,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("B can't change or delete A's attachment", async () => {
+    expect(
+      await b.db.feedbackAttachment.updateMany({
+        where: { id: aAttachmentId },
+        data: { position: 3 },
+      }),
+    ).toEqual({ count: 0 });
+    expect(
+      await b.db.feedbackAttachment.deleteMany({
+        where: { id: aAttachmentId },
+      }),
+    ).toEqual({ count: 0 });
+    expect(
+      (
+        await getTestPrisma().feedbackAttachment.findUniqueOrThrow({
+          where: { id: aAttachmentId },
+        })
+      ).position,
+    ).toBe(0);
+  });
+});
+
 it("the admin-only audit log is unreachable through any account's client", async () => {
   await getTestPrisma().adminAuditEntry.create({
     data: {

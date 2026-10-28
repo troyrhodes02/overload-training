@@ -43,7 +43,11 @@ export type FeedbackInput = {
   message: string;
 };
 
-export type FeedbackFieldErrors = { category?: string; message?: string };
+export type FeedbackFieldErrors = {
+  category?: string;
+  message?: string;
+  screenshots?: string;
+};
 
 export function parseFeedbackInput(raw: {
   category: unknown;

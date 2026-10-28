@@ -227,18 +227,24 @@ describe("free-exercise-db is an ingest dependency, never a runtime one", () => 
     expect(offenders.map((f) => path.relative(REPO_ROOT, f))).toEqual([]);
   });
 
-  it("only the auth-admin facade references the service-role key (Accounts R4)", () => {
+  it("only the auth-admin facade and the feedback-screenshot store reference the service-role key (Accounts R4)", () => {
     // Library & Gyms kept the key out of src/ entirely. Accounts needs it on
     // the server for exactly two auth operations (create a signed-up user,
-    // delete an account's identity), so it is allowed in ONE server-only file.
+    // delete an account's identity), and Admin Center & Feedback needs it to
+    // write and sign the private feedback-screenshots bucket (the Supabase
+    // client is for auth and Storage only). Each is one server-only module.
     const offenders = walk(SRC)
       .filter((f) =>
         /SUPABASE_SERVICE_ROLE_KEY|service_role|serviceRole/.test(
           fs.readFileSync(f, "utf8"),
         ),
       )
-      .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, "/"));
-    expect(offenders).toEqual(["src/lib/supabase/admin.ts"]);
+      .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, "/"))
+      .sort();
+    expect(offenders).toEqual([
+      "src/lib/feedback/screenshots.ts",
+      "src/lib/supabase/admin.ts",
+    ]);
   });
 });
 
