@@ -70,6 +70,13 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
                 recommendation={e.recommendation}
                 className="mt-0.5"
               />
+              {e.loggedWorkingSets < e.plannedSets ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {e.loggedWorkingSets} of {e.plannedSets} planned sets — counts
+                  toward your strength trend, not your progress check. Meant to
+                  do fewer? Adjust it under View workout.
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

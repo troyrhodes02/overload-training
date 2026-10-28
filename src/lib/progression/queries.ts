@@ -113,6 +113,14 @@ export type SessionProgressionSummaryDto = {
     suggestion: SuggestedLoadDto;
     historyHref: string | null;
     recommendation: RecommendationDto | null;
+    /** The plan's set count for this occurrence (its preserved snapshot). */
+    plannedSets: number;
+    /**
+     * Working sets actually logged (setNumber 1..plannedSets). When this is
+     * below plannedSets the session is complete but fell short of the plan: it
+     * feeds the strength trend and goals, but not the progress/hold/deload tag.
+     */
+    loggedWorkingSets: number;
   }[];
 };
 
@@ -822,6 +830,8 @@ export async function getSessionProgressionSummary(
         select: {
           id: true,
           exercise: { select: { id: true, name: true } },
+          plannedSets: true,
+          sets: { select: { setNumber: true } },
           _count: { select: { sets: true } },
         },
       },
@@ -846,6 +856,9 @@ export async function getSessionProgressionSummary(
   const exercises = await Promise.all(
     performed.map(async (le) => {
       const occ = await getOccurrenceProgression(account, le.id);
+      const loggedWorkingSets = le.sets.filter(
+        (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
+      ).length;
       return {
         performedExerciseId: le.exercise.id,
         performedExerciseName: le.exercise.name,
@@ -854,6 +867,8 @@ export async function getSessionProgressionSummary(
         suggestion: occ?.suggestion ?? null,
         historyHref: occ?.historyHref ?? null,
         recommendation: occ?.recommendation ?? null,
+        plannedSets: le.plannedSets,
+        loggedWorkingSets,
       };
     }),
   );

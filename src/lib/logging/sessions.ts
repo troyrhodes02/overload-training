@@ -243,6 +243,69 @@ export async function setExerciseSkipped(
 }
 
 /**
+ * Correct the planned-set target snapshot on ONE logged exercise. The case: the
+ * lifter cut a set on purpose, so fewer sets were logged than the plan called
+ * for, and that reduced count was the real plan for that day. Lowering the
+ * snapshot to what they did lets the complete-but-short session count toward the
+ * progress/hold/deload tag again (its gate is `workingSets.length >=
+ * plannedSets`), and clears the "fell short of the plan" note.
+ *
+ * Scoped to this LoggedExercise only: it never touches the Session template
+ * (Decisions 1, 6), another session, another gym's baseline, or any LoggedSet.
+ * The tag and e1RM trend are computed on read, so re-pointing this snapshot
+ * re-qualifies the session on the next read with no stored value to maintain.
+ *
+ * The target can only be reduced to (or kept at) the original snapshot: this is
+ * a correction of a short day, not a re-plan, and raising it would re-interpret
+ * the day upward and silently reclassify extra sets as working ones. It must
+ * stay >= 1.
+ */
+export async function editPlannedSets(
+  account: Account,
+  input: { loggedExerciseId: string; plannedSets: number },
+  tx?: Db,
+): Promise<void> {
+  if (!tx)
+    return void (await account.db.$transaction((t) =>
+      editPlannedSets(account, input, t),
+    ));
+
+  if (!isUuid(input.loggedExerciseId)) {
+    throw new DomainError(
+      "not_found",
+      "That exercise isn't part of this workout.",
+    );
+  }
+  if (!Number.isInteger(input.plannedSets) || input.plannedSets < 1) {
+    throw new DomainError(
+      "validation_error",
+      "Planned sets must be a whole number above 0.",
+    );
+  }
+  const le = await tx.loggedExercise.findUnique({
+    where: { id: input.loggedExerciseId },
+    select: { id: true, plannedSets: true },
+  });
+  if (!le) {
+    throw new DomainError(
+      "not_found",
+      "That exercise isn't part of this workout.",
+    );
+  }
+  if (input.plannedSets > le.plannedSets) {
+    throw new DomainError(
+      "validation_error",
+      "You can only lower the planned sets for a past workout.",
+    );
+  }
+  if (input.plannedSets === le.plannedSets) return; // no-op
+  await tx.loggedExercise.update({
+    where: { id: le.id },
+    data: { plannedSets: input.plannedSets },
+  });
+}
+
+/**
  * Mark a workout complete (Decisions 16–18, amended). Atomic and explicit;
  * never inferred. The lifter may finish without doing every planned set: the
  * workout needs at least one logged set, any exercise left with no sets is
