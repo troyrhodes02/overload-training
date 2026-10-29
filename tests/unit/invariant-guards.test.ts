@@ -340,6 +340,46 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       .map(rel);
     expect(offenders).toEqual([]);
   });
+
+  // Email verification gates NOTHING (Public Accounts spec §9, R2; OVE-85).
+  // `emailVerifiedAt` is written and read only by the verification module and
+  // the Settings surface that shows the (non-blocking) nudge. Pinning its
+  // callers here means a future checkout gate cannot quietly start branching
+  // on it — the billing pitch that consumes it must update this allowlist
+  // deliberately, and no Free screen may do so.
+  it("emailVerifiedAt is referenced only by the verification module and its Settings surface", () => {
+    const ALLOWED = [
+      "src/lib/accounts/verification.ts",
+      "src/app/(app)/settings/page.tsx",
+      "src/app/verify-email/page.tsx",
+    ];
+    const referrers = walk(SRC)
+      .filter((f) => /\bemailVerifiedAt\b/.test(read(f)))
+      .map(rel)
+      .sort();
+    for (const file of referrers) expect(ALLOWED).toContain(file);
+  });
+
+  it("no capability/entitlement branch sits in the verification code (it gates nothing)", () => {
+    // The verification module and the surfaces that show the nudge must not
+    // couple the verified state to any capability/entitlement/plan branch.
+    // Comments are stripped first so the explanatory prose ("first-checkout
+    // gate", "paid plans arrive") never trips the check — only real code does.
+    const stripComments = (s: string) =>
+      s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const GATE_CODE =
+      /\b(requirePro|isPro|hasCapability|checkCapability|entitlement|capability|paywall)\b/i;
+    const surfaces = [
+      "src/lib/accounts/verification.ts",
+      "src/components/settings/verify-email-nudge.tsx",
+      "src/app/verify-email/page.tsx",
+      "src/app/verify-email/verify-email-confirmation.tsx",
+    ];
+    for (const file of surfaces) {
+      const code = stripComments(read(path.join(REPO_ROOT, file)));
+      expect([file, GATE_CODE.test(code)]).toEqual([file, false]);
+    }
+  });
 });
 
 describe("no seed data in migrations", () => {
