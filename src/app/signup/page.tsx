@@ -55,7 +55,21 @@ export default async function SignupPage() {
   }
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? null;
   return (
-    <AuthCard footer={<>Already have an account? {signInLink}</>}>
+    <AuthCard
+      footer={
+        <div className="space-y-1">
+          <p>Already have an account? {signInLink}</p>
+          <p>
+            <Link
+              href="/support"
+              className="font-medium text-muted-foreground underline-offset-4 hover:underline"
+            >
+              Need help?
+            </Link>
+          </p>
+        </div>
+      }
+    >
       <SignupForm view={{ mode, turnstileSiteKey }} />
     </AuthCard>
   );

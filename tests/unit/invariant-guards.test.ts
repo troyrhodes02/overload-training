@@ -352,6 +352,11 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       "src/lib/accounts/verification.ts",
       "src/app/(app)/settings/page.tsx",
       "src/app/verify-email/page.tsx",
+      // Public Accounts PA6 (spec §9, R7): the data export surfaces the whole
+      // Profile row, emailVerifiedAt included (explicitly sanctioned — it is an
+      // app-level fact, not a secret). It only names the field in a comment; it
+      // never branches on it, so no Free screen gates on verification here.
+      "src/lib/accounts/export.ts",
     ];
     const referrers = walk(SRC)
       .filter((f) => /\bemailVerifiedAt\b/.test(read(f)))
