@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import {
   startTransition,
   useActionState,
   useEffect,
   useRef,
+  useState,
   type FormEvent,
 } from "react";
 import { signInAction, type SignInState } from "./actions";
@@ -28,12 +30,19 @@ export function LoginForm({ notice }: { notice: string | null }) {
   );
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  // The typed email is carried to recovery as `?email=`, so "Forgot password?"
+  // starts with it filled. It is display only — the server never trusts it.
+  const [email, setEmail] = useState(state.email);
 
   useEffect(() => {
     if (!state.error) return;
     if (passwordRef.current) passwordRef.current.value = "";
     (state.email ? passwordRef : emailRef).current?.focus();
   }, [state]);
+
+  const forgotHref = email.trim()
+    ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
+    : "/forgot-password";
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,12 +69,21 @@ export function LoginForm({ notice }: { notice: string | null }) {
           autoComplete="email"
           className="h-11"
           defaultValue={state.email}
+          onChange={(e) => setEmail(e.target.value)}
           required
           autoFocus
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Password</Label>
+          <Link
+            href={forgotHref}
+            className="text-sm text-primary underline-offset-4 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <PasswordInput
           ref={passwordRef}
           id="password"
