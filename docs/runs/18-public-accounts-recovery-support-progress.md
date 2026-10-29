@@ -16,11 +16,11 @@
 - [x] Stage 1 — Pitch authored: `pitches/18-public-accounts-recovery-support.md`
 - [x] Stage 2 — Design doc: `docs/design/18-...-design-doc.md` (830 lines, 10 screens, decisions D1–D8, web-only, Free)
 - [x] Stage 3 — UI preview: `docs/previews/18-...-preview.tsx` (1105 lines, all 10 screens + states, self-contained)
-- [~] Stage 4 — Spec (`/overload-spec`) — subagent running
-- [~] Stage 5 — Resolved Decisions (folded into spec subagent prompt)
+- [x] Stage 4 — Spec: `docs/specs/18-...-spec.md` (714 lines, R1–R12)
+- [x] Stage 5 — Resolved Decisions (R1–R12 in spec)
 - [x] Stage 6 — Milestone + 8 tickets OVE-81..OVE-88 (blockedBy wired)
 - [x] Stage 7 — Feature branch `18-public-accounts-recovery-support` + feature PR #103 → main (OPEN; planning docs committed 29c1465)
-- [~] Stage 8 — Implementation (`/overload-ticket-worker` per ticket): PA1 (OVE-81) in progress
+- [~] Stage 8 — Implementation (`/overload-ticket-worker` per ticket): PA1✅ PA2✅ merged; PA3 next
 - [ ] Stage 9 — Runbook
 - [ ] Stage 10 — Integrate ticket PRs into feature branch
 - [ ] Stage 11 — Verification (incl. adversarial)
@@ -75,7 +75,8 @@
 
 ## Implementation log (Stage 8/10)
 - **OVE-81 PA1** ✅ PR #104 squash-merged into feature branch (commit `1fed3a9`). 1186 unit + 629 integration pass; typecheck/lint/format/build clean; migrate diff empty; client-bundle clean. **e2e (Playwright accounts) UNVERIFIED** — needs `npx supabase start` (Docker) unavailable in this env; applies to ALL tickets. Decisions: DB enum kept PascalCase `"AdminAuditAction"` (matches 9g); `action AuthThrottleAction` column exempted from the no-`action*` progression guard (pre-auth discriminator); `AuthThrottle` classified via new `UNOWNED_SYSTEM_MODELS` in scope.ts. Next.js security-upgrade suggestion surfaced by build — OUT OF SCOPE, noted for report.
-- OVE-82 PA2 — in progress on branch `ove-82-abuse-protection` (off feature branch tip `967b0c8`).
+- **OVE-82 PA2** ✅ PR #105 squash-merged (commit `2702ac8`). 1208 unit + 635 integration pass (incl. 25-way concurrent throttle-atomicity proof: exactly 10 of 25 allowed); build + client-bundle clean; e2e UNVERIFIED (Docker). Decisions: throttle key = coarse request fingerprint (x-forwarded-for/x-real-ip → UA+accept-language fallback), hashed, never email; no new npm dep (Turnstile loads Cloudflare's own script); test-env bypass gated on NODE_ENV!=="production" AND unset secret, fails closed.
+- OVE-83 PA3 — next.
   - Scope: `src/lib/accounts/throttle.ts` (raw-allowed, atomic upsert), `src/lib/accounts/turnstile.ts` (siteverify + test-env bypass), `src/components/auth/bot-challenge.tsx` (Turnstile widget wrapper), wire throttle+challenge into `signUp` BEFORE `createConfirmedUser`, `SignupViewDto.turnstileSiteKey`, form messages (`rate_limited`/`challenge_failed`).
   - Decisions: (a) Turnstile loaded via Cloudflare's own `turnstile/v0/api.js` script (no new npm dep — CLAUDE.md forbids adding libs); (b) throttle key for signup = SHA-256 of a coarse request fingerprint (first client IP from `x-forwarded-for`/`x-real-ip`, else UA+lang header fallback) — never the email, so it leaks no membership; (c) raw-access guard: add `src/lib/accounts/throttle.ts` to eslint ignore-list for `no-restricted-imports` and extend `account-isolation-guards.test.ts` to allow exactly that one extra raw toucher while asserting it is the ONLY non-data-layer raw-prisma file and it only touches `authThrottle`.
   - Window/limit constants: `THROTTLE_WINDOW_SECONDS = 60`, `THROTTLE_LIMIT = 10` per key per window (R4 default).
