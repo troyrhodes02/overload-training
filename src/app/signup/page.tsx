@@ -10,9 +10,15 @@ export const metadata: Metadata = {
   title: "Create your account — Overload",
 };
 
-/** What the server hands the signup form: the resolved mode, nothing more. */
+/**
+ * What the server hands the signup form: the resolved mode and the public
+ * Turnstile site key (PA2). A null key disables the widget and keeps the
+ * primary button disabled (D3) — the server would reject a tokenless submit
+ * anyway, so the form never falls through the human check.
+ */
 export type SignupViewDto = {
   mode: "invite" | "public";
+  turnstileSiteKey: string | null;
 };
 
 // The signup mode is read from the server environment at request time (never
@@ -47,9 +53,10 @@ export default async function SignupPage() {
       </AuthCard>
     );
   }
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? null;
   return (
     <AuthCard footer={<>Already have an account? {signInLink}</>}>
-      <SignupForm view={{ mode }} />
+      <SignupForm view={{ mode, turnstileSiteKey }} />
     </AuthCard>
   );
 }
