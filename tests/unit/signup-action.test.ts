@@ -12,6 +12,7 @@ const initial: SignUpState = {
   status: "idle",
   fieldErrors: {},
   formError: null,
+  inviteInvalid: false,
   values: { firstName: "", lastName: "", username: "", email: "" },
 };
 
@@ -29,6 +30,7 @@ const filled = {
   password: "barbell-315",
   confirmPassword: "barbell-315",
   timeZone: "America/Chicago",
+  inviteCode: "k7Qm-2xVr-9pLw",
   // A client can post anything; it must be ignored.
   userId: "a0000000-0000-4000-8000-000000000001",
 };
@@ -49,6 +51,7 @@ describe("signUpAction", () => {
       password: "barbell-315",
       confirmPassword: "barbell-315",
       timeZone: "America/Chicago",
+      inviteCode: "k7Qm-2xVr-9pLw",
     });
   });
 
@@ -59,6 +62,7 @@ describe("signUpAction", () => {
       status: "error",
       fieldErrors: {},
       formError: "email_taken",
+      inviteInvalid: false,
       values: {
         firstName: "Sam",
         lastName: "Ortiz",
@@ -69,7 +73,7 @@ describe("signUpAction", () => {
     expect(JSON.stringify(state)).not.toContain("barbell-315");
   });
 
-  it("surfaces field errors, closed, and unexpected outcomes", async () => {
+  it("surfaces field errors, closed, invite_invalid, and unexpected outcomes", async () => {
     (signUp as jest.Mock).mockResolvedValueOnce({
       kind: "invalid",
       fieldErrors: { username: "That username is taken." },
@@ -79,6 +83,16 @@ describe("signUpAction", () => {
     });
     (signUp as jest.Mock).mockResolvedValueOnce({ kind: "closed" });
     expect((await signUpAction(initial, form(filled))).status).toBe("closed");
+    // The wrong-invite result surfaces alone: inviteInvalid set, no field or
+    // form error leaked.
+    (signUp as jest.Mock).mockResolvedValueOnce({ kind: "invite_invalid" });
+    const invite = await signUpAction(initial, form(filled));
+    expect(invite).toMatchObject({
+      status: "error",
+      inviteInvalid: true,
+      fieldErrors: {},
+      formError: null,
+    });
     (signUp as jest.Mock).mockResolvedValueOnce({ kind: "unexpected" });
     expect((await signUpAction(initial, form(filled))).formError).toBe(
       "unexpected",

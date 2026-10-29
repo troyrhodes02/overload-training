@@ -15,10 +15,16 @@ jest.mock("@/lib/data/usernames", () => ({
 
 import { DomainError } from "@/lib/actions/result";
 import { UsernameTakenError } from "@/lib/accounts/username-taken";
-import { isSignupOpen } from "@/lib/accounts/signup-gate";
+import { isInviteValid, signupMode } from "@/lib/accounts/signup-gate";
 import { signUp, type SignUpDeps } from "@/lib/accounts/signup";
 
-const OPEN = { OVERLOAD_SIGNUP_OPEN: "true" };
+// Public mode is the env most orchestration cases run under (no code required).
+const OPEN = { OVERLOAD_SIGNUP_MODE: "public" };
+const INVITE_CODE = "k7Qm-2xVr-9pLw";
+const INVITE = {
+  OVERLOAD_SIGNUP_MODE: "invite",
+  OVERLOAD_INVITE_CODE: INVITE_CODE,
+};
 const NEW_ID = "b0000000-0000-4000-8000-000000000002";
 
 function deps(overrides: Partial<SignUpDeps> = {}) {
@@ -44,27 +50,74 @@ const valid = {
   password: "barbell-315",
   confirmPassword: "barbell-315",
   timeZone: "America/Chicago",
+  inviteCode: "",
 };
 
-describe("signup switch (OVE-50)", () => {
-  it("is open only when OVERLOAD_SIGNUP_OPEN is true", () => {
-    expect(isSignupOpen({})).toBe(false);
-    expect(isSignupOpen({ OVERLOAD_SIGNUP_OPEN: "" })).toBe(false);
-    expect(isSignupOpen({ OVERLOAD_SIGNUP_OPEN: "false" })).toBe(false);
-    expect(isSignupOpen({ OVERLOAD_SIGNUP_OPEN: "1" })).toBe(false);
-    expect(isSignupOpen({ OVERLOAD_SIGNUP_OPEN: "yes" })).toBe(false);
-    expect(isSignupOpen(OPEN)).toBe(true);
-    expect(isSignupOpen({ OVERLOAD_SIGNUP_OPEN: " TRUE " })).toBe(true);
+describe("signupMode resolution (Public Accounts, R1)", () => {
+  it("OVERLOAD_SIGNUP_MODE wins when it is a known value", () => {
+    expect(signupMode({ OVERLOAD_SIGNUP_MODE: "closed" })).toBe("closed");
+    expect(signupMode({ OVERLOAD_SIGNUP_MODE: "invite" })).toBe("invite");
+    expect(signupMode({ OVERLOAD_SIGNUP_MODE: "public" })).toBe("public");
+    expect(signupMode({ OVERLOAD_SIGNUP_MODE: " PUBLIC " })).toBe("public");
   });
 
-  it("an old invite code no longer opens signup", () => {
-    expect(isSignupOpen({ OVERLOAD_INVITE_CODE: "k7Qm-2xVr-9pLw" })).toBe(
+  it("unset resolves to closed (the production default and rollout gate)", () => {
+    expect(signupMode({})).toBe("closed");
+    expect(signupMode({ OVERLOAD_SIGNUP_MODE: "bogus" })).toBe("closed");
+  });
+
+  it("honors the deprecated OVERLOAD_SIGNUP_OPEN alias only when the mode is unset", () => {
+    expect(signupMode({ OVERLOAD_SIGNUP_OPEN: "true" })).toBe("public");
+    expect(signupMode({ OVERLOAD_SIGNUP_OPEN: " TRUE " })).toBe("public");
+    expect(signupMode({ OVERLOAD_SIGNUP_OPEN: "false" })).toBe("closed");
+    expect(signupMode({ OVERLOAD_SIGNUP_OPEN: "1" })).toBe("closed");
+    // The primary var always wins over the alias.
+    expect(
+      signupMode({
+        OVERLOAD_SIGNUP_MODE: "closed",
+        OVERLOAD_SIGNUP_OPEN: "true",
+      }),
+    ).toBe("closed");
+    expect(
+      signupMode({
+        OVERLOAD_SIGNUP_MODE: "invite",
+        OVERLOAD_SIGNUP_OPEN: "true",
+      }),
+    ).toBe("invite");
+  });
+});
+
+describe("isInviteValid (Public Accounts, R1)", () => {
+  it("accepts the exact configured code and trims surrounding spaces on both sides", () => {
+    expect(isInviteValid(INVITE_CODE, INVITE)).toBe(true);
+    expect(isInviteValid(`  ${INVITE_CODE}  `, INVITE)).toBe(true);
+    expect(
+      isInviteValid(INVITE_CODE, {
+        OVERLOAD_INVITE_CODE: `  ${INVITE_CODE}  `,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a wrong, empty, missing, or non-string code", () => {
+    expect(isInviteValid("wrong", INVITE)).toBe(false);
+    expect(isInviteValid("", INVITE)).toBe(false);
+    expect(isInviteValid("   ", INVITE)).toBe(false);
+    expect(isInviteValid(undefined, INVITE)).toBe(false);
+    expect(isInviteValid(123, INVITE)).toBe(false);
+    // A case difference is a different code.
+    expect(isInviteValid(INVITE_CODE.toUpperCase(), INVITE)).toBe(false);
+  });
+
+  it("never validates when no code is configured (an unset secret admits no one)", () => {
+    expect(isInviteValid(INVITE_CODE, {})).toBe(false);
+    expect(isInviteValid("anything", { OVERLOAD_INVITE_CODE: "" })).toBe(false);
+    expect(isInviteValid("anything", { OVERLOAD_INVITE_CODE: "   " })).toBe(
       false,
     );
   });
 });
 
-describe("signUp orchestration (OVE-50)", () => {
+describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
   it("closed: refuses without touching the auth service or the database", async () => {
     const d = deps();
     expect(await signUp(valid, d, {})).toEqual({ kind: "closed" });
@@ -72,9 +125,56 @@ describe("signUp orchestration (OVE-50)", () => {
     expect(d.createConfirmedUser).not.toHaveBeenCalled();
   });
 
-  it("needs no invite code", async () => {
+  it("public mode needs no invite code", async () => {
     const d = deps();
     expect(await signUp(valid, d, OPEN)).toEqual({ kind: "created" });
+  });
+
+  it("invite mode: a valid code (checked first) lets a full submit through", async () => {
+    const d = deps();
+    expect(
+      await signUp({ ...valid, inviteCode: ` ${INVITE_CODE} ` }, d, INVITE),
+    ).toEqual({ kind: "created" });
+    expect(d.createConfirmedUser).toHaveBeenCalled();
+  });
+
+  it("invite mode: a wrong or missing code is reported ALONE and creates nothing", async () => {
+    for (const inviteCode of ["", "   ", "nope", undefined]) {
+      const d = deps();
+      // Everything else is also invalid, proving the invite error is shown
+      // alone: no field feedback leaks before the code passes.
+      const outcome = await signUp(
+        {
+          firstName: "",
+          lastName: "",
+          username: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+          timeZone: "",
+          inviteCode,
+        },
+        d,
+        INVITE,
+      );
+      expect(outcome).toEqual({ kind: "invite_invalid" });
+      expect(d.isUsernameAvailable).not.toHaveBeenCalled();
+      expect(d.createConfirmedUser).not.toHaveBeenCalled();
+    }
+  });
+
+  it("invite mode: a valid code still subjects the fields to the normal rules", async () => {
+    const d = deps();
+    const outcome = await signUp(
+      { ...valid, inviteCode: INVITE_CODE, email: "not-an-email" },
+      d,
+      INVITE,
+    );
+    expect(outcome).toEqual({
+      kind: "invalid",
+      fieldErrors: { email: expect.any(String) },
+    });
+    expect(d.createConfirmedUser).not.toHaveBeenCalled();
   });
 
   it("an empty submit reports every missing field", async () => {
@@ -89,6 +189,7 @@ describe("signUp orchestration (OVE-50)", () => {
           password: "",
           confirmPassword: "",
           timeZone: "",
+          inviteCode: "",
         },
         d,
         OPEN,

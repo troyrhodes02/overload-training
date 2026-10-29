@@ -11,6 +11,7 @@ import {
   type RefObject,
 } from "react";
 import { signUpAction, type SignUpState } from "./actions";
+import type { SignupViewDto } from "./page";
 import type { SignUpField } from "@/lib/accounts/signup";
 import { PasswordInput } from "@/components/auth/password-input";
 import { useDeviceTimeZone } from "@/lib/accounts/use-device-time-zone";
@@ -33,8 +34,12 @@ const initial: SignUpState = {
   status: "idle",
   fieldErrors: {},
   formError: null,
+  inviteInvalid: false,
   values: { firstName: "", lastName: "", username: "", email: "" },
 };
+
+const INVITE_MISSING = "Enter the invite code.";
+const INVITE_INVALID = "That invite code isn't valid.";
 
 const FIELD_ORDER: SignUpField[] = [
   "firstName",
@@ -46,16 +51,26 @@ const FIELD_ORDER: SignUpField[] = [
 ];
 
 /**
- * Name, username, email, and the password typed twice (OVE-50). The rules are
+ * Name, username, email, and the password typed twice (OVE-50), plus an
+ * invite-code field FIRST in invite mode (Public Accounts). The field rules are
  * checked here for quick feedback and again on the server, which alone knows
- * whether the username is free. The device's timezone rides along in a
- * hidden field.
+ * whether the username is free and whether the invite code is valid. The
+ * invite code is never validated in the browser beyond presence, and its wrong
+ * value is shown alone so a codeless visitor learns nothing. The device's
+ * timezone rides along in a hidden field.
  */
-export function SignupForm() {
+export function SignupForm({ view }: { view: SignupViewDto }) {
+  const inviteMode = view.mode === "invite";
   const [state, formAction, isPending] = useActionState(signUpAction, initial);
   const [clientErrors, setClientErrors] = useState<
     Partial<Record<SignUpField, string>>
   >({});
+  // Invite-code feedback lives outside SignUpField: a client-side presence
+  // error, or the server's wrong-code error (shown alone).
+  const [inviteClientError, setInviteClientError] = useState<string | null>(
+    null,
+  );
+  const inviteRef = useRef<HTMLInputElement>(null);
   const timeZone = useDeviceTimeZone() ?? "";
   const firstNameRef = useRef<HTMLInputElement>(null);
   const lastNameRef = useRef<HTMLInputElement>(null);
@@ -74,12 +89,20 @@ export function SignupForm() {
       confirmPassword: confirmPasswordRef,
     })[field];
   const errors = { ...state.fieldErrors, ...clientErrors };
+  // The invite error is the server's wrong-code result (shown alone) or the
+  // client-side presence check.
+  const inviteError = state.inviteInvalid ? INVITE_INVALID : inviteClientError;
 
   // After a failed submit: clear both passwords and focus the first problem.
+  // A wrong invite code is shown alone, so it takes focus ahead of any field.
   useEffect(() => {
     if (state.status !== "error") return;
     for (const ref of [passwordRef, confirmPasswordRef]) {
       if (ref.current) ref.current.value = "";
+    }
+    if (state.inviteInvalid) {
+      inviteRef.current?.focus();
+      return;
     }
     const first = FIELD_ORDER.find((f) => state.fieldErrors[f]);
     refFor(first ?? "email").current?.focus();
@@ -88,6 +111,18 @@ export function SignupForm() {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    // Invite presence is checked first, mirroring the server order. Its wrong
+    // value is only ever decided on the server, never in the browser.
+    if (inviteMode) {
+      const invite = String(data.get("inviteCode") ?? "").trim();
+      if (!invite) {
+        setInviteClientError(INVITE_MISSING);
+        setClientErrors({});
+        inviteRef.current?.focus();
+        return;
+      }
+      setInviteClientError(null);
+    }
     const found: Partial<Record<SignUpField, string>> = {};
     const first = checkName("firstName", data.get("firstName"));
     if (!first.ok) found.firstName = first.message;
@@ -132,6 +167,34 @@ export function SignupForm() {
       <h1 className="text-lg font-semibold">Create your account</h1>
       <input type="hidden" name="timeZone" value={timeZone} />
 
+      {inviteMode ? (
+        <div className="space-y-2">
+          <Label htmlFor="inviteCode">Invite code</Label>
+          <Input
+            ref={inviteRef}
+            id="inviteCode"
+            name="inviteCode"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            className="h-11 aria-invalid:border-destructive"
+            aria-invalid={Boolean(inviteError)}
+            aria-describedby={inviteError ? "inviteCode-error" : undefined}
+            onChange={() => setInviteClientError(null)}
+            autoFocus
+          />
+          {inviteError ? (
+            <p
+              id="inviteCode-error"
+              role="alert"
+              className="text-sm text-destructive"
+            >
+              {inviteError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         {(["firstName", "lastName"] as const).map((field) => (
           <div key={field} className="space-y-2">
@@ -151,7 +214,7 @@ export function SignupForm() {
               aria-invalid={Boolean(errors[field])}
               aria-describedby={describedBy(field)}
               onChange={() => clear(field)}
-              autoFocus={field === "firstName"}
+              autoFocus={!inviteMode && field === "firstName"}
             />
             {fieldError(field)}
           </div>

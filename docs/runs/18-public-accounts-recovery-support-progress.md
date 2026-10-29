@@ -18,9 +18,9 @@
 - [x] Stage 3 — UI preview: `docs/previews/18-...-preview.tsx` (1105 lines, all 10 screens + states, self-contained)
 - [~] Stage 4 — Spec (`/overload-spec`) — subagent running
 - [~] Stage 5 — Resolved Decisions (folded into spec subagent prompt)
-- [ ] Stage 6 — Linear milestone + tickets
-- [ ] Stage 7 — Feature PR (targets `main`)
-- [ ] Stage 8 — Implementation (`/overload-ticket-worker` per ticket)
+- [x] Stage 6 — Milestone + 8 tickets OVE-81..OVE-88 (blockedBy wired)
+- [x] Stage 7 — Feature branch `18-public-accounts-recovery-support` + feature PR #103 → main (OPEN; planning docs committed 29c1465)
+- [~] Stage 8 — Implementation (`/overload-ticket-worker` per ticket): PA1 (OVE-81) in progress
 - [ ] Stage 9 — Runbook
 - [ ] Stage 10 — Integrate ticket PRs into feature branch
 - [ ] Stage 11 — Verification (incl. adversarial)

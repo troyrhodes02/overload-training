@@ -542,6 +542,13 @@ model Profile {
   /// authenticated request while active. Date only; written at most once a
   /// day; NULL until its first request after this shipped.
   lastActiveOn DateTime?     @map("last_active_on") @db.Date
+  /// Public Accounts: when this account proved it owns its email (app-level,
+  /// because createConfirmedUser sets Supabase email_confirm=true at signup so
+  /// Supabase's own email_confirmed_at is always set and useless as our signal).
+  /// NULL = unverified. Gates NOTHING in this build; recorded for a future
+  /// first-checkout gate (Billing) to read. Set only by the verification flow,
+  /// scoped to the acting account; never cleared in this pitch.
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -713,6 +720,7 @@ enum AdminAuditAction {
   feedback_handled
   feedback_reopened
   feedback_recategorized
+  account_reset_email_sent // Public Accounts: owner sent a password-reset email
 }
 
 /// Append-only record of an admin action: who, what, which account, when
@@ -740,4 +748,40 @@ model AdminAuditEntry {
   @@index([targetUserId, createdAt])
   @@index([feedbackId])
   @@map("admin_audit_entries")
+}
+
+/// Public Accounts: a DB-backed, server-enforced rate limiter for the two
+/// PRE-authentication endpoints (signup, forgot-password), built without a
+/// cache or queue (CLAUDE.md infra non-goal). One row per (hashed key, action,
+/// fixed time window). It is intentionally UN-OWNED: it throttles attempts for
+/// which no account or session exists yet, so it cannot be account-scoped.
+/// It holds NO personal data — only a SHA-256 hash of the throttle key (the
+/// email for forgot-password, a coarse request fingerprint for signup) and the
+/// window bucket — and it is reachable ONLY through src/lib/accounts/throttle.ts
+/// (a dedicated raw-allowed module, added in PA2), never through the
+/// account-scoped client (scopeArgs refuses any model without a userId). RLS
+/// deny-all; no FK, so it never blocks account deletion and outlives it.
+model AuthThrottle {
+  /// SHA-256 hex of `${action}:${normalizedKey}` — never the raw email/IP.
+  keyHash     String             @map("key_hash")
+  /// Which endpoint this count is for.
+  action      AuthThrottleAction
+  /// The fixed window start (truncated to WINDOW_SECONDS), as epoch seconds.
+  windowStart Int                @map("window_start")
+  /// Attempts seen in this (key, action, window).
+  count       Int                @default(0)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@id([keyHash, action, windowStart])
+  @@index([createdAt]) // for a best-effort periodic prune, if ever added
+  @@map("auth_throttle")
+}
+
+/// Which pre-auth endpoint an AuthThrottle row counts (Public Accounts).
+enum AuthThrottleAction {
+  signup
+  password_reset_request
+
+  @@map("auth_throttle_action")
 }
