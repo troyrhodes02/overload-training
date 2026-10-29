@@ -73,6 +73,10 @@
 - Migration/RLS pattern: `prisma/migrations/<N>_name/migration.sql`, every new table `ENABLE ROW LEVEL SECURITY` with no policy. Guard tests in `tests/unit/invariant-guards.test.ts`.
 - Proxy/middleware: `src/proxy.ts` (public paths, redirects, admin 404 rewrite).
 
+## Implementation log (Stage 8/10)
+- **OVE-81 PA1** ✅ PR #104 squash-merged into feature branch (commit `1fed3a9`). 1186 unit + 629 integration pass; typecheck/lint/format/build clean; migrate diff empty; client-bundle clean. **e2e (Playwright accounts) UNVERIFIED** — needs `npx supabase start` (Docker) unavailable in this env; applies to ALL tickets. Decisions: DB enum kept PascalCase `"AdminAuditAction"` (matches 9g); `action AuthThrottleAction` column exempted from the no-`action*` progression guard (pre-auth discriminator); `AuthThrottle` classified via new `UNOWNED_SYSTEM_MODELS` in scope.ts. Next.js security-upgrade suggestion surfaced by build — OUT OF SCOPE, noted for report.
+- OVE-82 PA2 — in progress.
+
 ## Baseline (main, pre-run)
 - typecheck clean; `npm test` = 77 suites, **1176 unit tests pass**. (Integration/e2e not run at baseline — need DB/local stack.)
 - On `main`, deps installed, all test configs present.
