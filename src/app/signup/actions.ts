@@ -1,12 +1,33 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signUp, type SignUpField } from "@/lib/accounts/signup";
+
+/**
+ * A coarse request fingerprint for the signup rate limiter (PA2, §9/R4). The
+ * first client IP from the standard proxy headers, else a stable fallback from
+ * the user-agent and language so a header-stripped request still gets limited
+ * (and never evades the throttle by omitting the IP). It is NEVER the email, so
+ * a rate-limit decision reveals no membership; the throttle SHA-256-hashes it
+ * before it touches the database.
+ */
+async function requestFingerprint(): Promise<string> {
+  const h = await headers();
+  const forwarded = h.get("x-forwarded-for");
+  const ip =
+    forwarded?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || "";
+  if (ip) return `ip:${ip}`;
+  const ua = h.get("user-agent")?.trim() ?? "";
+  const lang = h.get("accept-language")?.trim() ?? "";
+  return `ua:${ua}|${lang}`;
+}
 
 export type SignUpState = {
   status: "idle" | "error" | "closed";
   fieldErrors: Partial<Record<SignUpField, string>>;
-  formError: "email_taken" | "unexpected" | null;
+  formError:
+    "email_taken" | "unexpected" | "rate_limited" | "challenge_failed" | null;
   /**
    * Invite mode only: the server-checked code was wrong. Rendered ALONE under
    * the invite-code field, with no other field feedback, so a codeless visitor
@@ -42,6 +63,8 @@ export async function signUpAction(
     confirmPassword: get("confirmPassword"),
     timeZone: get("timeZone"),
     inviteCode: get("inviteCode"),
+    challengeToken: get("challengeToken"),
+    throttleKey: await requestFingerprint(),
   });
   if (outcome.kind === "created") redirect("/");
 
@@ -76,6 +99,20 @@ export async function signUpAction(
         status: "error",
         fieldErrors: {},
         formError: "email_taken",
+      };
+    case "rate_limited":
+      return {
+        ...base,
+        status: "error",
+        fieldErrors: {},
+        formError: "rate_limited",
+      };
+    case "challenge_failed":
+      return {
+        ...base,
+        status: "error",
+        fieldErrors: {},
+        formError: "challenge_failed",
       };
     default:
       return {

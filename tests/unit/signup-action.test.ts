@@ -4,6 +4,11 @@ jest.mock("next/navigation", () => ({
     throw new Error(`NEXT_REDIRECT:${path}`);
   }),
 }));
+// The action derives a coarse rate-limit fingerprint from request headers
+// (PA2); none are present in this unit harness, so the UA/lang fallback applies.
+jest.mock("next/headers", () => ({
+  headers: jest.fn(async () => new Headers()),
+}));
 
 import { signUp } from "@/lib/accounts/signup";
 import { signUpAction, type SignUpState } from "@/app/signup/actions";
@@ -52,6 +57,27 @@ describe("signUpAction", () => {
       confirmPassword: "barbell-315",
       timeZone: "America/Chicago",
       inviteCode: "k7Qm-2xVr-9pLw",
+      // PA2: the challenge token rides with the submit, and the throttle key is
+      // the server-derived fingerprint — NEVER a client-supplied account id.
+      challengeToken: null,
+      throttleKey: expect.any(String),
+    });
+    const call = (signUp as jest.Mock).mock.calls[0][0];
+    expect(call.throttleKey).not.toContain("a0000000");
+  });
+
+  it("surfaces rate-limit and challenge-failed outcomes as form messages", async () => {
+    (signUp as jest.Mock).mockResolvedValueOnce({ kind: "rate_limited" });
+    expect((await signUpAction(initial, form(filled))).formError).toBe(
+      "rate_limited",
+    );
+    (signUp as jest.Mock).mockResolvedValueOnce({ kind: "challenge_failed" });
+    const challenge = await signUpAction(initial, form(filled));
+    expect(challenge).toMatchObject({
+      status: "error",
+      fieldErrors: {},
+      formError: "challenge_failed",
+      inviteInvalid: false,
     });
   });
 

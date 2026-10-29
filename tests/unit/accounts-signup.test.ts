@@ -12,6 +12,10 @@ jest.mock("@/lib/data/account", () => ({
 jest.mock("@/lib/data/usernames", () => ({
   isUsernameAvailable: jest.fn(),
 }));
+// throttle.ts (imported transitively via signup.ts) constructs the raw client
+// at module load; in the unit env there is no DATABASE_URL. The throttle is
+// always injected as a dep here, so a stub client suffices.
+jest.mock("@/lib/db", () => ({ prisma: {} }));
 
 import { DomainError } from "@/lib/actions/result";
 import { UsernameTakenError } from "@/lib/accounts/username-taken";
@@ -29,6 +33,10 @@ const NEW_ID = "b0000000-0000-4000-8000-000000000002";
 
 function deps(overrides: Partial<SignUpDeps> = {}) {
   return {
+    // PA2 abuse protection: by default the throttle allows and the challenge
+    // passes, so the existing orchestration cases exercise the happy path.
+    checkAndIncrement: jest.fn(async () => ({ allowed: true })),
+    verifyChallenge: jest.fn(async () => true),
     isUsernameAvailable: jest.fn(async () => true),
     createConfirmedUser: jest.fn(async () => ({
       ok: true as const,
@@ -376,5 +384,62 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
       expect(logged).not.toContain(secret);
     }
     log.mockRestore();
+  });
+});
+
+describe("signUp abuse protection (Public Accounts PA2, R4/R6)", () => {
+  it("rate-limited: returns rate_limited and creates nothing (throttle runs before any account work)", async () => {
+    const d = deps({
+      checkAndIncrement: jest.fn(async () => ({ allowed: false })),
+    });
+    expect(await signUp(valid, d, OPEN)).toEqual({ kind: "rate_limited" });
+    expect(d.verifyChallenge).not.toHaveBeenCalled();
+    expect(d.isUsernameAvailable).not.toHaveBeenCalled();
+    expect(d.createConfirmedUser).not.toHaveBeenCalled();
+  });
+
+  it("challenge failure: returns challenge_failed and creates nothing (verified before any account work)", async () => {
+    const d = deps({ verifyChallenge: jest.fn(async () => false) });
+    expect(
+      await signUp({ ...valid, challengeToken: "faked" }, d, OPEN),
+    ).toEqual({ kind: "challenge_failed" });
+    expect(d.isUsernameAvailable).not.toHaveBeenCalled();
+    expect(d.createConfirmedUser).not.toHaveBeenCalled();
+  });
+
+  it("throttle is checked BEFORE the challenge, and both run on the signup action key", async () => {
+    const order: string[] = [];
+    const d = deps({
+      checkAndIncrement: jest.fn(async (action) => {
+        order.push(`throttle:${action}`);
+        return { allowed: true };
+      }),
+      verifyChallenge: jest.fn(async () => {
+        order.push("challenge");
+        return true;
+      }),
+    });
+    await signUp(
+      { ...valid, challengeToken: "tok", throttleKey: "ip:1.2.3.4" },
+      d,
+      OPEN,
+    );
+    expect(order).toEqual(["throttle:signup", "challenge"]);
+    expect(d.checkAndIncrement).toHaveBeenCalledWith("signup", "ip:1.2.3.4");
+    expect(d.verifyChallenge).toHaveBeenCalledWith("tok");
+  });
+
+  it("falls back to a stable non-identifying key when no fingerprint is supplied", async () => {
+    const d = deps();
+    await signUp({ ...valid, throttleKey: undefined }, d, OPEN);
+    expect(d.checkAndIncrement).toHaveBeenCalledWith("signup", "unknown");
+  });
+
+  it("abuse checks run only after a valid invite code in invite mode (a codeless visitor is not even throttled on the challenge)", async () => {
+    const d = deps();
+    // A wrong code short-circuits before the throttle/challenge.
+    await signUp({ ...valid, inviteCode: "nope" }, d, INVITE);
+    expect(d.checkAndIncrement).not.toHaveBeenCalled();
+    expect(d.verifyChallenge).not.toHaveBeenCalled();
   });
 });

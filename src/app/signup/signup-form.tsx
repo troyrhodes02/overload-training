@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   startTransition,
   useActionState,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -13,6 +14,7 @@ import {
 import { signUpAction, type SignUpState } from "./actions";
 import type { SignupViewDto } from "./page";
 import type { SignUpField } from "@/lib/accounts/signup";
+import { BotChallenge } from "@/components/auth/bot-challenge";
 import { PasswordInput } from "@/components/auth/password-input";
 import { useDeviceTimeZone } from "@/lib/accounts/use-device-time-zone";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -71,6 +73,14 @@ export function SignupForm({ view }: { view: SignupViewDto }) {
     null,
   );
   const inviteRef = useRef<HTMLInputElement>(null);
+  // The bot challenge must pass before submit is allowed. A null site key leaves
+  // the widget unavailable, so this stays false and the button stays disabled
+  // (D3) — the server rejects a tokenless submit regardless.
+  const [challengeReady, setChallengeReady] = useState(false);
+  const onChallengeReady = useCallback(
+    (v: boolean) => setChallengeReady(v),
+    [],
+  );
   const timeZone = useDeviceTimeZone() ?? "";
   const firstNameRef = useRef<HTMLInputElement>(null);
   const lastNameRef = useRef<HTMLInputElement>(null);
@@ -143,6 +153,9 @@ export function SignupForm({ view }: { view: SignupViewDto }) {
       refFor(firstBad).current?.focus();
       return;
     }
+    // The challenge must have produced a token; the button is disabled until
+    // then, so this is a belt-and-braces guard. The server verifies it anyway.
+    if (!challengeReady) return;
     startTransition(() => formAction(data));
   }
 
@@ -306,6 +319,20 @@ export function SignupForm({ view }: { view: SignupViewDto }) {
           </AlertDescription>
         </Alert>
       ) : null}
+      {state.formError === "challenge_failed" ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Couldn&apos;t verify you&apos;re human. Try again.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {state.formError === "rate_limited" ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Too many attempts. Wait a minute and try again.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {state.formError === "unexpected" ? (
         <Alert variant="destructive">
           <AlertDescription>
@@ -319,7 +346,16 @@ export function SignupForm({ view }: { view: SignupViewDto }) {
         </Alert>
       ) : null}
 
-      <Button type="submit" className="h-11 w-full" disabled={isPending}>
+      <BotChallenge
+        siteKey={view.turnstileSiteKey}
+        onReadyChange={onChallengeReady}
+      />
+
+      <Button
+        type="submit"
+        className="h-11 w-full"
+        disabled={isPending || !challengeReady}
+      >
         {isPending ? "Creating account…" : "Create account"}
       </Button>
     </form>

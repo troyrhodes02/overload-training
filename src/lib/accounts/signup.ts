@@ -8,6 +8,8 @@ import { isUsernameAvailable } from "@/lib/data/usernames";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
 import { isInviteValid, signupMode } from "./signup-gate";
+import { checkAndIncrement } from "./throttle";
+import { verifyChallenge } from "./turnstile";
 import { UsernameTakenError } from "./username-taken";
 import {
   checkEmail,
@@ -28,9 +30,10 @@ import {
  *   session cookie) → the profile, from the user the sign-in returned.
  *
  * The invite check runs before any field feedback so a codeless visitor learns
- * nothing about any address. The throttle and Turnstile challenge (PA2) will
- * slot in after the invite check and before createConfirmedUser; the
- * `challengeToken` field is accepted now but unused here.
+ * nothing about any address. The server rate limiter (throttle) and the
+ * Turnstile challenge (PA2) run AFTER the invite check and BEFORE any field
+ * feedback or createConfirmedUser call, so a throttled or un-verified attempt
+ * never creates-then-deletes a user and never leaks whether an email exists.
  *
  * Anything that fails after the auth user exists is compensated: the user is
  * deleted and the auth session cleared, so a failed signup leaves nothing.
@@ -50,6 +53,8 @@ export type SignUpOutcome =
   | { kind: "created" }
   | { kind: "closed" }
   | { kind: "invite_invalid" }
+  | { kind: "rate_limited" }
+  | { kind: "challenge_failed" }
   | { kind: "invalid"; fieldErrors: Partial<Record<SignUpField, string>> }
   | { kind: "email_taken" }
   | { kind: "unexpected" };
@@ -65,14 +70,24 @@ export type RawSignUp = {
   /** Invite mode only; checked on the server before any field feedback. */
   inviteCode: unknown;
   /**
-   * Turnstile challenge token (Public Accounts §3.2). Accepted now but UNUSED
-   * here; PA2 verifies it server-side after the invite check and before
-   * createConfirmedUser.
+   * Turnstile challenge token (Public Accounts §3.2). Verified server-side
+   * (verifyChallenge) after the invite check and before any field feedback or
+   * createConfirmedUser; a missing/faked token fails identically to a human
+   * failure.
    */
   challengeToken?: unknown;
+  /**
+   * Opaque rate-limit key for the throttle (PA2, §9/R4). A coarse request
+   * fingerprint (e.g. the client IP) resolved by the server action from request
+   * headers — NEVER the email, so a rate-limit decision reveals no membership.
+   * It is SHA-256-hashed inside the throttle before touching the database.
+   */
+  throttleKey?: unknown;
 };
 
 export type SignUpDeps = {
+  checkAndIncrement: typeof checkAndIncrement;
+  verifyChallenge: typeof verifyChallenge;
   isUsernameAvailable: typeof isUsernameAvailable;
   createConfirmedUser: typeof createConfirmedUser;
   deleteAuthUser: typeof deleteAuthUser;
@@ -85,6 +100,8 @@ export type SignUpDeps = {
 };
 
 const defaultDeps: SignUpDeps = {
+  checkAndIncrement,
+  verifyChallenge,
   isUsernameAvailable,
   createConfirmedUser,
   deleteAuthUser,
@@ -116,6 +133,22 @@ export async function signUp(
   // learn nothing about any address.
   if (mode === "invite" && !isInviteValid(raw.inviteCode, env)) {
     return { kind: "invite_invalid" };
+  }
+
+  // Abuse protection (PA2, §9/R4–R6) runs BEFORE any field feedback and before
+  // any createConfirmedUser call, so a throttled or un-verified attempt never
+  // creates-then-deletes a user. The throttle counts first (cheap, DB-atomic),
+  // then the challenge is verified server-side. Both decisions are independent
+  // of the email, so neither reveals membership.
+  const throttleKey =
+    typeof raw.throttleKey === "string" && raw.throttleKey
+      ? raw.throttleKey
+      : "unknown";
+  const { allowed } = await deps.checkAndIncrement("signup", throttleKey);
+  if (!allowed) return { kind: "rate_limited" };
+
+  if (!(await deps.verifyChallenge(raw.challengeToken))) {
+    return { kind: "challenge_failed" };
   }
 
   const fieldErrors: Partial<Record<SignUpField, string>> = {};

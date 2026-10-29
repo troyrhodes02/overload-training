@@ -57,7 +57,16 @@ const eslintConfig = defineConfig([
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/data/**", "src/lib/db.ts"],
+    // The account-scoped data layer (and the raw client module it wraps) are the
+    // door to owned data. The ONE sanctioned exception outside it is the pre-auth
+    // rate limiter (Public Accounts R4/R5): AuthThrottle is un-owned and holds no
+    // personal data, so it cannot and must not go through account.db — it is
+    // reached only through src/lib/accounts/throttle.ts (guard test enforces it).
+    ignores: [
+      "src/lib/data/**",
+      "src/lib/db.ts",
+      "src/lib/accounts/throttle.ts",
+    ],
     rules: {
       "no-restricted-imports": ["error", RAW_DATA_ACCESS],
       "no-restricted-syntax": [
