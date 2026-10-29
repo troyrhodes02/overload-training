@@ -13,7 +13,11 @@ import { assertAdmin, type AdminActor } from "./identity";
  * Entries hold ids and an action, never names, emails, or messages.
  */
 export type AuditEntryInput =
-  | { action: "account_suspend" | "account_reactivate"; targetUserId: string }
+  | {
+      action:
+        "account_suspend" | "account_reactivate" | "account_reset_email_sent";
+      targetUserId: string;
+    }
   | {
       action: "feedback_handled" | "feedback_reopened";
       targetUserId: string;

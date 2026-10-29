@@ -6,6 +6,7 @@ import { getAdminAccount } from "@/lib/data/admin/accounts";
 import { fullDate } from "@/lib/admin/format";
 import { personName } from "@/lib/admin/types";
 import { AccessSection } from "@/components/admin/access-section";
+import { AccountHelpSection } from "@/components/admin/account-help-section";
 import {
   AccountStatusBadge,
   AdminBadge,
@@ -116,6 +117,8 @@ export default async function AdminAccountPage({ params }: PageProps) {
           isAdmin: account.isAdmin,
         }}
       />
+
+      <AccountHelpSection target={{ id: account.id }} />
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Admin actions</h2>

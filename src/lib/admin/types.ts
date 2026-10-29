@@ -17,6 +17,7 @@ export type TourState = "finished" | "skipped" | "not_yet";
 export type AuditKind =
   | "account_suspend"
   | "account_reactivate"
+  | "account_reset_email_sent"
   | "feedback_handled"
   | "feedback_reopened"
   | "feedback_recategorized";
@@ -116,6 +117,8 @@ export function auditActionText(line: Pick<AuditLineDto, "kind" | "detail">) {
       return "suspended the account";
     case "account_reactivate":
       return "reactivated the account";
+    case "account_reset_email_sent":
+      return "sent a password-reset email";
     case "feedback_handled":
       return "marked feedback handled";
     case "feedback_reopened":
