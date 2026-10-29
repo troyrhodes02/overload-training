@@ -7,7 +7,7 @@ import {
 import { isUsernameAvailable } from "@/lib/data/usernames";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
-import { isSignupOpen } from "./signup-gate";
+import { isInviteValid, signupMode } from "./signup-gate";
 import { UsernameTakenError } from "./username-taken";
 import {
   checkEmail,
@@ -19,11 +19,18 @@ import {
 } from "./validation";
 
 /**
- * Self-signup (OVE-50, on the Accounts spec §6, §11; R3, R9). Order matters:
+ * Self-signup (OVE-50; extended by Public Accounts, spec §9, R1). Order
+ * matters:
  *
- *   closed? → field rules (incl. the password typed twice) → username free?
+ *   mode gate (closed?) → (invite mode) invite code checked FIRST, its error
+ *   shown ALONE → field rules (incl. the password typed twice) → username free?
  *   → create a confirmed auth user (admin API) → sign in (sets the auth
  *   session cookie) → the profile, from the user the sign-in returned.
+ *
+ * The invite check runs before any field feedback so a codeless visitor learns
+ * nothing about any address. The throttle and Turnstile challenge (PA2) will
+ * slot in after the invite check and before createConfirmedUser; the
+ * `challengeToken` field is accepted now but unused here.
  *
  * Anything that fails after the auth user exists is compensated: the user is
  * deleted and the auth session cleared, so a failed signup leaves nothing.
@@ -42,6 +49,7 @@ export type SignUpField =
 export type SignUpOutcome =
   | { kind: "created" }
   | { kind: "closed" }
+  | { kind: "invite_invalid" }
   | { kind: "invalid"; fieldErrors: Partial<Record<SignUpField, string>> }
   | { kind: "email_taken" }
   | { kind: "unexpected" };
@@ -54,6 +62,14 @@ export type RawSignUp = {
   password: unknown;
   confirmPassword: unknown;
   timeZone: unknown;
+  /** Invite mode only; checked on the server before any field feedback. */
+  inviteCode: unknown;
+  /**
+   * Turnstile challenge token (Public Accounts §3.2). Accepted now but UNUSED
+   * here; PA2 verifies it server-side after the invite check and before
+   * createConfirmedUser.
+   */
+  challengeToken?: unknown;
 };
 
 export type SignUpDeps = {
@@ -92,7 +108,15 @@ export async function signUp(
   deps: SignUpDeps = defaultDeps,
   env: Record<string, string | undefined> = process.env,
 ): Promise<SignUpOutcome> {
-  if (!isSignupOpen(env)) return { kind: "closed" };
+  const mode = signupMode(env);
+  if (mode === "closed") return { kind: "closed" };
+
+  // Invite mode: the code is checked FIRST, and its failure is reported alone.
+  // A codeless visitor gets no email/name/username/password feedback, so they
+  // learn nothing about any address.
+  if (mode === "invite" && !isInviteValid(raw.inviteCode, env)) {
+    return { kind: "invite_invalid" };
+  }
 
   const fieldErrors: Partial<Record<SignUpField, string>> = {};
   const first = checkName("firstName", raw.firstName);

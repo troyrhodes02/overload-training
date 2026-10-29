@@ -280,18 +280,35 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
     expect(importers).toContain("src/lib/accounts/signup.ts");
   });
 
-  it("only the signup gate reads the signup switch (OVE-50)", () => {
+  it("only the signup gate reads the signup mode (and its deprecated alias)", () => {
     const readers = walk(SRC)
-      .filter((f) => /OVERLOAD_SIGNUP_OPEN/.test(read(f)))
+      .filter((f) => /OVERLOAD_SIGNUP_MODE|OVERLOAD_SIGNUP_OPEN/.test(read(f)))
       .map(rel);
     expect(readers).toEqual([GATE]);
   });
 
-  it("the invite gate is gone: nothing reads an invite code", () => {
+  it("only the signup gate reads the invite code (Public Accounts, R1)", () => {
     const readers = walk(SRC)
-      .filter((f) => /OVERLOAD_INVITE_CODE|inviteCode/.test(read(f)))
+      .filter((f) => /OVERLOAD_INVITE_CODE/.test(read(f)))
       .map(rel);
-    expect(readers).toEqual([]);
+    expect(readers).toEqual([GATE]);
+  });
+
+  it("the invite code is checked only in the gate; signup merely forwards the field", () => {
+    // Beyond the gate, the only places that mention an invite code are signup
+    // (which passes the raw `inviteCode` to isInviteValid) and the signup UI
+    // (the form field + action). None reads OVERLOAD_INVITE_CODE directly.
+    const SIGNUP_SURFACE = [
+      "src/lib/accounts/signup.ts",
+      "src/app/signup/actions.ts",
+      "src/app/signup/signup-form.tsx",
+    ];
+    const mentioners = walk(SRC)
+      .filter((f) => rel(f) !== GATE)
+      .filter((f) => /\binviteCode\b/.test(read(f)))
+      .map(rel)
+      .sort();
+    for (const file of mentioners) expect(SIGNUP_SURFACE).toContain(file);
   });
 
   it("only signup asks whether a username is free (the one cross-account question)", () => {
@@ -762,7 +779,13 @@ describe("recommendations come from the engine, in one voice (Smarter & Explaina
   });
 
   it("recommendations are never stored: no recommendation, evidence, or advice column", () => {
-    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"));
+    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"))
+      // The pre-auth rate limiter's `action AuthThrottleAction` column (Public
+      // Accounts, spec §7) is a signup/reset discriminator, NOT a stored
+      // progression recommendation; the guard's concern is the latter. Drop
+      // that one sanctioned line so the word "action" stays banned everywhere
+      // else (AdminAuditEntry still uses `kind`, never `action`).
+      .replace(/^\s*action\s+AuthThrottleAction\b.*$/im, "");
     expect(schema).not.toMatch(
       /^\s*(recommendation|evidence|advice|action|tag|e1rm)\w*\s+\w+/im,
     );

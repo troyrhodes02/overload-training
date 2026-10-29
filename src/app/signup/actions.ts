@@ -7,6 +7,12 @@ export type SignUpState = {
   status: "idle" | "error" | "closed";
   fieldErrors: Partial<Record<SignUpField, string>>;
   formError: "email_taken" | "unexpected" | null;
+  /**
+   * Invite mode only: the server-checked code was wrong. Rendered ALONE under
+   * the invite-code field, with no other field feedback, so a codeless visitor
+   * learns nothing about any address (Public Accounts §9, D2).
+   */
+  inviteInvalid: boolean;
   /** Echoed back so a failed submit keeps them — never the password. */
   values: {
     firstName: string;
@@ -17,9 +23,10 @@ export type SignUpState = {
 };
 
 /**
- * Self-signup (OVE-50). Public by design — there is no session yet — and
- * open only while the server's signup switch is on. The form carries no
- * account id; the new account's identity comes from the auth service.
+ * Self-signup (OVE-50; extended by Public Accounts). Public by design — there
+ * is no session yet — and gated by the server's signup mode. In invite mode a
+ * valid code is required and checked first. The form carries no account id; the
+ * new account's identity comes from the auth service.
  */
 export async function signUpAction(
   _prev: SignUpState,
@@ -34,6 +41,7 @@ export async function signUpAction(
     password: get("password"),
     confirmPassword: get("confirmPassword"),
     timeZone: get("timeZone"),
+    inviteCode: get("inviteCode"),
   });
   if (outcome.kind === "created") redirect("/");
 
@@ -43,29 +51,38 @@ export async function signUpAction(
     username: String(get("username") ?? ""),
     email: String(get("email") ?? ""),
   };
+  const base = { inviteInvalid: false, values };
   switch (outcome.kind) {
     case "closed":
-      return { status: "closed", fieldErrors: {}, formError: null, values };
+      return { ...base, status: "closed", fieldErrors: {}, formError: null };
+    case "invite_invalid":
+      return {
+        ...base,
+        status: "error",
+        fieldErrors: {},
+        formError: null,
+        inviteInvalid: true,
+      };
     case "invalid":
       return {
+        ...base,
         status: "error",
         fieldErrors: outcome.fieldErrors,
         formError: null,
-        values,
       };
     case "email_taken":
       return {
+        ...base,
         status: "error",
         fieldErrors: {},
         formError: "email_taken",
-        values,
       };
     default:
       return {
+        ...base,
         status: "error",
         fieldErrors: {},
         formError: "unexpected",
-        values,
       };
   }
 }
