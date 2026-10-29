@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
 import { AuthCard } from "@/components/auth/auth-card";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -27,7 +28,16 @@ export default async function ResetPasswordPage() {
   const email = typeof claims?.email === "string" ? claims.email : "";
 
   return (
-    <AuthCard>
+    <AuthCard
+      footer={
+        <Link
+          href="/support"
+          className="font-medium text-muted-foreground underline-offset-4 hover:underline"
+        >
+          Need help?
+        </Link>
+      }
+    >
       {usable ? <ResetPasswordForm email={email} /> : <ResetLinkExpired />}
     </AuthCard>
   );

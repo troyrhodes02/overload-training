@@ -102,9 +102,11 @@ it("seen state stays server-only and is the only module that touches it", () => 
     .map(rel)
     .sort();
   // seen.ts reads and marks; the signup profile write starts a new account
-  // caught up; the deletion module removes the row.
+  // caught up; the deletion module removes the row; the data export (PA6)
+  // reads the account's own ReleaseSeen into the file it takes with it.
   expect(touchers).toEqual([
     "src/lib/accounts/deletion.ts",
+    "src/lib/accounts/export.ts",
     "src/lib/data/account.ts",
     "src/lib/release-notes/seen.ts",
   ]);
