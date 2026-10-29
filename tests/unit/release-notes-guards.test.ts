@@ -132,7 +132,18 @@ it("nothing sends email or push", () => {
       /resend|nodemailer|sendgrid|postmark|web-push|mailgun/i.test(d),
     ),
   ).toEqual([]);
+  // The dependency check above is the real anti-SDK protection: no third-party
+  // email or push package may be installed. The source scan then forbids those
+  // identifiers anywhere in src — with ONE sanctioned exception. Public
+  // Accounts (spec §11) sends recovery and verification mail through Supabase
+  // Auth's OWN templates over custom SMTP (no SDK): recovery uses
+  // resetPasswordForEmail (no matched identifier), and verification uses the
+  // Supabase auth client's `resend` of its own template. The verification
+  // module is the only file allowed to name it; `resend` stays forbidden
+  // everywhere else, and no email/push SDK is ever a dependency.
+  const EMAIL_SENDER_EXEMPT = "src/lib/accounts/verification.ts";
   const offenders = walk(SRC)
+    .filter((f) => rel(f) !== EMAIL_SENDER_EXEMPT)
     .filter((f) =>
       /\b(resend|nodemailer|web-push|PushManager|showNotification)\b/i.test(
         fs.readFileSync(f, "utf8"),

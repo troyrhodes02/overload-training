@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { requireAccount } from "@/lib/data/account";
 import { getSettingsProfile, timeZoneOptions } from "@/lib/accounts/profile";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
+import { getEmailVerification } from "@/lib/accounts/verification";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { AppearanceSetting } from "@/components/settings/appearance-setting";
 import { Button } from "@/components/ui/button";
@@ -20,9 +21,10 @@ export const metadata = { title: "Settings · Overload" };
  */
 export default async function SettingsPage() {
   const [account, user] = await Promise.all([requireAccount(), requireUser()]);
-  const [profile, appearance] = await Promise.all([
+  const [profile, appearance, verification] = await Promise.all([
     getSettingsProfile(account),
     getAccountAppearance(account),
+    getEmailVerification(account, user.email ?? ""),
   ]);
 
   return (
@@ -33,6 +35,7 @@ export default async function SettingsPage() {
         lastName={profile.lastName}
         username={profile.username}
         email={user.email ?? ""}
+        emailVerified={verification.verified}
         timeZone={profile.timeZone}
         timeZones={timeZoneOptions(profile.timeZone)}
       />
