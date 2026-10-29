@@ -20,11 +20,11 @@
 - [x] Stage 5 — Resolved Decisions (R1–R12 in spec)
 - [x] Stage 6 — Milestone + 8 tickets OVE-81..OVE-88 (blockedBy wired)
 - [x] Stage 7 — Feature branch `18-public-accounts-recovery-support` + feature PR #103 → main (OPEN; planning docs committed 29c1465)
-- [~] Stage 8 — Implementation (`/overload-ticket-worker` per ticket): PA1✅ PA2✅ merged; PA3 next
-- [ ] Stage 9 — Runbook
-- [ ] Stage 10 — Integrate ticket PRs into feature branch
-- [ ] Stage 11 — Verification (incl. adversarial)
-- [ ] Stage 12 — Code review (`/review`)
+- [x] Stage 8 — Implementation: all 8 tickets (OVE-81..88) implemented via `/overload-ticket-worker` subagents
+- [x] Stage 9 — Runbook: `docs/runs/18-...-runbook.md`
+- [x] Stage 10 — Integrated: ticket PRs #104–#111 squash-merged into feature branch in order
+- [x] Stage 11 — Verification: full suite green (1299 unit, 653 integration); build compiles (Next.js nudge caveat); adversarial coverage mapped; e2e/external-inbox unverified
+- [~] Stage 12 — Code review (`/review`) — running
 - [ ] Stage 13 — Review audit (`/overload-review-audit`)
 - [ ] Stage 14 — Final verification + STOP before merge
 - [ ] Stage 15 — Run report
@@ -81,12 +81,32 @@
 - **OVE-85 PA5** ✅ PR #108 squash-merged (commit `aac4115`). 1279 unit pass; build + bundle clean. PA5 subagent could NOT provision the DB (reported integration unverified) — I ran `npm run test:integration` on the feature branch post-merge: **57 suites / 642 pass** (incl. PA5's emailVerifiedAt per-account isolation cases) ✅. Decisions: verification gates nothing (static guard forbids any capability/entitlement branch on `emailVerifiedAt`; `enable_confirmations` stays false); send via the request Supabase client's own template (no `resend` SDK); `confirmEmailVerification` reads the session (no token param) since `/auth/confirm` already exchanges it. e2e UNVERIFIED (Docker).
 - **OVE-86 PA6** ✅ PR #109 squash-merged (commit `9469770`). 1294 unit + 647 integration pass (incl. `export.int.test.ts`: A's export = exactly A's rows for every owned model, none of B's; archived/soft-deleted included; custom-only; no credentials; read-only). Build + bundle clean; e2e UNVERIFIED (Docker). Decisions: `/settings/export` route can't use `force-dynamic` (repo `cacheComponents` rejects it) — relies on `requireAccount()` cookie read + `Cache-Control: no-store`; deletion reused verbatim (no second path); signed-out support = mailto (no DB write); `export.ts` registered as sanctioned surfacer of `emailVerifiedAt`/`releaseSeen` (never branches on them).
 - **OVE-87 PA7** ✅ PR #110 squash-merged (commit `76f7f04`). 1299 unit + admin integration pass (non-admin→nothing/not-found; admin→one `account_reset_email_sent` audit entry in-tx + send; suspended still sent but NOT reactivated; failed send rolls back the audit; no training content exposed). Build + bundle clean; e2e UNVERIFIED. Decisions: send runs INSIDE the audit `inAdminTx()` so a failed send records nothing; unresolvable target email → not_found (no enumeration). Enum value shipped in PA1 (no migration here).
-- OVE-88 PA8 — in progress (final guidance ticket).
+- **OVE-88 PA8** ✅ PR #111 squash-merged (commit `db0809d`). 3 release notes added (`2026-10-29-reset-password-by-email` significant; `2026-10-29-export-your-data`, `2026-10-29-help-when-signed-out` list-only); NO tour changes (confirmed); 1299 tests pass incl. release-note validation. Dates provisional (run-date proxy); human corrects to real ship day at merge. e2e UNVERIFIED.
+
+**Stage 8 (implementation) + Stage 10 (integration) COMPLETE** — all 8 ticket PRs (#104–#111) squash-merged into the feature branch in dependency order. Feature tip `db0809d`.
   - Scope: `src/lib/accounts/throttle.ts` (raw-allowed, atomic upsert), `src/lib/accounts/turnstile.ts` (siteverify + test-env bypass), `src/components/auth/bot-challenge.tsx` (Turnstile widget wrapper), wire throttle+challenge into `signUp` BEFORE `createConfirmedUser`, `SignupViewDto.turnstileSiteKey`, form messages (`rate_limited`/`challenge_failed`).
   - Decisions: (a) Turnstile loaded via Cloudflare's own `turnstile/v0/api.js` script (no new npm dep — CLAUDE.md forbids adding libs); (b) throttle key for signup = SHA-256 of a coarse request fingerprint (first client IP from `x-forwarded-for`/`x-real-ip`, else UA+lang header fallback) — never the email, so it leaks no membership; (c) raw-access guard: add `src/lib/accounts/throttle.ts` to eslint ignore-list for `no-restricted-imports` and extend `account-isolation-guards.test.ts` to allow exactly that one extra raw toucher while asserting it is the ONLY non-data-layer raw-prisma file and it only touches `authThrottle`.
   - Window/limit constants: `THROTTLE_WINDOW_SECONDS = 60`, `THROTTLE_LIMIT = 10` per key per window (R4 default).
   - **DONE.** Files: `src/lib/accounts/{throttle,turnstile}.ts`, `src/components/auth/bot-challenge.tsx`, `src/lib/accounts/signup.ts` (rate_limited/challenge_failed outcomes, throttle→challenge before createConfirmedUser), `src/app/signup/{actions,page,signup-form}.tsx`, `eslint.config.mjs`, `scripts/check-client-bundle.mjs`, `.env.example`; tests `tests/unit/{throttle,turnstile,bot-challenge,accounts-signup,signup-action,account-isolation-guards}` + `tests/integration/throttle.int.test.ts`.
   - Verification: typecheck/lint/format clean; unit 1208 pass (80 suites); integration 635 pass (throttle 6/6, incl. 25-way concurrent atomic increment); build OK; client-bundle scan OK. e2e accounts UNVERIFIED (needs Docker/Supabase local stack). Next.js security-upgrade nudge halted the first build (pre-existing, OUT OF SCOPE — retry built fine).
+
+## Stage 11 — Full verification (feature branch tip `db0809d`)
+- typecheck ✅ · lint ✅ · format:check ✅ · client-bundle ✅
+- **unit: 89 suites / 1299 pass** ✅ · **integration: 58 suites / 653 pass** ✅
+- **build: COMPILES successfully** (attempt exit 0, full route manifest emitted). BUT `next build` INTERMITTENTLY exits 1 via a **Next.js security-advisory "nudge"** (recommends `next upgrade --agent=security` for a known advisory in the INSTALLED Next.js version) — non-deterministic across runs, independent of compile success. PRE-EXISTING, unrelated to this feature's code. NOT acted on (out of scope; framework security upgrade = separate change). **Required human follow-up before merge** (see report). Not claimed as a clean green build.
+- e2e (Playwright accounts) + external-inbox email delivery + real mobile-device recovery: **UNVERIFIED** (no Docker/Supabase local stack / external inbox in this env) — runbook §2/§6/§8 covers the human checks; e2e specs authored.
+
+### Adversarial verification coverage (all via passing unit/integration tests)
+- invite-only rejects missing/invalid code; public accepts w/o code (safe env): PA1 unit (+ e2e specs).
+- signup+recovery cannot bypass server rate limit / bot challenge: PA2 integration (25-way atomicity; exactly 10/25 allowed) + server-side Turnstile verify before any account work; PA4 recovery throttle.
+- recovery identical known/unknown; invalid/expired/repeated handled: PA4 integration (enumeration-safe) + PA3 `/auth/confirm` unit (expired/invalid/missing → expired state).
+- reset does not bypass suspension: PA4 integration (suspended resets then bounced to /suspended; status never flipped).
+- verification does not gate Free: PA5 static guard (no capability/entitlement branch on `emailVerifiedAt`; `enable_confirmations` stays false).
+- admin reset owner-only + audited: PA7 integration (non-admin→nothing/not-found; admin→one audit entry in-tx; failed send rolls back; no training content).
+- export all owned + nothing cross-account + no secrets: PA6 `export.int.test.ts`.
+- deletion affects only one account + blocks sign-in: reused `deletion.ts` + existing `account-deletion.int.test.ts` (653-test isolation suite green).
+- isolation / logged-history / deny-all RLS intact: full integration isolation suite green; `auth_throttle` RLS deny-all + unreachable from account.db.
+- UI conformance: each UI ticket implemented against `docs/previews/18-...-preview.tsx` (by construction).
 
 ## Baseline (main, pre-run)
 - typecheck clean; `npm test` = 77 suites, **1176 unit tests pass**. (Integration/e2e not run at baseline — need DB/local stack.)
