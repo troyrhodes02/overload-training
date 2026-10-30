@@ -24,10 +24,12 @@
 - [x] Stage 9 — Runbook: `docs/runs/18-...-runbook.md`
 - [x] Stage 10 — Integrated: ticket PRs #104–#111 squash-merged into feature branch in order
 - [x] Stage 11 — Verification: full suite green (1299 unit, 653 integration); build compiles (Next.js nudge caveat); adversarial coverage mapped; e2e/external-inbox unverified
-- [~] Stage 12 — Code review (`/review`) — running
-- [ ] Stage 13 — Review audit (`/overload-review-audit`)
-- [ ] Stage 14 — Final verification + STOP before merge
-- [ ] Stage 15 — Run report
+- [x] Stage 12 — Code review: 5 inline findings posted on PR #103; all security dimensions confirmed solid
+- [x] Stage 13 — Review audit: #1–#4 implemented (commit `48437fe`), #5 deferred, 2 minors skipped; threads resolved
+- [x] Stage 14 — Final verification (HEAD `005e5f9`): typecheck/lint/format/client-bundle ✅; unit 1301 ✅; integration 654 ✅; `next build` COMPILES (49/49 static pages) — non-zero exit is the pre-existing Next.js security nudge only. **STOP BEFORE MERGE** — PR #103 left OPEN.
+- [x] Stage 15 — Run report: `docs/runs/18-...-report.md` (incl. Required Upstream Amendments — iOS Postponement)
+
+**RUN COMPLETE. PR #103 OPEN & UNMERGED — awaiting human approval.**
 
 ## Pre-resolved decisions (from run prompt + Appendix D2) — to record in spec Resolved Decisions
 1. Signup remains invite-only by default; support public mode via server-side config; implement+test public, do not enable in prod.
