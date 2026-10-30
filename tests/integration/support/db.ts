@@ -31,10 +31,22 @@ export const APP_TABLES = [
   // Admin Center & Feedback (TRUNCATE does not fire the append-only trigger)
   "feedback",
   "admin_audit_entries",
+  // Public Accounts: the un-owned pre-auth rate limiter.
+  "auth_throttle",
 ] as const;
 
 /** Tables that belong to no account (spec 17 R11): no owner column at all. */
 export const ADMIN_ONLY_TABLES: readonly string[] = ["admin_audit_entries"];
+
+/**
+ * Every application table with no owner column: the admin audit log (spec 17
+ * R11) and the pre-auth rate limiter (Public Accounts R5). Neither carries a
+ * user_id; both are sanctioned un-owned infrastructure.
+ */
+export const UNOWNED_TABLES: readonly string[] = [
+  ...ADMIN_ONLY_TABLES,
+  "auth_throttle",
+];
 
 let client: PrismaClient | undefined;
 

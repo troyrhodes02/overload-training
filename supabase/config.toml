@@ -50,6 +50,41 @@ enable_confirmations = false
 # an email provider, and Overload sends no email).
 secure_password_change = true
 
+# ------------------------------------------------------------------------------
+# Public Accounts (PA3 / spec §11, R3) — custom SMTP for auth email (Resend).
+#
+# Recovery and verification route through Supabase Auth's OWN templates over a
+# custom SMTP provider (Resend). No `resend` SDK is added; the app sends no mail
+# of its own. `enable_confirmations` stays FALSE above (turning it on would gate
+# sign-in); verification is a separate, non-blocking flow (`Profile.emailVerifiedAt`).
+#
+# LOCAL DEV: leave the [auth.email.smtp] block below COMMENTED OUT. With no SMTP
+# configured, the Supabase CLI stack routes all auth mail to its built-in mail
+# catcher (Inbucket / Mailpit, Studio → http://127.0.0.1:54324), so recovery and
+# verification links are inspectable locally without any real provider. Only
+# uncomment and fill the env(...) values to exercise a real SMTP send locally.
+#
+# PRODUCTION & RUNBOOK (owner steps — NOT configured here): a verified sending
+# DOMAIN in Resend with DNS records (SPF, DKIM, DMARC); the real SMTP host, port,
+# and credentials; and the two real SENDER IDENTITIES. Production SMTP is set in
+# the Supabase project dashboard (Auth → SMTP Settings), not in this file. NO
+# real domains or credentials are invented here — see the Public Accounts runbook.
+#
+# Two separate sender identities (spec §11, design Screens 4 & 6):
+#   • authentication — no-reply@<auth domain placeholder>  (recovery/verify mail)
+#   • support        — support@<support domain placeholder> (the /support mailto:
+#                      target; NOT a sending integration — surfaced via the app's
+#                      OVERLOAD_SUPPORT_EMAIL env var, not here).
+#
+# [auth.email.smtp]
+# enabled = true
+# host = "env(SMTP_HOST)"          # e.g. smtp.resend.com
+# port = 587
+# user = "env(SMTP_USER)"          # Resend: the literal "resend"
+# pass = "env(SMTP_PASS)"          # Resend API key — SERVER-ONLY, never committed
+# admin_email = "env(SMTP_SENDER)" # authentication identity, e.g. no-reply@<auth domain>
+# sender_name = "Overload"
+
 # Library & Gyms Setup: the exercise-image bucket. PUBLIC-READ (imported,
 # public-domain free-exercise-db images only). Written ONLY by the catalog
 # import (`npm run db:seed`) with the service-role key; there is no storage

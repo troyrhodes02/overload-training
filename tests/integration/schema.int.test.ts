@@ -1,4 +1,4 @@
-import { getTestPrisma, APP_TABLES, ADMIN_ONLY_TABLES } from "./support/db";
+import { getTestPrisma, APP_TABLES, UNOWNED_TABLES } from "./support/db";
 
 /**
  * Schema invariants: the Architecture Doc's core entities exist, derived values
@@ -49,9 +49,11 @@ describe("schema invariants", () => {
     expect(rows.map((r) => r.column_name).every((c) => c === "user_id")).toBe(
       true,
     );
-    // Admin Center & Feedback: the admin-only audit log has no owner column.
+    // The sanctioned un-owned tables carry no owner column: the admin-only
+    // audit log (spec 17 R11) and the pre-auth rate limiter (Public Accounts
+    // R5).
     expect(rows.map((r) => r.table_name)).toEqual(
-      APP_TABLES.filter((t) => !ADMIN_ONLY_TABLES.includes(t)).sort(),
+      APP_TABLES.filter((t) => !UNOWNED_TABLES.includes(t)).sort(),
     );
   });
 

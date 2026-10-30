@@ -3,7 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { requireAccount } from "@/lib/data/account";
 import { getSettingsProfile, timeZoneOptions } from "@/lib/accounts/profile";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
+import { getEmailVerification } from "@/lib/accounts/verification";
 import { ProfileForm } from "@/components/settings/profile-form";
+import { DataExportSection } from "@/components/settings/data-export-section";
 import { AppearanceSetting } from "@/components/settings/appearance-setting";
 import { Button } from "@/components/ui/button";
 import { ReplayTourButton } from "@/components/settings/replay-tour-button";
@@ -20,9 +22,10 @@ export const metadata = { title: "Settings · Overload" };
  */
 export default async function SettingsPage() {
   const [account, user] = await Promise.all([requireAccount(), requireUser()]);
-  const [profile, appearance] = await Promise.all([
+  const [profile, appearance, verification] = await Promise.all([
     getSettingsProfile(account),
     getAccountAppearance(account),
+    getEmailVerification(account, user.email ?? ""),
   ]);
 
   return (
@@ -33,6 +36,7 @@ export default async function SettingsPage() {
         lastName={profile.lastName}
         username={profile.username}
         email={user.email ?? ""}
+        emailVerified={verification.verified}
         timeZone={profile.timeZone}
         timeZones={timeZoneOptions(profile.timeZone)}
       />
@@ -47,6 +51,10 @@ export default async function SettingsPage() {
       </div>
       {/* What's New: the permanent way into the release history. */}
       <WhatsNewSection />
+      {/* Public Accounts: the complete, private, Free data export (R7). It sits
+          below the profile (which carries Timezone) and above the one
+          irreversible action. */}
+      <DataExportSection />
       <div className="space-y-2 border-t border-border pt-6">
         <h2 className="text-base font-semibold">Delete account</h2>
         <p className="text-sm text-muted-foreground">

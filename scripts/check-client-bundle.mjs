@@ -24,10 +24,17 @@ const forbiddenTokens = [
   "DIRECT_URL",
   "service_role",
   "SUPABASE_SERVICE_ROLE_KEY",
-  // The signup switch is server-only too: the browser never decides it.
+  // The signup mode is server-only too: the browser never decides it, and the
+  // deprecated alias stays on the list (Public Accounts, R1).
+  "OVERLOAD_SIGNUP_MODE",
   "OVERLOAD_SIGNUP_OPEN",
+  // The invite code is a server-only secret; it never ships to the browser.
+  "OVERLOAD_INVITE_CODE",
   // Admin identity is server-only too (Admin Center & Feedback, spec R1).
   "OVERLOAD_ADMIN_USER_IDS",
+  // The Turnstile SECRET is server-only (Public Accounts, R6). The SITE key is
+  // public (NEXT_PUBLIC_TURNSTILE_SITE_KEY) and intentionally not on this list.
+  "TURNSTILE_SECRET_KEY",
 ];
 
 // Actual secret values present in the build env (never their public NEXT_PUBLIC_ vars).
@@ -35,6 +42,7 @@ const forbiddenValues = [
   process.env.DATABASE_URL,
   process.env.DIRECT_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
+  process.env.TURNSTILE_SECRET_KEY,
 ].filter((v) => typeof v === "string" && v.length > 0);
 
 function walk(dir) {

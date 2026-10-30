@@ -280,18 +280,35 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
     expect(importers).toContain("src/lib/accounts/signup.ts");
   });
 
-  it("only the signup gate reads the signup switch (OVE-50)", () => {
+  it("only the signup gate reads the signup mode (and its deprecated alias)", () => {
     const readers = walk(SRC)
-      .filter((f) => /OVERLOAD_SIGNUP_OPEN/.test(read(f)))
+      .filter((f) => /OVERLOAD_SIGNUP_MODE|OVERLOAD_SIGNUP_OPEN/.test(read(f)))
       .map(rel);
     expect(readers).toEqual([GATE]);
   });
 
-  it("the invite gate is gone: nothing reads an invite code", () => {
+  it("only the signup gate reads the invite code (Public Accounts, R1)", () => {
     const readers = walk(SRC)
-      .filter((f) => /OVERLOAD_INVITE_CODE|inviteCode/.test(read(f)))
+      .filter((f) => /OVERLOAD_INVITE_CODE/.test(read(f)))
       .map(rel);
-    expect(readers).toEqual([]);
+    expect(readers).toEqual([GATE]);
+  });
+
+  it("the invite code is checked only in the gate; signup merely forwards the field", () => {
+    // Beyond the gate, the only places that mention an invite code are signup
+    // (which passes the raw `inviteCode` to isInviteValid) and the signup UI
+    // (the form field + action). None reads OVERLOAD_INVITE_CODE directly.
+    const SIGNUP_SURFACE = [
+      "src/lib/accounts/signup.ts",
+      "src/app/signup/actions.ts",
+      "src/app/signup/signup-form.tsx",
+    ];
+    const mentioners = walk(SRC)
+      .filter((f) => rel(f) !== GATE)
+      .filter((f) => /\binviteCode\b/.test(read(f)))
+      .map(rel)
+      .sort();
+    for (const file of mentioners) expect(SIGNUP_SURFACE).toContain(file);
   });
 
   it("only signup asks whether a username is free (the one cross-account question)", () => {
@@ -322,6 +339,51 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       )
       .map(rel);
     expect(offenders).toEqual([]);
+  });
+
+  // Email verification gates NOTHING (Public Accounts spec §9, R2; OVE-85).
+  // `emailVerifiedAt` is written and read only by the verification module and
+  // the Settings surface that shows the (non-blocking) nudge. Pinning its
+  // callers here means a future checkout gate cannot quietly start branching
+  // on it — the billing pitch that consumes it must update this allowlist
+  // deliberately, and no Free screen may do so.
+  it("emailVerifiedAt is referenced only by the verification module and its Settings surface", () => {
+    const ALLOWED = [
+      "src/lib/accounts/verification.ts",
+      "src/app/(app)/settings/page.tsx",
+      "src/app/verify-email/page.tsx",
+      // Public Accounts PA6 (spec §9, R7): the data export surfaces the whole
+      // Profile row, emailVerifiedAt included (explicitly sanctioned — it is an
+      // app-level fact, not a secret). It only names the field in a comment; it
+      // never branches on it, so no Free screen gates on verification here.
+      "src/lib/accounts/export.ts",
+    ];
+    const referrers = walk(SRC)
+      .filter((f) => /\bemailVerifiedAt\b/.test(read(f)))
+      .map(rel)
+      .sort();
+    for (const file of referrers) expect(ALLOWED).toContain(file);
+  });
+
+  it("no capability/entitlement branch sits in the verification code (it gates nothing)", () => {
+    // The verification module and the surfaces that show the nudge must not
+    // couple the verified state to any capability/entitlement/plan branch.
+    // Comments are stripped first so the explanatory prose ("first-checkout
+    // gate", "paid plans arrive") never trips the check — only real code does.
+    const stripComments = (s: string) =>
+      s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const GATE_CODE =
+      /\b(requirePro|isPro|hasCapability|checkCapability|entitlement|capability|paywall)\b/i;
+    const surfaces = [
+      "src/lib/accounts/verification.ts",
+      "src/components/settings/verify-email-nudge.tsx",
+      "src/app/verify-email/page.tsx",
+      "src/app/verify-email/verify-email-confirmation.tsx",
+    ];
+    for (const file of surfaces) {
+      const code = stripComments(read(path.join(REPO_ROOT, file)));
+      expect([file, GATE_CODE.test(code)]).toEqual([file, false]);
+    }
   });
 });
 
@@ -762,7 +824,13 @@ describe("recommendations come from the engine, in one voice (Smarter & Explaina
   });
 
   it("recommendations are never stored: no recommendation, evidence, or advice column", () => {
-    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"));
+    const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"))
+      // The pre-auth rate limiter's `action AuthThrottleAction` column (Public
+      // Accounts, spec §7) is a signup/reset discriminator, NOT a stored
+      // progression recommendation; the guard's concern is the latter. Drop
+      // that one sanctioned line so the word "action" stays banned everywhere
+      // else (AdminAuditEntry still uses `kind`, never `action`).
+      .replace(/^\s*action\s+AuthThrottleAction\b.*$/im, "");
     expect(schema).not.toMatch(
       /^\s*(recommendation|evidence|advice|action|tag|e1rm)\w*\s+\w+/im,
     );

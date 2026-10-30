@@ -77,12 +77,31 @@ export function ownedModels(): string[] {
 export const ADMIN_ONLY_MODELS: readonly string[] = ["AdminAuditEntry"];
 
 /**
- * Models with no owner column that are not declared admin-only: none may
- * exist (the app would leak them).
+ * Pre-authentication infrastructure that belongs to no account (Public
+ * Accounts, spec R5): the rate limiter throttles attempts for which no account
+ * or session exists yet, so it cannot be account-scoped. Like the admin audit
+ * log it has no owner column (scopeArgs refuses it from the account-scoped
+ * client) and holds NO personal data — only a SHA-256 hash of the throttle key
+ * and a window bucket. Reached only through its own dedicated raw-allowed
+ * module (src/lib/accounts/throttle.ts, added in PA2).
+ */
+export const UNOWNED_SYSTEM_MODELS: readonly string[] = ["AuthThrottle"];
+
+/**
+ * Every model with no owner column that is a sanctioned non-owned exception
+ * (the admin audit log and the pre-auth rate limiter). A model here is
+ * deliberately unreachable through the account-scoped client; adding to it is
+ * a reviewed decision, never a shortcut.
+ */
+const UNOWNED_SANCTIONED = [...ADMIN_ONLY_MODELS, ...UNOWNED_SYSTEM_MODELS];
+
+/**
+ * Models with no owner column that are not a sanctioned non-owned exception:
+ * none may exist (the app would leak them).
  */
 export function unclassifiedModels(): string[] {
   return [...MODELS.keys()]
-    .filter((m) => !hasOwnerField(m) && !ADMIN_ONLY_MODELS.includes(m))
+    .filter((m) => !hasOwnerField(m) && !UNOWNED_SANCTIONED.includes(m))
     .sort();
 }
 

@@ -23,6 +23,12 @@ function walk(dir: string, acc: string[] = []): string[] {
 
 const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
 const read = (f: string) => fs.readFileSync(f, "utf8");
+
+// The ONE sanctioned raw-client user outside src/lib/data (and db.ts itself):
+// the pre-auth rate limiter (Public Accounts R4/R5). AuthThrottle is un-owned
+// and holds no personal data, so it cannot go through account.db; this module
+// is the only code allowed to touch it.
+const THROTTLE_MODULE = "src/lib/accounts/throttle.ts";
 /** Code only: comments may legitimately name what they forbid. */
 const code = (f: string) =>
   read(f)
@@ -55,18 +61,40 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     ).toBe(false);
   });
 
-  it("only src/lib/data (and src/lib/db.ts itself) reaches the raw Prisma client", () => {
+  it("only src/lib/data, src/lib/db.ts, and the throttle module reach the raw Prisma client", () => {
     const offenders = appFiles()
       .filter((f) => rel(f) !== "src/lib/db.ts")
+      .filter((f) => rel(f) !== THROTTLE_MODULE)
       .filter((f) => RAW_CLIENT.test(code(f)));
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("no raw SQL outside src/lib/data (raw queries bypass the scope)", () => {
-    const offenders = appFiles().filter((f) =>
-      /\$(queryRaw|executeRaw)(Unsafe)?\b/.test(code(f)),
-    );
+  it("no raw SQL outside src/lib/data except the throttle module (raw queries bypass the scope)", () => {
+    const offenders = appFiles()
+      .filter((f) => rel(f) !== THROTTLE_MODULE)
+      .filter((f) => /\$(queryRaw|executeRaw)(Unsafe)?\b/.test(code(f)));
     expect(offenders.map(rel)).toEqual([]);
+  });
+
+  it("the throttle module is the ONLY non-data-layer raw toucher, and it touches only auth_throttle", () => {
+    const throttle = code(path.join(REPO_ROOT, THROTTLE_MODULE));
+    // It does reach the raw client (that is the sanctioned exception) …
+    expect(RAW_CLIENT.test(throttle)).toBe(true);
+    // … and the only table its raw SQL names is auth_throttle — never an owned
+    // table, so no owned data can leak through this bypass.
+    const quotedTables = [...throttle.matchAll(/"([a-z_]+)"/g)]
+      .map((m) => m[1])
+      .filter((t) =>
+        /^(mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen|feedback|feedback_attachments|admin_audit_entries)$/.test(
+          t,
+        ),
+      );
+    expect(quotedTables).toEqual([]);
+    expect(throttle).toMatch(/"auth_throttle"/);
+    // AuthThrottle is never reachable through the account-scoped client: it is
+    // classified as an unowned system model in scope.ts (R5).
+    const scope = read(path.join(SRC, "lib", "data", "scope.ts"));
+    expect(scope).toMatch(/UNOWNED_SYSTEM_MODELS[^=]*=\s*\[\s*"AuthThrottle"/);
   });
 
   it("application code never builds an Account for an arbitrary id", () => {
@@ -115,10 +143,12 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("eslint enforces the same boundary with no exemption beyond src/lib/data and db.ts", () => {
+  it("eslint enforces the same boundary with no exemption beyond src/lib/data, db.ts, and the throttle module", () => {
     const eslint = read(path.join(REPO_ROOT, "eslint.config.mjs"));
+    // The ignore list is exactly these three sanctioned entries — nothing else
+    // may be added without a reviewed decision (R4/R5).
     expect(eslint).toMatch(
-      /ignores:\s*\["src\/lib\/data\/\*\*", "src\/lib\/db\.ts"\]/,
+      /ignores:\s*\[\s*"src\/lib\/data\/\*\*",\s*"src\/lib\/db\.ts",\s*"src\/lib\/accounts\/throttle\.ts",\s*\]/,
     );
     expect(eslint).not.toMatch(/NOT_YET_SCOPED/);
   });

@@ -9,6 +9,9 @@ jest.mock("@/lib/data/admin/accounts", () => ({
   suspendAccount: jest.fn(),
   reactivateAccount: jest.fn(),
 }));
+jest.mock("@/lib/data/admin/reset-email", () => ({
+  sendAccountResetEmail: jest.fn(),
+}));
 jest.mock("@/lib/data/admin/feedback", () => ({
   setFeedbackHandled: jest.fn(),
   setFeedbackCategory: jest.fn(),
@@ -16,12 +19,14 @@ jest.mock("@/lib/data/admin/feedback", () => ({
 
 import { requireAccount } from "@/lib/data/account";
 import { reactivateAccount, suspendAccount } from "@/lib/data/admin/accounts";
+import { sendAccountResetEmail } from "@/lib/data/admin/reset-email";
 import {
   setFeedbackCategory,
   setFeedbackHandled,
 } from "@/lib/data/admin/feedback";
 import {
   reactivateAccountAction,
+  sendResetEmailAction,
   suspendAccountAction,
 } from "@/app/admin/accounts/[id]/actions";
 import {
@@ -52,6 +57,7 @@ afterAll(() => {
 const calls = [
   ["suspendAccountAction", () => suspendAccountAction(TARGET)],
   ["reactivateAccountAction", () => reactivateAccountAction(TARGET)],
+  ["sendResetEmailAction", () => sendResetEmailAction(TARGET)],
   ["setFeedbackHandledAction", () => setFeedbackHandledAction(TARGET, true)],
   [
     "setFeedbackCategoryAction",
@@ -61,6 +67,7 @@ const calls = [
 const dataFns = [
   suspendAccount,
   reactivateAccount,
+  sendAccountResetEmail,
   setFeedbackHandled,
   setFeedbackCategory,
 ] as jest.Mock[];
@@ -97,6 +104,25 @@ it("an admin's action runs as the session's admin, never as an argument", async 
     data: { changed: true },
   });
   expect(suspendAccount).toHaveBeenCalledWith(
+    { userId: ADMIN, timeZone: "America/Chicago" },
+    TARGET,
+  );
+});
+
+it("sendResetEmailAction runs as the session admin and returns the sent email", async () => {
+  (requireAccount as jest.Mock).mockResolvedValue({
+    userId: ADMIN,
+    timeZone: "America/Chicago",
+  });
+  (sendAccountResetEmail as jest.Mock).mockResolvedValue({
+    sent: true,
+    email: "maya@example.test",
+  });
+  await expect(sendResetEmailAction(TARGET)).resolves.toEqual({
+    ok: true,
+    data: { sent: true, email: "maya@example.test" },
+  });
+  expect(sendAccountResetEmail).toHaveBeenCalledWith(
     { userId: ADMIN, timeZone: "America/Chicago" },
     TARGET,
   );
