@@ -130,4 +130,41 @@ Linear stack (each blockedBy the previous deps), implement in this order:
 Feature branch `18-public-accounts-recovery-support` off `main`, planning docs committed there; feature PR → `main` (OPEN, never merged by the run). Each ticket: branch off the current feature-branch tip → implement via `/overload-ticket-worker` → ticket PR targeting the feature branch → squash-merge into feature branch → next ticket branches off the updated tip. This satisfies "each subsequent ticket from its predecessor" (predecessor merged before next branches) and Stage 10 ("squash-merge every ticket PR into the feature branch in order"). Only the final feature→main PR stays open.
 
 ## Deferred / Open
-- (none yet)
+- **PR #103 review #5 (recovery timing side-channel) — DEFERRED.** `requestPasswordReset`
+  awaits a Supabase round-trip when the throttle allows and returns immediately when it
+  does not, so the two paths differ in latency. Response bodies are identical (D7), so this
+  reveals only per-fingerprint throttle state (observable by anyone who trips their own
+  limit), NOT account membership; the privacy invariant is unaffected. Documented with a
+  code comment at the relevant spot in `src/lib/accounts/recovery.ts`. Future hardening:
+  a constant-time response floor on both paths. PR thread left OPEN to track it.
+
+## Stage 13 — Review audit (PR #103), commit 48437fe
+Dispositions applied (decided for this unattended run; the review-audit skill validated each
+against OVE-81–88, the spec R1–R12, and PRD/roadmap boundaries):
+- **#1 export omits FeedbackAttachment — IMPLEMENTED (OVE-86).** Added `feedbackAttachments`
+  (metadata only, no Storage bytes; design D4) read via `account.db`. Unit + isolation tests
+  now DERIVE owned-model coverage from `ACCOUNT_DELETION_ORDER` so a future owned model missing
+  from the export fails. Isolation proof preserved. Thread resolved.
+- **#2 + #3 admin reset: send-before-audit / external send inside DB tx — IMPLEMENTED (OVE-87).**
+  Audit entry committed in its own `inAdminTx()` FIRST; external Supabase send performed AFTER
+  commit. Failed send leaves the audit entry and reports failure. No un-audited send; no network
+  call inside a DB tx. `requireAdmin()` still first await. Integration test updated. Threads resolved.
+- **#4 throttle `$queryRaw` unwrapped — IMPLEMENTED (OVE-82/84).** Bump-and-check wrapped; a DB
+  error fails closed (`allowed:false`) and never escapes. Recovery folds it into the identical
+  `{sent:true}`; signup shows the normal rate-limited message. Unit test added. Thread resolved.
+- **#5 recovery timing side-channel — DEFERRED** (see above). Comment added; thread left open.
+- **Two minor/informational — SKIPPED (not posted as review threads, so no reply needed):**
+  (a) `/support` `support@example.com` placeholder `mailto:` when `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL`
+  is unset — intentional; runbook §2 covers setting the real address. (b) `login/page.tsx` missing
+  `await connection()` — cosmetic; `searchParams` already forces request-time rendering.
+
+### Verification (Stage 13)
+- typecheck: PASS. lint: PASS. format:check: PASS.
+- unit (`npm test`): PASS — 89 suites, 1301 tests.
+- integration (`npm run test:integration`, embedded Postgres): PASS — 58 suites, 654 tests
+  (incl. data-export unit, export.int, admin-accounts.int, throttle.int/unit, recovery.int).
+- `npm run build`: compile SUCCEEDED first attempt (`✓ Compiled successfully`, 49/49 static pages,
+  route manifest generated). Process exit 1 is the pre-existing Next.js security-advisory nudge,
+  unrelated to this change (did not run `next upgrade`).
+- `npm run verify:client-bundle`: PASS (no server secret in `.next/static`).
+- e2e: UNVERIFIED (needs Docker).
