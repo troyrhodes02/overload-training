@@ -31,6 +31,11 @@ import { todayIso } from "@/lib/plan/calendar";
  * is an app-level fact about the account and is safe to include. The shared
  * exercise library (owner null) and its image bytes are never part of the
  * export — only the account's own custom exercises are.
+ *
+ * It carries NO image bytes (design D4): a `FeedbackAttachment` row is included
+ * for completeness (it is an owned model in ACCOUNT_DELETION_ORDER), but only
+ * its metadata — the Storage object itself is not inlined, exactly as exercise
+ * images are not.
  */
 
 /** The version of the export document shape. Bump when the shape changes. */
@@ -64,6 +69,13 @@ export type AccountExport = {
   tourProgress: unknown | null;
   releaseSeen: unknown | null;
   feedback: unknown[];
+  /**
+   * The account's own feedback attachments — metadata only. The Storage image
+   * bytes are NOT inlined (design D4, consistent with exercise images), so only
+   * the row fields are carried: id, feedbackId, objectPath, contentType,
+   * sizeBytes, position, createdAt.
+   */
+  feedbackAttachments: unknown[];
 };
 
 /**
@@ -97,6 +109,7 @@ export async function buildAccountExport(
     tourProgress,
     releaseSeen,
     feedback,
+    feedbackAttachments,
   ] = await Promise.all([
     db.profile.findUnique({ where: { userId: account.userId } }),
     db.mesocycle.findMany(),
@@ -118,6 +131,12 @@ export async function buildAccountExport(
     db.tourProgress.findUnique({ where: { userId: account.userId } }),
     db.releaseSeen.findUnique({ where: { userId: account.userId } }),
     db.feedback.findMany(),
+    // The whole row is metadata only — id, feedbackId, objectPath, contentType,
+    // sizeBytes, position, createdAt, plus the owner stamp. There is NO bytes
+    // column: the Storage image itself is never inlined (design D4), so the
+    // full row carries no bytes and no secret. Read through account.db like
+    // every other section.
+    db.feedbackAttachment.findMany(),
   ]);
 
   return {
@@ -143,6 +162,7 @@ export async function buildAccountExport(
     tourProgress,
     releaseSeen,
     feedback,
+    feedbackAttachments,
   };
 }
 

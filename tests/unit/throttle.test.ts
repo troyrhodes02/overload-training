@@ -85,4 +85,15 @@ describe("checkAndIncrement (Public Accounts, R4/R5)", () => {
       allowed: false,
     });
   });
+
+  it("fails closed when the DB throws — the error never escapes (review #4)", async () => {
+    // A momentary DB outage must not turn a recovery request into a 500 or a
+    // different, membership-leaking response. The throttle swallows the throw
+    // and refuses the attempt, which recovery folds into the identical "sent"
+    // state and signup surfaces as the normal rate-limited message.
+    queryRaw.mockRejectedValueOnce(new Error("connection refused"));
+    await expect(
+      checkAndIncrement("password_reset_request", "k"),
+    ).resolves.toEqual({ allowed: false });
+  });
 });

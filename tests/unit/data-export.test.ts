@@ -5,6 +5,10 @@ import {
   EXPORT_FORMAT_VERSION,
   type AccountExport,
 } from "@/lib/accounts/export";
+import {
+  ACCOUNT_DELETION_ORDER,
+  type AccountDeletionModel,
+} from "@/lib/accounts/deletion";
 
 /**
  * Data export shape and plumbing (Public Accounts spec §9, R7; design Screen 8,
@@ -48,6 +52,7 @@ function fakeAccount(): {
     tourProgress: { findUnique: one("tourProgress") },
     releaseSeen: { findUnique: one("releaseSeen") },
     feedback: { findMany: list("feedback") },
+    feedbackAttachment: { findMany: list("feedbackAttachment") },
   };
   const account = {
     userId: "11111111-1111-1111-1111-111111111111",
@@ -57,36 +62,84 @@ function fakeAccount(): {
   return { account, calls };
 }
 
+/**
+ * THE AUTHORITATIVE OWNED-MODEL SET. The export must carry every owned model,
+ * so its coverage is DERIVED from ACCOUNT_DELETION_ORDER (deletion.ts) rather
+ * than hand-listed — the two destroy/extract the same set by design. If a later
+ * pitch adds an owned model to the deletion order but forgets to add it to the
+ * export, these tests fail. `Profile` is excluded: it is the top-level
+ * `profile` singleton, not a list section. The map below names, for each owned
+ * model, the export document key and the fake-db model it reads through, so a
+ * new model also fails loudly here until it is wired in.
+ */
+const OWNED_MODEL_EXPORT: Record<
+  Exclude<AccountDeletionModel, "Profile">,
+  { exportKey: keyof AccountExport; dbModel: string }
+> = {
+  Mesocycle: { exportKey: "mesocycles", dbModel: "mesocycle" },
+  Session: { exportKey: "sessions", dbModel: "session" },
+  SessionExercise: {
+    exportKey: "sessionExercises",
+    dbModel: "sessionExercise",
+  },
+  PlannedCardio: { exportKey: "plannedCardio", dbModel: "plannedCardio" },
+  Exercise: { exportKey: "customExercises", dbModel: "exercise" },
+  ExerciseFavorite: {
+    exportKey: "exerciseFavorites",
+    dbModel: "exerciseFavorite",
+  },
+  Gym: { exportKey: "gyms", dbModel: "gym" },
+  GymExerciseBaseline: {
+    exportKey: "gymExerciseBaselines",
+    dbModel: "gymExerciseBaseline",
+  },
+  LoggedSession: { exportKey: "loggedSessions", dbModel: "loggedSession" },
+  LoggedExercise: { exportKey: "loggedExercises", dbModel: "loggedExercise" },
+  LoggedSet: { exportKey: "loggedSets", dbModel: "loggedSet" },
+  MissedDayResolution: {
+    exportKey: "missedDayResolutions",
+    dbModel: "missedDayResolution",
+  },
+  Goal: { exportKey: "goals", dbModel: "goal" },
+  CardioLog: { exportKey: "cardioLogs", dbModel: "cardioLog" },
+  TourProgress: { exportKey: "tourProgress", dbModel: "tourProgress" },
+  ReleaseSeen: { exportKey: "releaseSeen", dbModel: "releaseSeen" },
+  Feedback: { exportKey: "feedback", dbModel: "feedback" },
+  FeedbackAttachment: {
+    exportKey: "feedbackAttachments",
+    dbModel: "feedbackAttachment",
+  },
+};
+
+/** The owned models the export must cover: deletion order minus the Profile. */
+const OWNED_MODELS = ACCOUNT_DELETION_ORDER.filter(
+  (m): m is Exclude<AccountDeletionModel, "Profile"> => m !== "Profile",
+);
+
 describe("buildAccountExport (spec §9, R7)", () => {
+  it("covers every owned model in ACCOUNT_DELETION_ORDER (no model is dropped)", () => {
+    // The guard: a new owned model added to the deletion order with no entry in
+    // the export mapping fails here, forcing it into the export.
+    for (const model of OWNED_MODELS) {
+      expect([model, model in OWNED_MODEL_EXPORT]).toEqual([model, true]);
+    }
+  });
+
   it("is a versioned document with a key for every owned model", async () => {
     const { account } = fakeAccount();
     const out = await buildAccountExport(account);
     expect(out.formatVersion).toBe(EXPORT_FORMAT_VERSION);
     expect(out.formatVersion).toBe(1);
     const keys = Object.keys(out).sort();
+    // Expected keys are DERIVED from the authoritative owned-model set plus the
+    // two non-model scalars and the Profile singleton — not hand-maintained.
     const expected: Array<keyof AccountExport> = [
       "formatVersion",
       "exportedOn",
       "profile",
-      "mesocycles",
-      "sessions",
-      "sessionExercises",
-      "plannedCardio",
-      "customExercises",
-      "exerciseFavorites",
-      "gyms",
-      "gymExerciseBaselines",
-      "loggedSessions",
-      "loggedExercises",
-      "loggedSets",
-      "missedDayResolutions",
-      "goals",
-      "cardioLogs",
-      "tourProgress",
-      "releaseSeen",
-      "feedback",
+      ...OWNED_MODELS.map((m) => OWNED_MODEL_EXPORT[m].exportKey),
     ];
-    expect(keys).toEqual([...expected].sort());
+    expect(keys).toEqual([...new Set(expected)].sort());
   });
 
   it("exportedOn is the calendar date in the account's timezone", async () => {
@@ -95,32 +148,16 @@ describe("buildAccountExport (spec §9, R7)", () => {
     expect(out.exportedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it("reads EVERY key through the passed account.db (never a raw client)", async () => {
+  it("reads EVERY owned model through the passed account.db (never a raw client)", async () => {
     const { account, calls } = fakeAccount();
     await buildAccountExport(account);
     const read = calls.map((c) => c.model).sort();
-    expect(read).toEqual(
-      [
-        "profile",
-        "mesocycle",
-        "session",
-        "sessionExercise",
-        "plannedCardio",
-        "exercise",
-        "exerciseFavorite",
-        "gym",
-        "gymExerciseBaseline",
-        "loggedSession",
-        "loggedExercise",
-        "loggedSet",
-        "missedDayResolution",
-        "goal",
-        "cardioLog",
-        "tourProgress",
-        "releaseSeen",
-        "feedback",
-      ].sort(),
-    );
+    // Derived: every owned model's db read (via the mapping) plus the Profile.
+    const expected = [
+      "profile",
+      ...OWNED_MODELS.map((m) => OWNED_MODEL_EXPORT[m].dbModel),
+    ];
+    expect(read).toEqual([...expected].sort());
   });
 
   it("custom exercises exclude the shared library (isCustom: true)", async () => {

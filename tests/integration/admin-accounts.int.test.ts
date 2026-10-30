@@ -359,14 +359,28 @@ describe("admin send reset email (Public Accounts §9, R8)", () => {
     expect(await raw().adminAuditEntry.count()).toBe(0);
   });
 
-  it("a failed send rolls back: nothing is recorded", async () => {
+  it("a failed send LEAVES the audit entry (the admin action is still recorded) and reports failure", async () => {
+    // Review #2/#3: the audit entry is written and COMMITTED before the
+    // external send. If the send then fails, the owner still triggered a reset,
+    // so exactly one audit line remains and the call reports a failure (which
+    // the action surfaces as "Couldn't send… Try again."). No un-audited send
+    // can occur, and no send is held inside the DB transaction.
     const send = async () => {
       throw new Error("email service down");
     };
     await expect(
       sendAccountResetEmail(actor(), maya.userId, emailSource, send),
     ).rejects.toThrow("email service down");
-    expect(await raw().adminAuditEntry.count()).toBe(0);
+
+    const audit = await raw().adminAuditEntry.findMany();
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toEqual(
+      expect.objectContaining({
+        actorUserId: ADMIN_ID,
+        kind: "account_reset_email_sent",
+        targetUserId: maya.userId,
+      }),
+    );
   });
 
   it("sends to a suspended account without reactivating it, and exposes no training content", async () => {

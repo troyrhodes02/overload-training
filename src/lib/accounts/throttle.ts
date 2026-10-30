@@ -62,6 +62,15 @@ function hashKey(action: ThrottleAction, rawKey: string): string {
  *
  * Returns `{ allowed: true }` while the running count for the window is at or
  * below {@link THROTTLE_LIMIT}, and `{ allowed: false }` once it exceeds it.
+ *
+ * FAIL CLOSED (review #4): if the DB is momentarily unreachable and the upsert
+ * throws, the error is caught here and the attempt is refused (`allowed:
+ * false`). A throw must never escape — recovery folds `allowed: false` into the
+ * identical `{ sent: true }` "Check your email" response (so a DB blip can
+ * never turn a recovery request into a 500 or a different, membership-leaking
+ * response), and signup surfaces it as the normal rate-limited message. Failing
+ * closed on an abuse limiter is the safe default: a transient blip throttles
+ * briefly rather than opening the pre-auth door.
  */
 export async function checkAndIncrement(
   action: ThrottleAction,
@@ -71,18 +80,26 @@ export async function checkAndIncrement(
   const keyHash = hashKey(action, rawKey);
   const windowStart = currentWindowStart(now());
 
-  // Single-statement atomic upsert. ON CONFLICT on the composite primary key
-  // (key_hash, action, window_start) increments in place; the RETURNING clause
-  // hands back the post-increment count so the decision needs no second read.
-  const rows = await prisma.$queryRaw<{ count: number }[]>`
-    INSERT INTO "auth_throttle" ("key_hash", "action", "window_start", "count", "created_at", "updated_at")
-    VALUES (${keyHash}, ${action}::"auth_throttle_action", ${windowStart}, 1, now(), now())
-    ON CONFLICT ("key_hash", "action", "window_start")
-    DO UPDATE SET "count" = "auth_throttle"."count" + 1, "updated_at" = now()
-    RETURNING "count"`;
+  try {
+    // Single-statement atomic upsert. ON CONFLICT on the composite primary key
+    // (key_hash, action, window_start) increments in place; the RETURNING
+    // clause hands back the post-increment count so the decision needs no
+    // second read.
+    const rows = await prisma.$queryRaw<{ count: number }[]>`
+      INSERT INTO "auth_throttle" ("key_hash", "action", "window_start", "count", "created_at", "updated_at")
+      VALUES (${keyHash}, ${action}::"auth_throttle_action", ${windowStart}, 1, now(), now())
+      ON CONFLICT ("key_hash", "action", "window_start")
+      DO UPDATE SET "count" = "auth_throttle"."count" + 1, "updated_at" = now()
+      RETURNING "count"`;
 
-  const count = Number(rows[0]?.count ?? THROTTLE_LIMIT + 1);
-  return { allowed: count <= THROTTLE_LIMIT };
+    const count = Number(rows[0]?.count ?? THROTTLE_LIMIT + 1);
+    return { allowed: count <= THROTTLE_LIMIT };
+  } catch {
+    // The limiter could not reach the database. Refuse rather than let the
+    // error escape (never logging the raw key or any address). Callers treat a
+    // refusal identically to a tripped limit.
+    return { allowed: false };
+  }
 }
 
 // A compile-time check that ThrottleAction stays in lockstep with the Prisma

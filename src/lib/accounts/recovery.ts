@@ -167,6 +167,16 @@ export async function requestPasswordReset(
     throttleKey,
   );
 
+  // KNOWN, LOW-RISK TIMING SIDE-CHANNEL (review #5, DEFERRED). When `allowed`
+  // is true the handler awaits a Supabase network round-trip; when it is false
+  // it returns immediately, so the two paths differ in latency. The response
+  // BODIES are identical (D7), so this reveals nothing about account
+  // membership — only per-fingerprint throttle state, which an attacker can
+  // already observe by having tripped their own limit. The privacy invariant
+  // (same response for a known and an unknown email) is unaffected. A future
+  // hardening could add a constant-time response floor (a fixed minimum
+  // duration on both paths); deferred as low-risk and out of this pitch's
+  // scope. See docs/runs/18-public-accounts-recovery-support-report.md.
   if (allowed) {
     // Trigger the Supabase recovery email. Its template links to /auth/confirm,
     // which exchanges the one-time token for the recovery session and continues

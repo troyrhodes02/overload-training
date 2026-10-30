@@ -16,6 +16,11 @@ import { createGoal } from "@/lib/goals/goals";
 import { markTourOffered, recordTourOutcome } from "@/lib/tour/progress";
 import { markReleaseNotesSeen } from "@/lib/release-notes/seen";
 import { addDays } from "@/lib/plan/calendar";
+import {
+  ACCOUNT_DELETION_ORDER,
+  type AccountDeletionModel,
+} from "@/lib/accounts/deletion";
+import type { AccountExport } from "@/lib/accounts/export";
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { activePlan, library, startToday, today, type Lib } from "./fixtures";
@@ -92,34 +97,67 @@ async function populate(account: Account, lib: Lib, label: string) {
   await markReleaseNotesSeen(account, RELEASE_NOTES_FIXTURE[0].id, {
     catalog: RELEASE_NOTES_FIXTURE,
   });
-  await account.db.feedback.create({
+  const feedback = await account.db.feedback.create({
     data: {
       userId: account.userId,
       category: "bug",
       message: `${label} found a bug`,
     },
+    select: { id: true },
+  });
+  // A feedback attachment (metadata only in the export — no image bytes).
+  await account.db.feedbackAttachment.create({
+    data: {
+      userId: account.userId,
+      feedbackId: feedback.id,
+      objectPath: `${account.userId}/g/0.png`,
+      contentType: "image/png",
+      sizeBytes: 100,
+      position: 0,
+    },
   });
   return { plan, oldGym, oldExercise };
 }
 
-/** Every array/singleton section of an export, with its model name. */
-const LIST_SECTIONS = [
-  "mesocycles",
-  "sessions",
-  "sessionExercises",
-  "plannedCardio",
-  "customExercises",
-  "exerciseFavorites",
-  "gyms",
-  "gymExerciseBaselines",
-  "loggedSessions",
-  "loggedExercises",
-  "loggedSets",
-  "missedDayResolutions",
-  "goals",
-  "cardioLogs",
-  "feedback",
-] as const;
+/**
+ * Every LIST section of an export (the per-account singletons profile,
+ * tourProgress, releaseSeen are asserted separately). This is DERIVED from the
+ * authoritative owned-model set (ACCOUNT_DELETION_ORDER) via the map below, so
+ * a future owned model that is not covered here fails loudly. `Profile`,
+ * `TourProgress`, and `ReleaseSeen` are the singletons and are not list
+ * sections.
+ */
+const SINGLETON_MODELS: ReadonlySet<AccountDeletionModel> = new Set([
+  "Profile",
+  "TourProgress",
+  "ReleaseSeen",
+]);
+
+const LIST_SECTION_KEY: Record<
+  Exclude<AccountDeletionModel, "Profile" | "TourProgress" | "ReleaseSeen">,
+  keyof AccountExport
+> = {
+  Mesocycle: "mesocycles",
+  Session: "sessions",
+  SessionExercise: "sessionExercises",
+  PlannedCardio: "plannedCardio",
+  Exercise: "customExercises",
+  ExerciseFavorite: "exerciseFavorites",
+  Gym: "gyms",
+  GymExerciseBaseline: "gymExerciseBaselines",
+  LoggedSession: "loggedSessions",
+  LoggedExercise: "loggedExercises",
+  LoggedSet: "loggedSets",
+  MissedDayResolution: "missedDayResolutions",
+  Goal: "goals",
+  CardioLog: "cardioLogs",
+  Feedback: "feedback",
+  FeedbackAttachment: "feedbackAttachments",
+};
+
+const LIST_SECTIONS = ACCOUNT_DELETION_ORDER.filter(
+  (m) => !SINGLETON_MODELS.has(m),
+).map((m) => LIST_SECTION_KEY[m as keyof typeof LIST_SECTION_KEY]);
 
 /** Collect every `userId` present anywhere in an export document. */
 function userIdsIn(value: unknown, acc: Set<string> = new Set()): Set<string> {
@@ -146,6 +184,16 @@ beforeEach(async () => {
   b = await createTestAccount();
   await populate(a, lib, "A");
   await populate(b, lib, "B");
+});
+
+it("covers every owned list model from ACCOUNT_DELETION_ORDER", () => {
+  // Guard: a new owned model in the deletion order with no LIST_SECTION_KEY
+  // entry fails here (TS already enforces the map is total), forcing it into
+  // the export's isolation proof below.
+  for (const model of ACCOUNT_DELETION_ORDER) {
+    if (SINGLETON_MODELS.has(model)) continue;
+    expect([model, model in LIST_SECTION_KEY]).toEqual([model, true]);
+  }
 });
 
 it("A's export contains rows for every owned model, and only A's", async () => {
