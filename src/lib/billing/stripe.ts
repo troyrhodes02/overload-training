@@ -1,5 +1,6 @@
 import "server-only";
 import Stripe from "stripe";
+import type { MirrorSnapshot } from "@/lib/data/billing-webhook";
 
 /**
  * Plans, Billing & Promo Codes — the Stripe adapter (spec §11, RD-8/RD-12).
@@ -109,4 +110,79 @@ export function stripeProvider(): BillingProvider {
 export function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return `${base.replace(/\/$/, "")}${path}`;
+}
+
+/** Verify a webhook payload's signature and return the parsed event (RD-6). */
+export function constructWebhookEvent(
+  rawBody: string,
+  signature: string,
+): Stripe.Event {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET is not set.");
+  return stripe().webhooks.constructEvent(rawBody, signature, secret);
+}
+
+/**
+ * Re-fetch a subscription from Stripe and map it to the mirror snapshot the
+ * webhook reconciler applies (RD-6). Returns null when it cannot be read.
+ */
+export async function fetchSubscriptionSnapshot(
+  subscriptionId: string,
+): Promise<MirrorSnapshot | null> {
+  const sub = (await stripe().subscriptions.retrieve(subscriptionId, {
+    expand: ["items.data.price", "discounts.promotion_code"],
+  })) as Stripe.Subscription & {
+    current_period_end?: number;
+    discount?: unknown;
+    discounts?: unknown;
+  };
+  if (!sub) return null;
+  const item = sub.items?.data?.[0];
+  const price = item?.price;
+  const interval: BillingInterval | null =
+    price?.recurring?.interval === "year"
+      ? "year"
+      : price?.recurring?.interval === "month"
+        ? "month"
+        : null;
+  return {
+    subscriptionId: sub.id,
+    customerId:
+      typeof sub.customer === "string" ? sub.customer : sub.customer.id,
+    status: sub.status as MirrorSnapshot["status"],
+    interval,
+    currentPeriodEnd:
+      typeof sub.current_period_end === "number"
+        ? new Date(sub.current_period_end * 1000)
+        : null,
+    cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+    priceId: price?.id ?? null,
+    promo: readPromo(sub),
+  };
+}
+
+function readPromo(sub: {
+  discount?: unknown;
+  discounts?: unknown;
+}): MirrorSnapshot["promo"] {
+  // Stripe exposes either a single `discount` or a `discounts` array depending
+  // on account settings; read whichever is present. The human-readable code
+  // comes from the expanded promotion_code; fall back to the coupon id.
+  const discount = Array.isArray(sub.discounts)
+    ? (sub.discounts[0] as Record<string, unknown> | undefined)
+    : ((sub.discount as Record<string, unknown> | null) ?? undefined);
+  if (!discount) return null;
+  const coupon = discount.coupon as { id?: string } | undefined;
+  const promotionCode = discount.promotion_code as
+    { id?: string; code?: string } | string | undefined;
+  const couponId = coupon?.id ?? "unknown";
+  const promotionCodeId =
+    typeof promotionCode === "string"
+      ? promotionCode
+      : (promotionCode?.id ?? null);
+  const code =
+    typeof promotionCode === "object" && promotionCode?.code
+      ? promotionCode.code
+      : couponId;
+  return { code, couponId, promotionCodeId };
 }
