@@ -23,8 +23,9 @@ const entRow = (userId: string) =>
   );
 
 beforeEach(async () => {
-  a = await createTestAccount();
-  b = await createTestAccount();
+  // No default Pro comp: this suite controls A's entitlements and proves B has none.
+  a = await createTestAccount("UTC", undefined, { entitlement: "none" });
+  b = await createTestAccount("UTC", undefined, { entitlement: "none" });
   // Seed A with one of each owned billing row, through A's scoped client.
   await a.db.entitlement.create({
     data: {

@@ -113,18 +113,9 @@ async function populate(account: Account, lib: Lib, label: string) {
       position: 0,
     },
   });
-  // Plans, Billing & Promo Codes: a comp entitlement, a Stripe mirror, and a
-  // promo redemption — all owned, all removed by account deletion.
-  await account.db.entitlement.create({
-    data: {
-      userId: account.userId,
-      source: "comp",
-      plan: "pro",
-      startedAt: new Date(),
-      compReason: "founding_member",
-      grantedByUserId: account.userId,
-    },
-  });
+  // Plans, Billing & Promo Codes: the account already has a default comp
+  // entitlement (createTestAccount), so entitlements is filled; add the Stripe
+  // mirror and a promo redemption — all owned, all removed by account deletion.
   await account.db.billingAccount.create({
     data: {
       userId: account.userId,

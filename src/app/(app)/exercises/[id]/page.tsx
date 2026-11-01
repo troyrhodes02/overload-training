@@ -13,6 +13,7 @@ import { CreatedToast } from "@/components/feedback/created-toast";
 import { GymSelector } from "@/components/progression/gym-selector";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { Recommendation } from "@/components/progression/recommendation";
+import { UpgradeNote } from "@/components/billing/upgrade-note";
 import { requireAccount } from "@/lib/data/account";
 import {
   libraryQueryString,
@@ -207,6 +208,12 @@ export default async function ExerciseDetailPage({
             ) : null}
           </section>
         )}
+        {history.locked ? (
+          <UpgradeNote
+            surface="exercise-page"
+            feature="Progression insights, trends, and PR intelligence"
+          />
+        ) : null}
         {history.records ? (
           <ExerciseRecords records={history.records} scopeName={scopeName} />
         ) : null}

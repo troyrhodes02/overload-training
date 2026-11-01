@@ -1,0 +1,208 @@
+import {
+  gateHistory,
+  gateOccurrence,
+  gatePlanned,
+  gateSessionSummary,
+} from "@/lib/entitlements/gate";
+import { capabilitiesFor } from "@/lib/entitlements/resolve";
+import type { ResolvedEntitlement } from "@/lib/entitlements/types";
+
+/**
+ * The pure Pro gate (spec RD-9). Withholds progression/history Pro fields when
+ * the capability is absent and sets the `locked` marker; passes everything
+ * through when present. This is the unit-level AC-2 proof; the query-layer
+ * proof (a Free account's direct read gets no Pro value) is in the integration
+ * suite.
+ */
+
+const REC = {
+  kind: "progress",
+  tone: "strong",
+  action: "Try 190 lb",
+  evidence: "e",
+} as const;
+
+function pro(): ResolvedEntitlement {
+  return {
+    plan: "pro",
+    capabilities: capabilitiesFor("pro"),
+    sources: ["comp"],
+    displayState: "comp",
+    trialDaysLeft: null,
+  };
+}
+function free(): ResolvedEntitlement {
+  return {
+    plan: "free",
+    capabilities: capabilitiesFor("free"),
+    sources: [],
+    displayState: "free",
+    trialDaysLeft: null,
+  };
+}
+
+const plannedPro = {
+  tag: "progress" as const,
+  rirEffect: null,
+  gymVariable: false,
+  suggestion: { lbs: 190, kind: "progress_increment" as const },
+  hasTrend: true,
+  recommendation: REC,
+};
+
+describe("gatePlanned", () => {
+  it("passes Pro results through for a Pro account", () => {
+    const r = gatePlanned(plannedPro, true);
+    expect(r.tag).toBe("progress");
+    expect(r.recommendation).toEqual(REC);
+    expect(r.suggestion).not.toBeNull();
+    expect(r.locked).toBeNull();
+  });
+
+  it("withholds every Pro field for a Free account", () => {
+    const r = gatePlanned(plannedPro, false);
+    expect(r.tag).toBeNull();
+    expect(r.recommendation).toBeNull();
+    expect(r.suggestion).toBeNull();
+    expect(r.hasTrend).toBe(false);
+    expect(r.rirEffect).toBeNull();
+    expect(r.locked).toBe("progression_insights");
+  });
+});
+
+describe("gateOccurrence / gateSessionSummary", () => {
+  it("occurrence withholds the call for Free, keeps it for Pro", () => {
+    const occ = {
+      loggedExerciseId: "le1",
+      scheduledDeloadWeek: false,
+      tag: "deload" as const,
+      rirEffect: null,
+      suggestion: null,
+      historyHref: "/exercises/x",
+      recommendation: REC,
+    };
+    expect(gateOccurrence(occ, true).recommendation).toEqual(REC);
+    const gated = gateOccurrence(occ, false);
+    expect(gated.tag).toBeNull();
+    expect(gated.recommendation).toBeNull();
+    expect(gated.locked).toBe("progression_insights");
+    // The history link stays — the page gates itself.
+    expect(gated.historyHref).toBe("/exercises/x");
+  });
+
+  it("session summary withholds each exercise's call for Free", () => {
+    const summary = {
+      loggedSessionId: "ls1",
+      scheduledDeloadWeek: false,
+      exercises: [
+        {
+          performedExerciseId: "e1",
+          performedExerciseName: "Bench",
+          tag: "progress" as const,
+          rirEffect: null,
+          suggestion: { lbs: 190, kind: "progress_increment" as const },
+          historyHref: null,
+          recommendation: REC,
+          plannedSets: 3,
+          loggedWorkingSets: 3,
+        },
+      ],
+    };
+    const gated = gateSessionSummary(summary, false);
+    expect(gated.locked).toBe("progression_insights");
+    expect(gated.exercises[0].tag).toBeNull();
+    expect(gated.exercises[0].recommendation).toBeNull();
+    expect(gated.exercises[0].suggestion).toBeNull();
+    // Free-visible plan facts stay.
+    expect(gated.exercises[0].loggedWorkingSets).toBe(3);
+    expect(
+      gateSessionSummary(summary, true).exercises[0].recommendation,
+    ).toEqual(REC);
+  });
+});
+
+describe("gateHistory", () => {
+  const base = {
+    exerciseId: "x",
+    gymVariable: false,
+    externalLoad: true,
+    hasHistory: true,
+    scopes: [],
+    selectedScope: null,
+    next: {
+      kind: "call" as const,
+      tag: "progress" as const,
+      recommendation: REC,
+      insufficientNote: null,
+    },
+    records: {
+      kind: "loaded" as const,
+      bestSet: {
+        weightLbs: 225,
+        reps: 5,
+        dateIso: "2026-10-01",
+        dateLabel: "Oct 1",
+      },
+      bestE1rm: 253,
+      heaviest: {
+        weightLbs: 225,
+        reps: 5,
+        dateIso: "2026-10-01",
+        dateLabel: "Oct 1",
+      },
+      repRecords: [],
+    },
+    trend: {
+      e1rm: { points: [], latest: 253 },
+      weight: { points: [], latest: 225 },
+      reps: null,
+    },
+    sessions: {
+      rows: [
+        {
+          loggedExerciseId: "le1",
+          loggedSessionId: "ls1",
+          dateIso: "2026-10-01",
+          dateLabel: "Oct 1",
+          gymName: null,
+          gymArchived: false,
+          workingSets: [{ weightLbs: 225, reps: 5, rir: null }],
+          extraSets: [],
+          plannedSets: 3,
+          swappedFromName: null,
+          call: "progress" as const,
+        },
+      ],
+      total: 1,
+      showingAll: true,
+    },
+  };
+
+  it("passes everything through for a Pro account", () => {
+    const r = gateHistory(base, pro());
+    expect(r.locked).toBeNull();
+    expect(r.next).toEqual(base.next);
+    expect(r.records?.kind === "loaded" && r.records.bestE1rm).toBe(253);
+    expect(r.trend.e1rm).not.toBeNull();
+    expect(r.sessions.rows[0].call).toBe("progress");
+  });
+
+  it("withholds the call, e1RM estimate, e1RM/weight trends, and per-session calls for Free", () => {
+    const r = gateHistory(base, free());
+    expect(r.locked).toBe("progression_insights");
+    expect(r.next).toEqual({
+      kind: "call",
+      tag: null,
+      recommendation: null,
+      insufficientNote: null,
+    });
+    expect(r.records?.kind === "loaded" && r.records.bestE1rm).toBeNull();
+    // Free keeps the plain best set + heaviest.
+    expect(r.records?.kind === "loaded" && r.records.bestSet.weightLbs).toBe(
+      225,
+    );
+    expect(r.trend.e1rm).toBeNull();
+    expect(r.trend.weight).toBeNull();
+    expect(r.sessions.rows[0].call).toBe("none");
+  });
+});

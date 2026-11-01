@@ -11,9 +11,18 @@
 - [x] 3. UI preview — `docs/previews/19-plans-billing-promo-codes-preview.tsx` written (20 screen/state variants + both appearances)
 - [x] 4. Spec — `docs/specs/19-plans-billing-promo-codes-spec.md` written
 - [x] 5. Resolved Decisions recorded in spec (RD-1…RD-15)
-- [ ] 6. Linear tickets (milestone + blockedBy chain + User Guidance)
-- [ ] 7. Feature PR opened → main
-- [ ] 8. Implementation — `/overload-ticket-worker` per ticket
+- [x] 6. Linear tickets OVE-89…95 created + blockedBy chain + User Guidance (B7)
+- [x] 7. Feature PR opened → main: **PR #112** (DO NOT MERGE)
+- [ ] 8. Implementation — `/overload-ticket-worker` per ticket  ← IN PROGRESS
+  - [x] B1 OVE-89 — branch `ove-89-entitlement-foundation` → PR #113. typecheck/lint/format/unit(23)/integration(billing+deletion+ownership-enforce) green; build compiles (pre-existing Next security nudge exits nonzero). Added `plan_required` ErrorCode; billing models in export + ACCOUNT_DELETION_ORDER.
+  - [ ] B2 OVE-90 — gating + upgrade note
+  - [ ] B3 OVE-91 — Stripe adapter/checkout/portal/billing screen
+  - [ ] B4 OVE-92 — webhook/mirror/grace/BLIZZY
+  - [ ] B5 OVE-93 — admin comp + billing visibility
+  - [ ] B6 OVE-94 — founding-member operator script
+  - [ ] B7 OVE-95 — user guidance
+
+NOTE (pre-existing, not a feature defect): `next build` exits non-zero on a Next.js security-advisory nudge (pitch-18 report §7). Compilation succeeds. Do NOT run the framework security upgrade in this run (cross-cutting, not in this pitch). Record in report for the owner.
 - [ ] 9. Runbook
 - [ ] 10. Integrate ticket PRs into feature branch
 - [ ] 11. Verification (+ adversarial)

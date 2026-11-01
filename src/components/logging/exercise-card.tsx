@@ -28,6 +28,7 @@ import type {
 } from "@/lib/progression/types";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { Recommendation } from "@/components/progression/recommendation";
+import { UpgradeNote } from "@/components/billing/upgrade-note";
 
 /**
  * Derived progression shown beside the bar (OVE-28). Display-only: the tag never
@@ -43,6 +44,8 @@ export type CardProgression = {
   scheduledDeloadWeek: boolean;
   /** The exercise's history page for this card's scope, once it has any. */
   historyHref: string | null;
+  /** Plans, Billing: set when the Pro call was withheld (Free); renders one note. */
+  locked?: boolean;
 };
 
 /**
@@ -381,6 +384,7 @@ export function ExerciseCard({
         </p>
       ) : null}
       <Recommendation recommendation={progression?.recommendation ?? null} />
+      {progression?.locked ? <UpgradeNote surface="exercise-card" /> : null}
 
       <div className="mt-4 space-y-1 tabular-nums">
         {rows.map((s) => {
