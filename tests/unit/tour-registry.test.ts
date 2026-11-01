@@ -62,6 +62,8 @@ describe("registry validity", () => {
       // Added by Exercise History & PR Intelligence (OVE-72), in rail order.
       "exercises",
       "gyms",
+      // Added by Plans, Billing & Promo Codes (OVE-95), before the settings step.
+      "plan-billing",
       "settings",
     ]);
     const routes = new Set(TOUR_STEPS.map((s) => s.route));
@@ -138,7 +140,7 @@ describe("copy is the design doc's, verbatim (R32)", () => {
 
   it("the design doc tables were found", () => {
     expect(initial.length).toBe(9); // eight steps + the logging step's (b) body
-    expect(added.map((r) => r.id)).toEqual(["exercises"]);
+    expect(added.map((r) => r.id)).toEqual(["exercises", "plan-billing"]);
   });
 
   it.each(TOUR_STEPS.map((s) => [s.id, s]))(

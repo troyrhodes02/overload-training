@@ -3,9 +3,15 @@ import type { BillingAccount, CompReason, Entitlement } from "@prisma/client";
 import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import { computeEntitlement } from "@/lib/entitlements/resolve";
 import { BLIZZY } from "@/lib/billing/config";
+import type {
+  AdminAccountBillingDto,
+  AdminBillingOverviewDto,
+} from "@/lib/admin/types";
 import { adminDb, inAdminTx } from "./db";
 import { recordAudit } from "./audit";
 import { assertAdmin, type AdminActor } from "./identity";
+
+export type { AdminAccountBillingDto, AdminBillingOverviewDto };
 
 /**
  * Plans, Billing & Promo Codes — the admin complimentary-access controls and
@@ -45,38 +51,6 @@ const BILLING_FIELDS = {
   createdAt: true,
   updatedAt: true,
 } as const;
-
-export type AdminAccountBillingDto = {
-  effectivePlan: "free" | "pro";
-  source: "trial" | "subscription" | "comp" | "none";
-  comp: {
-    reason: CompReason;
-    note: string | null;
-    endsAt: string | null;
-    grantedAt: string;
-  } | null;
-  stripe: {
-    status: string | null;
-    interval: string | null;
-    currentPeriodEnd: string | null;
-    cancelAtPeriodEnd: boolean;
-    promoCode: string | null;
-  } | null;
-};
-
-export type AdminBillingOverviewDto = {
-  activeSubscriptions: number;
-  trials: number;
-  complimentary: number;
-  cancelingAtPeriodEnd: number;
-  paymentProblems: number;
-  promo: {
-    code: string;
-    cap: number;
-    redeemed: number;
-    recent: { handle: string; date: string }[];
-  };
-};
 
 export async function grantComp(
   actor: AdminActor,

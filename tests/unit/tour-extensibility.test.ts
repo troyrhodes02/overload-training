@@ -74,11 +74,12 @@ it("a data-only step is visited in order, and Back returns to the step before it
     "exercise-history",
     "exercises",
     "gyms",
+    "plan-billing",
     "settings",
   ]);
   const at = steps.findIndex((s) => s.id === "exercise-history");
   expect(steps[nextIndex(steps, skipped, at, -1)].id).toBe("goals");
-  expect(counter(steps, skipped, at)).toEqual({ position: 6, total: 9 });
+  expect(counter(steps, skipped, at)).toEqual({ position: 6, total: 10 });
 });
 
 it("the mechanism files contain no step ids, step routes, anchor names, or copy", () => {

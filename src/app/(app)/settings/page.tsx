@@ -5,6 +5,7 @@ import { getSettingsProfile, timeZoneOptions } from "@/lib/accounts/profile";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { getEmailVerification } from "@/lib/accounts/verification";
 import { getBillingScreen } from "@/lib/billing/screen";
+import { tourAnchor } from "@/lib/tour/steps";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { DataExportSection } from "@/components/settings/data-export-section";
 import { AppearanceSetting } from "@/components/settings/appearance-setting";
@@ -49,6 +50,7 @@ export default async function SettingsPage() {
         <h2 className="text-base font-semibold">Plan &amp; Billing</h2>
         <Link
           href="/settings/billing"
+          {...tourAnchor("settings-billing")}
           className="flex items-center justify-between rounded-lg border border-border bg-card p-4 text-sm hover:bg-muted"
         >
           <span>Plan &amp; Billing</span>

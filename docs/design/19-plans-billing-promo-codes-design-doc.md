@@ -667,6 +667,14 @@ This feature's primary new surface is the Plan & Billing leaf in Settings and th
 
 Final decision on whether the step ships is the `/overload-onboarding` skill's to make against the actual shipped surface (guidance ticket), per the pitch.
 
+### Tour steps added
+
+Decided by `overload-onboarding` in OVE-95. Same columns as the Onboarding Tour's initial table; the registry's copy is pinned to this table. One step, placed before the final Settings step (journey order: the plan sits at the end, in Settings).
+
+| # | id | Screen | Targets (first visible wins) | Title | Body |
+| - | -- | ------ | ---------------------------- | ----- | ---- |
+| 10 | `plan-billing` | Settings `/settings` | Plan & Billing row | **Plan & Billing** | Your plan lives here. New accounts get 14 days of Pro — after that you stay on Free with everything you've logged. |
+
 ### Release note (What's New)
 - **Title:** "Introducing Free and Pro"
 - **Body:** "Keep planning and logging your workouts for free, always. Pro adds progression recommendations, e1RM trends, stall detection, and deeper exercise history. New accounts get 14 days of Pro to try it."

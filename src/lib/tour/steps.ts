@@ -33,6 +33,7 @@ export const TOUR_ANCHORS = [
   "page-goals",
   "page-exercises",
   "page-gyms",
+  "settings-billing",
   "settings-replay",
 ] as const;
 
@@ -138,6 +139,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     targets: [{ anchor: "nav-gyms", side: RAIL }, { anchor: "page-gyms" }],
     title: "Gyms",
     body: "Machines and cables vary from gym to gym, so Overload keeps their working weights per gym. Free weights count the same everywhere.",
+  },
+  {
+    id: "plan-billing",
+    route: "/settings",
+    targets: [{ anchor: "settings-billing" }],
+    title: "Plan & Billing",
+    body: "Your plan lives here. New accounts get 14 days of Pro — after that you stay on Free with everything you've logged.",
   },
   {
     id: "settings",

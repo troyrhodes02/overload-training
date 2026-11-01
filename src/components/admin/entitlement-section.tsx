@@ -19,7 +19,7 @@ import {
   grantCompAction,
   revokeCompAction,
 } from "@/app/admin/accounts/[id]/actions";
-import type { AdminAccountBillingDto } from "@/lib/data/admin/billing";
+import type { AdminAccountBillingDto } from "@/lib/admin/types";
 
 /**
  * Plans, Billing & Promo Codes — the admin account page's entitlement section
