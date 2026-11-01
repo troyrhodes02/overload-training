@@ -34,8 +34,10 @@ NOTE (pre-existing, not a feature defect): `next build` exits non-zero on a Next
   - F2 MED: currentPeriodEnd null (Stripe SDK 23.x field moved to item) → read from item + fallback
   - F3 MED: invoice.paid/payment_failed no-ops (sub id at parent.subscription_details.subscription) → fixed + webhook invoice test
   - F4 LOW: complimentary count included lapsed comps → endsAt filter + test
-- [ ] 14. Final verification + STOP BEFORE MERGE (unit 1355 ✓, build ✓, integration running)
-- [ ] 15. Run report
+- [x] 14. Final verification GREEN (unit 1355, integration 63/689, build compiles, client-bundle OK) + **STOPPED BEFORE MERGE** — PR #112 open for human approval
+- [x] 15. Run report — `docs/runs/19-plans-billing-promo-codes-report.md`
+
+## RUN COMPLETE. PR #112 OPEN + UNMERGED (human approval gate). Stripe test-mode only; no prod changes.
 
 ## Authoritative data model (architecture.md)
 - **Entitlement** — per account: plan + source (trial|subscription|comp), start/end dates; comp has reason + grantedBy. Current entitlement computed from records.
