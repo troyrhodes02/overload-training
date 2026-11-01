@@ -28,9 +28,13 @@ NOTE (pre-existing, not a feature defect): `next build` exits non-zero on a Next
 - [x] 9. Runbook — `docs/runs/19-...-runbook.md`
 - [x] 10. Integrated: feature branch ff'd to the 7-ticket stacked tip + runbook commit; PR #112 updated
 - [x] 11. Verification GREEN on integrated branch: typecheck, lint, format, unit **1355**, integration **688** (63 suites), build compiles (advisory-only nonzero), verify:client-bundle OK
-- [ ] 12. Code review — `/review`
-- [ ] 13. Review audit — `/overload-review-audit`
-- [ ] 14. Final verification + STOP BEFORE MERGE
+- [x] 12. Code review — 4 finder angles; posted to PR #112 (4 findings; security + conventions clean)
+- [x] 13. Review audit — all 4 VALID+IN_SCOPE → IMPLEMENTED + regression tests; committed
+  - F1 HIGH: admin audit display crash (AuditKind/auditActionText missing comp kinds) → fixed + label test enumerates them
+  - F2 MED: currentPeriodEnd null (Stripe SDK 23.x field moved to item) → read from item + fallback
+  - F3 MED: invoice.paid/payment_failed no-ops (sub id at parent.subscription_details.subscription) → fixed + webhook invoice test
+  - F4 LOW: complimentary count included lapsed comps → endsAt filter + test
+- [ ] 14. Final verification + STOP BEFORE MERGE (unit 1355 ✓, build ✓, integration running)
 - [ ] 15. Run report
 
 ## Authoritative data model (architecture.md)
