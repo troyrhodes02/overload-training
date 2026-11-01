@@ -69,6 +69,23 @@ function asString(v: unknown): string | null {
   return typeof v === "string" ? v : null;
 }
 
+/** The subscription id on an Invoice object. In Stripe API 2026-10-28 it moved
+ *  from the top-level `invoice.subscription` to
+ *  `invoice.parent.subscription_details.subscription`; read the new location
+ *  first and fall back to the legacy field for older shapes. */
+function invoiceSubscriptionId(o: Record<string, unknown>): string | null {
+  const parent = o.parent;
+  if (parent && typeof parent === "object") {
+    const details = (parent as Record<string, unknown>).subscription_details;
+    if (details && typeof details === "object") {
+      const sub = (details as Record<string, unknown>).subscription;
+      const id = asString(sub);
+      if (id) return id;
+    }
+  }
+  return asString(o.subscription);
+}
+
 /** Pull the subscription id, customer id, and (checkout only) account id. */
 function identify(event: StripeEventInput): {
   subscriptionId: string | null;
@@ -76,10 +93,17 @@ function identify(event: StripeEventInput): {
   clientReferenceId: string | null;
 } {
   const o = event.object;
+  let subscriptionId: string | null;
+  if (event.type.startsWith("customer.subscription")) {
+    subscriptionId = asString(o.id);
+  } else if (event.type.startsWith("invoice.")) {
+    subscriptionId = invoiceSubscriptionId(o);
+  } else {
+    // checkout.session.completed carries the subscription id directly.
+    subscriptionId = asString(o.subscription);
+  }
   return {
-    subscriptionId:
-      asString(o.subscription) ??
-      (event.type.startsWith("customer.subscription") ? asString(o.id) : null),
+    subscriptionId,
     customerId: asString(o.customer),
     clientReferenceId: asString(o.client_reference_id),
   };

@@ -25,9 +25,9 @@
 ALL 7 TICKETS IMPLEMENTED + VERIFIED + PR'd (In Review): OVE-89…95 → PRs #113–119 (stacked chain on feature branch).
 
 NOTE (pre-existing, not a feature defect): `next build` exits non-zero on a Next.js security-advisory nudge (pitch-18 report §7). Compilation succeeds. Do NOT run the framework security upgrade in this run (cross-cutting, not in this pitch). Record in report for the owner.
-- [ ] 9. Runbook
-- [ ] 10. Integrate ticket PRs into feature branch
-- [ ] 11. Verification (+ adversarial)
+- [x] 9. Runbook — `docs/runs/19-...-runbook.md`
+- [x] 10. Integrated: feature branch ff'd to the 7-ticket stacked tip + runbook commit; PR #112 updated
+- [x] 11. Verification GREEN on integrated branch: typecheck, lint, format, unit **1355**, integration **688** (63 suites), build compiles (advisory-only nonzero), verify:client-bundle OK
 - [ ] 12. Code review — `/review`
 - [ ] 13. Review audit — `/overload-review-audit`
 - [ ] 14. Final verification + STOP BEFORE MERGE

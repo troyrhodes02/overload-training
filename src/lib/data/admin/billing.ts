@@ -216,7 +216,15 @@ export async function getBillingOverview(
     db.entitlement.count({
       where: { source: "trial", revokedAt: null, endsAt: { gt: now } },
     }),
-    db.entitlement.count({ where: { source: "comp", revokedAt: null } }),
+    db.entitlement.count({
+      where: {
+        source: "comp",
+        revokedAt: null,
+        // Active comps only — a lapsed (dated, past-end) comp is not Pro and
+        // must not inflate the count (matches compActive in resolve.ts).
+        OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+      },
+    }),
     db.billingAccount.count({
       where: { status: "active", cancelAtPeriodEnd: true },
     }),

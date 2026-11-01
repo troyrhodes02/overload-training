@@ -142,6 +142,34 @@ describe("idempotency (AC-4)", () => {
   });
 });
 
+describe("invoice events drive grace (review finding 3)", () => {
+  // Invoice objects carry the subscription id at
+  // parent.subscription_details.subscription in Stripe API 2026-10-28.
+  function invoicePaymentFailed(): StripeEventInput {
+    return {
+      id: `evt_${Math.random().toString(36).slice(2)}`,
+      type: "invoice.payment_failed",
+      object: {
+        customer: CUS,
+        parent: { subscription_details: { subscription: SUB } },
+      },
+    };
+  }
+
+  it("invoice.payment_failed resolves the subscription and opens the grace window", async () => {
+    const t0 = new Date("2026-11-20T00:00:00Z");
+    await reconcileStripeEvent(checkoutCompleted(), depsReturning(snap()));
+    const out = await reconcileStripeEvent(
+      invoicePaymentFailed(),
+      depsReturning(snap({ status: "past_due" }), t0),
+    );
+    expect(out).toEqual({ status: "processed", userId: account.userId });
+    const m = await mirror();
+    expect(m?.status).toBe("past_due");
+    expect(m?.graceEndsAt?.toISOString()).toBe("2026-11-27T00:00:00.000Z");
+  });
+});
+
 describe("failed-payment grace (AC-6) and lifecycle", () => {
   it("past_due sets a grace window; recovery clears it; cancel ends it", async () => {
     const t0 = new Date("2026-11-20T00:00:00Z");

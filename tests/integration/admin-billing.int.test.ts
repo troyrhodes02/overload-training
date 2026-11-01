@@ -144,9 +144,25 @@ describe("billing overview never counts a comp as paying (AC-3)", () => {
       },
     });
 
+    // A lapsed (dated, past-end) comp must NOT inflate the complimentary count
+    // (review finding 4): it is not active Pro.
+    const lapsed = await createTestAccount("UTC", undefined, {
+      entitlement: "none",
+    });
+    await getTestPrisma().entitlement.create({
+      data: {
+        userId: lapsed.userId,
+        source: "comp",
+        plan: "pro",
+        startedAt: new Date("2026-01-01T00:00:00Z"),
+        endsAt: new Date("2026-02-01T00:00:00Z"),
+        compReason: "tester",
+      },
+    });
+
     const o = await getBillingOverview(admin());
     expect(o.activeSubscriptions).toBe(1); // the payer only
-    expect(o.complimentary).toBe(1); // the comp only
+    expect(o.complimentary).toBe(1); // the open-ended comp only, not the lapsed one
     // The comp account's effective plan is Pro but its source is never paying.
     const dto = await getAccountBilling(admin(), target.userId);
     expect(dto?.source).toBe("comp");

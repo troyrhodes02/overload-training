@@ -137,13 +137,23 @@ export async function fetchSubscriptionSnapshot(
     discounts?: unknown;
   };
   if (!sub) return null;
-  const item = sub.items?.data?.[0];
+  const item = sub.items?.data?.[0] as
+    (Stripe.SubscriptionItem & { current_period_end?: number }) | undefined;
   const price = item?.price;
   const interval: BillingInterval | null =
     price?.recurring?.interval === "year"
       ? "year"
       : price?.recurring?.interval === "month"
         ? "month"
+        : null;
+  // In Stripe API 2026-10-28 / SDK 23.x the period end moved from the top-level
+  // subscription onto each subscription item; read the item first, falling back
+  // to the legacy top-level field for older API shapes.
+  const periodEndUnix =
+    typeof item?.current_period_end === "number"
+      ? item.current_period_end
+      : typeof sub.current_period_end === "number"
+        ? sub.current_period_end
         : null;
   return {
     subscriptionId: sub.id,
@@ -152,9 +162,7 @@ export async function fetchSubscriptionSnapshot(
     status: sub.status as MirrorSnapshot["status"],
     interval,
     currentPeriodEnd:
-      typeof sub.current_period_end === "number"
-        ? new Date(sub.current_period_end * 1000)
-        : null,
+      periodEndUnix !== null ? new Date(periodEndUnix * 1000) : null,
     cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
     priceId: price?.id ?? null,
     promo: readPromo(sub),

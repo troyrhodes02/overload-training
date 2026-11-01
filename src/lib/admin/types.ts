@@ -59,7 +59,10 @@ export type AuditKind =
   | "account_reset_email_sent"
   | "feedback_handled"
   | "feedback_reopened"
-  | "feedback_recategorized";
+  | "feedback_recategorized"
+  // Plans, Billing & Promo Codes: owner grant/revoke of complimentary Pro.
+  | "comp_granted"
+  | "comp_revoked";
 
 export type AdminOverviewDto = {
   /** The admin's own timezone: "today" and "this month" (R13). */
@@ -166,6 +169,10 @@ export function auditActionText(line: Pick<AuditLineDto, "kind" | "detail">) {
       return line.detail
         ? `changed a feedback category from ${FEEDBACK_CATEGORY_LABEL[line.detail.from]} to ${FEEDBACK_CATEGORY_LABEL[line.detail.to]}`
         : "changed a feedback category";
+    case "comp_granted":
+      return "granted complimentary Pro";
+    case "comp_revoked":
+      return "revoked complimentary Pro";
   }
 }
 
