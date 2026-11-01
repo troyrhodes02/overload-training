@@ -86,6 +86,71 @@ const RULES: Record<string, Rule> = {
       "createdAt",
     ),
   },
+  // Plans, Billing & Promo Codes (spec §9): the owner may READ an account's
+  // entitlement records and grant/revoke a complimentary one; the Stripe mirror
+  // and promo redemptions are READ-ONLY (the owner never edits Stripe state).
+  // None of these is training content.
+  Entitlement: {
+    ops: set("findMany", "findUnique", "count", "create", "updateMany"),
+    fields: set(
+      "id",
+      "userId",
+      "source",
+      "plan",
+      "startedAt",
+      "endsAt",
+      "compReason",
+      "compNote",
+      "grantedByUserId",
+      "revokedAt",
+      "revokedByUserId",
+      "createdAt",
+    ),
+    // create (grant) writes the comp fields; updateMany (revoke) writes the
+    // revoke fields. source is constrained to comp by the billing module.
+    writable: set(
+      "userId",
+      "source",
+      "plan",
+      "startedAt",
+      "endsAt",
+      "compReason",
+      "compNote",
+      "grantedByUserId",
+      "revokedAt",
+      "revokedByUserId",
+    ),
+  },
+  BillingAccount: {
+    ops: set("findMany", "findUnique", "count"),
+    fields: set(
+      "userId",
+      "stripeCustomerId",
+      "subscriptionId",
+      "status",
+      "interval",
+      "currentPeriodEnd",
+      "cancelAtPeriodEnd",
+      "graceEndsAt",
+      "priceId",
+      "promoCode",
+      "createdAt",
+      "updatedAt",
+    ),
+  },
+  PromoRedemption: {
+    ops: set("findMany", "findUnique", "count"),
+    fields: set(
+      "id",
+      "userId",
+      "code",
+      "couponId",
+      "promotionCodeId",
+      "subscriptionId",
+      "redeemedAt",
+      "createdAt",
+    ),
+  },
   AdminAuditEntry: {
     ops: set("create", "findMany", "count"),
     fields: set(

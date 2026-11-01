@@ -11,7 +11,9 @@ import {
   sendAccountResetEmail,
   type SendResetEmailResult,
 } from "@/lib/data/admin/reset-email";
+import { grantComp, revokeComp } from "@/lib/data/admin/billing";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
+import type { CompReason } from "@prisma/client";
 
 /**
  * Suspend and reactivate (Admin Center & Feedback, spec §11; R3, R6). The
@@ -59,6 +61,45 @@ export async function sendResetEmailAction(
   const result = await toActionResult(
     () => sendAccountResetEmail(actor, targetId),
     "Couldn't send the reset email. Nothing was sent. Try again.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+/**
+ * Grant / revoke complimentary Pro (Plans, Billing & Promo Codes, spec §9;
+ * AC-3). requireAdmin() runs first — a non-admin gets not-found before any
+ * argument is read. The acting admin comes from the session; the target is
+ * named. Each is audited in the same transaction and never touches Stripe.
+ */
+export async function grantCompAction(input: {
+  targetId: string;
+  reason: CompReason;
+  note?: string;
+  endsAt?: string;
+}): Promise<ActionResult<{ granted: true }>> {
+  const actor = await requireAdmin();
+  const result = await toActionResult(
+    () =>
+      grantComp(actor, {
+        targetUserId: input.targetId,
+        reason: input.reason,
+        note: input.note ?? null,
+        endsAt: input.endsAt ? new Date(input.endsAt) : null,
+      }),
+    "Couldn't grant complimentary access. Nothing changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+export async function revokeCompAction(
+  targetId: string,
+): Promise<ActionResult<{ changed: boolean }>> {
+  const actor = await requireAdmin();
+  const result = await toActionResult(
+    () => revokeComp(actor, targetId),
+    "Couldn't revoke complimentary access. Nothing changed.",
   );
   if (result.ok) refresh();
   return result;
