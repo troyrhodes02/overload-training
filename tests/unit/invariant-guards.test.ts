@@ -357,6 +357,14 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       // app-level fact, not a secret). It only names the field in a comment; it
       // never branches on it, so no Free screen gates on verification here.
       "src/lib/accounts/export.ts",
+      // Plans, Billing & Promo Codes (spec RD-11): the first-checkout gate. This
+      // is the sanctioned consumer the comment above anticipated — it reads
+      // emailVerifiedAt to require a verified email before CHECKOUT only, never
+      // to gate any Free feature. Added to this allowlist deliberately.
+      "src/lib/billing/checkout.ts",
+      // The Plan & Billing screen DTO surfaces `emailVerified` so the screen can
+      // show the verify-before-checkout step. It never gates a Free feature.
+      "src/lib/billing/screen.ts",
     ];
     const referrers = walk(SRC)
       .filter((f) => /\bemailVerifiedAt\b/.test(read(f)))

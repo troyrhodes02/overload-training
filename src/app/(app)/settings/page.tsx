@@ -4,6 +4,7 @@ import { requireAccount } from "@/lib/data/account";
 import { getSettingsProfile, timeZoneOptions } from "@/lib/accounts/profile";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { getEmailVerification } from "@/lib/accounts/verification";
+import { getBillingScreen } from "@/lib/billing/screen";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { DataExportSection } from "@/components/settings/data-export-section";
 import { AppearanceSetting } from "@/components/settings/appearance-setting";
@@ -22,10 +23,11 @@ export const metadata = { title: "Settings · Overload" };
  */
 export default async function SettingsPage() {
   const [account, user] = await Promise.all([requireAccount(), requireUser()]);
-  const [profile, appearance, verification] = await Promise.all([
+  const [profile, appearance, verification, billing] = await Promise.all([
     getSettingsProfile(account),
     getAccountAppearance(account),
     getEmailVerification(account, user.email ?? ""),
+    getBillingScreen(account),
   ]);
 
   return (
@@ -41,6 +43,20 @@ export default async function SettingsPage() {
         timeZones={timeZoneOptions(profile.timeZone)}
       />
       <AppearanceSetting initial={appearance} />
+      {/* Plans, Billing & Promo Codes: the plan lives on its own leaf; this row
+          shows the resolved state and links to it (design Screen 5). */}
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold">Plan &amp; Billing</h2>
+        <Link
+          href="/settings/billing"
+          className="flex items-center justify-between rounded-lg border border-border bg-card p-4 text-sm hover:bg-muted"
+        >
+          <span>Plan &amp; Billing</span>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {billing.shortLabel} ›
+          </span>
+        </Link>
+      </div>
       {/* Onboarding Tour: the one permanent way to take the tour again. */}
       <div className="space-y-2">
         <h2 className="text-base font-semibold">Tour</h2>

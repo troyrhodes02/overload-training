@@ -15,8 +15,8 @@
 - [x] 7. Feature PR opened → main: **PR #112** (DO NOT MERGE)
 - [ ] 8. Implementation — `/overload-ticket-worker` per ticket  ← IN PROGRESS
   - [x] B1 OVE-89 — branch `ove-89-entitlement-foundation` → PR #113. typecheck/lint/format/unit(23)/integration(billing+deletion+ownership-enforce) green; build compiles (pre-existing Next security nudge exits nonzero). Added `plan_required` ErrorCode; billing models in export + ACCOUNT_DELETION_ORDER.
-  - [ ] B2 OVE-90 — gating + upgrade note
-  - [ ] B3 OVE-91 — Stripe adapter/checkout/portal/billing screen
+  - [x] B2 OVE-90 — branch `ove-90-capability-gating` (stacked on B1) → PR #114. Query-layer gate (gate.ts) withholds Pro fields + `locked`; UpgradeNote wired on card/Today/day-complete/exercise page. typecheck/lint/format/build-compile green; unit 1348 pass (gate 6); integration billing-gating (AC-2) + 106 progression/history regression pass. Test accounts default to Pro (comp) via `createTestAccount`/`defaultAccount` + `grantTestPro`; billing/gating suites opt to `entitlement:"none"`. Meta-tests (account-scope, ownership-backfill, export coverage) updated for the 3 owned + WebhookEvent.
+  - [~] B3 OVE-91 — branch `ove-91-stripe-checkout` (stacked on B2). Added `stripe@23.1.0` (architecture-authorized). `src/lib/billing/stripe.ts` (adapter, injectable BillingProvider; uses `accountId` not `userId` to satisfy isolation guard), `checkout.ts` (startCheckout/startPortal; email-verify gate RD-11), `screen.ts` (BillingScreenDto), `settings/billing/{page,actions}.tsx`, `components/billing/plan-billing.tsx`, Settings sub-label row. Guard allowlists updated (emailVerifiedAt → checkout.ts+screen.ts; email-sender word "resend" avoided). typecheck/lint/format/build-compile/client-bundle green; billing-checkout unit (5) + guards pass. Full-suite + PR pending.
   - [ ] B4 OVE-92 — webhook/mirror/grace/BLIZZY
   - [ ] B5 OVE-93 — admin comp + billing visibility
   - [ ] B6 OVE-94 — founding-member operator script
