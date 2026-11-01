@@ -3,15 +3,28 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
-import { isSignupOpen } from "@/lib/accounts/signup-gate";
+import { signupMode } from "@/lib/accounts/signup-gate";
 import { SignupForm } from "./signup-form";
 
 export const metadata: Metadata = {
   title: "Create your account — Overload",
 };
 
-// Whether signup is open is read from the server environment at request time
-// (never baked in at build), so the page blocks rather than prerendering.
+/**
+ * What the server hands the signup form: the resolved mode and the public
+ * Turnstile site key (PA2). A null key disables the widget and keeps the
+ * primary button disabled (D3) — the server would reject a tokenless submit
+ * anyway, so the form never falls through the human check.
+ */
+export type SignupViewDto = {
+  mode: "invite" | "public";
+  turnstileSiteKey: string | null;
+};
+
+// The signup mode is read from the server environment at request time (never
+// baked in at build), so the page blocks rather than prerendering. The browser
+// never learns which modes exist — it renders exactly the one state the server
+// chose.
 export const instant = false;
 
 const signInLink = (
@@ -25,7 +38,8 @@ const signInLink = (
 
 export default async function SignupPage() {
   await connection();
-  if (!isSignupOpen()) {
+  const mode = signupMode();
+  if (mode === "closed") {
     return (
       <AuthCard>
         <h1 className="text-lg font-semibold">Signup isn&apos;t open</h1>
@@ -39,9 +53,24 @@ export default async function SignupPage() {
       </AuthCard>
     );
   }
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? null;
   return (
-    <AuthCard footer={<>Already have an account? {signInLink}</>}>
-      <SignupForm />
+    <AuthCard
+      footer={
+        <div className="space-y-1">
+          <p>Already have an account? {signInLink}</p>
+          <p>
+            <Link
+              href="/support"
+              className="font-medium text-muted-foreground underline-offset-4 hover:underline"
+            >
+              Need help?
+            </Link>
+          </p>
+        </div>
+      }
+    >
+      <SignupForm view={{ mode, turnstileSiteKey }} />
     </AuthCard>
   );
 }

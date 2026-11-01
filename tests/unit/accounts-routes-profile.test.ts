@@ -19,19 +19,12 @@ describe("proxy routing (Accounts spec §9)", () => {
     },
   );
 
-  it.each([
-    "/",
-    "/settings",
-    "/settings/delete-account",
-    "/plan",
-    "/loginx",
-    // Password reset was removed (no email provider): these are not doors.
-    "/forgot-password",
-    "/reset-password",
-    "/auth/confirm",
-  ])("%s needs an auth session", (path) => {
-    expect(routeRedirect(path, false)).toBe("/login");
-  });
+  it.each(["/", "/settings", "/settings/delete-account", "/plan", "/loginx"])(
+    "%s needs an auth session",
+    (path) => {
+      expect(routeRedirect(path, false)).toBe("/login");
+    },
+  );
 
   it("sends a signed-in visitor away from login and signup only", () => {
     expect(routeRedirect("/login", true)).toBe("/");

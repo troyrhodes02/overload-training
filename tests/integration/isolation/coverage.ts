@@ -30,6 +30,13 @@
  * Feedback screenshots (OVE follow-up): feedback.int.test.ts also proves
  * another account can't read, count, change, or detect a FeedbackAttachment,
  * and can't attach one to this account's feedback (same-owner trigger).
+ * Public Accounts (Pitch 18): Profile.emailVerifiedAt rides the existing
+ * Profile coverage (profile.int.test.ts). AuthThrottle is deliberately
+ * UN-OWNED (a pre-auth rate limiter with no userId, classified in scope.ts's
+ * UNOWNED_SYSTEM_MODELS like AdminAuditEntry), so it is NOT an owned model and
+ * must NOT appear in this registry; public-accounts.int.test.ts instead proves
+ * it has deny-all RLS, holds no personal data, and is unreachable from
+ * account.db.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],

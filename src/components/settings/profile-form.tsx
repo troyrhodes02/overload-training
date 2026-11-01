@@ -14,6 +14,7 @@ import {
   type ProfileFormState,
 } from "@/app/(app)/settings/actions";
 import { StickyActions } from "@/components/plan/plan-bits";
+import { VerifyEmailNudge } from "@/components/settings/verify-email-nudge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,11 @@ import {
   type ProfileInput,
 } from "@/lib/accounts/validation";
 
-type Props = ProfileInput & { email: string; timeZones: string[] };
+type Props = ProfileInput & {
+  email: string;
+  emailVerified: boolean;
+  timeZones: string[];
+};
 type Field = keyof ProfileInput;
 type Errors = Partial<Record<Field, string>>;
 
@@ -47,6 +52,7 @@ export function ProfileForm({
   lastName,
   username,
   email,
+  emailVerified,
   timeZone,
   timeZones,
 }: Props) {
@@ -172,6 +178,8 @@ export function ProfileForm({
           <div className="space-y-2">
             <p className="text-sm leading-none font-medium">Email</p>
             <p className="text-sm text-muted-foreground">{email}</p>
+            {/* Non-blocking verification nudge (Public Accounts Screen 6). */}
+            <VerifyEmailNudge email={email} verified={emailVerified} />
           </div>
         </div>
       </div>

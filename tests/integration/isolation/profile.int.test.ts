@@ -13,6 +13,10 @@ import {
   getAccountAppearance,
   updateAppearance,
 } from "@/lib/accounts/appearance";
+import {
+  confirmEmailVerification,
+  getEmailVerification,
+} from "@/lib/accounts/verification";
 
 /**
  * Cross-account isolation — Profile and the per-account "today" (spec R17,
@@ -292,6 +296,63 @@ describe("appearance preference (Personalization & Navigation Polish)", () => {
       ),
     ).rejects.toThrow();
     expect(await rawAppearance(a.userId)).toBe("system");
+  });
+});
+
+describe("email verification is owned and isolated (Public Accounts, OVE-85)", () => {
+  const verifiedAt = async (userId: string) =>
+    (
+      await getTestPrisma().profile.findUniqueOrThrow({
+        where: { userId },
+        select: { emailVerifiedAt: true },
+      })
+    ).emailVerifiedAt;
+
+  it("confirmEmailVerification sets emailVerifiedAt for the acting account only", async () => {
+    const a = await createTestAccount("America/Chicago");
+    const b = await createTestAccount("Europe/Berlin");
+    await confirmEmailVerification({ actingAccount: async () => a });
+    expect(await verifiedAt(a.userId)).not.toBeNull();
+    // B is untouched — the write is scoped to the acting account.
+    expect(await verifiedAt(b.userId)).toBeNull();
+  });
+
+  it("is idempotent: a second confirm never moves an already-verified timestamp", async () => {
+    const a = await createTestAccount();
+    await confirmEmailVerification({ actingAccount: async () => a });
+    const first = await verifiedAt(a.userId);
+    await confirmEmailVerification({ actingAccount: async () => a });
+    expect(await verifiedAt(a.userId)).toEqual(first);
+  });
+
+  it("an account can't set another account's emailVerifiedAt, even by id", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    const { count } = await b.db.profile.updateMany({
+      where: { userId: a.userId },
+      data: { emailVerifiedAt: new Date() },
+    });
+    expect(count).toBe(0);
+    expect(await verifiedAt(a.userId)).toBeNull();
+  });
+
+  it("an account never reads another account's verification state", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await confirmEmailVerification({ actingAccount: async () => a });
+    // B reads only its own: verified is false and A's set row is invisible.
+    expect(await getEmailVerification(b, "b@example.com")).toEqual({
+      email: "b@example.com",
+      verified: false,
+    });
+    expect(
+      await b.db.profile.findUnique({ where: { userId: a.userId } }),
+    ).toBeNull();
+    expect(
+      await b.db.profile.count({
+        where: { emailVerifiedAt: { not: null } },
+      }),
+    ).toBe(0);
   });
 });
 

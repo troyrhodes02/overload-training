@@ -6,6 +6,7 @@ import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { updateProfile } from "@/lib/accounts/profile";
 import type { ProfileInput } from "@/lib/accounts/validation";
 import { updateAppearance } from "@/lib/accounts/appearance";
+import { sendVerificationEmail } from "@/lib/accounts/verification";
 import type { Appearance } from "@/lib/appearance/appearance";
 
 /*
@@ -65,4 +66,18 @@ export async function updateAppearanceAction(
   );
   if (result.ok) refresh();
   return result;
+}
+
+/**
+ * Sends a verification email to the acting account's OWN email (Public
+ * Accounts spec §9; design Screen 6). The account — and so the address — comes
+ * from the auth session only; the form carries nothing. Verification gates no
+ * Free functionality, so this opens nothing and the nudge simply swaps to its
+ * honest "sent" copy on success.
+ */
+export async function sendVerificationEmailAction(): Promise<
+  ActionResult<{ sent: true }>
+> {
+  const account = await requireAccount();
+  return sendVerificationEmail(account);
 }

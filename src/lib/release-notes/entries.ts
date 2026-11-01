@@ -26,6 +26,41 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Public Accounts, Recovery & Support (Pitch 18; OVE-88, overload-onboarding).
+    // Password recovery restores a capability lifters expect and will look for,
+    // so it is significant (opens the dialog). PROVISIONAL date: written during
+    // the pipeline run on 2026-10-29 while the feature PR is not yet merged.
+    // Before merging, set `date` and the id's date prefix to the production-ship
+    // day (the contract forbids backdating, so dating = ship day); once it reaches
+    // production it is published and never re-dated.
+    id: "2026-10-29-reset-password-by-email",
+    date: "2026-10-29",
+    title: "Reset your password by email",
+    body: "Forgot your password? From the sign-in screen, choose Forgot password and we'll email you a link to set a new one. The link works once and expires after an hour.",
+    significant: true,
+  },
+  {
+    // Public Accounts, Recovery & Support (Pitch 18; OVE-88, overload-onboarding).
+    // A quiet Settings addition that changes no existing behavior, so NOT
+    // significant: it belongs in the What's New list, not the modal. Same
+    // provisional dating as the entry above; re-date to the ship day at merge.
+    id: "2026-10-29-export-your-data",
+    date: "2026-10-29",
+    title: "Export your data",
+    body: "You can download everything in your account — plans, workouts, logged sets, goals, gyms, cardio, and profile — as one file, any time, from Settings. It's private to you and always free.",
+    significant: false,
+  },
+  {
+    // Public Accounts, Recovery & Support (Pitch 18; OVE-88, overload-onboarding).
+    // A small addition to the signed-out screens, NOT significant: list only.
+    // Same provisional dating as the entries above; re-date at merge.
+    id: "2026-10-29-help-when-signed-out",
+    date: "2026-10-29",
+    title: "Get help when you're signed out",
+    body: "Can't sign in? A Need help? link on the sign-in and signup screens now points you to a support address.",
+    significant: false,
+  },
+  {
     // Projected e1RM overlay (OVE-80; overload-onboarding). An opt-in extra on
     // an existing chart that changes no existing behavior, so it is NOT
     // significant: it belongs in the What's New list, not the modal. Dated the

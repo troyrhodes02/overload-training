@@ -133,6 +133,17 @@ export function checkUsername(
 export const USERNAME_TAKEN = "That username is taken.";
 export const PASSWORDS_DIFFER = "Passwords don't match.";
 
+/**
+ * New-password field messages for recovery (Public Accounts spec §12). Kept in
+ * this client-safe module so the reset form can show them without importing the
+ * server-only recovery module (which pulls in the Prisma client). The recovery
+ * module re-exports this for its server callers.
+ */
+export const PASSWORD_ERRORS = {
+  missing: "Enter a new password.",
+  same: "Choose a password you haven't used here.",
+} as const;
+
 export type ProfileInput = {
   firstName: string;
   lastName: string;

@@ -70,6 +70,12 @@ export default defineConfig({
       OVERLOAD_SIGNUP_OPEN: "true",
       // Admin Center & Feedback: the one e2e admin (created by the admin suite).
       OVERLOAD_ADMIN_USER_IDS: E2E_ADMIN_ID,
+      // Cloudflare's documented "always passes, visible" dummy keys (PA2/PA4),
+      // so the BotChallenge widget mounts and the server verify succeeds on
+      // signup and forgot-password without reaching Cloudflare. Test keys only;
+      // production uses real keys configured out of band.
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+      TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
     },
   },
 });

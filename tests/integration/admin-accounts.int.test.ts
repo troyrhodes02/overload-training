@@ -6,6 +6,7 @@ import {
   suspendAccount,
 } from "@/lib/data/admin/accounts";
 import { listAudit } from "@/lib/data/admin/audit-read";
+import { sendAccountResetEmail } from "@/lib/data/admin/reset-email";
 import { getAdminOverview } from "@/lib/data/admin/metrics";
 import { adminActorFor } from "@/lib/data/admin/identity";
 import { resolveAccountState, type Account } from "@/lib/data/account";
@@ -281,6 +282,156 @@ describe("directory and account page", () => {
     );
     expect(mine.lines).toHaveLength(1);
     expect(mine.account).toEqual({ id: maya.userId, label: "Maya Chen" });
+  });
+});
+
+describe("admin send reset email (Public Accounts §9, R8)", () => {
+  let maya: Account;
+
+  beforeEach(async () => {
+    await named("William", "Rhodes", "wrhodes", { userId: ADMIN_ID });
+    maya = await named("Maya", "Chen", "mayac");
+    emails = new Map([[maya.userId, "maya@example.test"]]);
+  });
+
+  it("an admin triggers the send and writes exactly one audit entry in the same tx", async () => {
+    const sent: string[] = [];
+    const send = async (email: string) => {
+      sent.push(email);
+    };
+
+    const result = await sendAccountResetEmail(
+      actor(),
+      maya.userId,
+      emailSource,
+      send,
+    );
+    expect(result).toEqual({ sent: true, email: "maya@example.test" });
+    expect(sent).toEqual(["maya@example.test"]);
+
+    const audit = await raw().adminAuditEntry.findMany();
+    expect(audit).toEqual([
+      expect.objectContaining({
+        actorUserId: ADMIN_ID,
+        kind: "account_reset_email_sent",
+        targetUserId: maya.userId,
+        feedbackId: null,
+        detail: null,
+      }),
+    ]);
+    // Who/what/which account/when: the entry carries an instant.
+    expect(audit[0].createdAt).toBeInstanceOf(Date);
+
+    // The new line shows on the account page as a human-labeled action.
+    const page = await getAdminAccount(actor(), maya.userId, emailSource);
+    expect(page?.audit.map((l) => [l.kind, l.actorName])).toEqual([
+      ["account_reset_email_sent", "William Rhodes"],
+    ]);
+  });
+
+  it("a non-admin (off the allowlist) sends nothing and records nothing", async () => {
+    const sent: string[] = [];
+    const send = async (email: string) => {
+      sent.push(email);
+    };
+    const stale = actor();
+    process.env.OVERLOAD_ADMIN_USER_IDS = "";
+    try {
+      await expect(
+        sendAccountResetEmail(stale, maya.userId, emailSource, send),
+      ).rejects.toThrow("Not an admin.");
+    } finally {
+      process.env.OVERLOAD_ADMIN_USER_IDS = ADMIN_ID;
+    }
+    expect(sent).toEqual([]);
+    expect(await raw().adminAuditEntry.count()).toBe(0);
+  });
+
+  it("an unknown or malformed target sends nothing and records nothing", async () => {
+    const send = jest.fn(async () => {});
+    await expect(
+      sendAccountResetEmail(actor(), randomUUID(), emailSource, send),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      sendAccountResetEmail(actor(), "not-a-uuid", emailSource, send),
+    ).rejects.toMatchObject({ code: "not_found" });
+    expect(send).not.toHaveBeenCalled();
+    expect(await raw().adminAuditEntry.count()).toBe(0);
+  });
+
+  it("a failed send LEAVES the audit entry (the admin action is still recorded) and reports failure", async () => {
+    // Review #2/#3: the audit entry is written and COMMITTED before the
+    // external send. If the send then fails, the owner still triggered a reset,
+    // so exactly one audit line remains and the call reports a failure (which
+    // the action surfaces as "Couldn't send… Try again."). No un-audited send
+    // can occur, and no send is held inside the DB transaction.
+    const send = async () => {
+      throw new Error("email service down");
+    };
+    await expect(
+      sendAccountResetEmail(actor(), maya.userId, emailSource, send),
+    ).rejects.toThrow("email service down");
+
+    const audit = await raw().adminAuditEntry.findMany();
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toEqual(
+      expect.objectContaining({
+        actorUserId: ADMIN_ID,
+        kind: "account_reset_email_sent",
+        targetUserId: maya.userId,
+      }),
+    );
+  });
+
+  it("sends to a suspended account without reactivating it, and exposes no training content", async () => {
+    const lib = await library();
+    const plan = await activePlan(maya, lib, "M");
+    const { les } = await startToday(maya, plan);
+    await logSet(maya, {
+      loggedExerciseId: les[0].id,
+      setNumber: 1,
+      weightLbs: 185,
+      reps: 8,
+    });
+    await suspendAccount(actor(), maya.userId);
+    const before = await snapshotAccount(maya.userId);
+
+    const sent: string[] = [];
+    const result = await sendAccountResetEmail(
+      actor(),
+      maya.userId,
+      emailSource,
+      async (email) => {
+        sent.push(email);
+      },
+    );
+
+    // The result reveals nothing but the send and the address.
+    expect(result).toEqual({ sent: true, email: "maya@example.test" });
+    expect(Object.keys(result).sort()).toEqual(["email", "sent"]);
+    expect(sent).toEqual(["maya@example.test"]);
+
+    // Still suspended: a reset never bypasses suspension.
+    expect((await resolveAccountState(maya.userId)).status).toBe("suspended");
+
+    // Training is untouched (only the suspend entry + this reset entry exist).
+    const after = await snapshotAccount(maya.userId);
+    expect(after).toEqual(before);
+    const kinds = (await raw().adminAuditEntry.findMany()).map((a) => a.kind);
+    expect(kinds.sort()).toEqual([
+      "account_reset_email_sent",
+      "account_suspend",
+    ]);
+  });
+
+  it("sends nothing when the sign-in system has no email for the target", async () => {
+    const send = jest.fn(async () => {});
+    const noEmails = async () => new Map<string, string>();
+    await expect(
+      sendAccountResetEmail(actor(), maya.userId, noEmails, send),
+    ).rejects.toMatchObject({ code: "not_found" });
+    expect(send).not.toHaveBeenCalled();
+    expect(await raw().adminAuditEntry.count()).toBe(0);
   });
 });
 

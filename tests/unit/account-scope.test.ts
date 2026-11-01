@@ -4,6 +4,7 @@ import {
   AccountScopeError,
   ownedModels,
   ADMIN_ONLY_MODELS,
+  UNOWNED_SYSTEM_MODELS,
   scopeArgs,
   SHARED_OR_OWNED_MODEL,
   unclassifiedModels,
@@ -53,25 +54,30 @@ const OWNED = [
 const mine = { userId: ME };
 const libraryOrMine = { OR: [{ userId: null }, { userId: ME }] };
 
+const UNOWNED_SANCTIONED = [...ADMIN_ONLY_MODELS, ...UNOWNED_SYSTEM_MODELS];
+
 describe("classification", () => {
-  it("every model but Exercise is owned, none is unclassified, and only the audit log is admin-only", () => {
+  it("every model but Exercise is owned, none is unclassified, and the un-owned models are the sanctioned exceptions", () => {
     expect(ownedModels()).toEqual(OWNED);
     expect(unclassifiedModels()).toEqual([]);
-    // Admin Center & Feedback (spec R11): the one model that belongs to no
-    // account. Adding to this list is a reviewed decision, never a shortcut.
+    // Admin Center & Feedback (spec R11): the audit log belongs to no account.
     expect([...ADMIN_ONLY_MODELS]).toEqual(["AdminAuditEntry"]);
+    // Public Accounts (spec R5): the pre-auth rate limiter is intentionally
+    // un-owned and holds no personal data. Adding to either list is a reviewed
+    // decision, never a shortcut.
+    expect([...UNOWNED_SYSTEM_MODELS]).toEqual(["AuthThrottle"]);
     expect(SHARED_OR_OWNED_MODEL).toBe("Exercise");
   });
 
-  it("matches schema.prisma: every model declares a userId", () => {
+  it("matches schema.prisma: every model declares a userId except the sanctioned un-owned ones", () => {
     const schema = fs.readFileSync(
       path.join(__dirname, "..", "..", "prisma", "schema.prisma"),
       "utf8",
     );
     const models = [...schema.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)];
-    expect(models.length).toBe(OWNED.length + 1 + ADMIN_ONLY_MODELS.length);
+    expect(models.length).toBe(OWNED.length + 1 + UNOWNED_SANCTIONED.length);
     for (const [, name, body] of models) {
-      if (ADMIN_ONLY_MODELS.includes(name)) {
+      if (UNOWNED_SANCTIONED.includes(name)) {
         // No owner column at all, so the account-scoped client refuses it.
         expect([name, /^\s+userId\s/m.test(body)]).toEqual([name, false]);
         continue;
