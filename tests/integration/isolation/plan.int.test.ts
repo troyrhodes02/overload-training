@@ -124,8 +124,14 @@ let b: Account;
 let plan: Awaited<ReturnType<typeof buildPlan>>;
 
 beforeEach(async () => {
-  a = await createTestAccount("America/Chicago");
-  b = await createTestAccount("Europe/Berlin");
+  // Isolation only (no progression reads), so no default Pro comp — keeps each
+  // fresh account at exactly its profile row (Plans, Billing).
+  a = await createTestAccount("America/Chicago", undefined, {
+    entitlement: "none",
+  });
+  b = await createTestAccount("Europe/Berlin", undefined, {
+    entitlement: "none",
+  });
   plan = await buildPlan(a);
 });
 

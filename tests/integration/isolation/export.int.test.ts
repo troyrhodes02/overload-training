@@ -116,6 +116,16 @@ async function populate(account: Account, lib: Lib, label: string) {
       position: 0,
     },
   });
+  // Plans, Billing: a promo redemption so the export's promoRedemptions list is
+  // non-empty (the account's default comp already fills entitlements).
+  await account.db.promoRedemption.create({
+    data: {
+      userId: account.userId,
+      code: "BLIZZY",
+      couponId: `co_${label}`,
+      redeemedAt: new Date(),
+    },
+  });
   return { plan, oldGym, oldExercise };
 }
 

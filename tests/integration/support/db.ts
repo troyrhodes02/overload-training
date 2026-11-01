@@ -53,6 +53,8 @@ export const ADMIN_ONLY_TABLES: readonly string[] = ["admin_audit_entries"];
 export const UNOWNED_TABLES: readonly string[] = [
   ...ADMIN_ONLY_TABLES,
   "auth_throttle",
+  // Plans, Billing & Promo Codes: the Stripe event-id ledger has no owner.
+  "webhook_events",
 ];
 
 let client: PrismaClient | undefined;
