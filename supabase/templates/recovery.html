@@ -1,0 +1,24 @@
+<!--
+  Recovery (password reset) email — Public Accounts (spec §11, R3; design Screen 4).
+
+  CRITICAL: the action link MUST point at the app's /auth/confirm route with the
+  one-time token_hash and type=recovery, so our server handler verifies the token
+  (establishing the short-lived recovery session via cookies) and continues to
+  /reset-password. The Supabase DEFAULT template uses {{ .ConfirmationURL }},
+  which instead verifies at Supabase's own endpoint and returns the session in a
+  URL *hash* the server cannot read — the request then lands on a protected page
+  with no visible session and the proxy redirects to /login. Do not revert to
+  {{ .ConfirmationURL }}.
+
+  {{ .SiteURL }} must be the app origin (local: http://127.0.0.1:3000; prod: the
+  real domain set as the Supabase project's Site URL).
+-->
+<h2>Reset your Overload password</h2>
+<p>Someone asked to reset the password for your Overload account.</p>
+<p>
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">Set a new password</a>
+</p>
+<p>
+  This link works once and expires in 1 hour. If you didn't ask for this, ignore
+  this email — your password won't change.
+</p>

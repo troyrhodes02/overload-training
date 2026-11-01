@@ -1,0 +1,16 @@
+<!--
+  Email-verification ("Confirm signup") email — Public Accounts (spec §9, PA5;
+  design Screen 6). Same requirement as recovery.html: the link MUST route
+  through the app's /auth/confirm (token_hash + type) so the server verifies the
+  token and continues to /verify-email, instead of Supabase's default
+  {{ .ConfirmationURL }} hash flow that the server can't consume.
+
+  This is the template Supabase's resend({ type: "signup" }) uses. {{ .SiteURL }}
+  must be the app origin.
+-->
+<h2>Verify your Overload email</h2>
+<p>Confirm this is your email for Overload.</p>
+<p>
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup">Verify email</a>
+</p>
+<p>If you didn't create an Overload account, ignore this email.</p>

@@ -51,6 +51,28 @@ enable_confirmations = false
 secure_password_change = true
 
 # ------------------------------------------------------------------------------
+# Public Accounts — email TEMPLATES (spec §11; design Screens 4 & 6).
+#
+# These OVERRIDE Supabase's default templates so the action link routes through
+# the app's own /auth/confirm route with a one-time `token_hash` and `type`
+# (the SSR / token_hash flow our handler implements with verifyOtp). The default
+# templates use {{ .ConfirmationURL }}, which verifies at Supabase's endpoint and
+# returns the session in a URL *hash* the server cannot read — the link then
+# lands on a protected page with no visible session and the proxy bounces it to
+# /login. The template link must stay /auth/confirm?token_hash=...&type=...
+#
+# LOCAL DEV is configured here. PRODUCTION templates live in the Supabase project
+# dashboard (Auth → Email Templates); the SAME link change must be made there
+# (runbook §2), or recovery/verification links bounce to /login in production.
+[auth.email.template.recovery]
+subject = "Reset your Overload password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.confirmation]
+subject = "Verify your Overload email"
+content_path = "./supabase/templates/confirmation.html"
+
+# ------------------------------------------------------------------------------
 # Public Accounts (PA3 / spec §11, R3) — custom SMTP for auth email (Resend).
 #
 # Recovery and verification route through Supabase Auth's OWN templates over a
