@@ -66,4 +66,13 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
   ReleaseSeen: ["release-notes.int.test.ts", "account-deletion.int.test.ts"],
   Feedback: ["feedback.int.test.ts", "account-deletion.int.test.ts"],
   FeedbackAttachment: ["feedback.int.test.ts", "account-deletion.int.test.ts"],
+  // Plans, Billing & Promo Codes (Pitch 19): billing.int.test.ts proves a second
+  // account can't read, count, change, or detect an account's Entitlement,
+  // BillingAccount, or PromoRedemption. WebhookEvent is deliberately UN-OWNED
+  // (a Stripe event ledger with no userId, classified in UNOWNED_SYSTEM_MODELS),
+  // so it is NOT in this registry; billing.int.test.ts instead proves it has
+  // deny-all RLS and is unreachable from account.db.
+  Entitlement: ["billing.int.test.ts", "account-deletion.int.test.ts"],
+  BillingAccount: ["billing.int.test.ts", "account-deletion.int.test.ts"],
+  PromoRedemption: ["billing.int.test.ts", "account-deletion.int.test.ts"],
 };

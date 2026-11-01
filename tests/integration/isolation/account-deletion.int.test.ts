@@ -113,6 +113,32 @@ async function populate(account: Account, lib: Lib, label: string) {
       position: 0,
     },
   });
+  // Plans, Billing & Promo Codes: a comp entitlement, a Stripe mirror, and a
+  // promo redemption — all owned, all removed by account deletion.
+  await account.db.entitlement.create({
+    data: {
+      userId: account.userId,
+      source: "comp",
+      plan: "pro",
+      startedAt: new Date(),
+      compReason: "founding_member",
+      grantedByUserId: account.userId,
+    },
+  });
+  await account.db.billingAccount.create({
+    data: {
+      userId: account.userId,
+      stripeCustomerId: `cus_${label}_${account.userId}`,
+    },
+  });
+  await account.db.promoRedemption.create({
+    data: {
+      userId: account.userId,
+      code: "BLIZZY",
+      couponId: `coupon_${label}`,
+      redeemedAt: new Date(),
+    },
+  });
   return plan;
 }
 
@@ -143,6 +169,9 @@ const OWNED_TABLES = [
   "release_seen",
   "feedback",
   "feedback_attachments",
+  "entitlements",
+  "billing_accounts",
+  "promo_redemptions",
 ];
 
 let a: Account;

@@ -76,6 +76,16 @@ export type AccountExport = {
    * sizeBytes, position, createdAt.
    */
   feedbackAttachments: unknown[];
+  /**
+   * Plans, Billing & Promo Codes: the account's own entitlement records (trial
+   * and comp) and its billing mirror. These are the lifter's own account data
+   * and carry NO card data — card numbers live only on Stripe's hosted pages,
+   * never in our database. The Stripe customer id is the account's own billing
+   * reference, safe to include in its own export.
+   */
+  entitlements: unknown[];
+  billingAccount: unknown | null;
+  promoRedemptions: unknown[];
 };
 
 /**
@@ -110,6 +120,9 @@ export async function buildAccountExport(
     releaseSeen,
     feedback,
     feedbackAttachments,
+    entitlements,
+    billingAccount,
+    promoRedemptions,
   ] = await Promise.all([
     db.profile.findUnique({ where: { userId: account.userId } }),
     db.mesocycle.findMany(),
@@ -137,6 +150,10 @@ export async function buildAccountExport(
     // full row carries no bytes and no secret. Read through account.db like
     // every other section.
     db.feedbackAttachment.findMany(),
+    // Plans, Billing: owned entitlement rows + the Stripe mirror (no card data).
+    db.entitlement.findMany(),
+    db.billingAccount.findUnique({ where: { userId: account.userId } }),
+    db.promoRedemption.findMany(),
   ]);
 
   return {
@@ -163,6 +180,9 @@ export async function buildAccountExport(
     releaseSeen,
     feedback,
     feedbackAttachments,
+    entitlements,
+    billingAccount,
+    promoRedemptions,
   };
 }
 

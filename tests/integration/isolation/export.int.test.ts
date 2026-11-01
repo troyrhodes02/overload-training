@@ -131,10 +131,14 @@ const SINGLETON_MODELS: ReadonlySet<AccountDeletionModel> = new Set([
   "Profile",
   "TourProgress",
   "ReleaseSeen",
+  "BillingAccount", // Plans, Billing: one row per account (findUnique)
 ]);
 
 const LIST_SECTION_KEY: Record<
-  Exclude<AccountDeletionModel, "Profile" | "TourProgress" | "ReleaseSeen">,
+  Exclude<
+    AccountDeletionModel,
+    "Profile" | "TourProgress" | "ReleaseSeen" | "BillingAccount"
+  >,
   keyof AccountExport
 > = {
   Mesocycle: "mesocycles",
@@ -153,6 +157,8 @@ const LIST_SECTION_KEY: Record<
   CardioLog: "cardioLogs",
   Feedback: "feedback",
   FeedbackAttachment: "feedbackAttachments",
+  Entitlement: "entitlements",
+  PromoRedemption: "promoRedemptions",
 };
 
 const LIST_SECTIONS = ACCOUNT_DELETION_ORDER.filter(

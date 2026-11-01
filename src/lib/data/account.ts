@@ -9,6 +9,7 @@ import {
 } from "@/lib/accounts/username-taken";
 import { isValidTimeZone, toIsoDate, todayIso } from "@/lib/plan/calendar";
 import { initialReleaseSeen } from "@/lib/release-notes/seen";
+import { addDays, TRIAL_DURATION_DAYS } from "@/lib/billing/config";
 import {
   createAccountClient,
   type AccountClient,
@@ -217,6 +218,29 @@ export async function establishProfile(
   } catch (error) {
     console.error(
       "signup: could not start the new account's release notes",
+      error instanceof Error ? error.name : "unknown",
+    );
+  }
+  try {
+    // Plans, Billing & Promo Codes: every new account begins a 14-day card-free
+    // Pro trial. Expiry is pure date math on read (no job). skipDuplicates +
+    // the partial unique index (one trial per account) keep it idempotent.
+    const now = new Date();
+    await db.entitlement.createMany({
+      data: [
+        {
+          userId: user.id,
+          source: "trial",
+          plan: "pro",
+          startedAt: now,
+          endsAt: addDays(now, TRIAL_DURATION_DAYS),
+        },
+      ],
+      skipDuplicates: true,
+    });
+  } catch (error) {
+    console.error(
+      "signup: could not start the new account's Pro trial",
       error instanceof Error ? error.name : "unknown",
     );
   }

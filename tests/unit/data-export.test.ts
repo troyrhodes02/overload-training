@@ -53,6 +53,9 @@ function fakeAccount(): {
     releaseSeen: { findUnique: one("releaseSeen") },
     feedback: { findMany: list("feedback") },
     feedbackAttachment: { findMany: list("feedbackAttachment") },
+    entitlement: { findMany: list("entitlement") },
+    billingAccount: { findUnique: one("billingAccount") },
+    promoRedemption: { findMany: list("promoRedemption") },
   };
   const account = {
     userId: "11111111-1111-1111-1111-111111111111",
@@ -108,6 +111,12 @@ const OWNED_MODEL_EXPORT: Record<
   FeedbackAttachment: {
     exportKey: "feedbackAttachments",
     dbModel: "feedbackAttachment",
+  },
+  Entitlement: { exportKey: "entitlements", dbModel: "entitlement" },
+  BillingAccount: { exportKey: "billingAccount", dbModel: "billingAccount" },
+  PromoRedemption: {
+    exportKey: "promoRedemptions",
+    dbModel: "promoRedemption",
   },
 };
 
