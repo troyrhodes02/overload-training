@@ -22,6 +22,18 @@ Add to Vercel (dev/preview first, production later) and local `.env`:
 
 The Stripe secret, webhook secret, and price ids are server-only. `verify:client-bundle` guards that no server DB secret leaks; keep Stripe keys out of any `NEXT_PUBLIC_` var.
 
+## 1a. Email verification before first checkout (Supabase template)
+
+Billing requires a **verified email before the first checkout**. Overload records this in `Profile.emailVerifiedAt`, separate from Supabase's own confirmation (which stays off — `enable_confirmations=false` — and auto-confirms at signup). Because accounts are created already-confirmed, the signup-confirmation **resend no-ops**, so the "Send the verification email" action uses Supabase **`signInWithOtp`** (a one-time email link) instead. It returns through `GET /auth/confirm` (which now also accepts `type=magiclink`) → `/verify-email`, which sets `emailVerifiedAt`.
+
+Owner config (Supabase Auth → Email templates, dev/preview then prod): the **Magic Link** template must link to the token-hash SSR callback, exactly like the existing Confirm/Recovery templates:
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink
+```
+
+Confirm `NEXT_PUBLIC_APP_URL` matches the deployment origin so the return URL is correct. **Unverified by the run:** real email delivery — exercise it on the preview with a real SMTP provider and a real inbox (send → click the link → the account shows verified → checkout unlocks). A send failure now surfaces to the lifter ("Couldn't send the verification email") rather than a false "sent".
+
 ## 2. Stripe products & prices (test mode first)
 
 1. In the Stripe **test** dashboard, create a product "Overload Pro".

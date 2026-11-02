@@ -45,6 +45,7 @@ export function PlanBilling({
 }) {
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
+  const [verifySent, setVerifySent] = useState(false);
 
   async function go(
     key: Busy,
@@ -159,15 +160,19 @@ export function PlanBilling({
                   disabled={busy !== null}
                   onClick={() => {
                     setBusy("verify");
+                    setVerifySent(false);
+                    setError(null);
                     startTransition(async () => {
-                      await sendVerificationEmailAction();
+                      const r = await sendVerificationEmailAction();
+                      if (r.ok) setVerifySent(true);
+                      else setError(r.error.message);
                       setBusy(null);
                     });
                   }}
                 >
                   {busy === "verify"
                     ? "Sending…"
-                    : "Send the verification email again"}
+                    : "Send the verification email"}
                 </Button>
                 <Button
                   size="sm"
@@ -177,6 +182,11 @@ export function PlanBilling({
                   Already verified? Refresh
                 </Button>
               </div>
+              {verifySent ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Check your inbox for the link, then choose Refresh.
+                </p>
+              ) : null}
             </div>
           ) : null}
 

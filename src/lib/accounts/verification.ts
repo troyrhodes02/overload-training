@@ -31,13 +31,30 @@ import { type ActionResult } from "@/lib/actions/result";
  *     no-op that still reports success.
  */
 
-/** The slice of the Supabase auth client the send operation needs. */
+/**
+ * The slice of the Supabase auth client the send operation needs.
+ *
+ * We use `signInWithOtp`, NOT `resend({ type: "signup" })`: Overload creates
+ * accounts already email-confirmed in Supabase (Public Accounts keeps
+ * `enable_confirmations` off), and `resend` SILENTLY SKIPS the send for an
+ * already-confirmed user — so the verification email never arrived. A one-time
+ * email link via `signInWithOtp` is sent to a confirmed user and still proves
+ * the lifter controls the inbox, which is what Overload's separate
+ * `emailVerifiedAt` records. `shouldCreateUser: false` means it only ever
+ * targets an existing account, and the address is the session's own.
+ */
 type VerificationSupabaseAuth = {
-  resend: (args: {
-    type: "signup";
+  signInWithOtp: (args: {
     email: string;
+    options?: { shouldCreateUser?: boolean; emailRedirectTo?: string };
   }) => Promise<{ error: { code?: string; status?: number } | null }>;
 };
+
+/** Absolute URL the verification link returns to (NEXT_PUBLIC_APP_URL, else localhost). */
+function verifyRedirectUrl(): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return `${base.replace(/\/$/, "")}/auth/confirm`;
+}
 
 async function defaultAuth(): Promise<VerificationSupabaseAuth> {
   const supabase = await createServerSupabase();
@@ -68,11 +85,16 @@ const defaultSendDeps: SendVerificationDeps = {
  * routes back through /auth/confirm (verify type → /verify-email), which
  * exchanges the one-time token and lands on the confirmation surface.
  *
- * Supabase's own template is the sender (no `resend` SDK is added). Because the
- * account is already a confirmed user, the send may be refused by the auth
- * service; that is logged by code only and still resolves to `{ sent: true }`,
- * since the message only ever reaches an inbox the account controls and the
- * copy the lifter sees is honest and unconditional.
+ * Supabase's own template is the sender (no `resend` SDK is added). The send is
+ * a `signInWithOtp` one-time email link (not the signup-confirmation resend,
+ * which no-ops for already-confirmed accounts) so it actually reaches a
+ * confirmed, signed-in lifter's inbox.
+ *
+ * A real send failure is SURFACED as a failure (not a false "sent"): this is
+ * the signed-in account verifying its OWN, already-known email, so there is no
+ * account-enumeration concern to hide behind — telling the lifter it was sent
+ * when it was not is the bug we are fixing. The error code is logged, never the
+ * address.
  */
 export async function sendVerificationEmail(
   _account: Account,
@@ -89,19 +111,35 @@ export async function sendVerificationEmail(
     };
   }
 
+  const failed: ActionResult<{ sent: true }> = {
+    ok: false,
+    error: {
+      code: "internal_error",
+      message: "Couldn't send the verification email. Please try again.",
+    },
+  };
+
   try {
     const authClient = await auth();
-    const { error } = await authClient.resend({ type: "signup", email });
+    const { error } = await authClient.signInWithOtp({
+      email,
+      options: {
+        // Only ever an existing account; the link returns through /auth/confirm.
+        shouldCreateUser: false,
+        emailRedirectTo: verifyRedirectUrl(),
+      },
+    });
     if (error) {
       console.error(
         `verification email not sent (${error.code ?? error.status ?? "unknown"})`,
       );
+      return failed;
     }
   } catch {
     console.error("verification email not sent (unreachable)");
+    return failed;
   }
 
-  // Honest and unconditional: the link only reaches the account's own inbox.
   return { ok: true, data: { sent: true } };
 }
 

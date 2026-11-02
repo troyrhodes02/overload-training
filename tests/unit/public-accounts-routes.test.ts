@@ -130,11 +130,15 @@ describe("GET /auth/confirm (PA3 / R3)", () => {
     expect(location(recovery)).toBe("/forgot-password?link=expired");
     const verify = await GET(request("?type=email"));
     expect(location(verify)).toBe("/verify-email?error=expired");
+    // magiclink is the verification path an already-confirmed account uses
+    // (signInWithOtp); a missing token lands on the verify expired door too.
+    const magic = await GET(request("?type=magiclink"));
+    expect(location(magic)).toBe("/verify-email?error=expired");
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 
   it("an unknown or missing type defaults to the recovery expired door", async () => {
-    const unknown = await GET(request("?token_hash=x&type=magiclink"));
+    const unknown = await GET(request("?token_hash=x&type=bogus"));
     expect(location(unknown)).toBe("/forgot-password?link=expired");
     const none = await GET(request(""));
     expect(location(none)).toBe("/forgot-password?link=expired");
