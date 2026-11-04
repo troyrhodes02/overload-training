@@ -183,14 +183,16 @@ export const DEMO_PERFORMANCES: Record<DemoExercise, readonly Perf[]> = {
     [130, [11, 10, 10]],
     [130, [11, 11, 10]],
   ],
+  // One machine weight per gym (Northside 130, Riverside 160), so the
+  // per-gym working weight the app shows agrees with the history it lists.
   CHEST_PRESS: [
-    [125, [12, 11, 10]],
-    [155, [11, 10, 10]],
     [130, [11, 10, 10]],
     [160, [10, 10, 9]],
+    [130, [12, 11, 10]],
+    [160, [11, 10, 10]],
     [115, [12, 12, 12]],
     [130, [12, 11, 11]],
-    [160, [11, 10, 10]],
+    [160, [11, 11, 10]],
     [130, [12, 12, 11]],
   ],
   CABLE_ROW: [
