@@ -86,7 +86,13 @@ export function stripeProvider(): BillingProvider {
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId(interval), quantity: 1 }],
-        allow_promotion_codes: true,
+        // Promotions are monthly-only (RD-7: BLIZZY = 50% off 3 monthly periods).
+        // The promo-code field only appears on MONTHLY checkout, so a code can
+        // never be applied to an annual subscription here — server-side
+        // enforcement that does not depend on the Stripe coupon being correctly
+        // price-scoped. (Still restrict the coupon to the monthly price in
+        // Stripe as defence in depth; see the runbook.)
+        allow_promotion_codes: interval === "month",
         client_reference_id: accountId,
         subscription_data: { metadata: { accountId } },
         automatic_tax: { enabled: taxEnabled() },

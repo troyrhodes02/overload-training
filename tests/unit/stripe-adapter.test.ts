@@ -8,16 +8,23 @@
  * and an already-ended subscription, with the Stripe SDK mocked (no network).
  */
 const retrieve = jest.fn();
+const createSession = jest.fn();
 jest.mock("stripe", () => ({
   __esModule: true,
-  default: jest
-    .fn()
-    .mockImplementation(() => ({ subscriptions: { retrieve } })),
+  default: jest.fn().mockImplementation(() => ({
+    subscriptions: { retrieve },
+    checkout: { sessions: { create: createSession } },
+  })),
 }));
 
 process.env.STRIPE_SECRET_KEY = "sk_test_dummy";
+process.env.STRIPE_PRICE_ID_MONTHLY = "price_monthly";
+process.env.STRIPE_PRICE_ID_ANNUAL = "price_annual";
 
-import { fetchSubscriptionSnapshot } from "@/lib/billing/stripe";
+import {
+  fetchSubscriptionSnapshot,
+  stripeProvider,
+} from "@/lib/billing/stripe";
 
 const UNIX = (iso: string) => Math.floor(new Date(iso).getTime() / 1000);
 const PERIOD_END = "2026-12-04T00:53:23.000Z";
@@ -110,4 +117,35 @@ it("an already-ended subscription maps status=canceled (resolver shows Free, not
   );
   const snap = await fetchSubscriptionSnapshot("sub_x");
   expect(snap?.status).toBe("canceled");
+});
+
+describe("checkout session: promotions are monthly-only (RD-7)", () => {
+  beforeEach(() => {
+    createSession.mockReset();
+    createSession.mockResolvedValue({ url: "https://stripe.test/checkout" });
+  });
+
+  const base = {
+    customerId: "cus_x",
+    accountId: "acc_x",
+    successUrl: "https://app/ok",
+    cancelUrl: "https://app/no",
+  };
+
+  it("enables the promo-code field on MONTHLY checkout", async () => {
+    await stripeProvider().createCheckoutSession({
+      ...base,
+      interval: "month",
+    });
+    const [params] = createSession.mock.calls[0];
+    expect(params.allow_promotion_codes).toBe(true);
+    expect(params.line_items[0].price).toBe("price_monthly");
+  });
+
+  it("DISABLES the promo-code field on ANNUAL checkout (BLIZZY can't reach annual)", async () => {
+    await stripeProvider().createCheckoutSession({ ...base, interval: "year" });
+    const [params] = createSession.mock.calls[0];
+    expect(params.allow_promotion_codes).toBe(false);
+    expect(params.line_items[0].price).toBe("price_annual");
+  });
 });

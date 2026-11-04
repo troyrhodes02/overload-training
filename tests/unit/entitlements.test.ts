@@ -110,6 +110,19 @@ describe("trial lifecycle (AC-1)", () => {
     expect(r.displayState).toBe("free");
     expect(r.trialDaysLeft).toBeNull();
   });
+
+  it("is Free at the exact expiry instant (endsAt is exclusive, no off-by-one)", () => {
+    // The window is startedAt <= now < endsAt. At precisely endsAt the trial is
+    // already over — a lifter does not get a free extra day on the boundary.
+    const r = computeEntitlement(
+      [ent({ source: "trial", startedAt: addDays(NOW, -14), endsAt: NOW })],
+      null,
+      NOW,
+    );
+    expect(r.plan).toBe("free");
+    expect(r.displayState).toBe("free");
+    expect(r.trialDaysLeft).toBeNull();
+  });
 });
 
 describe("comp", () => {

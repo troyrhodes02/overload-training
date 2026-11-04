@@ -5,6 +5,7 @@ import {
 } from "./support/plan-factories";
 import {
   getPlannedProgression,
+  getOccurrenceProgression,
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
 import { getExerciseHistory } from "@/lib/progression/history-queries";
@@ -104,6 +105,16 @@ describe("a Pro account receives the real progression call", () => {
     ).not.toBeNull();
     expect(history.trend.e1rm).not.toBeNull();
     expect(history.sessions.rows[0].call).not.toBe("none");
+
+    // The live workout card (mid-session) carries the real call too.
+    const occurrence = (await getOccurrenceProgression(
+      account,
+      done.loggedExerciseId,
+    ))!;
+    expect(occurrence.locked).toBeNull();
+    expect(occurrence.tag).toBe("progress");
+    expect(occurrence.recommendation).not.toBeNull();
+    expect(occurrence.suggestion).not.toBeNull();
   });
 });
 
@@ -125,6 +136,22 @@ describe("a Free account cannot obtain a Pro result through the read path", () =
     expect(planned.suggestion).toBeNull();
     expect(planned.hasTrend).toBe(false);
     expect(planned.locked).toBe("progression_insights");
+  });
+
+  it("the live workout card withholds the call, suggestion, and RIR effect", async () => {
+    // The mid-session logging card (getOccurrenceProgression) is the one Pro
+    // read the earlier suite didn't cover; a dropped gate here would leak live
+    // progress/deload tags and recommendations to a Free lifter each set.
+    const { done } = await progressScenario(account);
+    const occurrence = (await getOccurrenceProgression(
+      account,
+      done.loggedExerciseId,
+    ))!;
+    expect(occurrence.locked).toBe("progression_insights");
+    expect(occurrence.tag).toBeNull();
+    expect(occurrence.recommendation).toBeNull();
+    expect(occurrence.suggestion).toBeNull();
+    expect(occurrence.rirEffect).toBeNull();
   });
 
   it("session summary withholds every exercise's call", async () => {
