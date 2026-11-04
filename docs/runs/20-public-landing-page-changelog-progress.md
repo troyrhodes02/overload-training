@@ -8,11 +8,11 @@
 
 ## Stage status
 - [x] 1. Pitch — created `pitches/20-public-landing-page-changelog.md` + appendices A (demo seed), B (privacy draft), C (terms draft), verbatim from run prompt
-- [ ] 2. Design doc — `docs/design/20-public-landing-page-changelog-design-doc.md`
-- [ ] 3. UI preview — `docs/previews/20-public-landing-page-changelog-preview.tsx`
-- [ ] 4. Spec — `docs/specs/20-public-landing-page-changelog-spec.md`
-- [ ] 5. Resolved Decisions in spec
-- [ ] 6. Linear milestone + tickets + blockedBy chain
+- [x] 2. Design doc — `docs/design/20-public-landing-page-changelog-design-doc.md` (v1.0; hero concept A chosen)
+- [x] 3. UI preview — `docs/previews/20-public-landing-page-changelog-preview.tsx` (3 hero concepts, all CTA states, legal states, pending frames)
+- [x] 4. Spec — `docs/specs/20-public-landing-page-changelog-spec.md`
+- [x] 5. Resolved Decisions in spec (RD-1…RD-23; OQ-1…7 owner items)
+- [x] 6. Linear milestone `Public Landing Page & Changelog` (2b1a45fa) + OVE-96…103 chained
 - [ ] 7. Feature PR opened (DO NOT MERGE)
 - [ ] 8. Implement tickets (stacked branches)
 - [ ] 9. Runbook
@@ -37,8 +37,18 @@
 - Local Supabase stack running in Docker (`supabase_*_overload` containers) → isolated env for demo seed + real screenshots.
 - Prior dev-seeding branch `chore/dev-scenario-seeding` predates multi-user and writes LoggedSet directly → NOT reused; demo seed uses app write modules (`startOrResumeWorkout` accepts historical `scheduledFor`, `logSet`, `completeWorkout`).
 
-## Resolved Decisions (running list; copied into spec)
-(see spec once written)
+## Resolved Decisions
+See spec §17 (RD-1…RD-23). Key: RD-3 cherry-pick kill switch; RD-4 signed-out `/` → rewrite `/welcome`; RD-7 BLIZZY = copyable code + Stripe promo field; RD-8 `ovl_campaign` 2h cookie; RD-9 `Profile.signupCampaign` enum (migration 9k); RD-12 legal 3-state gate; RD-16 seed loopback-only, prod-ref refusal.
 
-## Linear issue IDs
-(none created yet)
+## Linear issue IDs (milestone 2b1a45fa)
+- OVE-96 L1 — Public routing, marketing frame & truthful CTAs
+- OVE-97 L2 — Public changelog + Settings links (blockedBy 96)
+- OVE-98 L3 — Landing & pricing (blockedBy 97)
+- OVE-99 L4 — /blizzy + first-party attribution (+ migration 9k) (blockedBy 98)
+- OVE-100 L5 — Demo fixture + guarded seed CLI + tests (blockedBy 99)
+- OVE-101 L6 — Real screenshots + storyboard (blockedBy 100)
+- OVE-102 L7 — Privacy & Terms behind publication gate (blockedBy 101)
+- OVE-103 L8 — User guidance release note (blockedBy 102)
+
+## Ticket branches / PRs
+(stacked: each branches from the previous ticket branch; first from the feature branch)
