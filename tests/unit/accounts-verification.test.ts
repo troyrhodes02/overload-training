@@ -177,6 +177,44 @@ describe("isAllowedRedirectHost — the verification link host is validated", ()
     expect(isAllowedRedirectHost("vercel.app.evil.com", env)).toBe(false);
     expect(isAllowedRedirectHost("", env)).toBe(false);
   });
+
+  // Production www-hostname regression (the "verify link opens the homepage"
+  // bug): the canonical production host is www, and whether NEXT_PUBLIC_APP_URL
+  // is configured as the apex or the www origin, BOTH variants of that one
+  // domain must be honored so the link returns to the host the lifter is on —
+  // never a non-canonical origin that Supabase then drops to the Site URL.
+  describe("www/apex sibling of the configured production domain", () => {
+    it("accepts the www host when the apex is configured", () => {
+      const apex = { NEXT_PUBLIC_APP_URL: "https://overloadtraining.app" };
+      expect(isAllowedRedirectHost("www.overloadtraining.app", apex)).toBe(
+        true,
+      );
+      expect(isAllowedRedirectHost("overloadtraining.app", apex)).toBe(true);
+    });
+
+    it("accepts the apex host when www is configured", () => {
+      const www = { NEXT_PUBLIC_APP_URL: "https://www.overloadtraining.app" };
+      expect(isAllowedRedirectHost("overloadtraining.app", www)).toBe(true);
+      expect(isAllowedRedirectHost("www.overloadtraining.app", www)).toBe(true);
+    });
+
+    it("does not let the sibling rule admit a different domain", () => {
+      const apex = { NEXT_PUBLIC_APP_URL: "https://overloadtraining.app" };
+      // The www toggle is bounded to the one configured domain.
+      expect(
+        isAllowedRedirectHost("www.overloadtraining.app.evil.com", apex),
+      ).toBe(false);
+      expect(isAllowedRedirectHost("www.evil.com", apex)).toBe(false);
+      expect(isAllowedRedirectHost("overloadtraining.app.evil.com", apex)).toBe(
+        false,
+      );
+    });
+
+    it("still allows any *.vercel.app preview regardless of the prod host", () => {
+      const apex = { NEXT_PUBLIC_APP_URL: "https://overloadtraining.app" };
+      expect(isAllowedRedirectHost("feat-xyz.vercel.app", apex)).toBe(true);
+    });
+  });
 });
 
 describe("confirmEmailVerification — scoped and idempotent", () => {
