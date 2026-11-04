@@ -13,8 +13,8 @@
 - [x] 4. Spec — `docs/specs/20-public-landing-page-changelog-spec.md`
 - [x] 5. Resolved Decisions in spec (RD-1…RD-23; OQ-1…7 owner items)
 - [x] 6. Linear milestone `Public Landing Page & Changelog` (2b1a45fa) + OVE-96…103 chained
-- [ ] 7. Feature PR opened (DO NOT MERGE)
-- [ ] 8. Implement tickets (stacked branches)
+- [x] 7. Feature PR opened: **#121** (DO NOT MERGE)
+- [ ] 8. Implement tickets (stacked branches) ← IN PROGRESS
 - [ ] 9. Runbook
 - [ ] 10. Integrate ticket PRs into feature branch
 - [ ] 11. Verification
@@ -52,3 +52,6 @@ See spec §17 (RD-1…RD-23). Key: RD-3 cherry-pick kill switch; RD-4 signed-out
 
 ## Ticket branches / PRs
 (stacked: each branches from the previous ticket branch; first from the feature branch)
+- [x] OVE-96 → `ove-96-public-routing-frame` → PR #122 (base feature). typecheck/lint/format/unit 1442/build(retry exit 0) green. Note: ran `npm install` (stripe was missing locally) + `prisma generate`; lockfile churn reverted.
+- [x] OVE-97 → `ove-97-public-changelog` → PR #123 (base ove-96). unit 1459, build exit 0.
+- Build note: first `next build` exits on pre-existing Next.js SecurityFatalError nudge; immediate retry exits 0. Always override DATABASE_URL/DIRECT_URL/NEXT_PUBLIC_SUPABASE_URL to local for builds.
