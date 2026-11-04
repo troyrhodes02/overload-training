@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { THEME_COLORS } from "@/lib/appearance/appearance";
 import { APPEARANCE_BOOT_SCRIPT } from "@/lib/appearance/boot-script";
+import { SITE_DESCRIPTION } from "@/lib/marketing/site";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -14,14 +15,14 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
   title: "Overload",
-  description: "A strength training tracker.",
+  description: SITE_DESCRIPTION,
   applicationName: "Overload",
   // icon.png / apple-icon.png / opengraph-image.png in this directory are
   // picked up automatically by Next's file conventions and wired into the
   // favicon, Apple touch icon, and social preview — no manual <link> config.
   openGraph: {
     title: "Overload",
-    description: "A strength training tracker.",
+    description: SITE_DESCRIPTION,
     siteName: "Overload",
     type: "website",
   },

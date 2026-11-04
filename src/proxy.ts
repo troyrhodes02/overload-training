@@ -1,18 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAdminPath, routeRedirect } from "@/lib/auth-routes";
+import { isAdminPath, routeRedirect, routeRewrite } from "@/lib/auth-routes";
 import { isAdminUserId } from "@/lib/admin/allowlist";
 
 /** A path no route answers: rewriting to it renders the ordinary 404. */
 const NOT_FOUND_PATH = "/_not-found-overload";
 
 /**
- * Next.js 16 Proxy (formerly Middleware). Two jobs:
+ * Next.js 16 Proxy (formerly Middleware). Three jobs:
  *  1. Refresh the Supabase auth session cookie on every request.
  *  2. OPTIMISTICALLY redirect unauthenticated requests away from protected
  *     routes to /login (and signed-in visitors away from login and signup).
  *     This is defense-in-depth only — the protected layout's requireAccount()
  *     and every server action re-check the session authoritatively.
+ *  3. Serve the public landing page at `/` to signed-out visitors (a rewrite,
+ *     so the URL stays `/`); a signed-in lifter's `/` is Today, untouched
+ *     (Public Landing Page & Changelog, spec §7).
  */
 
 export async function proxy(request: NextRequest) {
@@ -58,6 +61,17 @@ export async function proxy(request: NextRequest) {
 
   const target = routeRedirect(request.nextUrl.pathname, Boolean(user));
   if (target) return redirectTo(target);
+
+  const landing = routeRewrite(request.nextUrl.pathname, Boolean(user));
+  if (landing) {
+    const url = request.nextUrl.clone();
+    url.pathname = landing;
+    const rewrite = NextResponse.rewrite(url);
+    for (const cookie of response.cookies.getAll()) {
+      rewrite.cookies.set(cookie);
+    }
+    return rewrite;
+  }
 
   // Admin Center & Feedback (spec R23): a signed-in non-admin gets the very
   // same 404 as a URL that does not exist — status included, which a page
