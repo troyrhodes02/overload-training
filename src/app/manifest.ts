@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITE_DESCRIPTION } from "@/lib/marketing/site";
 
 /**
  * Minimal web app manifest: names, brand colors, and the Overload app icon so
@@ -9,7 +10,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Overload",
     short_name: "Overload",
-    description: "A single-user strength training tracker.",
+    description: SITE_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     background_color: "#0b0b0c",
