@@ -93,6 +93,35 @@ describe("account linking + reconcile", () => {
     expect((await mirror())?.cancelAtPeriodEnd).toBe(true);
   });
 
+  it("persists a scheduled cancellation (flag + period end) then clears it on reversal, out of order", async () => {
+    await reconcileStripeEvent(checkoutCompleted(), depsReturning(snap()));
+
+    // Schedule the cancellation: Stripe truth now carries the end date.
+    const endsAt = new Date("2026-12-04T00:00:00Z");
+    await reconcileStripeEvent(
+      subUpdated("evt_cancel"),
+      depsReturning(
+        snap({ cancelAtPeriodEnd: true, currentPeriodEnd: endsAt }),
+      ),
+    );
+    const canceled = await mirror();
+    expect(canceled?.cancelAtPeriodEnd).toBe(true);
+    expect(canceled?.currentPeriodEnd?.toISOString()).toBe(
+      endsAt.toISOString(),
+    );
+    expect(canceled?.status).toBe("active"); // still active, just ending
+
+    // Reverse it. Reconcile-to-truth: the flag goes back to false. A webhook
+    // that lands out of order still lands on current Stripe truth, not a diff.
+    await reconcileStripeEvent(
+      subUpdated("evt_reverse"),
+      depsReturning(
+        snap({ cancelAtPeriodEnd: false, currentPeriodEnd: endsAt }),
+      ),
+    );
+    expect((await mirror())?.cancelAtPeriodEnd).toBe(false);
+  });
+
   it("ignores an event whose client_reference_id names no account", async () => {
     const ev = checkoutCompleted();
     ev.object.client_reference_id = "00000000-0000-4000-8000-000000000000";

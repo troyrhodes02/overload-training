@@ -7,9 +7,11 @@ import type { DisplayState } from "@/lib/entitlements/types";
 /**
  * Plans, Billing & Promo Codes — the Plan & Billing screen DTO (spec §13,
  * design Screen 1/5). Pure presentation derived from the resolved entitlement
- * plus the account's email-verified fact and whether a Stripe customer exists.
- * The label/explanation copy lives here, so the lifter screen, the Settings
- * sub-label, and the admin view never diverge on how a state reads.
+ * plus the account's email-verified fact, whether a Stripe customer exists, and
+ * the subscription's period end. The label/explanation copy lives here, so the
+ * lifter screen, the Settings sub-label, and the admin view never diverge on
+ * how a state reads. Dates are the real period end from the Stripe mirror,
+ * formatted in the account's timezone — never hardcoded.
  */
 
 export type BillingScreenDto = {
@@ -23,11 +25,22 @@ export type BillingScreenDto = {
   trialDaysLeft: number | null;
   prices: { monthly: string; annual: string };
   problem: boolean;
+  /** Whether a cancellation is scheduled at period end (from the Stripe mirror). */
+  cancelAtPeriodEnd: boolean;
+  /** The subscription's period-end date, formatted in the account timezone, or null. */
+  endsOn: string | null;
 };
 
-function copyFor(
+export type BillingCopyInput = {
+  trialDaysLeft: number | null;
+  /** The real period-end date ("December 4, 2026"), or null when there is none. */
+  endsOn: string | null;
+};
+
+/** The label / short label / explanation for a resolved billing state. */
+export function billingCopy(
   state: DisplayState,
-  trialDaysLeft: number | null,
+  { trialDaysLeft, endsOn }: BillingCopyInput,
 ): { label: string; shortLabel: string; explanation: string } {
   switch (state) {
     case "trial":
@@ -41,13 +54,17 @@ function copyFor(
       return {
         label: "Pro — Monthly",
         shortLabel: "Pro — Monthly",
-        explanation: "Renews monthly. Manage or cancel anytime.",
+        explanation: endsOn
+          ? `Renews monthly on ${endsOn}. Manage or cancel anytime.`
+          : "Renews monthly. Manage or cancel anytime.",
       };
     case "paid_annual":
       return {
         label: "Pro — Annual",
         shortLabel: "Pro — Annual",
-        explanation: "Renews yearly. Manage or cancel anytime.",
+        explanation: endsOn
+          ? `Renews yearly on ${endsOn}. Manage or cancel anytime.`
+          : "Renews yearly. Manage or cancel anytime.",
       };
     case "comp":
       return {
@@ -58,10 +75,11 @@ function copyFor(
       };
     case "canceling":
       return {
-        label: "Pro — ending soon",
+        label: "Pro — cancellation scheduled",
         shortLabel: "Pro — ending",
-        explanation:
-          "Your subscription is set to cancel. You keep Pro until the period ends, then move to Free.",
+        explanation: endsOn
+          ? `Cancellation scheduled. Your subscription ends on ${endsOn}. You won't be charged for another renewal — you keep Pro until then, after which your account moves to Free.`
+          : "Cancellation scheduled. You keep Pro until the end of the current period, after which your account moves to Free. You won't be charged for another renewal.",
       };
     case "grace":
       return {
@@ -80,6 +98,17 @@ function copyFor(
   }
 }
 
+/** A subscription period-end instant as a date in the account's timezone. */
+function formatEndsOn(instant: Date | null, timeZone: string): string | null {
+  if (!instant) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  }).format(instant);
+}
+
 export async function getBillingScreen(
   account: Account,
 ): Promise<BillingScreenDto> {
@@ -91,12 +120,23 @@ export async function getBillingScreen(
     }),
     account.db.billingAccount.findUnique({
       where: { userId: account.userId },
-      select: { stripeCustomerId: true },
+      select: {
+        stripeCustomerId: true,
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: true,
+      },
     }),
   ]);
 
   const state = resolved.displayState;
-  const copy = copyFor(state, resolved.trialDaysLeft);
+  const endsOn = formatEndsOn(
+    billing?.currentPeriodEnd ?? null,
+    account.timeZone,
+  );
+  const copy = billingCopy(state, {
+    trialDaysLeft: resolved.trialDaysLeft,
+    endsOn,
+  });
   const canSubscribe = state === "free" || state === "trial";
 
   return {
@@ -110,5 +150,7 @@ export async function getBillingScreen(
     trialDaysLeft: resolved.trialDaysLeft,
     prices: { monthly: PRICE_DISPLAY.monthly, annual: PRICE_DISPLAY.annual },
     problem: state === "grace",
+    cancelAtPeriodEnd: billing?.cancelAtPeriodEnd ?? false,
+    endsOn,
   };
 }
