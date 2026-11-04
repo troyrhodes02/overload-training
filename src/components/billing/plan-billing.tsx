@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { startTransition, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, CreditCard, ExternalLink, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/app/(app)/settings/billing/actions";
 import { sendVerificationEmailAction } from "@/app/(app)/settings/actions";
 import type { BillingScreenDto } from "@/lib/billing/screen";
+import { isConfirmingCheckout } from "@/lib/billing/pending";
 
 /**
  * Plans, Billing & Promo Codes — the Plan & Billing screen (design Screen 1/2/5).
@@ -46,6 +48,26 @@ export function PlanBilling({
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [verifySent, setVerifySent] = useState(false);
+  const router = useRouter();
+
+  // The "finishing up" indicator shows only while a checkout-success return is
+  // still waiting for the webhook to record the subscription; it clears the
+  // moment the resolved state reflects it (and never shows on an ordinary load).
+  const confirming = isConfirmingCheckout(status, screen.displayState);
+
+  // While genuinely pending, re-read the server state a few times so the
+  // indicator clears on its own when the webhook lands — bounded, so a delayed
+  // payment doesn't poll forever (it just stays on the message until reload).
+  React.useEffect(() => {
+    if (!confirming) return;
+    let tries = 0;
+    const id = setInterval(() => {
+      tries += 1;
+      router.refresh();
+      if (tries >= 8) clearInterval(id);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [confirming, router]);
 
   async function go(
     key: Busy,
@@ -65,7 +87,7 @@ export function PlanBilling({
     }
   }
 
-  const showSubscribe = screen.canSubscribe && status !== "success";
+  const showSubscribe = screen.canSubscribe && !confirming;
 
   return (
     <div className="space-y-5">
@@ -87,7 +109,7 @@ export function PlanBilling({
             {screen.explanation}
           </p>
 
-          {status === "success" ? (
+          {confirming ? (
             <div
               role="status"
               aria-live="polite"
