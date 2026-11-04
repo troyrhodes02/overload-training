@@ -23,6 +23,7 @@ import {
   sendVerificationEmail,
   confirmEmailVerification,
   getEmailVerification,
+  isAllowedRedirectHost,
   type SendVerificationDeps,
 } from "@/lib/accounts/verification";
 import type { Account } from "@/lib/data/account";
@@ -56,6 +57,8 @@ function fakeAccount(
 describe("sendVerificationEmail — the account's OWN email only", () => {
   const OWN = "will@example.com";
 
+  const REDIRECT = "https://preview-xyz.vercel.app/auth/confirm";
+
   function sendDeps(over: Partial<SendVerificationDeps> = {}) {
     const signInWithOtp = jest.fn<Promise<{ error: null }>, [OtpArgs]>(
       async () => ({ error: null }),
@@ -63,6 +66,7 @@ describe("sendVerificationEmail — the account's OWN email only", () => {
     const deps: Partial<SendVerificationDeps> = {
       ownEmail: jest.fn(async () => OWN),
       auth: jest.fn(async () => ({ signInWithOtp })),
+      redirectUrl: jest.fn(async () => REDIRECT),
       ...over,
     };
     return { deps, signInWithOtp };
@@ -80,6 +84,9 @@ describe("sendVerificationEmail — the account's OWN email only", () => {
     const [arg] = signInWithOtp.mock.calls[0];
     expect(arg.email).toBe(OWN);
     expect(arg.options?.shouldCreateUser).toBe(false);
+    // Regression (preview→prod redirect bug): the link returns to the
+    // originating deployment, carried as emailRedirectTo ({{ .RedirectTo }}).
+    expect(arg.options?.emailRedirectTo).toBe(REDIRECT);
   });
 
   it("never sends to an address other than the session's own email", async () => {
@@ -145,6 +152,30 @@ describe("sendVerificationEmail — the account's OWN email only", () => {
     });
     expect(getAuthUser).toHaveBeenCalled();
     expect(signInWithOtp.mock.calls[0][0].email).toBe(OWN);
+  });
+});
+
+describe("isAllowedRedirectHost — the verification link host is validated", () => {
+  const env = {
+    NEXT_PUBLIC_APP_URL: "https://www.overloadtraining.app",
+    OVERLOAD_REDIRECT_HOSTS: "staging.overload.app",
+  };
+
+  it("allows localhost, any *.vercel.app, the configured prod host, and the extra list", () => {
+    expect(isAllowedRedirectHost("localhost:3000", env)).toBe(true);
+    expect(isAllowedRedirectHost("preview-abc123.vercel.app", env)).toBe(true);
+    expect(isAllowedRedirectHost("www.overloadtraining.app", env)).toBe(true);
+    expect(isAllowedRedirectHost("staging.overload.app", env)).toBe(true);
+  });
+
+  it("refuses a spoofed or unknown host (link can't be aimed off-domain)", () => {
+    expect(isAllowedRedirectHost("evil.com", env)).toBe(false);
+    expect(isAllowedRedirectHost("overloadtraining.app.evil.com", env)).toBe(
+      false,
+    );
+    // A look-alike that merely contains, but does not end with, vercel.app.
+    expect(isAllowedRedirectHost("vercel.app.evil.com", env)).toBe(false);
+    expect(isAllowedRedirectHost("", env)).toBe(false);
   });
 });
 
