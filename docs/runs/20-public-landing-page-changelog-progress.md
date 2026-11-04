@@ -17,11 +17,13 @@
 - [x] 8. Implement tickets (stacked branches) — all 8 done, PRs #122–#129
 - [x] 9. Runbook — docs/runs/20-public-landing-page-changelog-runbook.md
 - [x] 10. Integrated: #122, #123 squash-merged on GitHub; #124–#129 squash-merged LOCALLY in order (GitHub squash conflicted on stacked ancestry; no force-push), PRs closed with commit pointers; stray provision-local.ts removed; feature tree == ove-103 tip (0-line diff)
-- [ ] 11. Verification ← IN PROGRESS: typecheck/lint/format OK; unit 102 suites 1570 passed; build exit 0; client-bundle OK; full integration running
-- [ ] 12. /review → PR comments
-- [ ] 13. /overload-review-audit
-- [ ] 14. Final verification, STOP before merge
-- [ ] 15. Run report
+- [x] 11. Verification: typecheck/lint/format OK; unit 102/1576; integration 67/719 (after admin-accounts fromBlizzy fix); build exit 0 (retry after advisory nudge); client-bundle OK
+- [x] 12. /code-review → 10 inline comments on #121
+- [x] 13. Audit: 7 implemented (1,2,3,4,5,6,7,9 — 3+4 one fix), 8 decided (keep convention), 10 deferred; dispositions comment on #121
+- [x] 14. Final verification green; STOPPED before merge — #121 open
+- [x] 15. Run report — docs/runs/20-public-landing-page-changelog-report.md
+
+## RUN COMPLETE. PR #121 OPEN + UNMERGED (human approval gate). No production changes.
 
 ## Discovery facts (load-bearing)
 - **Kill switch missing on `main`.** `STRIPE_BILLING_ENABLED` / `isCheckoutEnabled()` exists only in commit `cddd220` on `origin/19-plans-billing-promo-codes`, pushed after PR #112 was squash-merged. Cherry-picked onto this feature branch as `b8f07ad` (owner-authored, unchanged). REPORT TO OWNER: production deployed from `main` has no server-side billing switch.
