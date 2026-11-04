@@ -164,3 +164,31 @@ export const BANNED_PHRASES = [
   "lifters trust",
   "plan import",
 ] as const;
+
+/** The BLIZZY page (design doc Screen 3; spec RD-7, RD-13). */
+export const BLIZZY_PAGE = {
+  eyebrow: "The BLIZZY offer",
+  title: "50% off your first three months of Pro.",
+  conditions: [
+    `Monthly plan only (${PRICE_DISPLAY.monthly} / month).`,
+    "50% off the first three monthly bills, then the regular price.",
+    "First-time subscribers only.",
+    "Up to 200 redemptions in total, so it can run out.",
+    "Entered at checkout. The total shown there is final.",
+  ],
+  availableOn:
+    "Enter BLIZZY at checkout on the monthly plan. Checkout shows whether it applies to you.",
+  availableOff:
+    "Pro subscriptions aren't on sale yet, so the code can't be used today. When they are, you'll enter it at checkout on the monthly plan.",
+  trialFit: `How it fits the trial: new accounts start with ${TRIAL_DURATION_DAYS} days of Pro, no card. The code is for when you subscribe after that.`,
+  /**
+   * DRAFT creator disclosure (RD-13). States only what is known — that this is
+   * a promotion offered through the creator — and asserts no compensation
+   * fact. The owner confirms or replaces it (legal fact `creatorDisclosure`).
+   */
+  disclosureDraft:
+    "This is a promotion for Overload offered through the creator BLIZZY.",
+  aboutTitle: "What Overload is",
+  about:
+    "A workout log for lifters who write their own plan. It keeps every set and, on Pro, makes the call for each lift: go up, hold, or back off.",
+} as const;

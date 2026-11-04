@@ -5,6 +5,7 @@ import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, CreditCard, ExternalLink, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CopyCode } from "@/components/marketing/copy-code";
 import {
   createCheckoutSessionAction,
   createPortalSessionAction,
@@ -143,6 +144,17 @@ export function PlanBilling({
               Pro subscriptions aren&apos;t available yet. Everything you log
               stays free, and we&apos;ll let you know when Pro opens.
             </p>
+          ) : null}
+
+          {showSubscribe && screen.promoReminder ? (
+            <div className="mt-3 flex flex-col gap-2 rounded-md bg-primary/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Have the {screen.promoReminder} code? Enter{" "}
+                <span className="font-mono">{screen.promoReminder}</span> at
+                checkout on the monthly plan.
+              </p>
+              <CopyCode code={screen.promoReminder} size="xs" />
+            </div>
           ) : null}
 
           {showSubscribe && screen.emailVerified ? (

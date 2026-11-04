@@ -17,6 +17,8 @@ export type MetricProfile = {
   status: "active" | "suspended";
   /** "YYYY-MM-DD" or null. */
   lastActiveOn: string | null;
+  /** The allowlisted campaign it signed up from (Public Landing Page), or null. */
+  signupCampaign?: "blizzy" | null;
 };
 
 const pct = (n: number, of: number): number | null =>
@@ -115,6 +117,7 @@ export function computeOverview(input: {
     timeZone: input.timeZone,
     registered,
     suspended: profiles.filter((p) => p.status === "suspended").length,
+    fromBlizzy: profiles.filter((p) => p.signupCampaign === "blizzy").length,
     active7,
     active30,
     newThisMonth,

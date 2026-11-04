@@ -150,8 +150,11 @@ export default function PricingPage() {
             <dt className="font-medium">{DISCOUNT_FAQ.q}</dt>
             <dd className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
               {DISCOUNT_FAQ.a}{" "}
+              {/* No prefetch: a prefetch must never look like a /blizzy
+                  visit to the campaign cookie (the proxy also skips them). */}
               <Link
                 href="/blizzy"
+                prefetch={false}
                 className="text-primary underline-offset-4 hover:underline"
               >
                 BLIZZY offer details
