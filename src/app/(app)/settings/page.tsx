@@ -86,6 +86,24 @@ export default async function SettingsPage() {
           <Link href="/settings/delete-account">Delete account…</Link>
         </Button>
       </div>
+      {/* Public Landing Page & Changelog (design Screen 8): the public pages a
+          signed-in lifter still needs to reach. Plain links, nothing more. */}
+      <nav
+        aria-label="Overload"
+        className="flex gap-3 text-xs text-muted-foreground"
+      >
+        <Link href="/changelog" className="hover:text-foreground">
+          Changelog
+        </Link>
+        <span aria-hidden>·</span>
+        <Link href="/privacy" className="hover:text-foreground">
+          Privacy
+        </Link>
+        <span aria-hidden>·</span>
+        <Link href="/terms" className="hover:text-foreground">
+          Terms
+        </Link>
+      </nav>
     </section>
   );
 }
