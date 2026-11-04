@@ -621,6 +621,7 @@ Phone screenshots (390 px captures) are used in narrow layouts where they read b
   - **Title:** "Overload's changelog is now public"
   - **Body:** "The same updates you see here are now listed on Overload's public changelog, next to the pricing, privacy, and terms pages. Find the links at the bottom of Settings."
   - **Significant:** no. It is list-only, because it changes nothing in how a lifter trains.
+- **Applied (OVE-103, `overload-onboarding`):** both mechanisms exist (Onboarding Tour and What's New shipped). Tour steps added: **none**. The changes are a footer link line in Settings and a reminder beside an existing button shown only when billing is on. Neither is a workflow to discover, so per the skill's rubric no step is warranted. Release note added: `2026-11-04-public-changelog` ("Overload's changelog is now public"), `significant: false`, provisional date to be set to the ship day at merge.
 
 ## 14. Plan placement and platform impact
 
