@@ -8,6 +8,11 @@ export type ErrorCode =
   | "not_found"
   | "invalid_state_transition"
   | "conflict"
+  // Plans, Billing & Promo Codes: the capability that gates this operation is
+  // not part of the account's plan (api-conventions: 402). A Free account that
+  // reaches a Pro-only server action gets this; Pro read surfaces withhold in
+  // the query layer instead.
+  | "plan_required"
   | "unauthorized"
   | "internal_error";
 

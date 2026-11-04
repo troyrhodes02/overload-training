@@ -21,6 +21,8 @@ import {
 } from "./history";
 import { formatSetLine } from "./history-format";
 import { describeScope, gatherRows, type PerformanceRow } from "./queries";
+import { resolveEntitlement } from "@/lib/entitlements/resolve";
+import { gateHistory } from "@/lib/entitlements/gate";
 import type {
   ExerciseHistoryDto,
   ExerciseRecordsDto,
@@ -136,6 +138,17 @@ export async function getExerciseHistory(
   exerciseId: string,
   opts: { scope?: string | null; allSessions?: boolean } = {},
 ): Promise<ExerciseHistoryDto | null> {
+  const dto = await computeExerciseHistory(account, exerciseId, opts);
+  if (!dto) return null;
+  const resolved = await resolveEntitlement(account);
+  return gateHistory(dto, resolved);
+}
+
+async function computeExerciseHistory(
+  account: Account,
+  exerciseId: string,
+  opts: { scope?: string | null; allSessions?: boolean } = {},
+): Promise<Omit<ExerciseHistoryDto, "locked"> | null> {
   if (!isUuid(exerciseId)) return null;
   const exercise = await account.db.exercise.findUnique({
     where: { id: exerciseId },

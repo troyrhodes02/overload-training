@@ -1,0 +1,211 @@
+<!--
+  Supabase → Authentication → Email Templates → "Magic Link".
+  Paste the markup below (everything from <!doctype html> down) into that template.
+
+  This is the email an already-confirmed Overload account receives when it taps
+  "Send the verification email" (billing's verify-before-checkout step). The send
+  uses signInWithOtp, and the link below returns through GET /auth/confirm with
+  type=magiclink, which lands on /verify-email and sets profiles.email_verified_at.
+
+  Required: the href MUST use {{ .RedirectTo }} as the host (NOT {{ .SiteURL }}).
+  The app passes emailRedirectTo = <this-deployment-origin>/auth/confirm, so
+  {{ .RedirectTo }} already is ".../auth/confirm" for the exact deployment the
+  lifter is on (a Vercel preview verifies on that preview; production on
+  production). We only append the token-hash + type:
+      {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink
+  {{ .SiteURL }} is the single production Site URL, so using it would send every
+  preview link to production (whose /auth/confirm does not yet know magiclink,
+  bouncing to /forgot-password?link=expired).
+
+  Dashboard requirement: Authentication -> URL Configuration -> Redirect URLs
+  must allow every origin we send back to, or Supabase ignores emailRedirectTo
+  and falls back to the Site URL. Add:
+      https://www.overloadtraining.app/auth/confirm      (production)
+      https://*.vercel.app/auth/confirm                  (Vercel previews)
+      http://localhost:3000/auth/confirm                 (local, optional)
+  Suggested subject: Verify your Overload email
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Verify your Overload email</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f7f7f8;
+      color: #0e0e10;
+      font-family: Arial, Helvetica, sans-serif;
+    "
+  >
+    <div
+      style="
+        display: none;
+        font-size: 1px;
+        color: #f7f7f8;
+        line-height: 1px;
+        max-height: 0;
+        max-width: 0;
+        opacity: 0;
+        overflow: hidden;
+      "
+    >
+      Confirm your email address for your Overload account.
+    </div>
+    <table
+      role="presentation"
+      cellpadding="0"
+      cellspacing="0"
+      border="0"
+      width="100%"
+      style="background-color: #f7f7f8"
+    >
+      <tr>
+        <td align="center" style="padding: 48px 20px">
+          <table
+            role="presentation"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+            width="100%"
+            style="max-width: 520px"
+          >
+            <tr>
+              <td style="padding: 0 0 24px 4px">
+                <span
+                  style="
+                    font-size: 22px;
+                    line-height: 28px;
+                    font-weight: 700;
+                    letter-spacing: -0.7px;
+                    color: #0e0e10;
+                  "
+                  >Overload<span style="color: #0159fd">.</span></span
+                >
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="
+                  background-color: #ffffff;
+                  border: 1px solid #e4e4e8;
+                  border-radius: 14px;
+                  padding: 40px 36px;
+                "
+              >
+                <p
+                  style="
+                    margin: 0 0 14px;
+                    color: #0159fd;
+                    font-size: 12px;
+                    font-weight: 700;
+                    line-height: 18px;
+                    letter-spacing: 1.2px;
+                    text-transform: uppercase;
+                  "
+                >
+                  Email verification
+                </p>
+                <h1
+                  style="
+                    margin: 0 0 16px;
+                    color: #0e0e10;
+                    font-size: 28px;
+                    font-weight: 700;
+                    line-height: 35px;
+                    letter-spacing: -0.8px;
+                  "
+                >
+                  Verify your email
+                </h1>
+                <p
+                  style="
+                    margin: 0 0 28px;
+                    color: #5f5f68;
+                    font-size: 16px;
+                    line-height: 25px;
+                  "
+                >
+                  Confirm this is your email address for your Overload account.
+                  Verifying lets you subscribe to Pro and keeps your receipts
+                  secure &mdash; it isn't needed to keep using the free plan.
+                </p>
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                >
+                  <tr>
+                    <td
+                      align="center"
+                      bgcolor="#0159fd"
+                      style="border-radius: 8px"
+                    >
+                      <a
+                        href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=magiclink"
+                        style="
+                          display: inline-block;
+                          padding: 14px 24px;
+                          color: #ffffff;
+                          background-color: #0159fd;
+                          border-radius: 8px;
+                          font-size: 15px;
+                          line-height: 22px;
+                          font-weight: 700;
+                          text-decoration: none;
+                        "
+                        >Verify email</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+                <p
+                  style="
+                    margin: 20px 0 0;
+                    color: #5f5f68;
+                    font-size: 13px;
+                    line-height: 21px;
+                  "
+                >
+                  This link can be used once and expires in 1 hour.
+                </p>
+                <div
+                  style="border-top: 1px solid #e4e4e8; margin: 30px 0 22px"
+                ></div>
+                <p
+                  style="
+                    margin: 0;
+                    color: #5f5f68;
+                    font-size: 13px;
+                    line-height: 21px;
+                  "
+                >
+                  Didn't try to verify your email? You can ignore this message
+                  &mdash; nothing changes and your account stays as it is.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="
+                  padding: 22px 4px 0;
+                  text-align: center;
+                  color: #5f5f68;
+                  font-size: 12px;
+                  line-height: 20px;
+                "
+              >
+                Overload &middot; Train with clarity.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

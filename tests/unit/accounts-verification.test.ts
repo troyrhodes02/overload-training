@@ -23,6 +23,7 @@ import {
   sendVerificationEmail,
   confirmEmailVerification,
   getEmailVerification,
+  isAllowedRedirectHost,
   type SendVerificationDeps,
 } from "@/lib/accounts/verification";
 import type { Account } from "@/lib/data/account";
@@ -31,7 +32,10 @@ type UpdateArgs = {
   where: { userId: string; emailVerifiedAt: null };
   data: { emailVerifiedAt: Date };
 };
-type ResendArgs = { type: "signup"; email: string };
+type OtpArgs = {
+  email: string;
+  options?: { shouldCreateUser?: boolean; emailRedirectTo?: string };
+};
 
 /** A fake account whose scoped db records the update it receives. */
 function fakeAccount(
@@ -53,44 +57,52 @@ function fakeAccount(
 describe("sendVerificationEmail — the account's OWN email only", () => {
   const OWN = "will@example.com";
 
+  const REDIRECT = "https://preview-xyz.vercel.app/auth/confirm";
+
   function sendDeps(over: Partial<SendVerificationDeps> = {}) {
-    const resend = jest.fn<Promise<{ error: null }>, [ResendArgs]>(
-      async () => ({
-        error: null,
-      }),
+    const signInWithOtp = jest.fn<Promise<{ error: null }>, [OtpArgs]>(
+      async () => ({ error: null }),
     );
     const deps: Partial<SendVerificationDeps> = {
       ownEmail: jest.fn(async () => OWN),
-      auth: jest.fn(async () => ({ resend })),
+      auth: jest.fn(async () => ({ signInWithOtp })),
+      redirectUrl: jest.fn(async () => REDIRECT),
       ...over,
     };
-    return { deps, resend };
+    return { deps, signInWithOtp };
   }
 
-  it("sends a signup-type verification email to the session email", async () => {
+  it("sends a one-time email link (signInWithOtp) to the session email, never creating an account", async () => {
+    // Regression (OVE-95 / billing verify bug): accounts are created already
+    // confirmed in Supabase, so the old resend({type:"signup"}) no-op'd and no
+    // email arrived. signInWithOtp actually sends to a confirmed user.
     const { account } = fakeAccount();
-    const { deps, resend } = sendDeps();
+    const { deps, signInWithOtp } = sendDeps();
     const result = await sendVerificationEmail(account, deps);
     expect(result).toEqual({ ok: true, data: { sent: true } });
-    expect(resend).toHaveBeenCalledWith({ type: "signup", email: OWN });
+    expect(signInWithOtp).toHaveBeenCalledTimes(1);
+    const [arg] = signInWithOtp.mock.calls[0];
+    expect(arg.email).toBe(OWN);
+    expect(arg.options?.shouldCreateUser).toBe(false);
+    // Regression (preview→prod redirect bug): the link returns to the
+    // originating deployment, carried as emailRedirectTo ({{ .RedirectTo }}).
+    expect(arg.options?.emailRedirectTo).toBe(REDIRECT);
   });
 
   it("never sends to an address other than the session's own email", async () => {
     const { account } = fakeAccount();
-    const { deps, resend } = sendDeps({
+    const { deps, signInWithOtp } = sendDeps({
       ownEmail: jest.fn(async () => OWN),
     });
     await sendVerificationEmail(account, deps);
-    // The only email it ever passes is the one ownEmail() returned — there is
-    // no code path that takes an address from an argument or the account.
-    const addresses = resend.mock.calls.map(([arg]) => arg.email);
+    const addresses = signInWithOtp.mock.calls.map(([arg]) => arg.email);
     expect(addresses).toEqual([OWN]);
     expect(addresses).not.toContain("victim@example.com");
   });
 
   it("refuses (and sends nothing) when there is no authenticated email", async () => {
     const { account } = fakeAccount();
-    const { deps, resend } = sendDeps({
+    const { deps, signInWithOtp } = sendDeps({
       ownEmail: jest.fn(async () => null),
     });
     const result = await sendVerificationEmail(account, deps);
@@ -98,38 +110,72 @@ describe("sendVerificationEmail — the account's OWN email only", () => {
       ok: false,
       error: { code: "unauthorized", message: "Sign in and try again." },
     });
-    expect(resend).not.toHaveBeenCalled();
+    expect(signInWithOtp).not.toHaveBeenCalled();
   });
 
-  it("still reports sent when the auth service refuses the send", async () => {
+  it("surfaces a FAILURE when the auth service refuses the send (no false 'sent')", async () => {
+    // The core of the reported bug: the lifter must not be told the email was
+    // sent when it was not. This is the signed-in account's own, already-known
+    // email, so there is no enumeration concern to hide behind.
     const { account } = fakeAccount();
-    const resend = jest.fn<Promise<{ error: { code: string } }>, [ResendArgs]>(
-      async () => ({ error: { code: "over_email_rate" } }),
-    );
+    const signInWithOtp = jest.fn<
+      Promise<{ error: { code: string } }>,
+      [OtpArgs]
+    >(async () => ({ error: { code: "over_email_send_rate_limit" } }));
     const result = await sendVerificationEmail(account, {
       ownEmail: jest.fn(async () => OWN),
-      auth: jest.fn(async () => ({ resend })),
+      auth: jest.fn(async () => ({ signInWithOtp })),
     });
-    // The link only ever reaches the account's own inbox, so the copy is
-    // honest and unconditional (design Screen 6).
-    expect(result).toEqual({ ok: true, data: { sent: true } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("internal_error");
+  });
+
+  it("surfaces a failure when the auth client throws", async () => {
+    const { account } = fakeAccount();
+    const result = await sendVerificationEmail(account, {
+      ownEmail: jest.fn(async () => OWN),
+      auth: jest.fn(async () => {
+        throw new Error("network");
+      }),
+    });
+    expect(result.ok).toBe(false);
   });
 
   it("resolves its own email from the session, not from the caller", async () => {
-    // With no ownEmail override, the default reads the authenticated user —
-    // the session, never an argument.
     getAuthUser.mockResolvedValueOnce({ email: OWN });
     const { account } = fakeAccount();
-    const resend = jest.fn<Promise<{ error: null }>, [ResendArgs]>(
-      async () => ({
-        error: null,
-      }),
+    const signInWithOtp = jest.fn<Promise<{ error: null }>, [OtpArgs]>(
+      async () => ({ error: null }),
     );
     await sendVerificationEmail(account, {
-      auth: jest.fn(async () => ({ resend })),
+      auth: jest.fn(async () => ({ signInWithOtp })),
     });
     expect(getAuthUser).toHaveBeenCalled();
-    expect(resend).toHaveBeenCalledWith({ type: "signup", email: OWN });
+    expect(signInWithOtp.mock.calls[0][0].email).toBe(OWN);
+  });
+});
+
+describe("isAllowedRedirectHost — the verification link host is validated", () => {
+  const env = {
+    NEXT_PUBLIC_APP_URL: "https://www.overloadtraining.app",
+    OVERLOAD_REDIRECT_HOSTS: "staging.overload.app",
+  };
+
+  it("allows localhost, any *.vercel.app, the configured prod host, and the extra list", () => {
+    expect(isAllowedRedirectHost("localhost:3000", env)).toBe(true);
+    expect(isAllowedRedirectHost("preview-abc123.vercel.app", env)).toBe(true);
+    expect(isAllowedRedirectHost("www.overloadtraining.app", env)).toBe(true);
+    expect(isAllowedRedirectHost("staging.overload.app", env)).toBe(true);
+  });
+
+  it("refuses a spoofed or unknown host (link can't be aimed off-domain)", () => {
+    expect(isAllowedRedirectHost("evil.com", env)).toBe(false);
+    expect(isAllowedRedirectHost("overloadtraining.app.evil.com", env)).toBe(
+      false,
+    );
+    // A look-alike that merely contains, but does not end with, vercel.app.
+    expect(isAllowedRedirectHost("vercel.app.evil.com", env)).toBe(false);
+    expect(isAllowedRedirectHost("", env)).toBe(false);
   });
 });
 

@@ -2,8 +2,47 @@ import {
   FEEDBACK_CATEGORY_LABELS,
   type FeedbackCategoryValue,
 } from "@/lib/feedback/validation";
+import type { CompReason } from "@prisma/client";
 
 export type { FeedbackCategoryValue };
+
+/**
+ * Plans, Billing & Promo Codes — admin billing DTOs. Declared here (not in the
+ * data layer) so client components may import the types without tripping the
+ * "no client imports the admin data layer" guard. The data module in
+ * src/lib/data/admin/billing.ts builds them.
+ */
+export type AdminAccountBillingDto = {
+  effectivePlan: "free" | "pro";
+  source: "trial" | "subscription" | "comp" | "none";
+  comp: {
+    reason: CompReason;
+    note: string | null;
+    endsAt: string | null;
+    grantedAt: string;
+  } | null;
+  stripe: {
+    status: string | null;
+    interval: string | null;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+    promoCode: string | null;
+  } | null;
+};
+
+export type AdminBillingOverviewDto = {
+  activeSubscriptions: number;
+  trials: number;
+  complimentary: number;
+  cancelingAtPeriodEnd: number;
+  paymentProblems: number;
+  promo: {
+    code: string;
+    cap: number;
+    redeemed: number;
+    recent: { handle: string; date: string }[];
+  };
+};
 
 /**
  * The admin area's data contracts (Admin Center & Feedback, spec §13). Pure
@@ -20,7 +59,10 @@ export type AuditKind =
   | "account_reset_email_sent"
   | "feedback_handled"
   | "feedback_reopened"
-  | "feedback_recategorized";
+  | "feedback_recategorized"
+  // Plans, Billing & Promo Codes: owner grant/revoke of complimentary Pro.
+  | "comp_granted"
+  | "comp_revoked";
 
 export type AdminOverviewDto = {
   /** The admin's own timezone: "today" and "this month" (R13). */
@@ -127,6 +169,10 @@ export function auditActionText(line: Pick<AuditLineDto, "kind" | "detail">) {
       return line.detail
         ? `changed a feedback category from ${FEEDBACK_CATEGORY_LABEL[line.detail.from]} to ${FEEDBACK_CATEGORY_LABEL[line.detail.to]}`
         : "changed a feedback category";
+    case "comp_granted":
+      return "granted complimentary Pro";
+    case "comp_revoked":
+      return "revoked complimentary Pro";
   }
 }
 

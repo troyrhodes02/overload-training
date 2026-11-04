@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requireAdmin } from "@/lib/data/admin/identity";
 import { getAdminAccount } from "@/lib/data/admin/accounts";
+import { getAccountBilling } from "@/lib/data/admin/billing";
+import { AdminEntitlementSection } from "@/components/admin/entitlement-section";
 import { fullDate } from "@/lib/admin/format";
 import { personName } from "@/lib/admin/types";
 import { AccessSection } from "@/components/admin/access-section";
@@ -33,6 +35,7 @@ export default async function AdminAccountPage({ params }: PageProps) {
   const { id } = await params;
   const account = await getAdminAccount(actor, id);
   if (!account) notFound();
+  const billing = await getAccountBilling(actor, id);
 
   const name = personName(account);
   const label = name ?? account.email ?? "this account";
@@ -107,6 +110,10 @@ export default async function AdminAccountPage({ params }: PageProps) {
           </div>
         ))}
       </dl>
+
+      {billing ? (
+        <AdminEntitlementSection targetId={account.id} billing={billing} />
+      ) : null}
 
       <AccessSection
         target={{

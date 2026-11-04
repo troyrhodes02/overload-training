@@ -3,6 +3,7 @@
  * Declared in a pure module so client islands (the trend chart) can import
  * them without pulling in the server-only read layer (history-queries.ts).
  */
+import type { Capability } from "@/lib/billing/config";
 import type { SessionCallKind } from "./history";
 import type { ProgressionTag, RecommendationDto } from "./types";
 
@@ -38,8 +39,11 @@ export type ExerciseRecordsDto =
   | {
       kind: "loaded";
       bestSet: RecordSetDto;
-      /** Rounded estimate of the best set. */
-      bestE1rm: number;
+      /**
+       * Rounded estimate of the best set. Null when withheld on a Free account
+       * (the e1RM estimate is Pro; the plain best set stays Free). Plans, Billing.
+       */
+      bestE1rm: number | null;
       heaviest: RecordSetDto;
       repRecords: RecordSetDto[];
     }
@@ -95,4 +99,10 @@ export type ExerciseHistoryDto = {
     reps: TrendDto | null;
   };
   sessions: { rows: SessionRowDto[]; total: number; showingAll: boolean };
+  /**
+   * Plans, Billing: the Pro capability withheld on a Free account (null for
+   * Pro). Non-null means the page renders one upgrade note; the Free-visible
+   * sessions, goals, reps trend, and heaviest/best-set records still render.
+   */
+  locked: Capability | null;
 };

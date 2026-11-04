@@ -34,6 +34,10 @@ const VERIFY_TYPES: ReadonlySet<string> = new Set([
   "email",
   "signup",
   "email_change",
+  // The one-time link signInWithOtp sends — the path an already-confirmed
+  // account uses to complete Overload's separate email verification (a
+  // confirmed account gets no signup-confirmation email).
+  "magiclink",
 ]);
 
 function isRecovery(type: string | null): boolean {

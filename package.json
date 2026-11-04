@@ -18,7 +18,8 @@
     "verify:client-bundle": "node scripts/check-client-bundle.mjs",
     "db:seed": "prisma db seed",
     "import:plan": "tsx --conditions=react-server scripts/import/real-plan/cli.ts",
-    "ownership:backfill": "tsx --conditions=react-server scripts/operator/account-ownership/cli.ts"
+    "ownership:backfill": "tsx --conditions=react-server scripts/operator/account-ownership/cli.ts",
+    "founding-members:grant": "tsx --conditions=react-server scripts/operator/founding-members/cli.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
@@ -38,6 +39,7 @@
     "recharts": "^3.10.1",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
+    "stripe": "^23.1.0",
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {

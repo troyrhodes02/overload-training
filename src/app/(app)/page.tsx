@@ -14,6 +14,7 @@ import { ProgressTag } from "@/components/progression/progress-tag";
 import { Recommendation } from "@/components/progression/recommendation";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
 import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload-banner";
+import { UpgradeNote } from "@/components/billing/upgrade-note";
 import { DashboardGoals } from "@/components/goals/dashboard-goals";
 import { SessionGoalRows } from "@/components/goals/session-goal-rows";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
@@ -81,6 +82,7 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
           ))}
         </ul>
       ) : null}
+      {summary?.locked ? <UpgradeNote surface="day-complete" /> : null}
       {state.loggedSessionId ? (
         <SessionGoalRows loggedSessionId={state.loggedSessionId} />
       ) : null}
@@ -173,6 +175,9 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
             );
           })}
         </ul>
+        {progression.some((p) => p.locked) ? (
+          <UpgradeNote surface="today-plan" />
+        ) : null}
       </div>
       <Button
         asChild

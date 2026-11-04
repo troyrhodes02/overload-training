@@ -570,8 +570,149 @@ model Profile {
   releaseSeen          ReleaseSeen?
   feedback             Feedback[]
   feedbackAttachments  FeedbackAttachment[]
+  entitlements         Entitlement[]
+  billingAccount       BillingAccount?
+  promoRedemptions     PromoRedemption[]
 
   @@map("profiles")
+}
+
+/// Plans, Billing & Promo Codes (Pitch 19): the two plans. A label for a
+/// capability set only — server code checks capabilities, never the plan name.
+enum Plan {
+  free
+  pro
+}
+
+/// An Overload-OWNED Pro entitlement source. Subscriptions are NOT here; they
+/// are mirrored in BillingAccount from verified Stripe events. Effective plan
+/// is computed on read from these rows plus the mirror (nothing is stored).
+enum EntitlementSource {
+  trial
+  comp
+}
+
+/// Why an account was granted complimentary Pro (admin-set, audited).
+enum CompReason {
+  friend
+  creator
+  tester
+  founding_member
+  other
+}
+
+/// Mirror of the Stripe subscription.status values Overload acts on.
+enum SubscriptionStatus {
+  active
+  trialing
+  past_due
+  canceled
+  unpaid
+  incomplete
+  incomplete_expired
+  paused
+}
+
+/// The billing interval of a Pro subscription.
+enum BillingInterval {
+  month
+  year
+}
+
+/// Plans, Billing & Promo Codes: one row per Overload-owned Pro source for an
+/// account — a 14-day card-free `trial` created at signup, or an owner-granted
+/// `comp`. Effective plan is derived on read (src/lib/entitlements/resolve.ts);
+/// NOTHING here is a stored tag. Trial expiry is pure date math (no job). A
+/// comp carries a reason, optional end date, who granted it, and a revoke
+/// marker. RLS deny-all; user_id immutable (trigger, 9j); FK Restrict so
+/// account deletion removes it explicitly (deletion module), never cascades.
+model Entitlement {
+  id              String            @id @default(uuid()) @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  source          EntitlementSource
+  /// trial and comp both grant Pro in this build.
+  plan            Plan              @default(pro)
+  startedAt       DateTime          @map("started_at") @db.Timestamptz
+  /// NULL = open-ended (a comp with no end date). A trial always has an end.
+  endsAt          DateTime?         @map("ends_at") @db.Timestamptz
+  /// comp-only metadata (NULL for a trial).
+  compReason      CompReason?       @map("comp_reason")
+  compNote        String?           @map("comp_note")
+  grantedByUserId String?           @map("granted_by_user_id") @db.Uuid
+  revokedAt       DateTime?         @map("revoked_at") @db.Timestamptz
+  revokedByUserId String?           @map("revoked_by_user_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  // Partial unique indexes (one trial; one active comp) are raw SQL in the
+  // migration — Prisma cannot express a WHERE on an index.
+  @@index([userId])
+  @@index([userId, source])
+  @@map("entitlements")
+}
+
+/// Plans, Billing & Promo Codes: the account's Stripe customer reference and a
+/// READ-ONLY mirror of its subscription state. Written ONLY by the webhook
+/// handler and by checkout-session creation (which may set stripeCustomerId).
+/// Never the authority for money — Stripe is. One row per account. RLS
+/// deny-all; user_id immutable (trigger); FK Restrict.
+model BillingAccount {
+  userId            String              @id @map("user_id") @db.Uuid
+  stripeCustomerId  String              @unique @map("stripe_customer_id")
+  subscriptionId    String?             @unique @map("subscription_id")
+  status            SubscriptionStatus?
+  interval          BillingInterval?
+  currentPeriodEnd  DateTime?           @map("current_period_end") @db.Timestamptz
+  cancelAtPeriodEnd Boolean             @default(false) @map("cancel_at_period_end")
+  /// Set when status first becomes past_due; Pro holds until this instant.
+  graceEndsAt       DateTime?           @map("grace_ends_at") @db.Timestamptz
+  priceId           String?             @map("price_id")
+  /// The promotion code currently applied, for display only (e.g. "BLIZZY").
+  promoCode         String?             @map("promo_code")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("billing_accounts")
+}
+
+/// Plans, Billing & Promo Codes: a mirror of a promotion code redeemed by an
+/// account, written from verified Stripe events so the admin area can show
+/// redemptions. One row per (account, code). Not proof of conversion on its
+/// own. RLS deny-all; user_id immutable (trigger); FK Restrict.
+model PromoRedemption {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  code            String
+  couponId        String   @map("coupon_id")
+  promotionCodeId String?  @map("promotion_code_id")
+  subscriptionId  String?  @map("subscription_id")
+  redeemedAt      DateTime @map("redeemed_at") @db.Timestamptz
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([userId, code])
+  @@index([userId])
+  @@index([code])
+  @@map("promo_redemptions")
+}
+
+/// Plans, Billing & Promo Codes: an UN-OWNED system ledger of received Stripe
+/// events, keyed by the Stripe event id, so a replayed delivery changes
+/// nothing (idempotency). No owner column — classified in UNOWNED_SYSTEM_MODELS
+/// (src/lib/data/scope.ts), so the account-scoped client refuses it; written
+/// only by the webhook handler (a raw-allowed module). No FK; RLS deny-all.
+model WebhookEvent {
+  id         String   @id
+  type       String
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz
+
+  @@index([type])
+  @@map("webhook_events")
 }
 
 /// Latest finished-or-skipped outcome of the onboarding tour (Onboarding Tour).
@@ -721,6 +862,8 @@ enum AdminAuditAction {
   feedback_reopened
   feedback_recategorized
   account_reset_email_sent // Public Accounts: owner sent a password-reset email
+  comp_granted // Plans, Billing: owner granted complimentary Pro
+  comp_revoked // Plans, Billing: owner revoked complimentary Pro
 }
 
 /// Append-only record of an admin action: who, what, which account, when

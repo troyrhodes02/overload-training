@@ -73,6 +73,9 @@ const OWNED_TABLES = [
   "release_seen",
   "feedback",
   "feedback_attachments",
+  "entitlements",
+  "billing_accounts",
+  "promo_redemptions",
 ] as const;
 
 /** Every row an account owns, in a stable order — to prove it never changed. */

@@ -15,7 +15,12 @@ import { assertAdmin, type AdminActor } from "./identity";
 export type AuditEntryInput =
   | {
       action:
-        "account_suspend" | "account_reactivate" | "account_reset_email_sent";
+        | "account_suspend"
+        | "account_reactivate"
+        | "account_reset_email_sent"
+        // Plans, Billing & Promo Codes: owner grant/revoke of complimentary Pro.
+        | "comp_granted"
+        | "comp_revoked";
       targetUserId: string;
     }
   | {

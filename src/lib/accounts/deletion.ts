@@ -48,6 +48,9 @@ export const ACCOUNT_DELETION_ORDER = [
   "ReleaseSeen", // What's New: references only the profile
   "FeedbackAttachment", // Admin Center & Feedback: before its Feedback parent (onDelete: Restrict)
   "Feedback", // Admin Center & Feedback: the lifter's messages; references only the profile
+  "PromoRedemption", // Plans, Billing: references only the profile
+  "BillingAccount", // Plans, Billing: the Stripe mirror; references only the profile
+  "Entitlement", // Plans, Billing: trial/comp records; references only the profile
   "Profile",
 ] as const;
 
@@ -75,6 +78,9 @@ const DELETE: Record<
   ReleaseSeen: (tx) => tx.releaseSeen.deleteMany({}),
   FeedbackAttachment: (tx) => tx.feedbackAttachment.deleteMany({}),
   Feedback: (tx) => tx.feedback.deleteMany({}),
+  PromoRedemption: (tx) => tx.promoRedemption.deleteMany({}),
+  BillingAccount: (tx) => tx.billingAccount.deleteMany({}),
+  Entitlement: (tx) => tx.entitlement.deleteMany({}),
   Profile: (tx) => tx.profile.deleteMany({}),
 };
 

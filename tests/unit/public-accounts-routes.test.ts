@@ -28,17 +28,26 @@ describe("public paths (PA3 / R9)", () => {
     "/verify-email",
   ];
 
-  it.each([...newDoors, "/login", "/signup"])(
-    "%s is public and reachable signed-out",
+  // Plans, Billing & Promo Codes: the Stripe webhook is a server-to-server
+  // endpoint authenticated by its signature, not a session — the proxy must
+  // NOT redirect its unauthenticated POST to /login (the reported bug).
+  const webhooks = ["/api/stripe/webhook"];
+
+  it.each([...newDoors, ...webhooks, "/login", "/signup"])(
+    "%s is public and reachable without a session (no /login bounce)",
     (path) => {
       expect(isPublicPath(path)).toBe(true);
       expect(routeRedirect(path, false)).toBeNull();
     },
   );
 
+  it("the Stripe webhook is public for a signed-in visitor too (never bounced)", () => {
+    expect(routeRedirect("/api/stripe/webhook", true)).toBeNull();
+  });
+
   it("exports exactly the expected public path set", () => {
     expect([...PUBLIC_PATHS].sort()).toEqual(
-      ["/login", "/signup", ...newDoors].sort(),
+      ["/login", "/signup", ...newDoors, ...webhooks].sort(),
     );
   });
 
@@ -130,11 +139,15 @@ describe("GET /auth/confirm (PA3 / R3)", () => {
     expect(location(recovery)).toBe("/forgot-password?link=expired");
     const verify = await GET(request("?type=email"));
     expect(location(verify)).toBe("/verify-email?error=expired");
+    // magiclink is the verification path an already-confirmed account uses
+    // (signInWithOtp); a missing token lands on the verify expired door too.
+    const magic = await GET(request("?type=magiclink"));
+    expect(location(magic)).toBe("/verify-email?error=expired");
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 
   it("an unknown or missing type defaults to the recovery expired door", async () => {
-    const unknown = await GET(request("?token_hash=x&type=magiclink"));
+    const unknown = await GET(request("?token_hash=x&type=bogus"));
     expect(location(unknown)).toBe("/forgot-password?link=expired");
     const none = await GET(request(""));
     expect(location(none)).toBe("/forgot-password?link=expired");

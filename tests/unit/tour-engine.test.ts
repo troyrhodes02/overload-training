@@ -24,7 +24,7 @@ const avail =
     names.includes(a);
 
 describe("layout", () => {
-  it("desktop is offered 8 steps (no menu step); a phone 9", () => {
+  it("desktop is offered 9 steps (no menu step); a phone 10", () => {
     expect(stepsForLayout(TOUR_STEPS, "desktop").map((s) => s.id)).toEqual([
       "today",
       "logging",
@@ -33,9 +33,10 @@ describe("layout", () => {
       "goals",
       "exercises",
       "gyms",
+      "plan-billing",
       "settings",
     ]);
-    expect(stepsForLayout(TOUR_STEPS, "phone")).toHaveLength(9);
+    expect(stepsForLayout(TOUR_STEPS, "phone")).toHaveLength(10);
   });
 
   it("after crossing md, the current step stays, or a phone-only step moves on", () => {
@@ -99,14 +100,14 @@ describe("start, walk, and counter", () => {
   });
 
   it("a skipped step drops out of position and total; positions stay contiguous", () => {
-    expect(counter(steps, new Set(), 0)).toEqual({ position: 1, total: 9 });
+    expect(counter(steps, new Set(), 0)).toEqual({ position: 1, total: 10 });
     const skipped = new Set(["navigation"]);
     const shown = steps
       .map((s, i) => [s, i] as const)
       .filter(([s]) => !skipped.has(s.id))
       .map(([, i]) => counter(steps, skipped, i));
-    expect(shown.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(new Set(shown.map((c) => c.total))).toEqual(new Set([8]));
+    expect(shown.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(new Set(shown.map((c) => c.total))).toEqual(new Set([9]));
   });
 });
 

@@ -116,6 +116,16 @@ async function populate(account: Account, lib: Lib, label: string) {
       position: 0,
     },
   });
+  // Plans, Billing: a promo redemption so the export's promoRedemptions list is
+  // non-empty (the account's default comp already fills entitlements).
+  await account.db.promoRedemption.create({
+    data: {
+      userId: account.userId,
+      code: "BLIZZY",
+      couponId: `co_${label}`,
+      redeemedAt: new Date(),
+    },
+  });
   return { plan, oldGym, oldExercise };
 }
 
@@ -131,10 +141,14 @@ const SINGLETON_MODELS: ReadonlySet<AccountDeletionModel> = new Set([
   "Profile",
   "TourProgress",
   "ReleaseSeen",
+  "BillingAccount", // Plans, Billing: one row per account (findUnique)
 ]);
 
 const LIST_SECTION_KEY: Record<
-  Exclude<AccountDeletionModel, "Profile" | "TourProgress" | "ReleaseSeen">,
+  Exclude<
+    AccountDeletionModel,
+    "Profile" | "TourProgress" | "ReleaseSeen" | "BillingAccount"
+  >,
   keyof AccountExport
 > = {
   Mesocycle: "mesocycles",
@@ -153,6 +167,8 @@ const LIST_SECTION_KEY: Record<
   CardioLog: "cardioLogs",
   Feedback: "feedback",
   FeedbackAttachment: "feedbackAttachments",
+  Entitlement: "entitlements",
+  PromoRedemption: "promoRedemptions",
 };
 
 const LIST_SECTIONS = ACCOUNT_DELETION_ORDER.filter(

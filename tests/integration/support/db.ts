@@ -33,6 +33,13 @@ export const APP_TABLES = [
   "admin_audit_entries",
   // Public Accounts: the un-owned pre-auth rate limiter.
   "auth_throttle",
+  // Plans, Billing & Promo Codes: owned billing tables (also reachable via the
+  // profiles CASCADE, listed for clarity) and the un-owned Stripe event ledger
+  // (no FK to profiles, so it must be truncated explicitly).
+  "entitlements",
+  "billing_accounts",
+  "promo_redemptions",
+  "webhook_events",
 ] as const;
 
 /** Tables that belong to no account (spec 17 R11): no owner column at all. */
@@ -46,6 +53,8 @@ export const ADMIN_ONLY_TABLES: readonly string[] = ["admin_audit_entries"];
 export const UNOWNED_TABLES: readonly string[] = [
   ...ADMIN_ONLY_TABLES,
   "auth_throttle",
+  // Plans, Billing & Promo Codes: the Stripe event-id ledger has no owner.
+  "webhook_events",
 ];
 
 let client: PrismaClient | undefined;

@@ -1,0 +1,44 @@
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
+import { requireAccount } from "@/lib/data/account";
+import { getBillingScreen } from "@/lib/billing/screen";
+import { refreshBillingFromStripe } from "@/lib/billing/sync";
+import { PlanBilling } from "@/components/billing/plan-billing";
+
+export const metadata = { title: "Plan & Billing · Overload" };
+
+/**
+ * Plans, Billing & Promo Codes — the Plan & Billing leaf (design Screen 1).
+ * Reads the resolved billing state server-side and hands it to the interactive
+ * island. The `?status` return param only tints the panel (success/cancelled);
+ * it is never authoritative for Pro access — the resolved entitlement is.
+ */
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const account = await requireAccount();
+  // Converge the mirror on Stripe's current truth first, so a missed or late
+  // webhook can't leave this screen asserting a stale state (e.g. "renews"
+  // after a scheduled cancellation). Best-effort — never breaks the page.
+  await refreshBillingFromStripe(account);
+  const screen = await getBillingScreen(account);
+  const raw = (await searchParams).status;
+  const status =
+    raw === "success" ? "success" : raw === "cancelled" ? "cancelled" : null;
+
+  return (
+    <section className="space-y-5 pb-20 md:pb-0">
+      <Link
+        href="/settings"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Settings
+      </Link>
+      <h1 className="text-xl font-semibold">Plan &amp; Billing</h1>
+      <PlanBilling screen={screen} status={status} />
+    </section>
+  );
+}

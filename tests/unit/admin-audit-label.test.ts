@@ -21,6 +21,10 @@ it("labels every audit kind (no unlabeled action)", () => {
     "feedback_handled",
     "feedback_reopened",
     "feedback_recategorized",
+    // Plans, Billing & Promo Codes: comp grant/revoke must label too, or the
+    // account page and audit log crash on capitalize(undefined).
+    "comp_granted",
+    "comp_revoked",
   ];
   for (const kind of kinds) {
     const text = auditActionText({

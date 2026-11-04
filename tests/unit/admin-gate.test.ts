@@ -38,11 +38,17 @@ const TRAINING_MODELS = [
 it("reaches only the declared models", () => {
   expect(ADMIN_REACHABLE_MODELS).toEqual([
     "AdminAuditEntry",
+    // Plans, Billing & Promo Codes: entitlement + billing records only (no
+    // training content). Entitlement is writable (comp grant/revoke); the
+    // Stripe mirror and promo redemptions are read-only.
+    "BillingAccount",
+    "Entitlement",
     "Feedback",
     "FeedbackAttachment",
     "LoggedSet",
     "Mesocycle",
     "Profile",
+    "PromoRedemption",
     "TourProgress",
   ]);
   const every = Prisma.dmmf.datamodel.models.map((m) => m.name);

@@ -16,6 +16,10 @@ jest.mock("@/lib/data/admin/feedback", () => ({
   setFeedbackHandled: jest.fn(),
   setFeedbackCategory: jest.fn(),
 }));
+jest.mock("@/lib/data/admin/billing", () => ({
+  grantComp: jest.fn(),
+  revokeComp: jest.fn(),
+}));
 
 import { requireAccount } from "@/lib/data/account";
 import { reactivateAccount, suspendAccount } from "@/lib/data/admin/accounts";

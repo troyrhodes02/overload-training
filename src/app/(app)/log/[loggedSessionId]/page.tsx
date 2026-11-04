@@ -28,6 +28,7 @@ export default async function WorkoutPage({
         recommendation: occ?.recommendation ?? null,
         scheduledDeloadWeek: occ?.scheduledDeloadWeek ?? false,
         historyHref: occ?.historyHref ?? null,
+        locked: occ?.locked != null,
       };
       return [e.loggedExerciseId, value] as const;
     }),

@@ -31,7 +31,9 @@ const READ_OPS = [
 ];
 
 const OWNED = [
+  "BillingAccount",
   "CardioLog",
+  "Entitlement",
   "ExerciseFavorite",
   "Feedback",
   "FeedbackAttachment",
@@ -45,6 +47,7 @@ const OWNED = [
   "MissedDayResolution",
   "PlannedCardio",
   "Profile",
+  "PromoRedemption",
   "ReleaseSeen",
   "Session",
   "SessionExercise",
@@ -65,7 +68,11 @@ describe("classification", () => {
     // Public Accounts (spec R5): the pre-auth rate limiter is intentionally
     // un-owned and holds no personal data. Adding to either list is a reviewed
     // decision, never a shortcut.
-    expect([...UNOWNED_SYSTEM_MODELS]).toEqual(["AuthThrottle"]);
+    // Plans, Billing (spec RD-14): the Stripe event ledger is un-owned too.
+    expect([...UNOWNED_SYSTEM_MODELS]).toEqual([
+      "AuthThrottle",
+      "WebhookEvent",
+    ]);
     expect(SHARED_OR_OWNED_MODEL).toBe("Exercise");
   });
 

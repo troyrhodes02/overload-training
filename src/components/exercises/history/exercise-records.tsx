@@ -54,13 +54,24 @@ export function ExerciseRecords({
             </Cell>
             <div className="grid grid-cols-2 divide-x divide-border">
               <Cell label="Best e1RM · estimate">
-                <Value>
-                  {records.bestE1rm}
-                  <Unit>lb</Unit>
-                </Value>
-                <Meta>
-                  from <SetText set={records.bestSet} />
-                </Meta>
+                {records.bestE1rm === null ? (
+                  <>
+                    <Value>
+                      <span className="text-muted-foreground">—</span>
+                    </Value>
+                    <Meta>Part of Pro</Meta>
+                  </>
+                ) : (
+                  <>
+                    <Value>
+                      {records.bestE1rm}
+                      <Unit>lb</Unit>
+                    </Value>
+                    <Meta>
+                      from <SetText set={records.bestSet} />
+                    </Meta>
+                  </>
+                )}
               </Cell>
               <Cell label="Heaviest weight">
                 <Value>

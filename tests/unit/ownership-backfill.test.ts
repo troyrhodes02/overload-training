@@ -25,6 +25,10 @@ describe("ownership backfill coverage", () => {
       "release_seen",
       "feedback",
       "feedback_attachments",
+      // Plans, Billing & Promo Codes (9j): born owned, never pre-ownership.
+      "entitlements",
+      "billing_accounts",
+      "promo_redemptions",
     ];
     expect([...LEGACY_OWNED_TABLES].sort()).toEqual(
       owned

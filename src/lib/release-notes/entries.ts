@@ -26,6 +26,21 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Plans, Billing & Promo Codes (Pitch 19; OVE-95, overload-onboarding).
+    // Free and Pro are a major change to the offering, so this is significant
+    // (opens the dialog). It describes only what shipped — capture stays free,
+    // Pro adds interpretation, new accounts get a 14-day trial — and never says
+    // payments are live or the product is open to the public (they are not).
+    // PROVISIONAL date: written during the pipeline run on 2026-11-01 while the
+    // feature PR is not yet merged. Before merging, set `date` and the id's date
+    // prefix to the production-ship day (the contract forbids backdating).
+    id: "2026-11-01-introducing-free-and-pro",
+    date: "2026-11-01",
+    title: "Introducing Free and Pro",
+    body: "Keep planning and logging your workouts for free, always. Pro adds progression recommendations, e1RM trends, stall detection, and deeper exercise history. New accounts get 14 days of Pro to try it.",
+    significant: true,
+  },
+  {
     // Public Accounts, Recovery & Support (Pitch 18; OVE-88, overload-onboarding).
     // Password recovery restores a capability lifters expect and will look for,
     // so it is significant (opens the dialog). PROVISIONAL date: written during

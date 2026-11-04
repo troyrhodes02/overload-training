@@ -13,6 +13,13 @@ import {
   type WorkingWeightOptions,
 } from "@/lib/logging/queries";
 import { PROGRESS_INCREMENT_LBS } from "./config";
+import type { Capability } from "@/lib/billing/config";
+import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
+import {
+  gateOccurrence,
+  gatePlanned,
+  gateSessionSummary,
+} from "@/lib/entitlements/gate";
 import { isScheduledDeloadWeek, scheduledDeloadLoad } from "./deload";
 import {
   byDate,
@@ -100,11 +107,15 @@ export type OccurrenceProgressionDto = {
   historyHref: string | null;
   /** Today's advice while the session is in progress, next time's once complete. */
   recommendation: RecommendationDto | null;
+  /** Plans, Billing: the Pro capability withheld on a Free account (RD-9). */
+  locked: Capability | null;
 };
 
 export type SessionProgressionSummaryDto = {
   loggedSessionId: string;
   scheduledDeloadWeek: boolean;
+  /** Plans, Billing: the Pro capability withheld on a Free account (RD-9). */
+  locked: Capability | null;
   exercises: {
     performedExerciseId: string;
     performedExerciseName: string;
@@ -630,6 +641,13 @@ export type PlannedProgressionDto = {
   hasTrend: boolean;
   /** Null for gym-variable exercises (no gym yet) and in a scheduled-deload week. */
   recommendation: RecommendationDto | null;
+  /**
+   * Plans, Billing: the Pro capability this result was withheld for on a Free
+   * account (null for a Pro account). Non-null means the surface renders one
+   * upgrade note in place of the withheld call. Set in the query layer, never
+   * the UI (spec RD-9).
+   */
+  locked: Capability | null;
 };
 
 /**
@@ -644,6 +662,16 @@ export async function getPlannedProgression(
   exerciseId: string,
   opts: { scheduledDeloadWeek: boolean },
 ): Promise<PlannedProgressionDto> {
+  const dto = await computePlannedProgression(account, exerciseId, opts);
+  const resolved = await resolveEntitlement(account);
+  return gatePlanned(dto, can(resolved, "progression_insights"));
+}
+
+async function computePlannedProgression(
+  account: Account,
+  exerciseId: string,
+  opts: { scheduledDeloadWeek: boolean },
+): Promise<Omit<PlannedProgressionDto, "locked">> {
   const base = await getExerciseProgression(account, exerciseId, null, {
     when: "today",
   });
@@ -704,6 +732,16 @@ export async function getOccurrenceProgression(
   account: Account,
   loggedExerciseId: string,
 ): Promise<OccurrenceProgressionDto | null> {
+  const dto = await computeOccurrenceProgression(account, loggedExerciseId);
+  if (!dto) return null;
+  const resolved = await resolveEntitlement(account);
+  return gateOccurrence(dto, can(resolved, "progression_insights"));
+}
+
+async function computeOccurrenceProgression(
+  account: Account,
+  loggedExerciseId: string,
+): Promise<Omit<OccurrenceProgressionDto, "locked"> | null> {
   const le = await account.db.loggedExercise.findUnique({
     where: { id: loggedExerciseId },
     include: {
@@ -819,6 +857,16 @@ export async function getSessionProgressionSummary(
   account: Account,
   loggedSessionId: string,
 ): Promise<SessionProgressionSummaryDto | null> {
+  const dto = await computeSessionProgressionSummary(account, loggedSessionId);
+  if (!dto) return null;
+  const resolved = await resolveEntitlement(account);
+  return gateSessionSummary(dto, can(resolved, "progression_insights"));
+}
+
+async function computeSessionProgressionSummary(
+  account: Account,
+  loggedSessionId: string,
+): Promise<Omit<SessionProgressionSummaryDto, "locked"> | null> {
   const ls = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     select: {

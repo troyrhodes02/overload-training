@@ -85,7 +85,15 @@ export const ADMIN_ONLY_MODELS: readonly string[] = ["AdminAuditEntry"];
  * and a window bucket. Reached only through its own dedicated raw-allowed
  * module (src/lib/accounts/throttle.ts, added in PA2).
  */
-export const UNOWNED_SYSTEM_MODELS: readonly string[] = ["AuthThrottle"];
+export const UNOWNED_SYSTEM_MODELS: readonly string[] = [
+  "AuthThrottle",
+  // Plans, Billing & Promo Codes (spec R14): the Stripe event-id ledger used
+  // for webhook idempotency. Un-owned (no account), no personal data; written
+  // only by the webhook handler (a raw-allowed module), never through the
+  // account-scoped client. Entitlement/BillingAccount/PromoRedemption all carry
+  // user_id, so they are scoped automatically as owned models.
+  "WebhookEvent",
+];
 
 /**
  * Every model with no owner column that is a sanctioned non-owned exception
