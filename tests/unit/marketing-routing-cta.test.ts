@@ -279,7 +279,23 @@ describe("robots.txt (RD-15)", () => {
       "/blizzy",
       "/changelog",
       "/support",
+      // Assets public pages need (review finding 1): JS/CSS, social card,
+      // icons, brand images, and the landing screenshots.
+      "/_next/static/",
+      "/_next/image",
+      "/marketing/",
+      "/brand/",
+      "/opengraph-image",
+      "/icon",
+      "/apple-icon",
+      "/manifest.webmanifest",
     ]);
+    // Still nothing private: no app, auth, admin, or API path is allowed.
+    for (const a of rules.allow) {
+      expect(a).not.toMatch(
+        /^\/(login|signup|settings|admin|api|plan|history|welcome)/,
+      );
+    }
     expect(r.sitemap).toBe("https://www.overloadtraining.app/sitemap.xml");
   });
 

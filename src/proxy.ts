@@ -19,9 +19,28 @@ const NOT_FOUND_PATH = "/_not-found-overload";
  *     (Public Landing Page & Changelog, spec §7).
  *  4. Remember a campaign landing (GET /blizzy) in a short-lived, first-party,
  *     HttpOnly cookie holding only the allowlisted campaign name and its issue
- *     time (spec §4, RD-8). Never set by a link prefetch, so a visitor who
- *     merely hovered a link to /blizzy is not attributed.
+ *     time (spec §4, RD-8). Never set by a link prefetch or by a navigation
+ *     from Overload's own pages, so only an arrival from outside counts.
  */
+
+/**
+ * True when the visitor navigated to the page from Overload itself — a
+ * same-origin link, or an in-app (RSC) navigation — rather than arriving
+ * from outside (review finding 5 on PR #121). Reading about the offer from
+ * /pricing is not "arriving from the campaign", so it is never attributed.
+ */
+function isInternalNavigation(request: NextRequest): boolean {
+  const h = request.headers;
+  if (h.has("rsc") || h.has("next-router-state-tree")) return true;
+  if ((h.get("sec-fetch-site") ?? "") === "same-origin") return true;
+  const referer = h.get("referer");
+  if (!referer) return false;
+  try {
+    return new URL(referer).host === request.nextUrl.host;
+  } catch {
+    return false;
+  }
+}
 
 /** True for Next router / browser speculative prefetches (not a real visit). */
 function isPrefetch(request: NextRequest): boolean {
@@ -81,14 +100,21 @@ export async function proxy(request: NextRequest) {
   if (landing) {
     const url = request.nextUrl.clone();
     url.pathname = landing;
-    const rewrite = NextResponse.rewrite(url);
+    // `{ request }` forwards the request cookies Supabase refreshed above to
+    // the render, so the landing page never re-checks a spent token (review
+    // finding 6 on PR #121); the response cookies go to the browser.
+    const rewrite = NextResponse.rewrite(url, { request });
     for (const cookie of response.cookies.getAll()) {
       rewrite.cookies.set(cookie);
     }
     return rewrite;
   }
 
-  if (request.method === "GET" && !isPrefetch(request)) {
+  if (
+    request.method === "GET" &&
+    !isPrefetch(request) &&
+    !isInternalNavigation(request)
+  ) {
     const campaign = campaignCookieFor(
       request.nextUrl.pathname,
       new Date(),

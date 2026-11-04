@@ -226,6 +226,23 @@ describe("marketing truth (P21-AC8)", () => {
   });
 });
 
+describe("screenshot frames load one image each (review findings 3/4)", () => {
+  it("renders one <img> per captured frame, and every <source> has dimensions", async () => {
+    const html = await page("welcome", off());
+    const pictures = html.match(/<picture[\s\S]*?<\/picture>/g) ?? [];
+    expect(pictures.length).toBe(6);
+    for (const p of pictures) {
+      expect(p.match(/<img /g)).toHaveLength(1);
+      for (const src of p.match(/<source [^>]*>/g) ?? []) {
+        expect(src).toMatch(/width="\d+"/);
+        expect(src).toMatch(/height="\d+"/);
+      }
+    }
+    // Only the hero loads eagerly.
+    expect(html.match(/loading="eager"/g)).toHaveLength(1);
+  });
+});
+
 describe("screenshot manifest (RD-19)", () => {
   it("every captured source exists and every entry is synthetic", async () => {
     const { SHOTS } = await import("@/lib/marketing/screenshots");

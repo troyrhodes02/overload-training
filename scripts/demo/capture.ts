@@ -152,7 +152,8 @@ async function main() {
       [email],
     );
     const userId = owner.rows[0]?.id;
-    if (!userId) fail("No demo account with that email on the local stack.");
+    if (!userId)
+      throw new Error("No demo account with that email on the local stack.");
     const gyms = await db.query<{ id: string; name: string }>(
       "SELECT id::text AS id, name FROM gyms WHERE user_id = $1::uuid",
       [userId],

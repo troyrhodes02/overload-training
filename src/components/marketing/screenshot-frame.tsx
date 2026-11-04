@@ -2,40 +2,63 @@ import {
   SHOTS,
   type ShotId,
   type ShotImage,
+  type ShotSources,
 } from "@/lib/marketing/screenshots";
 
 /**
  * One product screenshot in a quiet bordered frame (design doc §4, §6; spec
- * RD-19). Real captures of the synthetic demo account only. Light and dark
- * captures follow the page's appearance; a phone capture is used below `sm`
- * when one exists. A shot that hasn't been captured renders the pending frame
- * at the same size — never a mockup.
+ * RD-19). Real captures of the synthetic demo account only. A shot that
+ * hasn't been captured renders the pending frame at the same size — never a
+ * mockup.
+ *
+ * ONE <picture> chooses a single file by the visitor's color scheme and
+ * width, so exactly one image downloads (review finding 4 on PR #121), and
+ * every <source> carries its own dimensions, so the box is reserved at the
+ * right aspect ratio before the image arrives — no layout shift when a phone
+ * gets the portrait capture (finding 3). Public pages follow the system
+ * appearance, which is what the media queries read.
  */
 
-function Img({
-  image,
+const PHONE = "(max-width: 639px)";
+const DARK = "(prefers-color-scheme: dark)";
+
+function Source({ media, image }: { media: string; image: ShotImage }) {
+  return (
+    <source
+      media={media}
+      srcSet={image.src}
+      width={image.width}
+      height={image.height}
+    />
+  );
+}
+
+function Picture({
+  sources,
   alt,
   priority,
-  phone,
-  className,
 }: {
-  image: ShotImage;
+  sources: ShotSources;
   alt: string;
   priority?: boolean;
-  phone: ShotImage | null;
-  className?: string;
 }) {
+  const { light, dark } = sources;
   return (
-    <picture className={className}>
-      {phone ? <source media="(max-width: 639px)" srcSet={phone.src} /> : null}
-      {/* Static, pre-sized captures: a plain img with explicit dimensions (no
-          layout shift) — no image service is needed for a handful of files. */}
+    <picture>
+      {dark?.phone ? (
+        <Source media={`${DARK} and ${PHONE}`} image={dark.phone} />
+      ) : null}
+      {dark ? <Source media={DARK} image={dark.desktop} /> : null}
+      {light.phone ? <Source media={PHONE} image={light.phone} /> : null}
+      {/* Static, pre-sized captures: a plain img with explicit dimensions —
+          no image service is needed for a handful of files. */}
       <img
-        src={image.src}
-        width={image.width}
-        height={image.height}
+        src={light.desktop.src}
+        width={light.desktop.width}
+        height={light.desktop.height}
         alt={alt}
         loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : undefined}
         decoding="async"
         className="block h-auto w-full"
       />
@@ -57,31 +80,7 @@ export function ScreenshotFrame({
     <figure>
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         {sources ? (
-          sources.dark ? (
-            <>
-              <Img
-                image={sources.light.desktop}
-                phone={sources.light.phone}
-                alt={alt}
-                priority={priority}
-                className="block dark:hidden"
-              />
-              <Img
-                image={sources.dark.desktop}
-                phone={sources.dark.phone}
-                alt={alt}
-                priority={priority}
-                className="hidden dark:block"
-              />
-            </>
-          ) : (
-            <Img
-              image={sources.light.desktop}
-              phone={sources.light.phone}
-              alt={alt}
-              priority={priority}
-            />
-          )
+          <Picture sources={sources} alt={alt} priority={priority} />
         ) : (
           <div
             role="img"

@@ -1,4 +1,8 @@
-import { PRICE_DISPLAY, TRIAL_DURATION_DAYS } from "@/lib/billing/config";
+import {
+  BLIZZY,
+  PRICE_DISPLAY,
+  TRIAL_DURATION_DAYS,
+} from "@/lib/billing/config";
 
 /**
  * The public pages' words (design doc §6; spec RD-14). Kept in one module so
@@ -137,7 +141,7 @@ export const PRICING_FAQ = [
 /** The discount question: its tail depends on the billing switch. */
 export const DISCOUNT_FAQ = {
   q: "Is there a discount code?",
-  a: "BLIZZY gives 50% off the first three monthly bills for first-time subscribers, while redemptions last.",
+  a: `${BLIZZY.code} gives 50% off the first three monthly bills for first-time subscribers, while redemptions last.`,
   offTail: "Subscriptions aren't on sale yet, so it can't be used today.",
 } as const;
 
@@ -173,11 +177,10 @@ export const BLIZZY_PAGE = {
     `Monthly plan only (${PRICE_DISPLAY.monthly} / month).`,
     "50% off the first three monthly bills, then the regular price.",
     "First-time subscribers only.",
-    "Up to 200 redemptions in total, so it can run out.",
+    `Up to ${BLIZZY.maxRedemptions} redemptions in total, so it can run out.`,
     "Entered at checkout. The total shown there is final.",
   ],
-  availableOn:
-    "Enter BLIZZY at checkout on the monthly plan. Checkout shows whether it applies to you.",
+  availableOn: `Enter ${BLIZZY.code} at checkout on the monthly plan. Checkout shows whether it applies to you.`,
   availableOff:
     "Pro subscriptions aren't on sale yet, so the code can't be used today. When they are, you'll enter it at checkout on the monthly plan.",
   trialFit: `How it fits the trial: new accounts start with ${TRIAL_DURATION_DAYS} days of Pro, no card. The code is for when you subscribe after that.`,

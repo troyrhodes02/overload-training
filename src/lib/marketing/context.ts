@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { connection } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { signupMode } from "@/lib/accounts/signup-gate";
@@ -13,16 +14,20 @@ import { FAIL_CLOSED_CONTEXT, type MarketingContext } from "./cta";
  * taken from the browser. Any failure falls back to the fail-closed context,
  * so a public page never offers an action that might not work.
  */
-export async function getMarketingContext(): Promise<MarketingContext> {
-  await connection();
-  try {
-    const user = await getAuthUser();
-    return {
-      signedIn: user !== null,
-      signupMode: signupMode(),
-      billingEnabled: isCheckoutEnabled(),
-    };
-  } catch {
-    return FAIL_CLOSED_CONTEXT;
-  }
-}
+export const getMarketingContext = cache(
+  async function getMarketingContext(): Promise<MarketingContext> {
+    // Memoized per request (review finding 2 on PR #121): a page's several
+    // call-to-action parts share ONE session check instead of one each.
+    await connection();
+    try {
+      const user = await getAuthUser();
+      return {
+        signedIn: user !== null,
+        signupMode: signupMode(),
+        billingEnabled: isCheckoutEnabled(),
+      };
+    } catch {
+      return FAIL_CLOSED_CONTEXT;
+    }
+  },
+);

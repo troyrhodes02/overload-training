@@ -20,8 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const metadata = publicPageMetadata({
   path: "/blizzy",
   title: "The BLIZZY offer · Overload",
-  description:
-    "50% off the first three monthly bills of Overload Pro for first-time subscribers, up to 200 redemptions. Entered at checkout.",
+  description: `50% off the first three monthly bills of Overload Pro for first-time subscribers, up to ${BLIZZY.maxRedemptions} redemptions. Entered at checkout.`,
 });
 
 /**

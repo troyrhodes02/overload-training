@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 import {
+  CRAWLABLE_ASSET_PREFIXES,
   INDEXABLE_PUBLIC_PATHS,
   PUBLIC_SITE_ORIGIN,
   isProductionDeployment,
@@ -21,9 +22,12 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   return {
     rules: {
       userAgent: "*",
-      allow: [...INDEXABLE_PUBLIC_PATHS, ...publishedLegalPaths()].map((p) =>
-        p === "/" ? "/$" : p,
-      ),
+      allow: [
+        ...[...INDEXABLE_PUBLIC_PATHS, ...publishedLegalPaths()].map((p) =>
+          p === "/" ? "/$" : p,
+        ),
+        ...CRAWLABLE_ASSET_PREFIXES,
+      ],
       disallow: "/",
     },
     sitemap: `${PUBLIC_SITE_ORIGIN}/sitemap.xml`,

@@ -164,6 +164,37 @@ describe("the proxy sets it only on a real GET of /blizzy", () => {
     ).toBeUndefined();
   });
 
+  it.each([
+    ["an in-app (RSC) navigation", { rsc: "1" }],
+    [
+      "a same-origin link (Sec-Fetch-Site)",
+      { "sec-fetch-site": "same-origin" },
+    ],
+    [
+      "a link from Overload's own pricing page",
+      { referer: "https://www.overloadtraining.app/pricing" },
+    ],
+  ])(
+    "never on %s — reading about the offer isn't arriving from the campaign",
+    async (_why, headers) => {
+      expect(
+        campaignCookie(await proxy(req("/blizzy", { headers }))),
+      ).toBeUndefined();
+    },
+  );
+
+  it.each([
+    [
+      "a cross-site link (the creator's video)",
+      { "sec-fetch-site": "cross-site", referer: "https://www.youtube.com/" },
+    ],
+    ["a typed URL or bookmark", { "sec-fetch-site": "none" }],
+  ])("still on %s", async (_why, headers) => {
+    expect(
+      campaignCookie(await proxy(req("/blizzy", { headers }))),
+    ).toBeDefined();
+  });
+
   it("never on other pages or other methods", async () => {
     for (const p of ["/", "/pricing", "/changelog", "/signup"]) {
       expect(campaignCookie(await proxy(req(p)))).toBeUndefined();

@@ -20,6 +20,22 @@ export const INDEXABLE_PUBLIC_PATHS = [
   "/support",
 ] as const;
 
+/**
+ * Static assets public pages need crawlers to fetch: framework JS/CSS, the
+ * social card and icons, brand images, and the landing screenshots (review
+ * finding 1 on PR #121). Allowing them reveals nothing private.
+ */
+export const CRAWLABLE_ASSET_PREFIXES = [
+  "/_next/static/",
+  "/_next/image",
+  "/marketing/",
+  "/brand/",
+  "/opengraph-image",
+  "/icon",
+  "/apple-icon",
+  "/manifest.webmanifest",
+] as const;
+
 /** Absolute canonical URL for a public path. */
 export function canonicalUrl(path: string): string {
   return path === "/"
