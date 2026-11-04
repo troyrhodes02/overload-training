@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAdminPath, routeRedirect, routeRewrite } from "@/lib/auth-routes";
 import { isAdminUserId } from "@/lib/admin/allowlist";
+import { campaignCookieFor } from "@/lib/marketing/campaign";
 
 /** A path no route answers: rewriting to it renders the ordinary 404. */
 const NOT_FOUND_PATH = "/_not-found-overload";
@@ -16,7 +17,21 @@ const NOT_FOUND_PATH = "/_not-found-overload";
  *  3. Serve the public landing page at `/` to signed-out visitors (a rewrite,
  *     so the URL stays `/`); a signed-in lifter's `/` is Today, untouched
  *     (Public Landing Page & Changelog, spec §7).
+ *  4. Remember a campaign landing (GET /blizzy) in a short-lived, first-party,
+ *     HttpOnly cookie holding only the allowlisted campaign name and its issue
+ *     time (spec §4, RD-8). Never set by a link prefetch, so a visitor who
+ *     merely hovered a link to /blizzy is not attributed.
  */
+
+/** True for Next router / browser speculative prefetches (not a real visit). */
+function isPrefetch(request: NextRequest): boolean {
+  const h = request.headers;
+  return (
+    h.has("next-router-prefetch") ||
+    /prefetch/i.test(h.get("purpose") ?? "") ||
+    /prefetch/i.test(h.get("sec-purpose") ?? "")
+  );
+}
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -71,6 +86,17 @@ export async function proxy(request: NextRequest) {
       rewrite.cookies.set(cookie);
     }
     return rewrite;
+  }
+
+  if (request.method === "GET" && !isPrefetch(request)) {
+    const campaign = campaignCookieFor(
+      request.nextUrl.pathname,
+      new Date(),
+      request.nextUrl.protocol === "https:",
+    );
+    if (campaign) {
+      response.cookies.set(campaign.name, campaign.value, campaign.options);
+    }
   }
 
   // Admin Center & Feedback (spec R23): a signed-in non-admin gets the very

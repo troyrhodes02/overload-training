@@ -123,6 +123,8 @@ it("Profile: status is the only writable field, and an update needs a where", ()
     "lastActiveOn",
     "userId",
     "appearance",
+    // Public Landing Page & Changelog: readable metadata, never writable.
+    "signupCampaign",
   ]) {
     refused("Profile", "updateMany", {
       where: { userId: "x" },

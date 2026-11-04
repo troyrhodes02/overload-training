@@ -521,6 +521,14 @@ enum Appearance {
 /// timezone, the ONLY authority for "today" (src/lib/data/account.ts).
 /// Email and password live in Supabase Auth, never here. Names stay nullable
 /// until Accounts (Pitch 9) collects them at signup. RLS deny-all (migration 9).
+/// Public Landing Page & Changelog: the allowlisted campaign a signup came
+/// from. A closed set on purpose; adding one is a reviewed migration.
+enum SignupCampaign {
+  blizzy
+
+  @@map("signup_campaign")
+}
+
 model Profile {
   userId       String        @id @map("user_id") @db.Uuid
   firstName    String?       @map("first_name")
@@ -549,6 +557,11 @@ model Profile {
   /// first-checkout gate (Billing) to read. Set only by the verification flow,
   /// scoped to the acting account; never cleared in this pitch.
   emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz
+  /// Public Landing Page & Changelog: the allowlisted campaign this account
+  /// signed up from (a first-party cookie set by /blizzy, validated on the
+  /// server), or NULL. Written once by signup's profile creation and never
+  /// updated by any path. Exported with the profile; deleted with the account.
+  signupCampaign SignupCampaign? @map("signup_campaign")
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
