@@ -144,8 +144,16 @@ it("nothing sends email or push", () => {
   // module is the only file allowed to name it; `resend` stays forbidden
   // everywhere else, and no email/push SDK is ever a dependency.
   const EMAIL_SENDER_EXEMPT = "src/lib/accounts/verification.ts";
+  // Public Landing Page & Changelog: the privacy policy must NAME its email
+  // processor (Resend) in its text. It is content, not a sender: it may import
+  // nothing but types, so it can never send anything (asserted below).
+  const PROCESSOR_DISCLOSURE = "src/lib/legal/privacy.ts";
+  expect(
+    importsOf(read(PROCESSOR_DISCLOSURE)).every((m) => m === "./types"),
+  ).toBe(true);
   const offenders = walk(SRC)
     .filter((f) => rel(f) !== EMAIL_SENDER_EXEMPT)
+    .filter((f) => rel(f) !== PROCESSOR_DISCLOSURE)
     .filter((f) =>
       /\b(resend|nodemailer|web-push|PushManager|showNotification)\b/i.test(
         fs.readFileSync(f, "utf8"),
