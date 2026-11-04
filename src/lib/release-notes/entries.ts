@@ -26,6 +26,20 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Public Landing Page & Changelog (Pitch 21 / slug 20; OVE-103,
+    // overload-onboarding). Changes nothing about how a lifter trains, so NOT
+    // significant: list only, no dialog. No tour step (design doc §13).
+    // PROVISIONAL date: written during the pipeline run on 2026-11-04 while the
+    // feature PR waits for human approval. Before merging, set `date` and the
+    // id's date prefix to the production-ship day (the contract forbids
+    // backdating); once it reaches production it is never re-dated.
+    id: "2026-11-04-public-changelog",
+    date: "2026-11-04",
+    title: "Overload's changelog is now public",
+    body: "The same updates you see here are now listed on Overload's public changelog, next to the pricing, privacy, and terms pages. Find the links at the bottom of Settings.",
+    significant: false,
+  },
+  {
     // Plans, Billing & Promo Codes (Pitch 19; OVE-95, overload-onboarding).
     // Free and Pro are a major change to the offering, so this is significant
     // (opens the dialog). It describes only what shipped — capture stays free,
