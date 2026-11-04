@@ -171,6 +171,13 @@ describe("marketing truth (P21-AC8)", () => {
     "src/components/marketing/marketing-frame.tsx",
     "src/components/marketing/availability.tsx",
     "src/components/marketing/screenshot-frame.tsx",
+    "src/components/marketing/copy-code.tsx",
+    "src/components/marketing/legal-document.tsx",
+    "src/app/(marketing)/blizzy/page.tsx",
+    "src/app/(marketing)/privacy/page.tsx",
+    "src/app/(marketing)/terms/page.tsx",
+    "src/lib/legal/privacy.ts",
+    "src/lib/legal/terms.ts",
   ];
 
   it("uses none of the banned phrases", async () => {
