@@ -56,4 +56,7 @@ See spec §17 (RD-1…RD-23). Key: RD-3 cherry-pick kill switch; RD-4 signed-out
 - [x] OVE-97 → `ove-97-public-changelog` → PR #123 (base ove-96). unit 1459, build exit 0.
 - [x] OVE-98 → `ove-98-landing-pricing` → PR #124. unit 1480, build 0.
 - [x] OVE-99 → `ove-99-blizzy-attribution` → PR #125. Migration 9k_signup_campaign. unit all green; integration signup-campaign(8)+trial+billing-screen=17; privacy/isolation/export/deletion=146. build 0.
+- [x] OVE-100 → `ove-100-demo-seed` → PR #126. unit 1552; demo-seed.int 8; CLI refusal smoke tests.
+- [x] OVE-101 → `ove-101-screenshots` → PR #127. Local stack migrated 9h–9k (LOCAL ONLY); demo accounts created via local /signup (*.test); 24 real captures; provision-local removed (next/navigation can't load outside Next); demo:seed uses server-only shim. Finding: machine 'Stay at' anchors to baseline (15% margin) — reported, not changed. Push of PNGs needed `git -c http.postBuffer=524288000 push`.
+- Local env file (scratchpad, NOT repo): .../scratchpad/local-demo.env. Local app may be running on :3100 (stop via Get-NetTCPConnection -LocalPort 3100).
 - Build note: first `next build` exits on pre-existing Next.js SecurityFatalError nudge; immediate retry exits 0. Always override DATABASE_URL/DIRECT_URL/NEXT_PUBLIC_SUPABASE_URL to local for builds.
