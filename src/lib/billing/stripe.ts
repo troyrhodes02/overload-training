@@ -155,6 +155,24 @@ export async function fetchSubscriptionSnapshot(
       : typeof sub.current_period_end === "number"
         ? sub.current_period_end
         : null;
+
+  // A scheduled cancellation has two representations. Legacy: the boolean
+  // `cancel_at_period_end`. Current (API 2026-10-28, verified against the live
+  // sandbox): the Customer Portal records "cancel at end of period" by setting
+  // `cancel_at` to a timestamp and leaves `cancel_at_period_end` FALSE — so
+  // reading only the boolean misses every portal cancellation. Treat EITHER as
+  // scheduled-to-cancel. (An already-ended subscription is distinguished by its
+  // `status` becoming `canceled`, which the resolver maps to Free, not here.)
+  const cancelAtUnix = typeof sub.cancel_at === "number" ? sub.cancel_at : null;
+  const scheduledToCancel =
+    Boolean(sub.cancel_at_period_end) || cancelAtUnix !== null;
+
+  // The effective end date the lifter sees ("ends on" / "renews on"). When a
+  // cancellation is scheduled to a specific instant — which can fall before the
+  // regular period end for a mid-cycle cancel — `cancel_at` is that date;
+  // otherwise it is the period end. `cancel_at` takes precedence when present.
+  const effectiveEndUnix = cancelAtUnix ?? periodEndUnix;
+
   return {
     subscriptionId: sub.id,
     customerId:
@@ -162,8 +180,8 @@ export async function fetchSubscriptionSnapshot(
     status: sub.status as MirrorSnapshot["status"],
     interval,
     currentPeriodEnd:
-      periodEndUnix !== null ? new Date(periodEndUnix * 1000) : null,
-    cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+      effectiveEndUnix !== null ? new Date(effectiveEndUnix * 1000) : null,
+    cancelAtPeriodEnd: scheduledToCancel,
     priceId: price?.id ?? null,
     promo: readPromo(sub),
   };
