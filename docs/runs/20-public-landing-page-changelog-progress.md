@@ -54,4 +54,6 @@ See spec §17 (RD-1…RD-23). Key: RD-3 cherry-pick kill switch; RD-4 signed-out
 (stacked: each branches from the previous ticket branch; first from the feature branch)
 - [x] OVE-96 → `ove-96-public-routing-frame` → PR #122 (base feature). typecheck/lint/format/unit 1442/build(retry exit 0) green. Note: ran `npm install` (stripe was missing locally) + `prisma generate`; lockfile churn reverted.
 - [x] OVE-97 → `ove-97-public-changelog` → PR #123 (base ove-96). unit 1459, build exit 0.
+- [x] OVE-98 → `ove-98-landing-pricing` → PR #124. unit 1480, build 0.
+- [x] OVE-99 → `ove-99-blizzy-attribution` → PR #125. Migration 9k_signup_campaign. unit all green; integration signup-campaign(8)+trial+billing-screen=17; privacy/isolation/export/deletion=146. build 0.
 - Build note: first `next build` exits on pre-existing Next.js SecurityFatalError nudge; immediate retry exits 0. Always override DATABASE_URL/DIRECT_URL/NEXT_PUBLIC_SUPABASE_URL to local for builds.
