@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/actions/result";
 import { addDays, GRACE_PERIOD_DAYS } from "@/lib/billing/config";
@@ -173,63 +174,89 @@ export async function reconcileStripeEvent(
       return { status: "processed" as const, userId };
     }
 
-    // Grace: set the window the first time we see past_due; clear it otherwise.
-    const prior = await tx.billingAccount.findUnique({
-      where: { userId },
-      select: { graceEndsAt: true },
-    });
-    let graceEndsAt: Date | null = null;
-    if (snap.status === "past_due") {
-      graceEndsAt = prior?.graceEndsAt ?? addDays(now(), GRACE_PERIOD_DAYS);
-    }
-
-    await tx.billingAccount.upsert({
-      where: { userId },
-      create: {
-        userId,
-        stripeCustomerId: snap.customerId,
-        subscriptionId: snap.subscriptionId,
-        status: snap.status,
-        interval: snap.interval,
-        currentPeriodEnd: snap.currentPeriodEnd,
-        cancelAtPeriodEnd: snap.cancelAtPeriodEnd,
-        graceEndsAt,
-        priceId: snap.priceId,
-        promoCode: snap.promo?.code ?? null,
-      },
-      update: {
-        stripeCustomerId: snap.customerId,
-        subscriptionId: snap.subscriptionId,
-        status: snap.status,
-        interval: snap.interval,
-        currentPeriodEnd: snap.currentPeriodEnd,
-        cancelAtPeriodEnd: snap.cancelAtPeriodEnd,
-        graceEndsAt,
-        priceId: snap.priceId,
-        promoCode: snap.promo?.code ?? null,
-      },
-    });
-
-    // Mirror the promotion once per (account, code).
-    if (snap.promo) {
-      const already = await tx.promoRedemption.findUnique({
-        where: { userId_code: { userId, code: snap.promo.code } },
-        select: { id: true },
-      });
-      if (!already) {
-        await tx.promoRedemption.create({
-          data: {
-            userId,
-            code: snap.promo.code,
-            couponId: snap.promo.couponId,
-            promotionCodeId: snap.promo.promotionCodeId,
-            subscriptionId: snap.subscriptionId,
-            redeemedAt: now(),
-          },
-        });
-      }
-    }
-
+    await applyMirrorSnapshot(tx, userId, snap, now);
     return { status: "processed" as const, userId };
   });
+}
+
+/**
+ * Write Stripe's re-fetched truth onto an account's billing mirror (and mirror
+ * any promotion once). Shared by the webhook reconciler and the read-time sync
+ * so both converge on exactly the same persisted state. Scoped to one account:
+ * it only ever writes `userId`'s own mirror, never another account's.
+ */
+async function applyMirrorSnapshot(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  snap: MirrorSnapshot,
+  now: () => Date,
+): Promise<void> {
+  // Grace: set the window the first time we see past_due; clear it otherwise.
+  const prior = await tx.billingAccount.findUnique({
+    where: { userId },
+    select: { graceEndsAt: true },
+  });
+  let graceEndsAt: Date | null = null;
+  if (snap.status === "past_due") {
+    graceEndsAt = prior?.graceEndsAt ?? addDays(now(), GRACE_PERIOD_DAYS);
+  }
+
+  const fields = {
+    stripeCustomerId: snap.customerId,
+    subscriptionId: snap.subscriptionId,
+    status: snap.status,
+    interval: snap.interval,
+    currentPeriodEnd: snap.currentPeriodEnd,
+    cancelAtPeriodEnd: snap.cancelAtPeriodEnd,
+    graceEndsAt,
+    priceId: snap.priceId,
+    promoCode: snap.promo?.code ?? null,
+  };
+  await tx.billingAccount.upsert({
+    where: { userId },
+    create: { userId, ...fields },
+    update: fields,
+  });
+
+  // Mirror the promotion once per (account, code).
+  if (snap.promo) {
+    const already = await tx.promoRedemption.findUnique({
+      where: { userId_code: { userId, code: snap.promo.code } },
+      select: { id: true },
+    });
+    if (!already) {
+      await tx.promoRedemption.create({
+        data: {
+          userId,
+          code: snap.promo.code,
+          couponId: snap.promo.couponId,
+          promotionCodeId: snap.promo.promotionCodeId,
+          subscriptionId: snap.subscriptionId,
+          redeemedAt: now(),
+        },
+      });
+    }
+  }
+}
+
+/**
+ * Read-time safety net: re-fetch an account's subscription from Stripe and
+ * reconcile its mirror, so a missed, delayed, or out-of-order webhook does not
+ * leave the Plan & Billing screen asserting a stale state (the reported bug: a
+ * scheduled cancellation that still read "renews"). Reconcile-to-truth, so it
+ * is idempotent and converges regardless of delivery order. Resolves nothing
+ * from client input: the caller passes the acting account's own `userId` and
+ * its stored `subscriptionId`, and only that account's mirror is written.
+ */
+export async function syncBillingFromStripe(
+  input: { userId: string; subscriptionId: string },
+  deps: WebhookDeps,
+): Promise<{ status: "synced" | "unavailable" }> {
+  const snap = await deps.getSubscription(input.subscriptionId);
+  if (!snap) return { status: "unavailable" };
+  const now = deps.now ?? (() => new Date());
+  await prisma.$transaction((tx) =>
+    applyMirrorSnapshot(tx, input.userId, snap, now),
+  );
+  return { status: "synced" };
 }

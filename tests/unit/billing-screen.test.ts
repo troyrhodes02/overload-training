@@ -1,4 +1,4 @@
-import { billingCopy } from "@/lib/billing/screen";
+import { billingCopy, formatEndsOn } from "@/lib/billing/screen";
 
 /**
  * Plans, Billing & Promo Codes — Plan & Billing copy (PR #112 cancellation UX).
@@ -57,5 +57,34 @@ describe("billingCopy", () => {
   it("an expired/canceled subscription is Free", () => {
     const f = billingCopy("free", { trialDaysLeft: null, endsOn: null });
     expect(f.label).toBe("Free");
+  });
+});
+
+describe("formatEndsOn (billing date = UTC calendar date, matches Stripe)", () => {
+  it("is null when there is no period end", () => {
+    expect(formatEndsOn(null)).toBeNull();
+  });
+
+  it("renders the UTC calendar date, not a timezone-rolled one (the Dec 3 vs Dec 4 bug)", () => {
+    // An early-morning-UTC instant would render as the previous day in
+    // US-negative timezones. It must stay on its UTC date to match Stripe.
+    expect(formatEndsOn(new Date("2026-12-04T00:00:00Z"))).toBe(
+      "December 4, 2026",
+    );
+    expect(formatEndsOn(new Date("2026-12-04T05:00:00Z"))).toBe(
+      "December 4, 2026",
+    );
+    expect(formatEndsOn(new Date("2026-12-04T23:59:59Z"))).toBe(
+      "December 4, 2026",
+    );
+  });
+
+  it("does not drift across a month/year boundary", () => {
+    expect(formatEndsOn(new Date("2026-12-31T23:30:00Z"))).toBe(
+      "December 31, 2026",
+    );
+    expect(formatEndsOn(new Date("2027-01-01T00:00:00Z"))).toBe(
+      "January 1, 2027",
+    );
   });
 });

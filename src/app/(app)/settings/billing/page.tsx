@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { requireAccount } from "@/lib/data/account";
 import { getBillingScreen } from "@/lib/billing/screen";
+import { refreshBillingFromStripe } from "@/lib/billing/sync";
 import { PlanBilling } from "@/components/billing/plan-billing";
 
 export const metadata = { title: "Plan & Billing · Overload" };
@@ -18,6 +19,10 @@ export default async function BillingPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const account = await requireAccount();
+  // Converge the mirror on Stripe's current truth first, so a missed or late
+  // webhook can't leave this screen asserting a stale state (e.g. "renews"
+  // after a scheduled cancellation). Best-effort — never breaks the page.
+  await refreshBillingFromStripe(account);
   const screen = await getBillingScreen(account);
   const raw = (await searchParams).status;
   const status =

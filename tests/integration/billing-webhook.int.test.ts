@@ -2,6 +2,7 @@ import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 import {
   reconcileStripeEvent,
+  syncBillingFromStripe,
   type MirrorSnapshot,
   type StripeEventInput,
 } from "@/lib/data/billing-webhook";
@@ -128,6 +129,53 @@ describe("account linking + reconcile", () => {
     const out = await reconcileStripeEvent(ev, depsReturning(snap()));
     expect(out).toEqual({ status: "ignored", reason: "unknown_account" });
     expect(await mirror()).toBeNull();
+  });
+});
+
+describe("read-time sync self-heals a stale mirror (missed webhook)", () => {
+  it("picks up a scheduled cancellation that no webhook ever delivered", async () => {
+    // The mirror is linked and active, exactly as after checkout. No
+    // customer.subscription.updated arrived (the reported Preview bug).
+    await reconcileStripeEvent(checkoutCompleted(), depsReturning(snap()));
+    expect((await mirror())?.cancelAtPeriodEnd).toBe(false);
+
+    // Loading Plan & Billing refetches Stripe's truth and reconciles.
+    const endsAt = new Date("2026-12-04T00:00:00Z");
+    const out = await syncBillingFromStripe(
+      { userId: account.userId, subscriptionId: SUB },
+      depsReturning(
+        snap({ cancelAtPeriodEnd: true, currentPeriodEnd: endsAt }),
+      ),
+    );
+    expect(out).toEqual({ status: "synced" });
+    const m = await mirror();
+    expect(m?.cancelAtPeriodEnd).toBe(true);
+    expect(m?.currentPeriodEnd?.toISOString()).toBe(endsAt.toISOString());
+  });
+
+  it("restores the active state when the cancellation is reversed", async () => {
+    await reconcileStripeEvent(
+      checkoutCompleted(),
+      depsReturning(snap({ cancelAtPeriodEnd: true })),
+    );
+    expect((await mirror())?.cancelAtPeriodEnd).toBe(true);
+
+    await syncBillingFromStripe(
+      { userId: account.userId, subscriptionId: SUB },
+      depsReturning(snap({ cancelAtPeriodEnd: false })),
+    );
+    expect((await mirror())?.cancelAtPeriodEnd).toBe(false);
+  });
+
+  it("leaves the mirror untouched when Stripe is unavailable", async () => {
+    await reconcileStripeEvent(checkoutCompleted(), depsReturning(snap()));
+    const before = await mirror();
+    const out = await syncBillingFromStripe(
+      { userId: account.userId, subscriptionId: SUB },
+      depsReturning(null),
+    );
+    expect(out).toEqual({ status: "unavailable" });
+    expect((await mirror())?.updatedAt).toEqual(before?.updatedAt);
   });
 });
 

@@ -12,9 +12,11 @@ import type { Account } from "@/lib/data/account";
 
 const PERIOD_END = new Date("2026-12-04T00:00:00.000Z");
 
-async function withMirror(over: Record<string, unknown>): Promise<Account> {
-  // UTC account so the formatted end date is deterministic.
-  const account = await createTestAccount("UTC", undefined, {
+async function withMirror(
+  over: Record<string, unknown>,
+  timeZone = "UTC",
+): Promise<Account> {
+  const account = await createTestAccount(timeZone, undefined, {
     entitlement: "none",
   });
   await getTestPrisma().billingAccount.create({
@@ -75,4 +77,16 @@ it("an expired (canceled) subscription is Free, but Manage billing remains", asy
   expect(screen.label).toBe("Free");
   expect(screen.endsOn).toBe("December 4, 2026"); // mirror still holds the date
   expect(screen.canManage).toBe(true); // the Stripe customer still exists
+});
+
+it("renders the billing date in UTC, matching Stripe, regardless of the account timezone", async () => {
+  // The reported Dec 3 vs Dec 4 bug: a UTC-negative account must not see the
+  // period end rolled back a day. America/Chicago is UTC-6.
+  const account = await withMirror(
+    { cancelAtPeriodEnd: true },
+    "America/Chicago",
+  );
+  const screen = await getBillingScreen(account);
+  expect(screen.endsOn).toBe("December 4, 2026");
+  expect(screen.explanation).toContain("ends on December 4, 2026");
 });

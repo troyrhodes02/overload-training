@@ -11,7 +11,7 @@ import type { DisplayState } from "@/lib/entitlements/types";
  * the subscription's period end. The label/explanation copy lives here, so the
  * lifter screen, the Settings sub-label, and the admin view never diverge on
  * how a state reads. Dates are the real period end from the Stripe mirror,
- * formatted in the account's timezone — never hardcoded.
+ * rendered as the UTC calendar date to match Stripe — never hardcoded.
  */
 
 export type BillingScreenDto = {
@@ -27,7 +27,7 @@ export type BillingScreenDto = {
   problem: boolean;
   /** Whether a cancellation is scheduled at period end (from the Stripe mirror). */
   cancelAtPeriodEnd: boolean;
-  /** The subscription's period-end date, formatted in the account timezone, or null. */
+  /** The subscription's period-end date, as the UTC calendar date (matches Stripe), or null. */
   endsOn: string | null;
 };
 
@@ -98,14 +98,23 @@ export function billingCopy(
   }
 }
 
-/** A subscription period-end instant as a date in the account's timezone. */
-function formatEndsOn(instant: Date | null, timeZone: string): string | null {
+/**
+ * A subscription period-end instant as a user-facing calendar date.
+ *
+ * Billing dates are rendered in UTC, not the account's timezone. The renewal /
+ * cancellation date is a Stripe billing fact, and Stripe shows the UTC calendar
+ * date of the instant; formatting the same instant in a UTC-negative timezone
+ * (e.g. America/Chicago) would roll a near-midnight-UTC period end back a day
+ * and disagree with the Stripe portal (the reported "Dec 3 vs Dec 4" bug).
+ * This is deliberately NOT the account timezone used for "today" and greetings.
+ */
+export function formatEndsOn(instant: Date | null): string | null {
   if (!instant) return null;
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
-    timeZone,
+    timeZone: "UTC",
   }).format(instant);
 }
 
@@ -129,10 +138,7 @@ export async function getBillingScreen(
   ]);
 
   const state = resolved.displayState;
-  const endsOn = formatEndsOn(
-    billing?.currentPeriodEnd ?? null,
-    account.timeZone,
-  );
+  const endsOn = formatEndsOn(billing?.currentPeriodEnd ?? null);
   const copy = billingCopy(state, {
     trialDaysLeft: resolved.trialDaysLeft,
     endsOn,
