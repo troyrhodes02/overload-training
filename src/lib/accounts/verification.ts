@@ -77,7 +77,19 @@ export function isAllowedRedirectHost(
   const configured = env.NEXT_PUBLIC_APP_URL;
   if (configured) {
     try {
-      if (new URL(configured).hostname.toLowerCase() === bare) return true;
+      const confHost = new URL(configured).hostname.toLowerCase();
+      if (confHost === bare) return true;
+      // Also accept the www/apex SIBLING of the same configured domain. A
+      // canonical-www production whose NEXT_PUBLIC_APP_URL is set to the apex
+      // (or vice versa) must still honor the host the lifter is actually on, so
+      // the link returns to that host's /auth/confirm instead of falling back
+      // to a non-canonical origin (which Supabase then rejects, dropping the
+      // lifter on the Site-URL homepage). Bounded to one `www.` toggle of the
+      // configured host — never a different registrable domain.
+      const sibling = confHost.startsWith("www.")
+        ? confHost.slice(4)
+        : `www.${confHost}`;
+      if (sibling === bare) return true;
     } catch {
       // ignore a malformed configured URL
     }
