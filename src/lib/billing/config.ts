@@ -57,6 +57,19 @@ export const BLIZZY = {
   maxRedemptions: 200,
 } as const;
 
+/**
+ * Server-side billing kill switch. Paid checkout is OFF unless
+ * `STRIPE_BILLING_ENABLED` is exactly "true" — so a production deploy with the
+ * flag unset (the default until the launch pitch) cannot start a checkout or
+ * take a payment even if Stripe keys are present. Dev/preview set it to "true"
+ * to test against the Stripe test sandbox. This is the single switch; both the
+ * screen (hides Subscribe, shows a plain note) and the checkout entry point
+ * (refuses before any Stripe call) read it, so the UI and the server agree.
+ */
+export function isCheckoutEnabled(): boolean {
+  return process.env.STRIPE_BILLING_ENABLED === "true";
+}
+
 export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function addDays(from: Date, days: number): Date {

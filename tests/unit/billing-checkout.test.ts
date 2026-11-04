@@ -2,6 +2,10 @@ import { startCheckout, startPortal } from "@/lib/billing/checkout";
 import type { Account } from "@/lib/data/account";
 import type { BillingProvider } from "@/lib/billing/stripe";
 
+// Default posture for these tests: checkout enabled (the kill switch is on).
+// The disabled-path test toggles it off and restores it.
+process.env.STRIPE_BILLING_ENABLED = "true";
+
 /**
  * Plans, Billing & Promo Codes — checkout/portal logic (spec §11, §12; RD-11).
  * The Stripe provider and the session email are injected, so these run with no
@@ -68,6 +72,27 @@ function fakeProvider(overrides: Partial<BillingProvider> = {}): {
 }
 
 describe("startCheckout", () => {
+  it("refuses when the billing kill switch is off, before touching Stripe", async () => {
+    const prev = process.env.STRIPE_BILLING_ENABLED;
+    process.env.STRIPE_BILLING_ENABLED = "false";
+    try {
+      const { account } = fakeAccount({
+        emailVerifiedAt: new Date(),
+        stripeCustomerId: null,
+      });
+      const { provider, calls } = fakeProvider();
+      await expect(
+        startCheckout(account, "month", {
+          provider,
+          ownEmail: async () => "a@b.c",
+        }),
+      ).rejects.toMatchObject({ code: "invalid_state_transition" });
+      expect(calls).toEqual([]); // never reached Stripe — no key, no charge
+    } finally {
+      process.env.STRIPE_BILLING_ENABLED = prev;
+    }
+  });
+
   it("refuses an unverified email (first-checkout gate)", async () => {
     const { account } = fakeAccount({
       emailVerifiedAt: null,

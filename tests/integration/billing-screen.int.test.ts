@@ -90,3 +90,26 @@ it("renders the billing date in UTC, matching Stripe, regardless of the account 
   expect(screen.endsOn).toBe("December 4, 2026");
   expect(screen.explanation).toContain("ends on December 4, 2026");
 });
+
+it("the billing kill switch hides Subscribe without touching Free access", async () => {
+  // A Free account with the switch ON can subscribe; flipping it OFF (the
+  // production-until-launch posture) withholds Subscribe but keeps the plan.
+  const account = await createTestAccount("UTC", undefined, {
+    entitlement: "none",
+  });
+
+  const on = await getBillingScreen(account);
+  expect(on.billingEnabled).toBe(true);
+  expect(on.canSubscribe).toBe(true);
+
+  const prev = process.env.STRIPE_BILLING_ENABLED;
+  process.env.STRIPE_BILLING_ENABLED = "false";
+  try {
+    const off = await getBillingScreen(account);
+    expect(off.billingEnabled).toBe(false);
+    expect(off.canSubscribe).toBe(false);
+    expect(off.displayState).toBe("free"); // still has the full Free product
+  } finally {
+    process.env.STRIPE_BILLING_ENABLED = prev;
+  }
+});
