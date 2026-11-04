@@ -88,6 +88,12 @@ export function PlanBilling({
   }
 
   const showSubscribe = screen.canSubscribe && !confirming;
+  // Billing disabled on this deployment (kill switch) and the lifter is on a
+  // plan that could otherwise subscribe: show a plain note instead of buttons.
+  const showUnavailable =
+    !screen.billingEnabled &&
+    !confirming &&
+    (screen.displayState === "free" || screen.displayState === "trial");
 
   return (
     <div className="space-y-5">
@@ -130,6 +136,13 @@ export function PlanBilling({
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <span>{error}</span>
             </div>
+          ) : null}
+
+          {showUnavailable ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Pro subscriptions aren&apos;t available yet. Everything you log
+              stays free, and we&apos;ll let you know when Pro opens.
+            </p>
           ) : null}
 
           {showSubscribe && screen.emailVerified ? (
