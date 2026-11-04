@@ -14,10 +14,10 @@
 - [x] 5. Resolved Decisions in spec (RD-1…RD-23; OQ-1…7 owner items)
 - [x] 6. Linear milestone `Public Landing Page & Changelog` (2b1a45fa) + OVE-96…103 chained
 - [x] 7. Feature PR opened: **#121** (DO NOT MERGE)
-- [ ] 8. Implement tickets (stacked branches) ← IN PROGRESS
-- [ ] 9. Runbook
-- [ ] 10. Integrate ticket PRs into feature branch
-- [ ] 11. Verification
+- [x] 8. Implement tickets (stacked branches) — all 8 done, PRs #122–#129
+- [x] 9. Runbook — docs/runs/20-public-landing-page-changelog-runbook.md
+- [x] 10. Integrated: #122, #123 squash-merged on GitHub; #124–#129 squash-merged LOCALLY in order (GitHub squash conflicted on stacked ancestry; no force-push), PRs closed with commit pointers; stray provision-local.ts removed; feature tree == ove-103 tip (0-line diff)
+- [ ] 11. Verification ← IN PROGRESS: typecheck/lint/format OK; unit 102 suites 1570 passed; build exit 0; client-bundle OK; full integration running
 - [ ] 12. /review → PR comments
 - [ ] 13. /overload-review-audit
 - [ ] 14. Final verification, STOP before merge
@@ -59,4 +59,5 @@ See spec §17 (RD-1…RD-23). Key: RD-3 cherry-pick kill switch; RD-4 signed-out
 - [x] OVE-100 → `ove-100-demo-seed` → PR #126. unit 1552; demo-seed.int 8; CLI refusal smoke tests.
 - [x] OVE-101 → `ove-101-screenshots` → PR #127. Local stack migrated 9h–9k (LOCAL ONLY); demo accounts created via local /signup (*.test); 24 real captures; provision-local removed (next/navigation can't load outside Next); demo:seed uses server-only shim. Finding: machine 'Stay at' anchors to baseline (15% margin) — reported, not changed. Push of PNGs needed `git -c http.postBuffer=524288000 push`.
 - Local env file (scratchpad, NOT repo): .../scratchpad/local-demo.env. Local app may be running on :3100 (stop via Get-NetTCPConnection -LocalPort 3100).
+- [x] OVE-102 → PR #128 (legal gate). OVE-103 → PR #129 (release note, no tour step).
 - Build note: first `next build` exits on pre-existing Next.js SecurityFatalError nudge; immediate retry exits 0. Always override DATABASE_URL/DIRECT_URL/NEXT_PUBLIC_SUPABASE_URL to local for builds.
