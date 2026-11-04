@@ -498,6 +498,8 @@ describe("the Overview on controlled data (spec §9)", () => {
       newThisMonth: 2, // a, e
       withPlan: 3, // a, b, c
       loggedWorkout: 1, // a
+      // Public Landing Page & Changelog: none of these signed up from /blizzy.
+      fromBlizzy: 0,
       pct: { active7: 20, active30: 40, withPlan: 60, loggedWorkout: 20 },
       monthStart: "2026-10-01",
       cohorts: [
