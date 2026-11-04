@@ -25,9 +25,20 @@ const SIGNED_IN_SAFE_PUBLIC = [
   "/verify-email",
 ] as const;
 
+/**
+ * Server-to-server endpoints that carry NO session and must not be bounced to
+ * /login. The Stripe webhook (Plans, Billing & Promo Codes) is authenticated by
+ * its Stripe SIGNATURE inside the route handler, not by a Supabase session; the
+ * proxy must let the unauthenticated POST through so that verification can run.
+ * This does not weaken auth: the handler rejects any unsigned/invalid payload
+ * with 400 and resolves the account from the verified event's customer id.
+ */
+const UNAUTHENTICATED_WEBHOOKS = ["/api/stripe/webhook"] as const;
+
 export const PUBLIC_PATHS = [
   ...SIGNED_OUT_DOORS,
   ...SIGNED_IN_SAFE_PUBLIC,
+  ...UNAUTHENTICATED_WEBHOOKS,
 ] as const;
 
 function matches(pathname: string, path: string): boolean {

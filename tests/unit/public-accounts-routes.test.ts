@@ -28,17 +28,26 @@ describe("public paths (PA3 / R9)", () => {
     "/verify-email",
   ];
 
-  it.each([...newDoors, "/login", "/signup"])(
-    "%s is public and reachable signed-out",
+  // Plans, Billing & Promo Codes: the Stripe webhook is a server-to-server
+  // endpoint authenticated by its signature, not a session — the proxy must
+  // NOT redirect its unauthenticated POST to /login (the reported bug).
+  const webhooks = ["/api/stripe/webhook"];
+
+  it.each([...newDoors, ...webhooks, "/login", "/signup"])(
+    "%s is public and reachable without a session (no /login bounce)",
     (path) => {
       expect(isPublicPath(path)).toBe(true);
       expect(routeRedirect(path, false)).toBeNull();
     },
   );
 
+  it("the Stripe webhook is public for a signed-in visitor too (never bounced)", () => {
+    expect(routeRedirect("/api/stripe/webhook", true)).toBeNull();
+  });
+
   it("exports exactly the expected public path set", () => {
     expect([...PUBLIC_PATHS].sort()).toEqual(
-      ["/login", "/signup", ...newDoors].sort(),
+      ["/login", "/signup", ...newDoors, ...webhooks].sort(),
     );
   });
 
