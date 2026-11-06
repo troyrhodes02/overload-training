@@ -74,6 +74,8 @@ export type AdminOverviewDto = {
   newThisMonth: number;
   withPlan: number;
   loggedWorkout: number;
+  /** Accounts that signed up from /blizzy (Public Landing Page, RD-10). */
+  fromBlizzy: number;
   pct: {
     active7: number | null;
     active30: number | null;

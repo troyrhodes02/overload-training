@@ -47,6 +47,10 @@ export const PROFILE_ADMIN_FIELDS = [
   "status",
   "lastActiveOn",
   "createdAt",
+  // Public Landing Page & Changelog (RD-10): which allowlisted campaign an
+  // account signed up from — account metadata, aggregated on the Overview,
+  // never writable (status stays the only writable Profile field).
+  "signupCampaign",
 ] as const;
 
 const RULES: Record<string, Rule> = {

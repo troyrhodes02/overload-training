@@ -1,7 +1,8 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
-import { PRICE_DISPLAY } from "@/lib/billing/config";
+import { BLIZZY, PRICE_DISPLAY, isCheckoutEnabled } from "@/lib/billing/config";
+import type { Campaign } from "@/lib/marketing/campaign";
 import type { DisplayState } from "@/lib/entitlements/types";
 
 /**
@@ -25,10 +26,20 @@ export type BillingScreenDto = {
   trialDaysLeft: number | null;
   prices: { monthly: string; annual: string };
   problem: boolean;
+  /** Whether paid checkout is enabled on this deployment (kill switch). */
+  billingEnabled: boolean;
   /** Whether a cancellation is scheduled at period end (from the Stripe mirror). */
   cancelAtPeriodEnd: boolean;
   /** The subscription's period-end date, as the UTC calendar date (matches Stripe), or null. */
   endsOn: string | null;
+  /**
+   * Public Landing Page & Changelog (RD-7): the promo code to remind this
+   * lifter of beside MONTHLY Subscribe, or null. Display only — Stripe's own
+   * promotion-code field applies or refuses it. Set only when Subscribe is
+   * offered and the account signed up from the campaign or this browser
+   * visited its page within the campaign window.
+   */
+  promoReminder: typeof BLIZZY.code | null;
 };
 
 export type BillingCopyInput = {
@@ -120,12 +131,13 @@ export function formatEndsOn(instant: Date | null): string | null {
 
 export async function getBillingScreen(
   account: Account,
+  opts: { campaignHint?: Campaign | null } = {},
 ): Promise<BillingScreenDto> {
   const [resolved, profile, billing] = await Promise.all([
     resolveEntitlement(account),
     account.db.profile.findUnique({
       where: { userId: account.userId },
-      select: { emailVerifiedAt: true },
+      select: { emailVerifiedAt: true, signupCampaign: true },
     }),
     account.db.billingAccount.findUnique({
       where: { userId: account.userId },
@@ -143,7 +155,11 @@ export async function getBillingScreen(
     trialDaysLeft: resolved.trialDaysLeft,
     endsOn,
   });
-  const canSubscribe = state === "free" || state === "trial";
+  // Subscribe is offered only when checkout is enabled on this deployment; with
+  // the kill switch off the screen shows a plain "not available yet" note.
+  const billingEnabled = isCheckoutEnabled();
+  const canSubscribe =
+    (state === "free" || state === "trial") && billingEnabled;
 
   return {
     displayState: state,
@@ -156,7 +172,13 @@ export async function getBillingScreen(
     trialDaysLeft: resolved.trialDaysLeft,
     prices: { monthly: PRICE_DISPLAY.monthly, annual: PRICE_DISPLAY.annual },
     problem: state === "grace",
+    billingEnabled,
     cancelAtPeriodEnd: billing?.cancelAtPeriodEnd ?? false,
     endsOn,
+    promoReminder:
+      canSubscribe &&
+      (profile?.signupCampaign === "blizzy" || opts.campaignHint === "blizzy")
+        ? BLIZZY.code
+        : null,
   };
 }

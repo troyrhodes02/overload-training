@@ -5,6 +5,7 @@ import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, CreditCard, ExternalLink, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CopyCode } from "@/components/marketing/copy-code";
 import {
   createCheckoutSessionAction,
   createPortalSessionAction,
@@ -88,6 +89,12 @@ export function PlanBilling({
   }
 
   const showSubscribe = screen.canSubscribe && !confirming;
+  // Billing disabled on this deployment (kill switch) and the lifter is on a
+  // plan that could otherwise subscribe: show a plain note instead of buttons.
+  const showUnavailable =
+    !screen.billingEnabled &&
+    !confirming &&
+    (screen.displayState === "free" || screen.displayState === "trial");
 
   return (
     <div className="space-y-5">
@@ -129,6 +136,24 @@ export function PlanBilling({
             <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <span>{error}</span>
+            </div>
+          ) : null}
+
+          {showUnavailable ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Pro subscriptions aren&apos;t available yet. Everything you log
+              stays free, and we&apos;ll let you know when Pro opens.
+            </p>
+          ) : null}
+
+          {showSubscribe && screen.promoReminder ? (
+            <div className="mt-3 flex flex-col gap-2 rounded-md bg-primary/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Have the {screen.promoReminder} code? Enter{" "}
+                <span className="font-mono">{screen.promoReminder}</span> at
+                checkout on the monthly plan.
+              </p>
+              <CopyCode code={screen.promoReminder} size="xs" />
             </div>
           ) : null}
 

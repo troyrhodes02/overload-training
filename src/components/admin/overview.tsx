@@ -65,6 +65,11 @@ export function OverviewTiles({ data }: { data: AdminOverviewDto }) {
         value={data.loggedWorkout}
         caption={ofRegistered(data.pct.loggedWorkout)}
       />
+      <MetricTile
+        label="Signed up via /blizzy"
+        value={data.fromBlizzy}
+        caption="first-party, at signup"
+      />
     </dl>
   );
 }

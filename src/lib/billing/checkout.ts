@@ -8,6 +8,7 @@ import {
   type BillingInterval,
   type BillingProvider,
 } from "@/lib/billing/stripe";
+import { isCheckoutEnabled } from "@/lib/billing/config";
 
 /**
  * Plans, Billing & Promo Codes — hosted Checkout and Customer Portal entry
@@ -44,6 +45,16 @@ export async function startCheckout(
   deps: Partial<CheckoutDeps> = {},
 ): Promise<{ url: string }> {
   const { provider, ownEmail } = { ...defaultDeps, ...deps };
+
+  // Kill switch (safe by default): refuse before touching Stripe, so a deploy
+  // with billing disabled can never start a checkout or use a Stripe key — even
+  // if a client calls this action directly.
+  if (!isCheckoutEnabled()) {
+    throw new DomainError(
+      "invalid_state_transition",
+      "Pro subscriptions aren’t available yet.",
+    );
+  }
 
   const profile = await account.db.profile.findUnique({
     where: { userId: account.userId },
