@@ -46,8 +46,6 @@ const FOOTER_LINKS = [
   { href: "/pricing", label: "Pricing" },
   { href: "/changelog", label: "Changelog" },
   { href: "/support", label: "Support" },
-  { href: "/privacy", label: "Privacy" },
-  { href: "/terms", label: "Terms" },
 ] as const;
 
 export function MarketingFooter() {

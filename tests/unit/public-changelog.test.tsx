@@ -1,8 +1,11 @@
 /**
- * Public Landing Page & Changelog — L2 (OVE-97; spec RD-11, RD-22; P21-AC2).
- * The public changelog and the in-app What's New page render the SAME
- * entries from the ONE catalog, the changelog reads nothing about the
- * visitor, and every published entry is safe to show to the public.
+ * Public Landing Page & Changelog — L2 (OVE-97; spec RD-11 as amended, RD-22;
+ * P21-AC2). One catalog, two surfaces: the public changelog renders only the
+ * entries whose audience is "public", while the in-app What's New page renders
+ * the whole catalog (internal development milestones included). A public entry
+ * appears in both, from the same source. Before any public entry exists the
+ * changelog shows a pre-launch state. The changelog reads nothing about the
+ * visitor, and every entry is safe to show to the public.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -18,11 +21,12 @@ const CHANGELOG = "src/app/(marketing)/changelog/page.tsx";
 
 const FIXTURE = [
   {
-    id: "2026-12-01-exercise-history",
+    id: "2026-12-01-launch",
     date: "2026-12-01",
-    title: "Exercise history",
-    body: "Every lift now has its own page.",
+    title: "Overload is live",
+    body: "Plan, log, and get the call on every lift.",
     significant: true,
+    audience: "public" as const,
   },
   {
     id: "2026-11-21-smoother-charts",
@@ -30,6 +34,7 @@ const FIXTURE = [
     title: "Smoother charts",
     body: "Charts on Goals load faster.",
     significant: false,
+    audience: "internal" as const,
   },
 ];
 
@@ -60,37 +65,44 @@ function articles(html: string): string[] {
   return [...html.matchAll(/<article[\s\S]*?<\/article>/g)].map((m) => m[0]);
 }
 
-describe("one source (P21-AC2)", () => {
-  it("renders exactly the What's New entries, in the same order, with the same dates", async () => {
+describe("one source, two surfaces (P21-AC2)", () => {
+  it("the changelog shows only public entries; What's New shows the whole catalog", async () => {
     const pub = articles(await render("changelog", FIXTURE));
     const app = articles(await render("whats-new", FIXTURE));
-    expect(pub).toHaveLength(2);
-    expect(pub).toEqual(app);
+    // Changelog: just the public launch entry. What's New: both.
+    expect(pub).toHaveLength(1);
+    expect(app).toHaveLength(2);
     expect(pub[0]).toContain('dateTime="2026-12-01"');
-    expect(pub[0]).toContain("Exercise history");
-    expect(pub[1]).toContain("Smoother charts");
+    expect(pub[0]).toContain("Overload is live");
+    expect(pub.join()).not.toContain("Smoother charts");
+    expect(app.join()).toContain("Smoother charts");
   });
 
-  it("matches What's New for the real repository catalog too", async () => {
-    const pub = articles(await render("changelog"));
-    const app = articles(await render("whats-new"));
-    expect(pub.length).toBe(RELEASE_NOTES.length);
-    expect(pub).toEqual(app);
+  it("a public entry is identical on both surfaces (written once)", async () => {
+    const pub = articles(await render("changelog", FIXTURE));
+    const app = articles(await render("whats-new", FIXTURE));
+    const launchOnApp = app.find((a) => a.includes("Overload is live"));
+    expect(pub[0]).toEqual(launchOnApp);
   });
 
-  it("lists significant and ordinary entries alike, each with a permanent anchor", async () => {
+  it("every public entry carries its permanent anchor and reveals no metadata", async () => {
     const html = await render("changelog", FIXTURE);
-    expect(html).toContain('id="2026-12-01-exercise-history"');
-    expect(html).toContain('id="2026-11-21-smoother-charts"');
-    expect(html).not.toMatch(/significant/i);
+    expect(html).toContain('id="2026-12-01-launch"');
+    expect(html).not.toContain('id="2026-11-21-smoother-charts"');
+    expect(html).not.toMatch(/significant|audience/i);
   });
 
-  it("shows the What's New empty-state sentence when there are no entries", async () => {
-    const html = await render("changelog", []);
-    expect(html).toContain(
-      "No updates yet. When something changes in Overload, it&#x27;s listed here.",
-    );
+  it("shows the pre-launch state when the catalog has no public entries", async () => {
+    // The real repository catalog is still all-internal before launch, so the
+    // live changelog renders the pre-launch card and no list.
+    const html = await render("changelog");
+    expect(RELEASE_NOTES.every((e) => e.audience === "internal")).toBe(true);
+    expect(html).toContain("Overload is almost here.");
     expect(html).not.toContain("<ol");
+    // What's New still lists the full development history for signed-in lifters.
+    expect(articles(await render("whats-new")).length).toBe(
+      RELEASE_NOTES.length,
+    );
   });
 });
 
@@ -145,10 +157,11 @@ describe("every published entry is public-safe (RD-11)", () => {
 });
 
 describe("Settings links to the public pages (RD-22)", () => {
-  it("has the Changelog · Privacy · Terms line", () => {
+  it("has the Changelog link (legal pages deferred until there's a need)", () => {
     const src = read("src/app/(app)/settings/page.tsx");
-    for (const href of ["/changelog", "/privacy", "/terms"]) {
-      expect(src).toContain(`href="${href}"`);
-    }
+    expect(src).toContain(`href="/changelog"`);
+    // Privacy/Terms were removed with the rest of the legal surface.
+    expect(src).not.toContain(`href="/privacy"`);
+    expect(src).not.toContain(`href="/terms"`);
   });
 });

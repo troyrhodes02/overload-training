@@ -16,6 +16,7 @@ const e = (id: string, date: string, significant = true): ReleaseNoteEntry => ({
   title: id,
   body: "Something changed.",
   significant,
+  audience: "internal",
 });
 
 // Newest first, like the real file.

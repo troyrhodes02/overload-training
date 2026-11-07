@@ -14,6 +14,7 @@ export const RELEASE_NOTES_FIXTURE: readonly ReleaseNoteEntry[] = [
     title: "Exercise history",
     body: "Every lift now has its own page with recent sessions, trends, and personal bests.",
     significant: true,
+    audience: "internal",
   },
   {
     id: "2099-02-15-smoother-charts",
@@ -21,6 +22,7 @@ export const RELEASE_NOTES_FIXTURE: readonly ReleaseNoteEntry[] = [
     title: "Smoother charts",
     body: "Charts on Goals load faster and keep their shape while they update.",
     significant: false,
+    audience: "internal",
   },
   {
     id: "2099-02-01-faster-logging",
@@ -28,6 +30,7 @@ export const RELEASE_NOTES_FIXTURE: readonly ReleaseNoteEntry[] = [
     title: "Logging is faster",
     body: "Your last weight is filled in, and you can repeat it across sets with one tap.",
     significant: true,
+    audience: "internal",
   },
 ];
 
@@ -39,6 +42,7 @@ export const WITH_NEWER: readonly ReleaseNoteEntry[] = [
     title: "Reps in reserve",
     body: "You can now note how many reps you had left on a set.",
     significant: true,
+    audience: "internal",
   },
   ...RELEASE_NOTES_FIXTURE,
 ];

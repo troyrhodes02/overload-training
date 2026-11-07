@@ -6,9 +6,9 @@ import {
 
 /**
  * The public pages (Public Landing Page & Changelog, spec §6): landing,
- * pricing, /blizzy, changelog, privacy, terms. Reachable signed in or out (the
- * proxy lists them as public); they read no account data. Static except the
- * Suspense-wrapped call-to-action parts, which resolve per request.
+ * pricing, /blizzy, changelog. Reachable signed in or out (the proxy lists them
+ * as public); they read no account data. Static except the Suspense-wrapped
+ * call-to-action parts, which resolve per request.
  */
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (

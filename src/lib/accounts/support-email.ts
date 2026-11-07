@@ -17,7 +17,7 @@
  */
 
 /** A visibly-placeholder address used until the real support domain is set. */
-export const SUPPORT_EMAIL_PLACEHOLDER = "support@example.com";
+export const SUPPORT_EMAIL_PLACEHOLDER = "support@overloadtraining.app";
 
 export function supportEmail(): string {
   const configured = process.env.NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL?.trim();

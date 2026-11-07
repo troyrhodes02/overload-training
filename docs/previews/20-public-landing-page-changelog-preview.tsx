@@ -12,6 +12,20 @@
  * imported by the app. The real UI is built with shadcn/ui against
  * src/app/globals.css; where this preview and the theme disagree, the theme wins.
  *
+ * UPDATE — premium landing redesign (branch `landing-premium-redesign`):
+ * the shipped landing page (src/app/(marketing)/welcome/page.tsx) has been
+ * re-art-directed into a dark, editorial, motion-aware surface: a layered hero
+ * (a bespoke progression "call" card and the real Today capture floating over a
+ * photo slot), a live reveal-animated e1RM trend beside its real screen,
+ * per-gym weight callouts over the two gym captures, immersive photography
+ * bands, and one-time scroll reveals (prefers-reduced-motion honored). New
+ * building blocks live in src/components/landing/* and src/lib/landing/* (an
+ * owner-managed photo placeholder system). Every product-truth commitment below
+ * still holds unchanged — only composition, pacing, and motion changed, and the
+ * order now leads with the progression call. Treat the implemented page as the
+ * current visual contract for the landing surface; this file records the prior
+ * layout and the still-binding truth rules.
+ *
  * SCREENSHOTS: no real capture exists while this preview is written. Every
  * product screen inside a frame below is a PREVIEW MOCK, labelled as such on
  * the frame. The shipped page uses real captures of the seeded synthetic demo

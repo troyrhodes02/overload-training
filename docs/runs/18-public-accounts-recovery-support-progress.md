@@ -156,7 +156,7 @@ against OVE-81–88, the spec R1–R12, and PRD/roadmap boundaries):
   `{sent:true}`; signup shows the normal rate-limited message. Unit test added. Thread resolved.
 - **#5 recovery timing side-channel — DEFERRED** (see above). Comment added; thread left open.
 - **Two minor/informational — SKIPPED (not posted as review threads, so no reply needed):**
-  (a) `/support` `support@example.com` placeholder `mailto:` when `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL`
+  (a) `/support` `support@overloadtraining.app` placeholder `mailto:` when `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL`
   is unset — intentional; runbook §2 covers setting the real address. (b) `login/page.tsx` missing
   `await connection()` — cosmetic; `searchParams` already forces request-time rendering.
 

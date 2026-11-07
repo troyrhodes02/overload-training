@@ -23,9 +23,9 @@ export function AuthCard({
           {children}
         </div>
         {footer ? (
-          <p className="-mt-4 text-center text-sm text-muted-foreground">
+          <div className="-mt-4 text-center text-sm text-muted-foreground">
             {footer}
-          </p>
+          </div>
         ) : null}
       </div>
     </main>

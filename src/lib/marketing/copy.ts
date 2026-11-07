@@ -24,6 +24,18 @@ export const HERO = {
     "Demo data. Today's plan: bench is ready to go up, and the held lifts carry no tag.",
 } as const;
 
+/**
+ * The product showcase that follows the hero. The hero was simplified to one
+ * photograph and a single compact call, so the dense Today dashboard capture
+ * moves here, where it gets room of its own (design: hero composition
+ * redesign). The caption reuses HERO.caption — it already describes exactly
+ * this screen. One concrete, product-backed claim; no numbers, no superlatives.
+ */
+export const DAY_SHOWCASE = {
+  eyebrow: "The day",
+  title: "Open the app, and the day is already laid out.",
+} as const;
+
 export type LandingSection = {
   id: string;
   title: string;
@@ -54,7 +66,7 @@ export const LANDING_SECTIONS = {
     title: "Machines aren't universal.",
     pro: false,
     paragraphs: [
-      "100 lbs on one chest press isn't 100 lbs on another. Machine and cable weights are tracked per gym. Barbells and dumbbells stay the same everywhere.",
+      "The same machine takes a different load from one place to the next, so machine and cable weights are tracked per gym. Barbells and dumbbells stay the same everywhere.",
     ],
   },
   trend: {
@@ -80,6 +92,39 @@ export const LANDING_SECTIONS = {
     ],
   },
 } as const satisfies Record<string, LandingSection>;
+
+/**
+ * The closing call to action (design doc Screen 1, final section — replaces
+ * the former "Recently shipped" strip). The wording is availability-neutral:
+ * the actual button and its note come from the server-resolved ModeCta, which
+ * is the only place that says whether anyone can join, so this copy never
+ * claims the product is open. It restates the promise in one line.
+ */
+export const FINAL_CTA = {
+  eyebrow: "Get started",
+  title: "Log the work. Get the call.",
+  body: "Overload keeps every set you log and, on Pro, tells you whether to progress, hold, or deload — on the plan you wrote, at the gym you're in.",
+} as const;
+
+/**
+ * The immersive photo bands (full-bleed art-directed sections, like "What
+ * Overload won't do"). Short, quiet lines that let the photography lead; each
+ * stays accurate to what the product does and sets up the section after it.
+ */
+export const IMMERSIVE_BANDS = {
+  work: {
+    slot: "effortBand",
+    eyebrow: "The work",
+    title: "You did the work.",
+    body: "Overload handles the rest — keeping the record straight and telling you where each lift stands.",
+  },
+  longRun: {
+    slot: "floorBand",
+    eyebrow: "Day after day",
+    title: "Built for the long run.",
+    body: "Mesocycle after mesocycle, your history stays intact and keeps earning its place.",
+  },
+} as const;
 
 export const PLANS_SUMMARY = {
   free: "Plans, logging, history, goals, export. No ads.",
@@ -185,9 +230,9 @@ export const BLIZZY_PAGE = {
     "Pro subscriptions aren't on sale yet, so the code can't be used today. When they are, you'll enter it at checkout on the monthly plan.",
   trialFit: `How it fits the trial: new accounts start with ${TRIAL_DURATION_DAYS} days of Pro, no card. The code is for when you subscribe after that.`,
   /**
-   * DRAFT creator disclosure (RD-13). States only what is known — that this is
-   * a promotion offered through the creator — and asserts no compensation
-   * fact. The owner confirms or replaces it (legal fact `creatorDisclosure`).
+   * Creator disclosure shown under the offer. States only what is known — that
+   * this is a promotion offered through the creator — and asserts no
+   * compensation fact. Plain marketing copy, not a legal document.
    */
   disclosureDraft:
     "This is a promotion for Overload offered through the creator BLIZZY.",

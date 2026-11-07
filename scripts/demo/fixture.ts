@@ -1,8 +1,10 @@
 /**
  * THE DEMO FIXTURE (Public Landing Page & Changelog, spec §13; pitch
  * Appendix A). One versioned, entirely SYNTHETIC training history for the
- * fictional "Demo Lifter", used only to take honest screenshots on an isolated
- * local stack. No real person, gym, or account appears here.
+ * fictional showcase lifter "Marcus Reed" (the real-sounding name the demo
+ * account signs up with, so the app greets it naturally), used only to take
+ * honest demo captures on an isolated local stack. No real person, gym, or
+ * account appears here.
  *
  * It holds FACTS only — plans, gyms, dated workouts and the sets lifted. There
  * is no field for a progression call, e1RM, trend, or baseline: the unchanged

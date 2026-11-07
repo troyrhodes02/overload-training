@@ -14,6 +14,7 @@ const ENTRY: ReleaseNoteEntry = {
   title: "Exercise history",
   body: "Every lift now has its own page.",
   significant: true,
+  audience: "internal",
 };
 
 function fakeAccount(

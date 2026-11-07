@@ -21,6 +21,7 @@ const entry = (over: Partial<ReleaseNoteEntry> = {}): ReleaseNoteEntry => ({
   title: "Logging is faster",
   body: "Your last weight is filled in, and you can repeat it across sets with one tap.",
   significant: true,
+  audience: "internal",
   ...over,
 });
 
@@ -106,8 +107,23 @@ it.each([
   [{ body: "Now <b>bold</b>." }, "plain text"],
   [{ body: "See [the page](https://example.com)." }, "plain text"],
   [{ significant: "yes" as unknown as boolean }, "significant"],
+  [
+    { audience: "beta" as unknown as ReleaseNoteEntry["audience"] },
+    'audience must be "internal" or "public"',
+  ],
+  [
+    { audience: undefined as unknown as ReleaseNoteEntry["audience"] },
+    'audience must be "internal" or "public"',
+  ],
 ])("rejects %p", (over, message) => {
   expect(problems([entry(over)]).join()).toContain(message);
+});
+
+it("accepts both audiences", () => {
+  expect(problems([entry({ audience: "internal" })])).toEqual([]);
+  expect(
+    problems([entry({ id: "2026-11-03-launch", audience: "public" })]),
+  ).toEqual([]);
 });
 
 it("names every problem at once", () => {

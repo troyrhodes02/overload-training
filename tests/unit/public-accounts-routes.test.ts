@@ -52,8 +52,6 @@ describe("public paths (PA3 / R9)", () => {
     "/pricing",
     "/blizzy",
     "/changelog",
-    "/privacy",
-    "/terms",
     "/robots.txt",
     "/sitemap.xml",
     "/manifest.webmanifest",

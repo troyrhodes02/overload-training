@@ -124,6 +124,9 @@ export function validateReleaseNotes(
     if (typeof entry.significant !== "boolean") {
       problems.push(`${where}: significant must be true or false`);
     }
+    if (entry.audience !== "internal" && entry.audience !== "public") {
+      problems.push(`${where}: audience must be "internal" or "public"`);
+    }
   });
   if (problems.length > 0) throw new ReleaseNotesError(problems);
   return entries;
@@ -142,6 +145,20 @@ export function orderedReleaseNotes(
   if (entries) return validateReleaseNotes(entries);
   validatedFile ??= validateReleaseNotes(RELEASE_NOTES);
   return validatedFile;
+}
+
+/**
+ * The public release notes, newest first: the subset of the one catalog whose
+ * audience is "public". The public changelog renders these; in-app What's New
+ * still renders the whole catalog (orderedReleaseNotes). There is no second
+ * list — a public entry is one object in RELEASE_NOTES with audience "public",
+ * and it flows to both surfaces. Before the first public launch entry exists
+ * this is empty, and the changelog shows its pre-launch state.
+ */
+export function publicReleaseNotes(
+  entries?: readonly ReleaseNoteEntry[],
+): readonly ReleaseNoteEntry[] {
+  return orderedReleaseNotes(entries).filter((e) => e.audience === "public");
 }
 
 /** "2026-11-03" → "Nov 3, 2026". String math only: no Date, locale, or timezone. */

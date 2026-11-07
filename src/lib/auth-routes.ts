@@ -30,8 +30,6 @@ export const MARKETING_PATHS = [
   "/pricing",
   "/blizzy",
   "/changelog",
-  "/privacy",
-  "/terms",
 ] as const;
 
 /** Next's metadata file routes: crawlers and browsers fetch them signed out. */

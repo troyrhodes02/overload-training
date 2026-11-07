@@ -319,7 +319,7 @@ GIVEN the demo guard WHEN DATABASE_URL (or any listed var) contains ycxvdiklpefy
 **Happy path / integration**
 ```text
 resolveCta: all 12 combinations match design §6.9 exactly; no combination with billing off yields a /settings/billing or Subscribe action; closed never yields /signup
-/changelog and /settings/whats-new render the same ids, order, dates, titles, bodies (render both, compare)
+/changelog renders only audience:"public" entries; /settings/whats-new renders the whole catalog; a public entry is byte-identical on both (RD-11 amended, see below). Pre-launch (no public entry): /changelog shows the pre-launch state, What's New still lists the full development history
 Visiting /changelog signed in changes no ReleaseSeen row (page reads no account data — static import guard)
 Signup with a valid cookie → Profile.signupCampaign = blizzy; cookie deleted; second signup in the same browser without revisiting → null
 Export includes signupCampaign; account deletion removes the profile (existing deletion suite green)
@@ -350,9 +350,10 @@ robots: production allows public pages and disallows app routes; non-production 
 - [ ] Closed mode renders no signup action and no waitlist. Invite mode states that an invite code is required.
 - [ ] Signed-in `/` is Today, and every public page offers "Open Overload". No redirect loop (routing tests).
 
-**Shared release notes (P21-AC2, PRD AC2)**
-- [ ] `/changelog` and What's New render identical entries from `orderedReleaseNotes()`, and the public-safety test passes.
-- [ ] ReleaseSeen and unread behavior are unchanged (existing What's New suites green). The new entry is non-significant.
+**Shared release notes (P21-AC2, PRD AC2; RD-11 amended)**
+- [ ] One source (`RELEASE_NOTES`), two surfaces: `/changelog` renders `publicReleaseNotes()` (audience `"public"`); What's New renders `orderedReleaseNotes()` (the whole catalog). A public entry, written once, is identical on both. The public-safety test passes over every entry.
+- [ ] Before the first public launch entry exists, `/changelog` shows the pre-launch state (no development history presented as public releases); What's New is unchanged.
+- [ ] ReleaseSeen and unread behavior are unchanged (existing What's New suites green). Classification (`audience`) never affects seen state; only `significant` does.
 
 **Demo seed and imagery (P21-AC3)**
 - [ ] The seed CLI is dry run by default, loopback-only, hard-refuses the production ref, idempotent, and writes `LoggedSet` only via `logSet`, with tests green on embedded Postgres.
@@ -400,7 +401,7 @@ robots: production allows public pages and disallows app routes; non-production 
 | RD-8 | Campaign cookie `ovl_campaign`: allowlist `["blizzy"]`, value `campaign.issuedAt`, HttpOnly, Lax, 2 h (`Max-Age` plus server check), set by the proxy on GET `/blizzy`, cleared after signup | session-scale first-party handoff that survives signup → verify → billing within one sitting. Holds no identity. Tamper-proofing is unnecessary because forging it equals visiting `/blizzy` | pre-resolved decision 9. **Bucket C: 2 h is a guess, flagged for owner review** |
 | RD-9 | Provenance stored as nullable enum `Profile.signupCampaign`, written once at profile creation from the validated cookie. Migration `9k_signup_campaign` (additive). No visitor-level record | answers "which campaign led to an account" with one value on an already-owned, RLS-closed row. Export and deletion automatic | pre-resolved decision 9; CLAUDE.md first invariant. **Owner privacy item: retained for the life of the account** (OQ-3) |
 | RD-10 | Admin Overview shows one aggregate: signups from BLIZZY. `signupCampaign` added to admin-readable Profile metadata, not writable | gives the owner the answer without SQL. Metadata/aggregate only | CLAUDE.md admin boundary |
-| RD-11 | Changelog lists every catalog entry. Existing 10 entries reviewed and public-safe. CI public-safety scan added. No `public` flag | the catalog contract already requires public-safe content (What's New R21). A flag would invite a second editorial path | pre-resolved decision 6 |
+| RD-11 | ~~Changelog lists every catalog entry. No `public` flag.~~ **Amended 2026-11-05 (owner, pre-launch cleanup):** the changelog lists only `audience:"public"` entries; pre-launch development milestones (`audience:"internal"`) stay in in-app What's New only, and the changelog shows a pre-launch empty state until the first public launch entry exists. Existing entries remain public-safe and the CI public-safety scan still runs over all of them. | The original concern — "a flag invites a second editorial path" — is met by keeping ONE catalog and ONE `ReleaseNote` component: `audience` is a classification on the single source, not a second changelog. The product has not launched, so presenting internal development history as public releases misrepresents the release record; the public history must begin at the real launch. | owner request, interactive (supersedes pre-resolved decision 6) |
 | RD-12 | Legal pages: three states (published / draft-preview off-production / finalizing in production), fact tokens, `noindex` until published, validation fails the build if a published doc has unresolved facts | never publish draft as policy, while letting the owner review in place | pre-resolved decision 8; P21-AC5 |
 | RD-13 | Creator disclosure placed directly under the offer, in draft wording "This is a promotion for Overload offered through the creator BLIZZY." as owner fact `creatorDisclosure`. The draft wording renders until the owner sets it | visible next to promotional copy. Doesn't assert an unknown compensation fact | pre-resolved decision 8 |
 | RD-14 | Hero concept A chosen. B → section 2, C → section 4 | core job, true for every visitor | pre-resolved decision 8A; design §6 |

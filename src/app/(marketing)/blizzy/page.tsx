@@ -12,8 +12,6 @@ import { resolveCta } from "@/lib/marketing/cta";
 import { publicPageMetadata } from "@/lib/marketing/site";
 import { BLIZZY_PAGE } from "@/lib/marketing/copy";
 import { BLIZZY } from "@/lib/billing/config";
-import { creatorDisclosure } from "@/lib/marketing/disclosure";
-import { OWNER_FACTS } from "@/lib/legal/facts";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -82,7 +80,7 @@ export default function BlizzyPage() {
           </ul>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          {creatorDisclosure(OWNER_FACTS.creatorDisclosure)}
+          {BLIZZY_PAGE.disclosureDraft}
         </p>
       </div>
 

@@ -20,7 +20,6 @@
     "import:plan": "tsx --conditions=react-server scripts/import/real-plan/cli.ts",
     "ownership:backfill": "tsx --conditions=react-server scripts/operator/account-ownership/cli.ts",
     "founding-members:grant": "tsx --conditions=react-server scripts/operator/founding-members/cli.ts",
-    "demo:capture": "tsx scripts/demo/capture.ts",
     "demo:seed": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/demo/cli.ts"
   },
   "dependencies": {

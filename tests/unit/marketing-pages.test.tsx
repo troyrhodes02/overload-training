@@ -64,15 +64,20 @@ describe("landing (design Screen 1)", () => {
 
   it("keeps the section order of the claim ledger", async () => {
     const t = text(await page("welcome", off()));
+    // The redesign leads with progression intelligence directly after the hero
+    // (hero → the call → the log → trend → per gym → the boundary → plans →
+    // closing CTA); every claim still appears, each beside its evidence. The
+    // former "Recently shipped" strip is gone; the public changelog owns the
+    // release history now.
     const order = [
       "You logged the reps",
-      "A log tells you what you did.",
       "The call, and the reason.",
-      "Machines aren't universal.",
+      "A log tells you what you did.",
       "A trend, not a list.",
-      "Logging is free. The call is Pro.",
+      "Machines aren't universal.",
       "What Overload won't do.",
-      "Recently shipped",
+      "Logging is free. The call is Pro.",
+      "Log the work. Get the call.",
     ].map((s) => t.indexOf(s));
     for (const i of order) expect(i).toBeGreaterThan(-1);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -104,10 +109,20 @@ describe("landing (design Screen 1)", () => {
     expect(text(html)).toContain("isn't taking new accounts right now");
   });
 
-  it("links the three newest release notes to their changelog anchors", async () => {
+  it("does not list release notes; the public changelog owns the history", async () => {
     const html = await page("welcome", off());
-    const anchors = html.match(/href="\/changelog#[^"]+"/g) ?? [];
-    expect(anchors).toHaveLength(3);
+    // No "Recently shipped" strip and no per-entry changelog anchors on the
+    // landing anymore (pre-launch cleanup): the changelog is the one place.
+    expect(text(html)).not.toContain("Recently shipped");
+    expect(html.match(/href="\/changelog#[^"]+"/g) ?? []).toHaveLength(0);
+  });
+
+  it("closes with a server-resolved call to action, not a hard-coded one", async () => {
+    // The closing section restates the promise and renders the mode CTA, so it
+    // follows signup mode like the hero does (here: invite).
+    const html = await page("welcome", off());
+    expect(text(html)).toContain("Log the work. Get the call.");
+    expect(text(html)).toContain("Join with an invite code");
   });
 });
 
@@ -172,12 +187,7 @@ describe("marketing truth (P21-AC8)", () => {
     "src/components/marketing/availability.tsx",
     "src/components/marketing/screenshot-frame.tsx",
     "src/components/marketing/copy-code.tsx",
-    "src/components/marketing/legal-document.tsx",
     "src/app/(marketing)/blizzy/page.tsx",
-    "src/app/(marketing)/privacy/page.tsx",
-    "src/app/(marketing)/terms/page.tsx",
-    "src/lib/legal/privacy.ts",
-    "src/lib/legal/terms.ts",
   ];
 
   it("uses none of the banned phrases", async () => {
@@ -230,7 +240,10 @@ describe("screenshot frames load one image each (review findings 3/4)", () => {
   it("renders one <img> per captured frame, and every <source> has dimensions", async () => {
     const html = await page("welcome", off());
     const pictures = html.match(/<picture[\s\S]*?<\/picture>/g) ?? [];
-    expect(pictures.length).toBe(6);
+    // Four captured frames: today (hero), exercise, logging, trend. The per-gym
+    // section uses a custom comparison, not the gym-northside/gym-riverside
+    // screenshots, so they no longer render here (they remain available assets).
+    expect(pictures.length).toBe(4);
     for (const p of pictures) {
       expect(p.match(/<img /g)).toHaveLength(1);
       for (const src of p.match(/<source [^>]*>/g) ?? []) {
@@ -238,7 +251,9 @@ describe("screenshot frames load one image each (review findings 3/4)", () => {
         expect(src).toMatch(/height="\d+"/);
       }
     }
-    // Only the hero loads eagerly.
+    // Every product screenshot lazy-loads: the only eager image is the hero
+    // photograph (the LCP), which is a next/image, not a screenshot frame.
+    for (const p of pictures) expect(p).not.toContain('loading="eager"');
     expect(html.match(/loading="eager"/g)).toHaveLength(1);
   });
 });

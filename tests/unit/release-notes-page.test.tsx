@@ -11,6 +11,7 @@ const FIXTURE = [
     title: "Exercise history",
     body: "Every lift now has its own page.",
     significant: true,
+    audience: "internal" as const,
   },
   {
     id: "2026-11-21-smoother-charts",
@@ -18,6 +19,7 @@ const FIXTURE = [
     title: "Smoother charts",
     body: "Charts on Goals load faster.",
     significant: false,
+    audience: "internal" as const,
   },
 ];
 

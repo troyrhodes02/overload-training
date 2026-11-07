@@ -17,12 +17,21 @@ import type { ReleaseNoteEntry } from "./types";
  *   - title: 1-80 characters, one line
  *   - body: 1-400 characters, one to three plain sentences, no HTML or links
  *   - significant: true only if it should open the dialog
+ *   - audience: "internal" (a pre-launch development milestone, shown only in
+ *     in-app What's New) or "public" (a public product release, shown on the
+ *     public changelog AND in What's New). See types.ts.
  *
  * Never delete, re-order, or re-date a published entry, and never change its
  * id: every account's seen point refers to it. Correct wording mistakes in
  * place only.
  *
  * What's New launches with no entries (R8): nothing is backdated to fill it.
+ *
+ * Overload has not launched publicly yet, so every entry below is "internal":
+ * the public changelog (/changelog) shows a pre-launch empty state until the
+ * first "public" entry exists. When the product launches, add ONE consolidated
+ * launch entry at the top with `audience: "public"`, dated the real launch day
+ * — do not reclassify these development milestones.
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
@@ -38,6 +47,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Overload's changelog is now public",
     body: "The same updates you see here are now listed on Overload's public changelog, next to the pricing, privacy, and terms pages. Find the links at the bottom of Settings.",
     significant: false,
+    audience: "internal",
   },
   {
     // Plans, Billing & Promo Codes (Pitch 19; OVE-95, overload-onboarding).
@@ -53,6 +63,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Introducing Free and Pro",
     body: "Keep planning and logging your workouts for free, always. Pro adds progression recommendations, e1RM trends, stall detection, and deeper exercise history. New accounts get 14 days of Pro to try it.",
     significant: true,
+    audience: "internal",
   },
   {
     // Public Accounts, Recovery & Support (Pitch 18; OVE-88, overload-onboarding).
@@ -67,6 +78,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Reset your password by email",
     body: "Forgot your password? From the sign-in screen, choose Forgot password and we'll email you a link to set a new one. The link works once and expires after an hour.",
     significant: true,
+    audience: "internal",
   },
   {
     // Public Accounts, Recovery & Support (Pitch 18; OVE-88, overload-onboarding).
@@ -78,6 +90,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Export your data",
     body: "You can download everything in your account — plans, workouts, logged sets, goals, gyms, cardio, and profile — as one file, any time, from Settings. It's private to you and always free.",
     significant: false,
+    audience: "internal",
   },
   {
     // Public Accounts, Recovery & Support (Pitch 18; OVE-88, overload-onboarding).
@@ -88,6 +101,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Get help when you're signed out",
     body: "Can't sign in? A Need help? link on the sign-in and signup screens now points you to a support address.",
     significant: false,
+    audience: "internal",
   },
   {
     // Projected e1RM overlay (OVE-80; overload-onboarding). An opt-in extra on
@@ -99,6 +113,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "See a projected trend from your RIR",
     body: "On an exercise's e1RM trend, turn on Projected (RIR) to see a dotted line estimating what you might have had, based on the reps in reserve you logged. It's an estimate for the curious, not a fact and not a target — your real trend, records, and progression never use it.",
     significant: false,
+    audience: "internal",
   },
   {
     // Admin Center & Feedback (Pitch 17; overload-onboarding, OVE-78): the
@@ -112,6 +127,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Send feedback from Overload",
     body: "Found something that needs fixing, or have an idea or a question? Choose Send feedback in the menu at the top to send it straight to the person who runs Overload. Replies aren't sent in the app.",
     significant: true,
+    audience: "internal",
   },
   {
     // Exercise History & PR Intelligence (Pitch 16). Dated the day it reaches
@@ -122,6 +138,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Exercise history and records",
     body: "Open any exercise to see every session you've logged, your best set, heaviest weight, and rep records, and how the lift is trending. Each session shows the call it led to, and machines and cables keep their records per gym. Viewing it never changes your plan or your weights.",
     significant: true,
+    audience: "internal",
   },
   {
     // Smarter & Explainable Progression (Pitch 15). PROVISIONAL date: written
@@ -133,6 +150,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Clearer progression calls",
     body: "Every progression call now says what to do and why. Ready to go up shows the weight to try and the sets that earned it, a hold says what to stay at and what's left to earn the next step, and a deload says where your sets fell short. Overload never changes your plan or your weights.",
     significant: true,
+    audience: "internal",
   },
   {
     // RIR Logging & Autoregulation (Pitch 14). PROVISIONAL date: written
@@ -144,6 +162,7 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Reps in reserve",
     body: "You can now record how many reps you had left on a set, from 0 to 4+, right under the reps. It's optional and adds no taps when you skip it. If you reach the top of your range at 0, Overload holds the weight; if every set had 2 or more to spare, a flat trend no longer holds you back.",
     significant: true,
+    audience: "internal",
   },
   {
     // Faster Logging UX (Pitch 13). PROVISIONAL date: written 2026-10-20 while
@@ -155,5 +174,6 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
     title: "Faster workout logging",
     body: "Logging a set now takes fewer taps. Each exercise shows what you did last time, your weight carries over from set to set, and the next set is ready for its reps as soon as you log one. Tap a logged set to fix a typo.",
     significant: true,
+    audience: "internal",
   },
 ];
