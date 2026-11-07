@@ -14,8 +14,32 @@
  *    while a session exists (e.g. verifying your own email from Settings), and
  *    `/support` and `/verify-email` must render for signed-in and signed-out
  *    alike.
+ *  - The public marketing pages and Next's metadata routes (Public Landing
+ *    Page & Changelog), which are the same for everyone.
  */
 export const SIGNED_OUT_DOORS = ["/login", "/signup"] as const;
+
+/**
+ * The public marketing pages (Public Landing Page & Changelog, spec §7). They
+ * read no account data, so they render for signed-in and signed-out visitors
+ * alike; a signed-in visitor sees "Open Overload" instead of a signup action.
+ * `/welcome` is the landing page that signed-out `/` is rewritten to.
+ */
+export const MARKETING_PATHS = [
+  "/welcome",
+  "/pricing",
+  "/blizzy",
+  "/changelog",
+  "/privacy",
+  "/terms",
+] as const;
+
+/** Next's metadata file routes: crawlers and browsers fetch them signed out. */
+const METADATA_ROUTES = [
+  "/robots.txt",
+  "/sitemap.xml",
+  "/manifest.webmanifest",
+] as const;
 
 const SIGNED_IN_SAFE_PUBLIC = [
   "/forgot-password",
@@ -23,6 +47,8 @@ const SIGNED_IN_SAFE_PUBLIC = [
   "/support",
   "/auth/confirm",
   "/verify-email",
+  ...MARKETING_PATHS,
+  ...METADATA_ROUTES,
 ] as const;
 
 /**
@@ -66,12 +92,31 @@ export function isAdminPath(pathname: string): boolean {
   return matches(pathname, "/admin");
 }
 
+/**
+ * The landing page's route. Signed-out `/` renders it at the same URL (a
+ * rewrite, not a redirect), so the public root is the landing page while a
+ * signed-in lifter's `/` stays Today (spec §7, RD-4).
+ */
+export const LANDING_PATH = "/welcome";
+
+/** Where the proxy should rewrite this request, or null for none. */
+export function routeRewrite(
+  pathname: string,
+  signedIn: boolean,
+): string | null {
+  return !signedIn && pathname === "/" ? LANDING_PATH : null;
+}
+
 /** Where the proxy should redirect this request, or null to let it through. */
 export function routeRedirect(
   pathname: string,
   signedIn: boolean,
 ): string | null {
-  if (!signedIn) return isPublicPath(pathname) ? null : "/login";
+  if (!signedIn) {
+    // Signed-out "/" is rewritten to the landing page, never bounced.
+    if (routeRewrite(pathname, signedIn)) return null;
+    return isPublicPath(pathname) ? null : "/login";
+  }
   // Signed in: only the sign-in doors send the visitor to Today; every other
   // public path (recovery, support, the auth callback, verify) stays open.
   return isSignedOutDoor(pathname) ? "/" : null;

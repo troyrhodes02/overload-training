@@ -19,7 +19,9 @@ describe("proxy routing (Accounts spec §9)", () => {
     },
   );
 
-  it.each(["/", "/settings", "/settings/delete-account", "/plan", "/loginx"])(
+  // "/" is rewritten to the public landing page when signed out (Public
+  // Landing Page & Changelog, spec §7), so it no longer redirects to /login.
+  it.each(["/settings", "/settings/delete-account", "/plan", "/loginx"])(
     "%s needs an auth session",
     (path) => {
       expect(routeRedirect(path, false)).toBe("/login");

@@ -45,13 +45,29 @@ describe("public paths (PA3 / R9)", () => {
     expect(routeRedirect("/api/stripe/webhook", true)).toBeNull();
   });
 
+  // Public Landing Page & Changelog (spec §7): the marketing pages and Next's
+  // metadata routes joined the public set.
+  const marketing = [
+    "/welcome",
+    "/pricing",
+    "/blizzy",
+    "/changelog",
+    "/privacy",
+    "/terms",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/manifest.webmanifest",
+  ];
+
   it("exports exactly the expected public path set", () => {
     expect([...PUBLIC_PATHS].sort()).toEqual(
-      ["/login", "/signup", ...newDoors, ...webhooks].sort(),
+      ["/login", "/signup", ...newDoors, ...webhooks, ...marketing].sort(),
     );
   });
 
-  it.each(["/", "/settings", "/plan", "/goals", "/admin", "/loginx"])(
+  // "/" is not a public path: signed out it is REWRITTEN to the landing page
+  // (routeRewrite), signed in it is Today. See marketing-routing.test.ts.
+  it.each(["/settings", "/plan", "/goals", "/admin", "/loginx"])(
     "%s still requires an auth session",
     (path) => {
       expect(isPublicPath(path)).toBe(false);

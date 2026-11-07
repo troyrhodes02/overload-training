@@ -275,6 +275,8 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
         lastName: "Ortiz",
         username: "sam_lifts",
         timeZone: "America/Chicago",
+        // Public Landing Page & Changelog: no campaign cookie, none recorded.
+        signupCampaign: null,
       },
     );
     expect(d.deleteAuthUser).not.toHaveBeenCalled();

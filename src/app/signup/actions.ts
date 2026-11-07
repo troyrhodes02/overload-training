@@ -1,8 +1,9 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signUp, type SignUpField } from "@/lib/accounts/signup";
+import { CAMPAIGN_COOKIE, parseCampaign } from "@/lib/marketing/campaign";
 
 /**
  * A coarse request fingerprint for the signup rate limiter (PA2, §9/R4). The
@@ -54,6 +55,14 @@ export async function signUpAction(
   formData: FormData,
 ): Promise<SignUpState> {
   const get = (k: string) => formData.get(k);
+  // Public Landing Page & Changelog (RD-9): the campaign comes ONLY from the
+  // first-party cookie the proxy set on /blizzy, validated on the server — a
+  // form field can never claim one.
+  const jar = await cookies();
+  const signupCampaign = parseCampaign(
+    jar.get(CAMPAIGN_COOKIE)?.value,
+    new Date(),
+  );
   const outcome = await signUp({
     firstName: get("firstName"),
     lastName: get("lastName"),
@@ -65,8 +74,14 @@ export async function signUpAction(
     inviteCode: get("inviteCode"),
     challengeToken: get("challengeToken"),
     throttleKey: await requestFingerprint(),
+    signupCampaign,
   });
-  if (outcome.kind === "created") redirect("/");
+  if (outcome.kind === "created") {
+    // Attributed once: the note is spent, so a second signup in this browser
+    // isn't credited to the same visit.
+    jar.delete(CAMPAIGN_COOKIE);
+    redirect("/");
+  }
 
   const values = {
     firstName: String(get("firstName") ?? ""),

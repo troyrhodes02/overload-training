@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   // combined payload well under this (and under the host's own 4.5 MB limit).
   experimental: {
     serverActions: { bodySizeLimit: "5mb" },
+    agentUpgrade: "security",
   },
   // Pin the workspace root to this project. A stray lockfile in a parent
   // directory would otherwise be inferred as the root.
