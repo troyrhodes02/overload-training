@@ -21,7 +21,7 @@ export const HERO = {
   title: "You logged the reps. Know what to do next.",
   body: "Overload reads each set you log against the plan you wrote, then makes the call for every lift: go up, hold, or back off.",
   caption:
-    "Demo data. Today's plan: bench is ready to go up, and the held lifts carry no tag.",
+    "Example data. Today's plan: bench is ready to go up, and the held lifts carry no tag.",
 } as const;
 
 /**
@@ -34,6 +34,23 @@ export const HERO = {
 export const DAY_SHOWCASE = {
   eyebrow: "The day",
   title: "Open the app, and the day is already laid out.",
+} as const;
+
+/**
+ * The landing's "Today" panel — a rendered Overload-UI mock, not a screenshot,
+ * so no name is ever baked into an image. Change `name` here (or set it to ""
+ * for no name) and the greeting updates everywhere it shows. Demo data only:
+ * bench is ready to go up, the other planned lifts carry no tag.
+ */
+export const DAY_PANEL = {
+  greeting: "Good evening",
+  name: "Marcus",
+  context: "Push · Week 7",
+  lifts: [
+    { name: "Barbell Bench Press", scheme: "3 × 6–8", progress: true },
+    { name: "Incline Dumbbell Press", scheme: "3 × 8–10", progress: false },
+    { name: "Lat Pulldown", scheme: "3 × 10–12", progress: false },
+  ],
 } as const;
 
 export type LandingSection = {

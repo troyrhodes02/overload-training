@@ -13,6 +13,7 @@ import {
   GhostWord,
   LastTimeChip,
   CallCard,
+  DayCard,
   Tag,
   GymWorkingWeight,
 } from "@/components/landing/product-bits";
@@ -49,13 +50,15 @@ export const metadata = publicPageMetadata({
  * large, clearly visible training image with a single compact progression call
  * laid over its lower corner as a glass accent — the subject stays visible and
  * most of the frame is unobstructed, so any good gym photo swapped into the
- * hero slot works without a layout edit. The dense Today dashboard capture that
- * used to crowd the hero now has a showcase band of its own right below it.
+ * hero slot works without a layout edit. The Today panel sits in a showcase band
+ * of its own right below the hero, rendered in Overload's own UI (DayCard) so no
+ * demo name is ever baked into an image.
  *
- * Guard rails kept intact: all six demo screenshots render, the hero photograph
- * is the one eager/LCP image, every CTA comes from the server-resolved ModeCta
- * (including the closing call to action), and all claims come from copy.ts. The
- * landing no longer lists release notes; the public changelog owns that.
+ * Guard rails kept intact: the product screenshots render (exercise, logging,
+ * trend), the hero photograph is the one eager/LCP image, every CTA comes from
+ * the server-resolved ModeCta (including the closing call to action), and all
+ * claims come from copy.ts. The landing no longer lists release notes; the
+ * public changelog owns that.
  *
  * Depth: sections alternate a barely-there `bg-muted/40` band against the
  * page background so the page reads in layers without a second palette, and
@@ -223,8 +226,11 @@ export default function LandingPage() {
             </h2>
           </Reveal>
           <Reveal delayClass="delay-100">
-            <div className="mx-auto w-full max-w-3xl">
-              <ScreenshotFrame shot="today" caption={HERO.caption} />
+            <div className="mx-auto w-full max-w-2xl">
+              <DayCard />
+              <p className="mt-3 text-center text-sm text-muted-foreground">
+                {HERO.caption}
+              </p>
             </div>
           </Reveal>
         </div>

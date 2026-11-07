@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
+import { DAY_PANEL } from "@/lib/marketing/copy";
 import { cn } from "@/lib/utils";
 
 /**
@@ -79,6 +80,57 @@ export function CallCard({ className }: { className?: string }) {
       <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
         Top of the 6–8 range, two sessions in a row.
       </p>
+    </div>
+  );
+}
+
+/**
+ * The landing's "Today" panel, rendered in Overload's own UI rather than shown
+ * as a screenshot — so the greeting name lives in code (DAY_PANEL.name), never
+ * baked into an image. The one lift that earned it is tagged; the rest read as
+ * planned, matching the real Today screen and the hero caption.
+ */
+export function DayCard({ className }: { className?: string }) {
+  const greeting = DAY_PANEL.name
+    ? `${DAY_PANEL.greeting}, ${DAY_PANEL.name}`
+    : DAY_PANEL.greeting;
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6",
+        className,
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-lg font-semibold tracking-tight md:text-xl">
+          {greeting}
+        </p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {DAY_PANEL.context}
+        </p>
+      </div>
+      <ul className="mt-5 divide-y divide-border border-t border-border">
+        {DAY_PANEL.lifts.map((lift) => (
+          <li
+            key={lift.name}
+            className="flex items-center justify-between gap-3 py-3"
+          >
+            <div className="min-w-0">
+              <p className="truncate font-medium">{lift.name}</p>
+              <p className="text-sm tabular-nums text-muted-foreground">
+                {lift.scheme}
+              </p>
+            </div>
+            {lift.progress ? (
+              <Tag kind="progress" />
+            ) : (
+              <span className="shrink-0 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                Planned
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

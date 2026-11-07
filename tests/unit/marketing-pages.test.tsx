@@ -240,10 +240,11 @@ describe("screenshot frames load one image each (review findings 3/4)", () => {
   it("renders one <img> per captured frame, and every <source> has dimensions", async () => {
     const html = await page("welcome", off());
     const pictures = html.match(/<picture[\s\S]*?<\/picture>/g) ?? [];
-    // Four captured frames: today (hero), exercise, logging, trend. The per-gym
-    // section uses a custom comparison, not the gym-northside/gym-riverside
-    // screenshots, so they no longer render here (they remain available assets).
-    expect(pictures.length).toBe(4);
+    // Three captured frames: exercise, logging, trend. The Today panel is now a
+    // rendered Overload-UI mock (no baked-in name), and the per-gym section uses
+    // a custom comparison, so those shots don't render here (they stay available
+    // assets in the manifest).
+    expect(pictures.length).toBe(3);
     for (const p of pictures) {
       expect(p.match(/<img /g)).toHaveLength(1);
       for (const src of p.match(/<source [^>]*>/g) ?? []) {
