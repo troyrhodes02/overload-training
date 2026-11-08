@@ -81,9 +81,9 @@ Full inventory retained in run context; condensed digest above drives design/spe
 | 5 | Resolved Decisions | ✅ recorded in spec §Resolved Decisions (RD-0..RD-14) |
 | 6 | Linear tickets + milestone | ✅ milestone + OVE-105..110 (chained) |
 | 7 | Feature PR | ✅ [#130](https://github.com/troyrhodes02/overload-training/pull/130) (DO NOT MERGE) |
-| 8 | Implement all tickets | 🔄 OVE-105,106,107,108 done; OVE-109 in progress |
+| 8 | Implement all tickets | 🔄 OVE-105..109 done; OVE-110 in progress |
 | 9 | Operator runbook | ✅ `docs/runs/22-workout-plan-import-review-runbook.md` |
-| 10 | Integrate ticket PRs into feature branch | 🔄 OVE-105 (#131), OVE-106 (#132) squash-merged |
+| 10 | Integrate ticket PRs into feature branch | 🔄 #131,#132,#133,#134,#135 squash-merged into feature |
 | 11 | Full verification | ⬜ pending |
 | 12 | Review (/review) | ⬜ pending |
 | 13 | Audit & fix (/overload-review-audit) | ⬜ pending |
@@ -150,8 +150,8 @@ is the final visible-change ticket (uses `overload-onboarding`).
 | OVE-106 | [#132](https://github.com/troyrhodes02/overload-training/pull/132) | ✅ squash-merged into feature (`c4e1ab6`) | lint/typecheck/format ✅, unit 1742 (119 shorthand fixtures) ✅, integration 769 ✅, build ✅, client-bundle ✅ |
 | OVE-107 | [#133](https://github.com/troyrhodes02/overload-training/pull/133) | ✅ squash-merged into feature (`a92f16b`) | lint/typecheck/format ✅, unit 1762 ✅, integration ✅, build ✅, client-bundle ✅ (`pdfjs-dist@6.5.438`) |
 | OVE-108 | [#134](https://github.com/troyrhodes02/overload-training/pull/134) | ✅ squash-merged into feature (`bf7749d`) | lint/typecheck/format ✅, unit 1778 ✅, integration 774 ✅ (isolation), build ✅, client-bundle ✅ (`sharp@0.34.4`, `heic-convert@2.1.0` server-external) |
-| OVE-109 | — | 🔄 in progress | — |
-| OVE-110 | — | ⬜ | — |
+| OVE-109 | [#135](https://github.com/troyrhodes02/overload-training/pull/135) | ✅ squash-merged into feature (`9f74e95`) | lint/typecheck/format ✅, unit 1811 ✅, integration 797 ✅ (single-worker), build ✅, client-bundle ✅; 55 golden fixtures; migration `9m` (additive tombstone) |
+| OVE-110 | — | 🔄 in progress | — |
 
 OVE-106 facts: `@anthropic-ai/sdk@1.6.0` + `zod@4.6.5` pinned; structured output via
 `messages.parse()` + `zodOutputFormat` over a `.strict()` `ExtractedPlanObservation`; model id from
