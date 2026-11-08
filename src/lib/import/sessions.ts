@@ -20,6 +20,8 @@ import {
   SourceValidationError,
   uploadSourceObject,
 } from "./storage";
+import { inspectPdf, PdfValidationError } from "./pdf";
+import { MAX_PDF_PAGES } from "./constants";
 
 /**
  * Workout Plan Import & Review (Pitch 22) — the ImportSession write module.
@@ -141,7 +143,12 @@ export async function addText(
 export async function addFilePart(
   account: Account,
   input: { sessionId: string; bytes: Uint8Array; sizeBytes: number },
-): Promise<{ objectPath: string; contentType: string; position: number }> {
+): Promise<{
+  objectPath: string;
+  contentType: string;
+  position: number;
+  pageCount: number | null;
+}> {
   const session = await requireOwnSession(account, input.sessionId);
   assertStillAssembling(session);
 
@@ -183,6 +190,24 @@ export async function addFilePart(
     throw error;
   }
 
+  // PDF parts are inspected HERE, at intake, before anything is stored and long
+  // before any provider call: count pages (≤ MAX_PDF_PAGES), and refuse an
+  // encrypted / password-protected / malformed / polyglot PDF cleanly. A rejected
+  // file never reaches storage and never costs a model call. The page count is
+  // persisted so the extraction and evidence paths can bound model-returned pages.
+  let pageCount: number | null = null;
+  if (normalized.contentType === "application/pdf") {
+    try {
+      const inspection = await inspectPdf(normalized.bytes);
+      pageCount = inspection.pageCount;
+    } catch (error) {
+      if (error instanceof PdfValidationError) {
+        throw new DomainError("validation_error", pdfRejectionMessage(error));
+      }
+      throw error;
+    }
+  }
+
   const position =
     existing.length === 0 ? 0 : existing[existing.length - 1].position + 1;
   const objectPath = sourceObjectPath(
@@ -206,6 +231,7 @@ export async function addFilePart(
           objectPath,
           contentType: normalized.contentType,
           sizeBytes: input.sizeBytes,
+          pageCount,
         },
       });
       await tx.importSession.updateMany({
@@ -221,7 +247,25 @@ export async function addFilePart(
     await removeSourceObjects([objectPath]);
     throw error;
   }
-  return { objectPath, contentType: normalized.contentType, position };
+  return {
+    objectPath,
+    contentType: normalized.contentType,
+    position,
+    pageCount,
+  };
+}
+
+/** An honest, filename-free message for a refused PDF (never leaks content). */
+function pdfRejectionMessage(error: PdfValidationError): string {
+  switch (error.reason) {
+    case "encrypted":
+      return "That PDF is password-protected. Remove the password and try again.";
+    case "too_many_pages":
+      return `That PDF has too many pages. Import a PDF of at most ${MAX_PDF_PAGES} pages.`;
+    case "malformed":
+    default:
+      return "That PDF couldn't be read. It may be damaged or not a real PDF.";
+  }
 }
 
 /** Remove one source part by object path, deleting its stored object too. */

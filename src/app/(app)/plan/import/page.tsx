@@ -6,7 +6,11 @@ import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import { isPlanImportEnabled } from "@/lib/import/config";
 import { SourceIntake } from "@/components/plan/import/source-intake";
 import { ImportFlow } from "@/components/plan/import/import-flow";
-import { getImportStatus, sourceReadUrls } from "@/lib/import/extract";
+import {
+  getImportStatus,
+  sourceReadUrls,
+  type SourceReadPart,
+} from "@/lib/import/extract";
 import type { ImportDraftDto } from "@/lib/import/draft/types";
 
 export const metadata = { title: "Import plan · Overload" };
@@ -71,11 +75,7 @@ export default async function PlanImportPage({
     }
 
     let draft: ImportDraftDto | null = null;
-    let source: {
-      position: number;
-      text: string | null;
-      url: string | null;
-    }[] = [];
+    let source: SourceReadPart[] = [];
     let mesocycleId: string | null = null;
 
     if (status.step === "review") {

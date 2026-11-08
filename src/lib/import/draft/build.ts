@@ -7,7 +7,11 @@ import {
 } from "../parse/shorthand";
 import type { MatchOutcome } from "../match/matcher";
 import type { ExtractedPlanObservation } from "../extraction/schema";
-import { verifyEvidence, type SourceTextPart } from "./evidence";
+import {
+  verifyEvidence,
+  isPageInBounds,
+  type SourceTextPart,
+} from "./evidence";
 import type {
   DraftExercise,
   DraftField,
@@ -192,13 +196,24 @@ export function buildImportDraft(input: BuildInput): ImportDraft {
       }
 
       // Quote-to-source verification for this exercise's name evidence.
-      const verified = verifyEvidence(toEvidence(obs.name.evidence), parts);
+      const nameEvidence = toEvidence(obs.name.evidence);
+      const verified = verifyEvidence(nameEvidence, parts);
       if (verified === false) {
         issues.push({
           code: ISSUE_CODES.EVIDENCE_NOT_FOUND,
           severity: "info",
           fieldPath: `${fieldBase}/name`,
-          evidence: toEvidence(obs.name.evidence),
+          evidence: nameEvidence,
+        });
+      }
+      // Page-citation bounds: a model-returned page outside the cited part's real
+      // page range (or on a non-existent part) is flagged, never trusted.
+      if (!isPageInBounds(nameEvidence, parts)) {
+        issues.push({
+          code: ISSUE_CODES.EVIDENCE_PAGE_OUT_OF_BOUNDS,
+          severity: "info",
+          fieldPath: `${fieldBase}/name`,
+          evidence: nameEvidence,
         });
       }
 
@@ -242,21 +257,39 @@ export function buildImportDraft(input: BuildInput): ImportDraft {
 
   // Contradictions the model reported.
   for (const c of observation.contradictions) {
+    const ev = c.evidence[0] ? toEvidence(c.evidence[0]) : MISSING_EVIDENCE;
     issues.push({
       code: ISSUE_CODES.CONTRADICTION,
       severity: "info",
       fieldPath: "/",
-      evidence: c.evidence[0] ? toEvidence(c.evidence[0]) : MISSING_EVIDENCE,
+      evidence: ev,
     });
+    if (!isPageInBounds(ev, parts)) {
+      issues.push({
+        code: ISSUE_CODES.EVIDENCE_PAGE_OUT_OF_BOUNDS,
+        severity: "info",
+        fieldPath: "/",
+        evidence: ev,
+      });
+    }
   }
   // Unreadable regions the model reported.
   for (const u of observation.unreadable) {
+    const ev = toEvidence(u);
     issues.push({
       code: ISSUE_CODES.UNREADABLE,
       severity: "info",
       fieldPath: "/",
-      evidence: toEvidence(u),
+      evidence: ev,
     });
+    if (!isPageInBounds(ev, parts)) {
+      issues.push({
+        code: ISSUE_CODES.EVIDENCE_PAGE_OUT_OF_BOUNDS,
+        severity: "info",
+        fieldPath: "/",
+        evidence: ev,
+      });
+    }
   }
 
   const title: DraftField<string> = {

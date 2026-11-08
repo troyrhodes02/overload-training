@@ -60,7 +60,13 @@ import {
  * and is the real gate — a client flag never waives a blocker).
  */
 
-type SourcePart = { position: number; text: string | null; url: string | null };
+type SourcePart = {
+  position: number;
+  text: string | null;
+  url: string | null;
+  contentType: string | null;
+  pageCount: number | null;
+};
 
 type ApplyResult =
   | { ok: true; data: ImportDraftDto }
@@ -415,29 +421,88 @@ function SourcePane({ source }: { source: SourcePart[] }) {
       {source.length === 0 && (
         <p className="text-sm text-muted-foreground">No source to show.</p>
       )}
-      {source.map((part) =>
-        part.text != null ? (
-          <pre
-            key={part.position}
-            className="whitespace-pre-wrap break-words text-sm text-foreground"
-          >
-            {part.text}
-          </pre>
-        ) : part.url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={part.position}
-            src={part.url}
-            alt={`Source part ${part.position + 1}`}
-            className="max-w-full rounded border border-border"
-          />
-        ) : (
-          <p key={part.position} className="text-sm text-muted-foreground">
-            Source part {part.position + 1} is unavailable.
-          </p>
-        ),
-      )}
+      {source.map((part) => (
+        <SourcePartView key={part.position} part={part} />
+      ))}
     </div>
+  );
+}
+
+/**
+ * Render one source part in the review pane. Text is shown verbatim; an image is
+ * shown inline; a PDF is embedded through its short-lived signed URL with an
+ * honest "PDF · N pages" label and an open-in-new-tab link (the browser's own
+ * PDF viewer renders it). A part whose signed URL could not be minted shows a
+ * plain "unavailable" line, never an error that breaks the page.
+ */
+function SourcePartView({ part }: { part: SourcePart }) {
+  if (part.text != null) {
+    return (
+      <pre className="whitespace-pre-wrap break-words text-sm text-foreground">
+        {part.text}
+      </pre>
+    );
+  }
+  const isPdf = part.contentType === "application/pdf";
+  if (isPdf) {
+    if (!part.url) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Source part {part.position + 1} (PDF) is unavailable.
+        </p>
+      );
+    }
+    const pages =
+      part.pageCount != null
+        ? `${part.pageCount} page${part.pageCount === 1 ? "" : "s"}`
+        : "PDF";
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">
+            PDF · {pages}
+          </span>
+          <a
+            href={part.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted-foreground underline underline-offset-2"
+          >
+            Open
+          </a>
+        </div>
+        <object
+          data={part.url}
+          type="application/pdf"
+          aria-label={`Source part ${part.position + 1} (PDF)`}
+          className="h-96 w-full rounded border border-border"
+        >
+          <a
+            href={part.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm underline"
+          >
+            Open the PDF
+          </a>
+        </object>
+      </div>
+    );
+  }
+  if (part.url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={part.url}
+        alt={`Source part ${part.position + 1}`}
+        className="max-w-full rounded border border-border"
+      />
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      Source part {part.position + 1} is unavailable.
+    </p>
   );
 }
 

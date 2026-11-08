@@ -199,6 +199,21 @@ export async function uploadSourceObject(
   }
 }
 
+/**
+ * Download one stored source object's raw bytes (server-side only), for the
+ * extraction path to feed a PDF/image to the provider or to read a PDF's text
+ * layer. Never mints a public URL and never returns a signed URL to a client —
+ * the bytes stay on the server. Returns null when the object can't be read.
+ */
+export async function downloadSourceObject(
+  objectPath: string,
+): Promise<Uint8Array | null> {
+  const { data, error } = await storageClient().download(objectPath);
+  if (error || !data) return null;
+  const buffer = await data.arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
 /** Remove stored source objects by path. Best-effort: failures are swallowed. */
 export async function removeSourceObjects(paths: string[]): Promise<void> {
   if (paths.length === 0) return;

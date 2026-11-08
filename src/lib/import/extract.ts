@@ -16,7 +16,8 @@ import { matchExercises } from "./match/library";
 import { buildImportDraft } from "./draft/build";
 import type { SourceTextPart } from "./draft/evidence";
 import type { ImportDraft, ImportStatusDto, ImportStep } from "./draft/types";
-import { signSourceReadUrls } from "./storage";
+import { downloadSourceObject, signSourceReadUrls } from "./storage";
+import { inspectPdf, isTextLayerDefensible } from "./pdf";
 
 /**
  * Workout Plan Import & Review (Pitch 22, OVE-106) — the extraction LIFECYCLE
@@ -132,7 +133,34 @@ async function claimLease(
   return result.count === 1 ? token : null;
 }
 
-/** Load the ordered source parts as extraction parts + text parts for evidence. */
+/** Join per-page text with page markers the model can cite (1-indexed). */
+function pagedText(pages: string[]): string {
+  return pages
+    .map((page, i) => `--- PAGE ${i + 1} ---\n${page}`)
+    .join("\n\n")
+    .slice(0, MAX_TEXT_SNIPPET);
+}
+
+/**
+ * Load the ordered source parts as the model-facing extraction parts plus the
+ * text parts the offline evidence check uses.
+ *
+ * Path selection per part is by ACTUAL source characteristics, not the file
+ * extension (blueprint §3.2, RD-14):
+ *  - a pasted-text part → a text extraction part;
+ *  - a PDF whose text layer is defensible (every page has text, enough volume)
+ *    → a TEXT extraction part carrying the per-page text with `--- PAGE n ---`
+ *    markers, and a text evidence part so quotes can be verified against the
+ *    text and page numbers bounded by the real page count;
+ *  - a PDF whose text layer can't be defended (scanned / image-only / ambiguous
+ *    columns) → a VISION/PDF extraction part carrying the raw BYTES (never a
+ *    signed URL), with a text-less evidence part bounded only by page count;
+ *  - an image part → a VISION extraction part carrying the raw bytes.
+ *
+ * A file part whose bytes cannot be downloaded is skipped from the extraction
+ * payload (it still appears as an evidence part) rather than failing the whole
+ * import; the review surfaces that nothing was read from it.
+ */
 async function loadParts(
   account: Account,
   sessionId: string,
@@ -143,19 +171,79 @@ async function loadParts(
   });
   const extraction: ExtractionPart[] = [];
   const text: SourceTextPart[] = [];
-  // For file parts we need the bytes; but OVE-106 ships the TEXT vertical only.
-  // Image/PDF byte loading rides OVE-108 (the file vertical). Here, text parts
-  // carry their inline text; file parts are passed as text-less evidence parts
-  // (their bytes are fetched by OVE-108's extraction path).
+
   for (const p of parts) {
     if (p.text != null) {
       extraction.push({ kind: "text", index: p.position, text: p.text });
       text.push({ index: p.position, text: p.text.slice(0, MAX_TEXT_SNIPPET) });
-    } else {
-      // Non-text parts: evidence can't be verified from held text (image/pdf).
-      text.push({ index: p.position, text: null, pageCount: p.pageCount });
-      // The byte-bearing extraction part is assembled by OVE-108; omitted here.
+      continue;
     }
+    if (!p.objectPath) {
+      text.push({ index: p.position, text: null, pageCount: p.pageCount });
+      continue;
+    }
+    const bytes = await downloadSourceObject(p.objectPath);
+    if (!bytes) {
+      // The object is gone (cleaned up / never stored). Keep it as an unreadable
+      // evidence part; it simply contributes nothing to the model payload.
+      text.push({ index: p.position, text: null, pageCount: p.pageCount });
+      continue;
+    }
+
+    if (p.contentType === "application/pdf") {
+      let pages: string[] | null = null;
+      let pageCount = p.pageCount ?? null;
+      try {
+        const inspection = await inspectPdf(bytes);
+        pages = inspection.pages;
+        pageCount = inspection.pageCount;
+      } catch {
+        // Intake already refused encrypted/malformed PDFs; a re-inspection failure
+        // here means the stored bytes changed shape. Fall back to the vision path
+        // with the bytes so we don't lose the part silently.
+        pages = null;
+      }
+
+      if (pages && isTextLayerDefensible(pages)) {
+        // Text path: send the per-page text, page-marked for citation.
+        extraction.push({
+          kind: "text",
+          index: p.position,
+          text: pagedText(pages),
+        });
+        text.push({
+          index: p.position,
+          text: pages.join("\n"),
+          pageCount,
+        });
+      } else {
+        // Vision/PDF fallback: raw bytes, never a signed URL.
+        extraction.push({
+          kind: "pdf",
+          index: p.position,
+          bytes,
+          pageCount: pageCount ?? undefined,
+        });
+        text.push({ index: p.position, text: null, pageCount });
+      }
+      continue;
+    }
+
+    // Images (jpeg/png/webp): vision path with raw bytes. The screenshot/photo
+    // slice (OVE-108) refines rotation/resize; here the bytes are sent as stored.
+    if (
+      p.contentType === "image/jpeg" ||
+      p.contentType === "image/png" ||
+      p.contentType === "image/webp"
+    ) {
+      extraction.push({
+        kind: "image",
+        index: p.position,
+        bytes,
+        mime: p.contentType,
+      });
+    }
+    text.push({ index: p.position, text: null, pageCount: p.pageCount });
   }
   return { extraction, text };
 }
@@ -381,15 +469,30 @@ export async function retryExtraction(
   });
 }
 
+/** One source part as the review pane renders it (text, image, or a PDF link). */
+export type SourceReadPart = {
+  position: number;
+  text: string | null;
+  url: string | null;
+  contentType: string | null;
+  pageCount: number | null;
+};
+
 /** The source read URLs for the review source pane (short-TTL signed). */
 export async function sourceReadUrls(
   account: Account,
   sessionId: string,
-): Promise<{ position: number; text: string | null; url: string | null }[]> {
+): Promise<SourceReadPart[]> {
   const parts = await account.db.importSourcePart.findMany({
     where: { sessionId },
     orderBy: { position: "asc" },
-    select: { position: true, text: true, objectPath: true },
+    select: {
+      position: true,
+      text: true,
+      objectPath: true,
+      contentType: true,
+      pageCount: true,
+    },
   });
   const paths = parts
     .map((p) => p.objectPath)
@@ -399,5 +502,7 @@ export async function sourceReadUrls(
     position: p.position,
     text: p.text,
     url: p.objectPath ? (signed.get(p.objectPath) ?? null) : null,
+    contentType: p.contentType,
+    pageCount: p.pageCount,
   }));
 }
