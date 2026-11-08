@@ -264,13 +264,18 @@ export async function signSourceReadUrls(
 ): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
   if (paths.length === 0) return out;
-  const { data } = await storageClient().createSignedUrls(
-    paths,
-    SIGNED_URL_TTL_SECONDS,
-  );
   for (const path of paths) out.set(path, null);
-  for (const row of data ?? []) {
-    if (row.path && !row.error) out.set(row.path, row.signedUrl);
+  try {
+    const { data } = await storageClient().createSignedUrls(
+      paths,
+      SIGNED_URL_TTL_SECONDS,
+    );
+    for (const row of data ?? []) {
+      if (row.path && !row.error) out.set(row.path, row.signedUrl);
+    }
+  } catch {
+    // Storage unavailable/unconfigured: every path stays null (shown as
+    // unavailable). Never throw — a signing blip must not break the review page.
   }
   return out;
 }

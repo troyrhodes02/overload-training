@@ -11,6 +11,7 @@ import {
   sourceReadUrls,
   type SourceReadPart,
 } from "@/lib/import/extract";
+import { runImportRetention } from "@/lib/import/retention";
 import type { ImportDraftDto } from "@/lib/import/draft/types";
 
 export const metadata = { title: "Import plan · Overload" };
@@ -46,6 +47,15 @@ export default async function PlanImportPage({
       />
     );
   }
+
+  // Lazy per-request retention sweep (OVE-109): this account's OWN overdue
+  // unconfirmed imports are expired and their stored sources removed, and any
+  // outstanding blob-delete tombstone is retried. Bounded + non-throwing, so it
+  // never slows the page; scoped to the acting account only. This is the
+  // implementable backstop — a reliable <=24h *scheduled* purge of a
+  // never-reopened session stays blocked on scheduling infra the repo lacks
+  // (architecture non-goal; see retention.ts and the run report).
+  await runImportRetention(account);
 
   if (!isPlanImportEnabled()) {
     return (
