@@ -197,6 +197,20 @@ describe("normalizeForStorage — magic-byte routing through the real pipeline",
     expect(sniffedMime(out.bytes)).toBe("image/jpeg");
   });
 
+  it("the NORMALIZED byte length differs from the upload size (what sessions.ts must store)", async () => {
+    // A HEIC→JPEG re-encode changes the byte count, so the STORED size is the
+    // normalized length, never the upload's. sessions.ts stamps
+    // `normalized.bytes.byteLength` for exactly this reason (the bundle cap and
+    // the per-file DB CHECK must describe the object actually in storage).
+    const heic = new Uint8Array(readFileSync(HEIC_FIXTURE));
+    const out = await normalizeForStorage({
+      bytes: heic,
+      sizeBytes: heic.byteLength,
+    });
+    expect(out.bytes.byteLength).not.toBe(heic.byteLength);
+    expect(out.bytes.byteLength).toBeGreaterThan(0);
+  });
+
   it("a spoofed image (really a GIF) is refused by magic bytes", async () => {
     const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0, 0]);
     await expect(

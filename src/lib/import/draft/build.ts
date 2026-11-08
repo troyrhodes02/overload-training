@@ -366,6 +366,28 @@ export function deriveBlockers(draft: ImportDraft): DraftIssue[] {
         evidence: null,
       });
     }
+    // Intra-day duplicate: two exercises in the same day resolving to the SAME
+    // library exerciseId collide on SessionExercise's @@unique([sessionId,
+    // exerciseId]) and would roll the whole confirm back. The plan model can't
+    // represent the same movement twice in one day, so surface it as a blocker
+    // the lifter can fix (remove or re-point one) rather than a dead-end confirm.
+    // Only matched library rows can collide; each custom_staged insert mints a
+    // fresh id, so staged customs never clash.
+    const seenMatchedIds = new Set<string>();
+    day.exercises.forEach((ex, exIndex) => {
+      if (ex.match.kind === "matched") {
+        if (seenMatchedIds.has(ex.match.exerciseId)) {
+          blockers.push({
+            code: ISSUE_CODES.DUPLICATE_EXERCISE_IN_DAY,
+            severity: "blocking",
+            fieldPath: `/days/${dayIndex}/exercises/${exIndex}/match`,
+            evidence: null,
+          });
+        } else {
+          seenMatchedIds.add(ex.match.exerciseId);
+        }
+      }
+    });
     day.exercises.forEach((ex, exIndex) => {
       const base = `/days/${dayIndex}/exercises/${exIndex}`;
       // Match must be resolved to a matched library row or a staged custom.

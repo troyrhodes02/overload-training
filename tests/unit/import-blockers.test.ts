@@ -106,4 +106,77 @@ describe("deriveBlockers", () => {
       true,
     );
   });
+
+  it("two matched exercises in one day resolving to the SAME library id block (unconfirmable duplicate)", () => {
+    const d = draft();
+    // Add a second exercise in the same day pointing at the same library row —
+    // this would collide on SessionExercise's @@unique([sessionId, exerciseId]).
+    d.days[0].exercises.push({
+      key: "d0e1",
+      match: { kind: "matched", exerciseId: "lib-1", name: "Bench" },
+      sets: { value: 3, raw: "3", status: "explicit", evidence: null },
+      repMin: { value: 8, raw: "8", status: "explicit", evidence: null },
+      repMax: { value: 10, raw: "10", status: "explicit", evidence: null },
+      context: [],
+    });
+    const blockers = deriveBlockers(d);
+    expect(blockers.some((b) => b.code === "DUPLICATE_EXERCISE_IN_DAY")).toBe(
+      true,
+    );
+    // The blocker is anchored to the SECOND (duplicate) exercise's match.
+    expect(
+      blockers.some(
+        (b) =>
+          b.code === "DUPLICATE_EXERCISE_IN_DAY" &&
+          b.fieldPath === "/days/0/exercises/1/match",
+      ),
+    ).toBe(true);
+  });
+
+  it("the SAME library id across DIFFERENT days is fine (no duplicate blocker)", () => {
+    const d = draft();
+    d.days.push({
+      key: "d1",
+      label: { value: "Pull", raw: "Pull", status: "explicit", evidence: null },
+      exercises: [
+        {
+          key: "d1e0",
+          match: { kind: "matched", exerciseId: "lib-1", name: "Bench" },
+          sets: { value: 3, raw: "3", status: "explicit", evidence: null },
+          repMin: { value: 6, raw: "6", status: "explicit", evidence: null },
+          repMax: { value: 8, raw: "8", status: "explicit", evidence: null },
+          context: [],
+        },
+      ],
+    });
+    expect(
+      deriveBlockers(d).some((b) => b.code === "DUPLICATE_EXERCISE_IN_DAY"),
+    ).toBe(false);
+  });
+
+  it("two custom_staged exercises in one day never duplicate-block (each mints a fresh id)", () => {
+    const d = draft();
+    d.days[0].exercises[0].match = {
+      kind: "custom_staged",
+      name: "Thing",
+      primaryMuscle: "chest",
+      equipmentType: "barbell",
+    };
+    d.days[0].exercises.push({
+      key: "d0e1",
+      match: {
+        kind: "custom_staged",
+        name: "Thing",
+        primaryMuscle: "chest",
+        equipmentType: "barbell",
+      },
+      sets: { value: 3, raw: "3", status: "explicit", evidence: null },
+      repMin: { value: 6, raw: "6", status: "explicit", evidence: null },
+      repMax: { value: 8, raw: "8", status: "explicit", evidence: null },
+      context: [],
+    });
+    expect(
+      deriveBlockers(d).some((b) => b.code === "DUPLICATE_EXERCISE_IN_DAY"),
+    ).toBe(false);
+  });
 });

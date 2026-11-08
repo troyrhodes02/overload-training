@@ -86,7 +86,7 @@ describe("two concurrent jobs cannot both reserve past the ceiling", () => {
 });
 
 describe("reconcile-after", () => {
-  it("records observed usage and releases the unused reservation", async () => {
+  it("records observed usage and releases the whole reservation (actual < estimate)", async () => {
     setCap((ESTIMATED_ATTEMPT_MICROS * BigInt(10)).toString());
     await reserveSpend(); // reserves ESTIMATED
     const actual = BigInt(120_000); // cheaper than estimated
@@ -98,8 +98,27 @@ describe("reconcile-after", () => {
       where: { monthKey: monthKey() },
     });
     expect(row.actualMicros).toBe(actual);
-    // reserved -= (estimate - actual) => actual remains reserved.
-    expect(row.reservedMicros).toBe(actual);
+    // The up-front reservation is RELEASED IN FULL; actual is booked separately.
+    expect(row.reservedMicros).toBe(BigInt(0));
+  });
+
+  it("does NOT inflate reserved when actual EXCEEDS the estimate (sign-error regression)", async () => {
+    setCap((ESTIMATED_ATTEMPT_MICROS * BigInt(10)).toString());
+    await reserveSpend(); // reserves ESTIMATED ($0.50)
+    // The real cost came in ABOVE the conservative estimate. The old formula
+    // `reserved -= (reserved - actual)` went negative and INFLATED reserved past
+    // what was ever reserved; the fix releases exactly `reservedMicros`.
+    const actual = ESTIMATED_ATTEMPT_MICROS * BigInt(2); // $1.00, over estimate
+    await reconcileSpend({
+      reservedMicros: ESTIMATED_ATTEMPT_MICROS,
+      actualMicros: actual,
+    });
+    const row = await getTestPrisma().importSpendLedger.findUniqueOrThrow({
+      where: { monthKey: monthKey() },
+    });
+    // reserved released in full (floored at 0), NEVER inflated above the reserve.
+    expect(row.reservedMicros).toBe(BigInt(0));
+    expect(row.actualMicros).toBe(actual);
   });
 
   it("releasing a reservation never drives reserved below zero", async () => {

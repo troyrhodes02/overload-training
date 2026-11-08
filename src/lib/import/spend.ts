@@ -94,12 +94,19 @@ export async function reconcileSpend(input: {
   actualMicros: bigint;
 }): Promise<void> {
   const key = monthKey();
-  const delta = input.reservedMicros - input.actualMicros;
   try {
+    // Record the real cost and RELEASE the up-front reservation in full. These
+    // are two independent moves: `reserved_micros` always drops by the exact
+    // amount that was reserved (floored at 0), and `actual_micros` always rises
+    // by the real cost. A prior version subtracted `reserved - actual`, which
+    // went NEGATIVE whenever actual exceeded the estimate and INFLATED reserved
+    // past what was ever reserved — drifting the month bucket toward the cap and
+    // eventually refusing every import. Releasing exactly `reservedMicros` keeps
+    // the counter honest for any actual, above or below the estimate.
     await prisma.$executeRaw`
       UPDATE "import_spend_ledger"
       SET "actual_micros" = "actual_micros" + ${input.actualMicros},
-          "reserved_micros" = GREATEST(0, "reserved_micros" - ${delta}),
+          "reserved_micros" = GREATEST(0, "reserved_micros" - ${input.reservedMicros}),
           "updated_at" = now()
       WHERE "month_key" = ${key}`;
   } catch {

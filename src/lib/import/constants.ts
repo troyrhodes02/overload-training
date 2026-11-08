@@ -30,12 +30,13 @@ export const MAX_TOTAL_BYTES = 25 * 1024 * 1024;
 export const MAX_PDF_PAGES = 20;
 
 /**
- * Image resize bounds for the extraction step (OVE-108): an uploaded image is
- * downscaled to fit within this range before bytes are sent to the provider.
- * Recorded here as the single source of truth; not applied in this foundation
- * slice (no provider call ships yet).
+ * Image resize ceiling for the extraction step (OVE-108): an uploaded image is
+ * downscaled so its LONGEST side is at most this many pixels before bytes are
+ * sent to the provider, never enlarging a smaller image (see image.ts). There is
+ * no lower bound — a small source is sent as-is — so only the ceiling is a named
+ * constant here (the earlier 2000px floor from RD-12 was never used and is
+ * dropped; see spec RD-16).
  */
-export const IMAGE_RESIZE_MIN_PX = 2000;
 export const IMAGE_RESIZE_MAX_PX = 2400;
 
 /** Retention: unconfirmed import content is kept at most this long. */
@@ -48,9 +49,10 @@ export const MAX_SETS_PER_EXERCISE = 15;
 
 /**
  * The file content types the upload path accepts, after magic-byte sniffing.
- * HEIC/HEIF is accepted at the picker but converted (or cleanly refused) to one
- * of these before a part is committed; see storage.ts (conversion stubbed for
- * OVE-108). The browser picker also offers these plus HEIC/HEIF.
+ * HEIC/HEIF is accepted at the picker but converted to one of these (to JPEG via
+ * the decoder in image.ts, shipped in OVE-108), or cleanly refused, before a
+ * part is committed; see storage.ts. The browser picker also offers these plus
+ * HEIC/HEIF.
  */
 export const ACCEPTED_CONTENT_TYPES = [
   "application/pdf",

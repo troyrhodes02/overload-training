@@ -51,3 +51,21 @@ export async function bumpImportUsage(
     return { allowed: false };
   }
 }
+
+/**
+ * Refund one previously-bumped slot for `(userId, dayKey)` when the counted
+ * attempt will NOT run — a refused spend reservation or a lost-lease race. The
+ * decrement is floored at 0 and scoped to the account's own row, mirroring
+ * {@link bumpImportUsage}'s atomic single-statement shape. Best-effort: a failure
+ * never escapes (the worst case is a conservative over-count, never a leak the
+ * other way), so the caller wraps it in `.catch(() => {})`.
+ */
+export async function refundImportUsage(
+  userId: string,
+  dayKey: string,
+): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE "import_usage_days"
+    SET "count" = GREATEST(0, "count" - 1), "updated_at" = now()
+    WHERE "user_id" = ${userId}::uuid AND "day_key" = ${dayKey}`;
+}

@@ -309,3 +309,27 @@ Safety pass (blueprint §12 + CLAUDE.md invariants): 8/8 PASS, zero defects. Sam
 Verification: lint PASS, typecheck PASS, format:check PASS, unit PASS (1814), integration PASS (797), build PASS, verify:client-bundle PASS, release-note CI validation PASS. On-device phone+desktop tour rendering: UNVERIFIED (needs a real browser; reported honestly, not faked).
 
 ## Stop conditions: none hit.
+
+## Step 13 — audit & fix (PR #130 review) status
+
+Branch: `22-workout-plan-import-review` (feature branch; feature PR #130). Review posted 10 inline comments; core invariants verified HOLD. Disposition:
+
+IMPLEMENTED (code):
+1. confirm.ts intra-day duplicate exerciseId → new blocking issue `DUPLICATE_EXERCISE_IN_DAY` in `deriveBlockers` (build.ts); clear blocker copy in import-flow.tsx. Two matched exercises in one day no longer dead-end the confirm on `@@unique([sessionId, exerciseId])`.
+2. confirm.ts `$transaction` explicit `{ timeout: 120_000, maxWait: 20_000 }` (matches applyImport) → no P2028 on large plans.
+3. confirm.ts concurrent double-confirm: catch extended to recover on `DomainError("conflict")` (CAS 0-rows) as well as unique-violation → re-reads and returns the winner's mesocycleId (true idempotency).
+4. extract.ts quota leak on lost-lease race: quota now REFUNDED (new `refundImportUsage` in usage.ts) on both the refused-reservation branch and the lost-lease branch → one real attempt = one slot.
+5. spend.ts reconcile sign error fixed: reserved released by exactly `reservedMicros` (not `reserved - actual`), actual booked separately → no inflation when actual > estimate.
+6. sessions.ts `sizeBytes` now records `normalized.bytes.byteLength` (stored, not upload); bundle cap re-checked against normalized size.
+7. sessions.ts discard during live `extracting`: releases the reservation ONLY when the lease is DEAD (orphan case); a live attempt releases its own → no double-release.
+8. constants.ts/anthropic.ts cleanup: removed dead `IMAGE_RESIZE_MIN_PX`; fixed stale "conversion stubbed"/escalation comments. Escalation (blueprint §3.3/RD-12) recorded as DEFERRED (spec RD-15); resize floor dropped (RD-16).
+
+DEFERRED (documented, no code): 9. flat per-attempt spend estimate vs real-token dollars → spec RD-17 (needs owner price map §17.1).
+
+SKIPPED (rationale recorded): 10. HEIC brand allowlist — conservative refuse-and-ask (save-as-JPEG) is the intended safe default; broadening risks feeding the decoder brands it can't handle.
+
+New RDs: RD-15 (escalation deferred), RD-16 (resize floor dropped), RD-17 (token-dollar estimate deferred).
+
+Invariants re-verified after fixes: zero LoggedSet/LoggedExercise/LoggedSession/GymExerciseBaseline writes (confirm still composes only existing plan writers in one tx); account isolation intact (all session reads/writes via account.db; ledger/quota remain un-owned/own-row raw counters); fail-closed spend unchanged. Source fidelity: no invented data — the duplicate blocker SURFACES an honest plan-model limitation rather than merging/inventing.
+
+Stop conditions: none hit.

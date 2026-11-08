@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { ImportSession, ImportStatus } from "@prisma/client";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
-import { bumpImportUsage } from "./usage";
+import { bumpImportUsage, refundImportUsage } from "./usage";
 import {
   ESTIMATED_ATTEMPT_MICROS,
   reconcileSpend,
@@ -428,7 +428,8 @@ export async function beginExtraction(
   }
 
   // Daily quota: the started attempt is counted even if it later fails; an
-  // idempotent re-poll does not re-count because the claim below gates the work.
+  // idempotent re-poll does not re-count because the claim below gates the work
+  // and the quota is REFUNDED on a lost-lease race (see below).
   const quota = await bumpImportUsage(account.userId, input.dayKey);
   if (!quota.allowed) {
     throw new DomainError(
@@ -440,6 +441,9 @@ export async function beginExtraction(
   // Global spend reservation (fail-closed when the cap is unset or DB blips).
   const spend = await reserveSpend();
   if (!spend.allowed) {
+    // No work will run: refund the quota slot we just counted so a refused
+    // reservation never costs the lifter one of the day's imports.
+    await refundImportUsage(account.userId, input.dayKey).catch(() => {});
     throw new DomainError(
       "import_unavailable",
       "Plan import is temporarily unavailable.",
@@ -448,8 +452,12 @@ export async function beginExtraction(
 
   const token = await claimLease(account, session.id);
   if (!token) {
-    // Another live attempt owns the lease; release our reservation and report.
+    // Another live attempt owns the lease; no work runs here. Release BOTH our
+    // spend reservation AND the quota slot we counted, so a lost double-click /
+    // two-tab race leaks neither: exactly one real attempt consumes exactly one
+    // slot and one reservation (review fix — the bump previously leaked a slot).
     await releaseReservation(ESTIMATED_ATTEMPT_MICROS).catch(() => {});
+    await refundImportUsage(account.userId, input.dayKey).catch(() => {});
     return getImportStatus(account, session.id);
   }
 

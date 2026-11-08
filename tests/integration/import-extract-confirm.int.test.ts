@@ -284,6 +284,72 @@ describe("idempotent confirm (P22-05)", () => {
   });
 });
 
+describe("confirm review fixes (Pitch 22 review)", () => {
+  async function toReview(account: Account): Promise<string> {
+    await seedLibraryExercise("Barbell Bench Press");
+    __setPlanExtractionPort(new MockPlanExtractionPort(planObservation()));
+    const sessionId = await seedUploadedTextSession(
+      account,
+      "Push\nBench 3x6-8",
+    );
+    await beginExtraction(account, { sessionId, dayKey: DAY });
+    return sessionId;
+  }
+
+  it("refuses an intra-day duplicate (two matched exercises → same lib id) with a blocker, never a dead-end rollback", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    const sessionId = await toReview(account);
+
+    // Tamper the stored draft to list the SAME library exercise twice in one day —
+    // the shape that would collide on SessionExercise @@unique([sessionId,
+    // exerciseId]) and roll the whole confirm back with no path to fix.
+    const draft = await reviewDraft(account, sessionId);
+    const first = draft.days[0].exercises[0];
+    const dup = structuredClone(first);
+    dup.key = "d0e1";
+    draft.days[0].exercises.push(dup);
+    await prisma.importSession.update({
+      where: { id: sessionId },
+      data: { draft: draft as object },
+    });
+
+    const mesoBefore = await prisma.mesocycle.count();
+    // Confirm re-derives blockers server-side and refuses with a validation error
+    // (the DUPLICATE_EXERCISE_IN_DAY blocker), NOT an opaque rollback.
+    await expect(
+      confirmImport(account, { sessionId, version: draft.version }),
+    ).rejects.toMatchObject({ code: "validation_error" });
+    expect(await prisma.mesocycle.count()).toBe(mesoBefore); // nothing created
+    const session = await prisma.importSession.findUniqueOrThrow({
+      where: { id: sessionId },
+    });
+    expect(session.status).toBe("review"); // still fixable, not stuck
+    expect(session.mesocycleId).toBeNull();
+  });
+
+  it("two overlapping confirms resolve to the SAME mesocycle (idempotent race)", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    const sessionId = await toReview(account);
+
+    const before = await prisma.mesocycle.count();
+    // Fire both confirms concurrently; the loser must recover the winner's plan
+    // (the CAS-0-rows conflict is caught and re-read), not surface a conflict.
+    const [a, b] = await Promise.all([
+      confirmImport(account, { sessionId, version: 0 }),
+      confirmImport(account, { sessionId, version: 0 }),
+    ]);
+    expect(a.mesocycleId).toBe(b.mesocycleId);
+    // Exactly one plan was created across both calls.
+    expect(await prisma.mesocycle.count()).toBe(before + 1);
+    const session = await prisma.importSession.findUniqueOrThrow({
+      where: { id: sessionId },
+    });
+    expect(session.mesocycleId).toBe(a.mesocycleId);
+  });
+});
+
 describe("retry / stale-lease recovery (P22-07)", () => {
   it("a retryable failure → failed_retryable; retry re-runs and can succeed", async () => {
     const account = await createTestAccount();

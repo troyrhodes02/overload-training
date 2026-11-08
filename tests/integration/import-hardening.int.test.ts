@@ -2,6 +2,9 @@ import type { Account } from "@/lib/data/account";
 import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 import { beginExtraction, getImportStatus } from "@/lib/import/extract";
+import { discardImport } from "@/lib/import/sessions";
+import { bumpImportUsage, refundImportUsage } from "@/lib/import/usage";
+import { ESTIMATED_ATTEMPT_MICROS } from "@/lib/import/spend";
 import { __setPlanExtractionPort } from "@/lib/import/extraction";
 import {
   MockPlanExtractionPort,
@@ -123,6 +126,119 @@ describe("fail closed when the spend cap is missing (P22-07)", () => {
     // No model call happened (fail-closed before the port).
     expect(port.requests).toHaveLength(0);
     process.env.PLAN_IMPORT_MONTHLY_SPEND_MICROS = "100000000";
+  });
+
+  it("a refused reservation REFUNDS the quota slot it counted (no self-lockout)", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    const DAY2 = "2026-11-12";
+    delete process.env.PLAN_IMPORT_MONTHLY_SPEND_MICROS; // reservation will refuse
+    __setPlanExtractionPort(new MockPlanExtractionPort(plan()));
+    const sid = await uploadedSession(account);
+    await expect(
+      beginExtraction(account, { sessionId: sid, dayKey: DAY2 }),
+    ).rejects.toMatchObject({ code: "import_unavailable" });
+    // The quota bump that preceded the refused reservation is refunded: the
+    // day's slot count is back to 0, so a lost cost gate never burns an import.
+    const row = await prisma.importUsageDay.findUnique({
+      where: { userId_dayKey: { userId: account.userId, dayKey: DAY2 } },
+    });
+    expect(row?.count ?? 0).toBe(0);
+    process.env.PLAN_IMPORT_MONTHLY_SPEND_MICROS = "100000000";
+  });
+});
+
+describe("quota refund keeps one real attempt = one slot (P22-07 review fix)", () => {
+  it("bump + refund nets zero and is floored at zero", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    const DAY3 = "2026-11-13";
+    // Two bumps (e.g. two racing starts), one refund (the lost-lease loser).
+    await bumpImportUsage(account.userId, DAY3);
+    await bumpImportUsage(account.userId, DAY3);
+    await refundImportUsage(account.userId, DAY3);
+    let row = await prisma.importUsageDay.findUnique({
+      where: { userId_dayKey: { userId: account.userId, dayKey: DAY3 } },
+    });
+    expect(Number(row?.count)).toBe(1); // exactly one slot stands for one attempt
+    // Over-refunding can never drive the counter negative.
+    await refundImportUsage(account.userId, DAY3);
+    await refundImportUsage(account.userId, DAY3);
+    row = await prisma.importUsageDay.findUnique({
+      where: { userId_dayKey: { userId: account.userId, dayKey: DAY3 } },
+    });
+    expect(Number(row?.count)).toBe(0);
+  });
+});
+
+describe("discard releases an orphaned reservation (P22-07 review fix)", () => {
+  it("discarding a DEAD-lease extracting session releases the reservation", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    // Seed the orphan: an `extracting` session whose owning request was torn down
+    // (lease expired) BEFORE it could release the $0.50 it reserved. Once the row
+    // is deleted no stale-lease reclaim can ever run to release it.
+    await prisma.importSpendLedger.create({
+      data: {
+        monthKey: new Date().toISOString().slice(0, 7),
+        reservedMicros: ESTIMATED_ATTEMPT_MICROS,
+        actualMicros: BigInt(0),
+      },
+    });
+    const s = await prisma.importSession.create({
+      data: {
+        userId: account.userId,
+        status: "extracting",
+        sourceKind: "text",
+        expiresAt: new Date(Date.now() + 86_400_000),
+        leaseToken: "dead-token",
+        leaseExpiresAt: new Date(Date.now() - 10 * 60_000), // dead
+        attemptCount: 1,
+      },
+      select: { id: true },
+    });
+
+    await discardImport(account, { sessionId: s.id });
+
+    // The month ledger's reserved headroom is returned (floored at 0), not left
+    // stranded forever.
+    const ledger = await prisma.importSpendLedger.findUnique({
+      where: { monthKey: new Date().toISOString().slice(0, 7) },
+    });
+    expect(ledger?.reservedMicros ?? BigInt(0)).toBe(BigInt(0));
+  });
+
+  it("discarding a LIVE-lease extracting session does NOT release (the live attempt will)", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    await prisma.importSpendLedger.create({
+      data: {
+        monthKey: new Date().toISOString().slice(0, 7),
+        reservedMicros: ESTIMATED_ATTEMPT_MICROS,
+        actualMicros: BigInt(0),
+      },
+    });
+    const s = await prisma.importSession.create({
+      data: {
+        userId: account.userId,
+        status: "extracting",
+        sourceKind: "text",
+        expiresAt: new Date(Date.now() + 86_400_000),
+        leaseToken: "live-token",
+        leaseExpiresAt: new Date(Date.now() + 60_000), // still live
+        attemptCount: 1,
+      },
+      select: { id: true },
+    });
+
+    await discardImport(account, { sessionId: s.id });
+
+    // The still-running attempt owns the release; discard must not double-free
+    // another attempt's headroom.
+    const ledger = await prisma.importSpendLedger.findUnique({
+      where: { monthKey: new Date().toISOString().slice(0, 7) },
+    });
+    expect(ledger?.reservedMicros).toBe(ESTIMATED_ATTEMPT_MICROS);
   });
 });
 

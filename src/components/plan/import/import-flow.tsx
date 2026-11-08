@@ -1051,7 +1051,11 @@ function blockerMessages(
 ): string[] {
   const out = new Set<string>();
   for (const b of blockers) {
-    if (b.fieldPath.endsWith("/match"))
+    if (b.code === "DUPLICATE_EXERCISE_IN_DAY")
+      out.add(
+        "A day lists the same exercise twice. Remove or change one so each day has it once.",
+      );
+    else if (b.fieldPath.endsWith("/match"))
       out.add("Resolve every exercise match.");
     else if (b.fieldPath.endsWith("/label")) out.add("Name every day.");
     else if (b.fieldPath.endsWith("/sets"))

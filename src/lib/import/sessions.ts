@@ -22,6 +22,7 @@ import {
 } from "./storage";
 import { inspectPdf, PdfValidationError } from "./pdf";
 import { MAX_PDF_PAGES } from "./constants";
+import { ESTIMATED_ATTEMPT_MICROS, releaseReservation } from "./spend";
 
 /**
  * Workout Plan Import & Review (Pitch 22) — the ImportSession write module.
@@ -169,7 +170,13 @@ export async function addFilePart(
       `You can add at most ${MAX_PARTS} files.`,
     );
   }
+  // `existing` sizeBytes are the STORED (normalized) sizes of prior parts, so the
+  // running bundle total is measured on what is actually in storage.
   const usedBytes = existing.reduce((n, p) => n + (p.sizeBytes ?? 0), 0);
+  // Pre-check against the ORIGINAL size as a cheap early gate (re-encoding only
+  // ever shrinks or holds; it never doubles a file). The authoritative cap check
+  // runs again below against the NORMALIZED size, so the stored footprint — not
+  // the upload size — is what the 25 MiB bundle cap actually bounds.
   if (usedBytes + input.sizeBytes > MAX_TOTAL_BYTES) {
     throw new DomainError(
       "validation_error",
@@ -188,6 +195,17 @@ export async function addFilePart(
       throw new DomainError("validation_error", error.message);
     }
     throw error;
+  }
+
+  // The STORED byte length is the normalized blob's, not the upload's. Record it
+  // (and re-check the bundle cap against it) so both the 25 MiB bundle cap and
+  // the per-file DB CHECK describe the object that is actually in storage.
+  const storedBytes = normalized.bytes.byteLength;
+  if (usedBytes + storedBytes > MAX_TOTAL_BYTES) {
+    throw new DomainError(
+      "validation_error",
+      "That's over the total size limit for one import.",
+    );
   }
 
   // PDF parts are inspected HERE, at intake, before anything is stored and long
@@ -230,7 +248,7 @@ export async function addFilePart(
           position,
           objectPath,
           contentType: normalized.contentType,
-          sizeBytes: input.sizeBytes,
+          sizeBytes: storedBytes,
           pageCount,
         },
       });
@@ -361,10 +379,30 @@ export async function discardImport(
     .map((p) => p.objectPath)
     .filter((p): p is string => p !== null);
 
+  // Discarding a session mid-`extracting` holds an up-front spend reservation
+  // ($0.50) that the running attempt normally releases on completion
+  // (`completeSession`'s reconcile / `failSession`'s release, both un-scoped to
+  // the session row — they release by amount against the global month ledger).
+  // The orphan case the row-delete creates is a STALE (dead) lease: the owning
+  // request was torn down before it could release, and once this discard deletes
+  // the row no stale-lease reclaim can ever run to release it — the $0.50 would
+  // stay reserved against the monthly cap forever. So we release here ONLY when
+  // the lease is dead; a still-LIVE attempt will release its own reservation, and
+  // releasing again would wrongly free another $0.50 of real headroom.
+  const leaseLive =
+    session.leaseExpiresAt != null &&
+    session.leaseExpiresAt.getTime() > Date.now();
+  const releasesReservation =
+    (session.status === "extracting" || session.status === "confirming") &&
+    !leaseLive;
+
   await account.db.$transaction(async (tx) => {
     await tx.importSourcePart.deleteMany({ where: { sessionId: session.id } });
     await tx.importSession.deleteMany({ where: { id: session.id } });
   });
+  if (releasesReservation) {
+    await releaseReservation(ESTIMATED_ATTEMPT_MICROS).catch(() => {});
+  }
   await removeSourceObjects(objectPaths);
   return { sessionId: session.id };
 }

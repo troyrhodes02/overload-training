@@ -33,6 +33,17 @@ import type { DraftExercise, ImportDraft } from "./draft/types";
  *    plan.
  */
 
+/**
+ * Transaction bounds for the confirm write, modelled on the reference writer
+ * scripts/import/real-plan/import.ts::applyImport ({ timeout: 120_000, maxWait:
+ * 20_000 }). A full imported plan (up to 14 days × 20 exercises, each
+ * `addSessionExercise` several pooled round-trips, plus custom-exercise inserts)
+ * can exceed Prisma's 5s interactive-transaction default and raise P2028, rolling
+ * the whole confirm back with no actionable error. The generous timeout keeps a
+ * large-but-valid plan writable.
+ */
+const CONFIRM_TX_OPTIONS = { timeout: 120_000, maxWait: 20_000 } as const;
+
 async function requireConfirmSession(
   account: Account,
   sessionId: string,
@@ -228,7 +239,7 @@ export async function confirmImport(
         throw new DomainError("conflict", "This import was just completed.");
       }
       return mesoId;
-    });
+    }, CONFIRM_TX_OPTIONS);
 
     // 4) Queue source cleanup AFTER commit. A failed blob delete never undoes the
     //    plan: it only leaves a RETRIABLE TOMBSTONE (sourcesPurgedAt stays null)
@@ -238,9 +249,17 @@ export async function confirmImport(
 
     return { mesocycleId };
   } catch (error) {
-    // A racing confirm that tripped the unique mesocycleId index: return the one
-    // plan rather than surfacing a raw error (idempotency on a dropped retry).
-    if (isUniqueViolation(error)) {
+    // A racing confirm reached the one-plan guard first: return that one plan
+    // rather than surfacing a raw error (true idempotency on a dropped retry /
+    // overlapping double-click). Two shapes land here —
+    //  - the unique mesocycleId index tripped (isUniqueViolation), or
+    //  - the CAS updateMany matched 0 rows because the winner already flipped the
+    //    session to confirmed, raising DomainError("conflict").
+    // Either way the winning mesocycle is committed; re-read and return it.
+    const isConfirmRace =
+      isUniqueViolation(error) ||
+      (error instanceof DomainError && error.code === "conflict");
+    if (isConfirmRace) {
       const latest = await account.db.importSession.findUnique({
         where: { id: session.id },
         select: { mesocycleId: true },
