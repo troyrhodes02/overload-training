@@ -31,11 +31,20 @@ const read = (f: string) => fs.readFileSync(f, "utf8");
 //    upsert counter can't be expressed through the scoped client without a
 //    read-modify-write race; the OWNED table is reached only here, and this
 //    module stamps and filters user_id on every statement.
-// Each is the only code allowed to touch its table. Both are asserted below to
-// name no OTHER owned table in their raw SQL.
+//  - the plan-import global spend ledger (Workout Plan Import & Review RD-6,
+//    OVE-106). UN-owned (no account) and holds no personal data; its atomic
+//    reserve/reconcile upsert can't go through the account-scoped client (there
+//    is no account). The only code that touches import_spend_ledger.
+// Each is the only code allowed to touch its table. Each is asserted below to
+// name no OTHER owned table in its raw SQL.
 const THROTTLE_MODULE = "src/lib/accounts/throttle.ts";
 const IMPORT_USAGE_MODULE = "src/lib/import/usage.ts";
-const RAW_ALLOWED_MODULES = [THROTTLE_MODULE, IMPORT_USAGE_MODULE];
+const IMPORT_SPEND_MODULE = "src/lib/import/spend.ts";
+const RAW_ALLOWED_MODULES = [
+  THROTTLE_MODULE,
+  IMPORT_USAGE_MODULE,
+  IMPORT_SPEND_MODULE,
+];
 /** Code only: comments may legitimately name what they forbid. */
 const code = (f: string) =>
   read(f)
@@ -118,6 +127,21 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     expect(usage).toMatch(/user_id/);
   });
 
+  it("the import-spend module is a raw toucher that touches only import_spend_ledger", () => {
+    const spend = code(path.join(REPO_ROOT, IMPORT_SPEND_MODULE));
+    expect(RAW_CLIENT.test(spend)).toBe(true);
+    // The ledger is UN-owned; its raw SQL names no owned-schema table at all.
+    const quotedTables = [...spend.matchAll(/"([a-z_]+)"/g)]
+      .map((m) => m[1])
+      .filter((t) => OWNED_TABLE_RE.test(t));
+    expect(quotedTables).toEqual([]);
+    expect(spend).toMatch(/"import_spend_ledger"/);
+    // ImportSpendLedger is never reachable through the account-scoped client: it
+    // is classified as an unowned system model in scope.ts (RD-6).
+    const scope = read(path.join(SRC, "lib", "data", "scope.ts"));
+    expect(scope).toMatch(/"ImportSpendLedger"/);
+  });
+
   it("application code never builds an Account for an arbitrary id", () => {
     const offenders = walk(SRC)
       .filter((f) => !rel(f).startsWith(DATA_LAYER))
@@ -186,6 +210,7 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
       "src/lib/db.ts",
       "src/lib/accounts/throttle.ts",
       "src/lib/import/usage.ts",
+      "src/lib/import/spend.ts",
     ]);
     expect(eslint).not.toMatch(/NOT_YET_SCOPED/);
   });

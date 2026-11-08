@@ -5,6 +5,9 @@ import { requireAccount } from "@/lib/data/account";
 import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import { isPlanImportEnabled } from "@/lib/import/config";
 import { SourceIntake } from "@/components/plan/import/source-intake";
+import { ImportFlow } from "@/components/plan/import/import-flow";
+import { getImportStatus, sourceReadUrls } from "@/lib/import/extract";
+import type { ImportDraftDto } from "@/lib/import/draft/types";
 
 export const metadata = { title: "Import plan · Overload" };
 
@@ -16,9 +19,14 @@ export const metadata = { title: "Import plan · Overload" };
  * neither ever reaches the intake UI. Hiding the entry on /plan is never the
  * gate; this re-check is. A direct visit returns no Pro result.
  */
-export default async function PlanImportPage() {
+export default async function PlanImportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ session?: string }>;
+}) {
   const account = await requireAccount();
   const resolved = await resolveEntitlement(account);
+  const { session: sessionId } = await searchParams;
 
   if (!can(resolved, "plan_import")) {
     return (
@@ -46,6 +54,53 @@ export default async function PlanImportPage() {
             <Link href="/plan">Back to Plan</Link>
           </Button>
         }
+      />
+    );
+  }
+
+  // A session id in the URL means the flow is past intake. Render the correct
+  // step from SERVER status, so a revisit resumes where the import actually is
+  // (interruption-safe; spec §6). An unknown/other-account id falls back to
+  // intake rather than revealing anything.
+  if (sessionId) {
+    let status;
+    try {
+      status = await getImportStatus(account, sessionId);
+    } catch {
+      return <SourceIntake />;
+    }
+
+    let draft: ImportDraftDto | null = null;
+    let source: {
+      position: number;
+      text: string | null;
+      url: string | null;
+    }[] = [];
+    let mesocycleId: string | null = null;
+
+    if (status.step === "review") {
+      const session = await account.db.importSession.findUnique({
+        where: { id: sessionId },
+        select: { draft: true, mesocycleId: true },
+      });
+      draft = (session?.draft as unknown as ImportDraftDto | null) ?? null;
+      source = await sourceReadUrls(account, sessionId);
+    } else if (status.step === "done") {
+      const session = await account.db.importSession.findUnique({
+        where: { id: sessionId },
+        select: { mesocycleId: true, draft: true },
+      });
+      mesocycleId = session?.mesocycleId ?? null;
+      draft = (session?.draft as unknown as ImportDraftDto | null) ?? null;
+    }
+
+    return (
+      <ImportFlow
+        sessionId={sessionId}
+        initialStatus={status}
+        initialDraft={draft}
+        source={source}
+        mesocycleId={mesocycleId}
       />
     );
   }

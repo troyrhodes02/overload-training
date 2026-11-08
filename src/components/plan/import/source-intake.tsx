@@ -28,6 +28,7 @@ import {
   addTextAction,
   commitPartAction,
   removePartAction,
+  beginExtractionAction,
 } from "@/app/(app)/plan/import/actions";
 
 /**
@@ -156,9 +157,17 @@ export function SourceIntake() {
           return;
         }
       }
-      // The source is persisted. The Processing step (polling + extraction)
-      // arrives in OVE-106; for now return to Plan with the import staged.
-      router.push("/plan");
+      // The source is persisted. Hand the session id to the Processing step: the
+      // flow is server-status-driven from here, so a revisit resumes correctly.
+      const id =
+        sessionId ?? (mode === "paste" ? await ensureSession("text") : null);
+      if (!id) return;
+      const begin = await beginExtractionAction({ sessionId: id });
+      if (!begin.ok) {
+        setError(begin.error.message);
+        return;
+      }
+      router.push(`/plan/import?session=${id}`);
       router.refresh();
     } finally {
       setBusy(false);
