@@ -19,9 +19,23 @@ import {
   addText,
   createImportSession,
   discardImport,
+  importDayKey,
   removePart,
   reorderParts,
 } from "@/lib/import/sessions";
+import {
+  beginExtraction,
+  getImportStatus,
+  retryExtraction,
+} from "@/lib/import/extract";
+import {
+  resolveMatch,
+  saveDraftEdit,
+  stageCustomExercise,
+  type DraftEditPatch,
+} from "@/lib/import/review";
+import { confirmImport } from "@/lib/import/confirm";
+import type { ImportDraftDto, ImportStatusDto } from "@/lib/import/draft/types";
 
 /**
  * Workout Plan Import & Review (Pitch 22) — import server actions (OVE-105
@@ -179,4 +193,91 @@ export async function discardImportAction(input: {
     const account = await guardImport();
     return discardImport(account, input);
   }, "Couldn't discard. Nothing was changed.");
+}
+
+/**
+ * OVE-106 — the extraction + review + confirm actions. Every one re-runs
+ * guardImport() (capability + kill switch, server-side; a Free/anon direct call
+ * is refused before any work) and then calls the account-scoped module. None of
+ * them takes a userId from the client — the acting account is from the session.
+ */
+
+export async function beginExtractionAction(input: {
+  sessionId: string;
+}): Promise<ActionResult<ImportStatusDto>> {
+  return toActionResult(async () => {
+    const account = await guardImport();
+    return beginExtraction(account, {
+      sessionId: input.sessionId,
+      dayKey: importDayKey(account),
+    });
+  }, "Couldn't start processing. Nothing was changed.");
+}
+
+export async function retryExtractionAction(input: {
+  sessionId: string;
+}): Promise<ActionResult<ImportStatusDto>> {
+  return toActionResult(async () => {
+    const account = await guardImport();
+    return retryExtraction(account, {
+      sessionId: input.sessionId,
+      dayKey: importDayKey(account),
+    });
+  }, "Couldn't retry. Nothing was changed.");
+}
+
+export async function getImportStatusAction(input: {
+  sessionId: string;
+}): Promise<ActionResult<ImportStatusDto>> {
+  return toActionResult(async () => {
+    const account = await guardImport();
+    return getImportStatus(account, input.sessionId);
+  }, "Couldn't check the import. Nothing was changed.");
+}
+
+export async function saveDraftEditAction(input: {
+  sessionId: string;
+  version: number;
+  patch: DraftEditPatch;
+}): Promise<ActionResult<ImportDraftDto>> {
+  return toActionResult(async () => {
+    const account = await guardImport();
+    return saveDraftEdit(account, input);
+  }, "Couldn't save that edit. Nothing was changed.");
+}
+
+export async function resolveMatchAction(input: {
+  sessionId: string;
+  version: number;
+  exerciseKey: string;
+  exerciseId: string;
+}): Promise<ActionResult<ImportDraftDto>> {
+  return toActionResult(async () => {
+    const account = await guardImport();
+    return resolveMatch(account, input);
+  }, "Couldn't set that match. Nothing was changed.");
+}
+
+export async function stageCustomExerciseAction(input: {
+  sessionId: string;
+  version: number;
+  exerciseKey: string;
+  name: string;
+  primaryMuscle: string;
+  equipmentType: string;
+}): Promise<ActionResult<ImportDraftDto>> {
+  return toActionResult(async () => {
+    const account = await guardImport();
+    return stageCustomExercise(account, input);
+  }, "Couldn't stage that exercise. Nothing was changed.");
+}
+
+export async function confirmImportAction(input: {
+  sessionId: string;
+  version: number;
+}): Promise<ActionResult<{ mesocycleId: string }>> {
+  return toActionResult(async () => {
+    const account = await guardImport();
+    return confirmImport(account, input);
+  }, "Couldn't create the plan. Nothing was changed.");
 }

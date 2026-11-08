@@ -170,3 +170,53 @@ prompt intent + cleaner-diff judgment.
 Isolated embedded-Postgres (`test:integration`) only; mocked Anthropic provider + mocked Storage;
 NO connection to prod Supabase ref `ycxvdiklpefyhdclxyau`; NO real paid model calls; NO prod writes;
 per-commit lint/typecheck/format:check/unit, per-ticket + build; verification honesty (unverified ≠ passed).
+
+---
+
+# OVE-106 — Text extraction + first full review & confirm (vertical slice 2)
+
+Branch: `ove-106-text-extraction-review-confirm` off `22-workout-plan-import-review`. STOP BEFORE MERGE.
+Builds on the already-merged OVE-105 foundation (schema/migration `9l_plan_import`, models, storage/usage/sessions,
+intake actions + UI, scope/deletion/export registration). OVE-106 is application-layer only — no schema change.
+
+## Resolved Decisions (OVE-106)
+
+- RD-11: AI adapter uses `@anthropic-ai/sdk` (TypeScript), pinned. Model id read from env `PLAN_IMPORT_MODEL`
+  with default `claude-opus-4-8` (current per the claude-api skill). Structured output via `messages.parse()` +
+  `output_config.format` (zodOutputFormat) against a strict Zod schema; `additionalProperties:false`. Adaptive
+  thinking omitted (deterministic extraction). promptVersion `"2026-11-07.1"`. Provider MOCKED in all tests;
+  no real paid call ever made by this run.
+- RD-106a: Spend ledger raw-allowed module `src/lib/import/spend.ts` (atomic reserve/reconcile upsert, fail-closed).
+  Added to eslint ignore list; `ImportSpendLedger` already in UNOWNED_SYSTEM_MODELS (OVE-105).
+- RD-106b: The DTO in spec §13 (FieldStatus explicit|derived|missing|ambiguous|needed|user_edited) is the client
+  contract. Internal observation (blueprint §3.4) maps → ImportDraft (stored JSON) → ImportDraftDto (sent to client).
+- RD-106c: Spend cap env `PLAN_IMPORT_MONTHLY_SPEND_MICROS` + price map — fail closed when unset (import_unavailable).
+  Per-attempt estimate is a conservative constant; the owner-set cap amount stays an Open Question (§17.1).
+
+## Files
+
+- src/lib/import/parse/shorthand.ts — pure shorthand parser (sets/reps/AMRAP/@%/RPE/RIR/rest/tempo/bodyweight), units
+- src/lib/import/match/matcher.ts — library matcher (norm/alias/bounded fuzzy) → matched/ambiguous/unknown
+- src/lib/import/draft/{types,build,evidence}.ts — ImportDraft + DTO + blockers + quote-to-source
+- src/lib/import/extraction/{port,schema,prompt,anthropic,mock,index}.ts
+- src/lib/import/spend.ts — spend ledger (raw-allowed)
+- src/lib/import/extract.ts — lifecycle begin/retry/status, lease CAS, request-owned task
+- src/lib/import/confirm.ts — one-tx confirm via existing writers, idempotent
+- src/lib/import/review.ts — saveDraftEdit/resolveMatch/stageCustom
+- src/app/(app)/plan/import/actions.ts — extended with new actions
+- UI client islands: processing/review/done; page wiring
+- tests: tests/unit/import-*.test.ts, tests/integration/import-*.int.test.ts, isolation extension
+
+## Verification (run honestly at the end)
+
+lint, typecheck, format:check, test, test:integration, build, verify:client-bundle. Real-provider accuracy UNVERIFIED (owner-gated).
+
+## OVE-106 status: COMPLETE (pending PR / owner review)
+
+All files built. Verification (run honestly):
+- lint: PASS (0 errors) · typecheck: PASS · format:check: PASS
+- unit: PASS (1742/1742, incl. 119 shorthand fixtures) · integration: PASS (769/769)
+- build: PASS · verify:client-bundle: PASS (no secret in bundle)
+- Real-provider extraction accuracy: UNVERIFIED (owner-gated — no paid call made).
+Deps added+pinned: @anthropic-ai/sdk@1.6.0, zod@4.6.5.
+STOP BEFORE MERGE. PR opened against 22-workout-plan-import-review.
