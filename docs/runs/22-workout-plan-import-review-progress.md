@@ -80,8 +80,8 @@ Full inventory retained in run context; condensed digest above drives design/spe
 | 4 | Specification | ✅ `docs/specs/22-workout-plan-import-review-spec.md` |
 | 5 | Resolved Decisions | ✅ recorded in spec §Resolved Decisions (RD-0..RD-14) |
 | 6 | Linear tickets + milestone | ✅ milestone + OVE-105..110 (chained) |
-| 7 | Feature PR | 🔄 in progress |
-| 8 | Implement all tickets | ⬜ pending |
+| 7 | Feature PR | ✅ [#130](https://github.com/troyrhodes02/overload-training/pull/130) (DO NOT MERGE) |
+| 8 | Implement all tickets | 🔄 OVE-105 in progress |
 | 9 | Operator runbook | ⬜ pending |
 | 10 | Integrate ticket PRs into feature branch | ⬜ pending |
 | 11 | Full verification | ⬜ pending |
@@ -140,4 +140,20 @@ is the final visible-change ticket (uses `overload-onboarding`).
 
 ## Branches / PRs
 
-_None yet._
+- **Feature branch:** `22-workout-plan-import-review` (off `main`).
+- **Feature PR:** [#130](https://github.com/troyrhodes02/overload-training/pull/130) — *DO NOT MERGE* (owner approval). Base commit: planning artifacts.
+- Ticket branches/PRs captured below as implemented.
+
+### Process decision (RD-impl-integration)
+Run prompt Step 8 says "each next branch off the preceding ticket branch" and Step 10 "squash-merge
+all ticket PRs into the feature branch in order." To keep each ticket PR a clean single-ticket diff
+and avoid stacked cumulative diffs, this run branches each ticket off the **current feature-branch
+HEAD**, verifies, then squash-merges it into the feature branch before starting the next ticket.
+End state is identical to Step 10 (ticket PRs integrated into the feature branch in order; feature PR
+open; stop before main). Minor process deviation, recorded here and in the report. Authority: run
+prompt intent + cleaner-diff judgment.
+
+### Implementation guardrails (every ticket)
+Isolated embedded-Postgres (`test:integration`) only; mocked Anthropic provider + mocked Storage;
+NO connection to prod Supabase ref `ycxvdiklpefyhdclxyau`; NO real paid model calls; NO prod writes;
+per-commit lint/typecheck/format:check/unit, per-ticket + build; verification honesty (unverified ≠ passed).
