@@ -6,6 +6,7 @@ import {
   contentTypeExtension,
   type AcceptedContentType,
 } from "./constants";
+import { ImageConversionError, normalizeImage } from "./image";
 
 /**
  * Workout Plan Import & Review (Pitch 22) — private source storage, mirroring
@@ -22,10 +23,11 @@ import {
  *
  * Server-side the module validates MAGIC BYTES (the real file signature)
  * independently of any client-supplied MIME or filename, re-verifies size, and
- * deletes a rejected object. EXIF/location stripping and HEIC/HEIF conversion
- * are a declared SEAM completed in OVE-108 (the extraction slice): see
+ * deletes a rejected object. For images it then NORMALIZES (OVE-108): honor EXIF
+ * orientation, strip EXIF/location, downscale to the longest-side bound,
+ * re-encode, and convert HEIC/HEIF to an accepted MIME (or refuse cleanly) — see
  * normalizeForStorage() below. Only accepted post-conversion types (PDF, JPEG,
- * PNG, WebP) are ever stored.
+ * PNG, WebP) are ever stored, always under their ACTUAL encoded MIME.
  */
 
 export const PLAN_IMPORT_SOURCE_BUCKET = "plan-import-sources";
@@ -138,22 +140,22 @@ export type NormalizedSource = {
  * Validate and normalize an uploaded file's bytes for storage:
  *  - sniff the real type from magic bytes (ignore client MIME/filename);
  *  - re-verify size against the per-file cap server-side;
- *  - convert HEIC/HEIF to an accepted type, or cleanly refuse;
- *  - strip EXIF/location metadata where practical.
+ *  - for images: honor EXIF orientation, strip EXIF/location, downscale to the
+ *    longest-side bound, re-encode, and convert HEIC/HEIF to an accepted MIME —
+ *    or cleanly refuse if the photo can't be decoded;
+ *  - PDFs pass through unchanged (page/encryption checks live in sessions.ts).
  *
- * The HEIC conversion + EXIF strip are a declared SEAM: until OVE-108 ships the
- * image pipeline (it owns the conversion dependency), a HEIC/HEIF upload is
- * cleanly REFUSED here rather than silently stored, and non-HEIC bytes pass
- * through unchanged. Accepting a HEIC with no real conversion would store an
- * unreadable source, so refusal is the safe foundation behavior.
+ * The returned `contentType` is always the ACTUAL post-normalization type, so a
+ * JPEG is never labelled HEIC or PNG. This runs server-side even when the client
+ * pre-processed an image: every constraint (type, size) is re-verified here.
  *
- * TODO(OVE-108): convert HEIC/HEIF -> JPEG/PNG and strip EXIF, returning the
- * converted bytes and MIME; this function is the single seam for that work.
+ * Async because image decoding/re-encoding is async. HEIC conversion and the
+ * EXIF strip live in ./image (the one place `sharp`/`heic-convert` are used).
  */
-export function normalizeForStorage(input: {
+export async function normalizeForStorage(input: {
   bytes: Uint8Array;
   sizeBytes: number;
-}): NormalizedSource {
+}): Promise<NormalizedSource> {
   if (input.sizeBytes <= 0 || input.sizeBytes > MAX_FILE_BYTES) {
     throw new SourceValidationError("That file is too large to import.");
   }
@@ -164,17 +166,45 @@ export function normalizeForStorage(input: {
   if (sniffed === null) {
     throw new SourceValidationError("That file type can't be used.");
   }
-  if (sniffed === "heic") {
-    // SEAM (OVE-108): conversion not available in this slice; refuse cleanly.
-    throw new SourceValidationError(
-      "HEIC photos aren't supported yet. Use JPG, PNG, WebP, or a PDF.",
-    );
+
+  // PDFs are stored as-is; the intake path inspects them separately.
+  if (sniffed === "application/pdf") {
+    return { bytes: input.bytes, contentType: "application/pdf" };
   }
+
+  // Images (jpeg/png/webp/heic): normalize. HEIC that can't be decoded, or any
+  // image that can't be processed, becomes a clean SourceValidationError.
+  if (
+    sniffed === "heic" ||
+    sniffed === "image/jpeg" ||
+    sniffed === "image/png" ||
+    sniffed === "image/webp"
+  ) {
+    let normalized;
+    try {
+      normalized = await normalizeImage(input.bytes, sniffed);
+    } catch (error) {
+      if (error instanceof ImageConversionError) {
+        throw new SourceValidationError(error.message);
+      }
+      throw error;
+    }
+    // The re-encoded output must be larger than zero and within the per-file cap
+    // (re-encoding can grow a tiny source; a normalized image over the cap is a
+    // clean refusal, never a stored oversize object).
+    if (
+      normalized.bytes.byteLength <= 0 ||
+      normalized.bytes.byteLength > MAX_FILE_BYTES
+    ) {
+      throw new SourceValidationError("That image is too large to import.");
+    }
+    return { bytes: normalized.bytes, contentType: normalized.contentType };
+  }
+
+  // Defensive: a sniffed type that is neither PDF nor a known image is refused.
   if (!(ACCEPTED_CONTENT_TYPES as readonly string[]).includes(sniffed)) {
     throw new SourceValidationError("That file type can't be used.");
   }
-  // Non-HEIC accepted bytes pass through unchanged in this slice. EXIF stripping
-  // rides the OVE-108 image pipeline (see TODO above).
   return { bytes: input.bytes, contentType: sniffed };
 }
 
