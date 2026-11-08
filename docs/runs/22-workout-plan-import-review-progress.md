@@ -81,7 +81,7 @@ Full inventory retained in run context; condensed digest above drives design/spe
 | 5 | Resolved Decisions | ✅ recorded in spec §Resolved Decisions (RD-0..RD-14) |
 | 6 | Linear tickets + milestone | ✅ milestone + OVE-105..110 (chained) |
 | 7 | Feature PR | ✅ [#130](https://github.com/troyrhodes02/overload-training/pull/130) (DO NOT MERGE) |
-| 8 | Implement all tickets | 🔄 OVE-105,106,107 done; OVE-108 in progress |
+| 8 | Implement all tickets | 🔄 OVE-105,106,107,108 done; OVE-109 in progress |
 | 9 | Operator runbook | ✅ `docs/runs/22-workout-plan-import-review-runbook.md` |
 | 10 | Integrate ticket PRs into feature branch | 🔄 OVE-105 (#131), OVE-106 (#132) squash-merged |
 | 11 | Full verification | ⬜ pending |
@@ -149,8 +149,8 @@ is the final visible-change ticket (uses `overload-onboarding`).
 | OVE-105 | [#131](https://github.com/troyrhodes02/overload-training/pull/131) | ✅ squash-merged into feature (`d4da39b`) | lint/typecheck/format ✅, unit 1588 ✅, integration 754 ✅ (migration `9l_plan_import`), build ✅, client-bundle ✅ |
 | OVE-106 | [#132](https://github.com/troyrhodes02/overload-training/pull/132) | ✅ squash-merged into feature (`c4e1ab6`) | lint/typecheck/format ✅, unit 1742 (119 shorthand fixtures) ✅, integration 769 ✅, build ✅, client-bundle ✅ |
 | OVE-107 | [#133](https://github.com/troyrhodes02/overload-training/pull/133) | ✅ squash-merged into feature (`a92f16b`) | lint/typecheck/format ✅, unit 1762 ✅, integration ✅, build ✅, client-bundle ✅ (`pdfjs-dist@6.5.438`) |
-| OVE-108 | — | 🔄 in progress | — |
-| OVE-109 | — | ⬜ | — |
+| OVE-108 | [#134](https://github.com/troyrhodes02/overload-training/pull/134) | ✅ squash-merged into feature (`bf7749d`) | lint/typecheck/format ✅, unit 1778 ✅, integration 774 ✅ (isolation), build ✅, client-bundle ✅ (`sharp@0.34.4`, `heic-convert@2.1.0` server-external) |
+| OVE-109 | — | 🔄 in progress | — |
 | OVE-110 | — | ⬜ | — |
 
 OVE-106 facts: `@anthropic-ai/sdk@1.6.0` + `zod@4.6.5` pinned; structured output via
@@ -161,6 +161,14 @@ unverified, owner-gated). New owner env: `PLAN_IMPORT_MODEL`, `PLAN_IMPORT_MONTH
 (fail-closed when unset), `ANTHROPIC_API_KEY`. Confirm reuses existing writers in one tx, idempotent
 via unique `mesocycleId`, zero LoggedSet/history/baseline writes. Image/PDF byte extraction stubbed
 (text ships fully; file parts evidence-only) → OVE-107/108.
+
+OVE-108 facts: `sharp@0.34.4` (orient/EXIF-strip/resize/re-encode) + `heic-convert@2.1.0` (HEVC-HEIC
+decode; bundled sharp libheif lacks HEVC) — both pinned, `serverExternalPackages`, server-only.
+Deviation (recorded): server-side normalization is the authority; client-side pre-processing skipped
+to keep image deps off the client bundle (spec allowed "may be client-side"). ⚠️ **Flaky-under-
+concurrency:** `import-pdf` integration tests showed 4 failures only when the integration suite runs
+concurrently (embedded-Postgres contention) — green in isolation and when run alone. **Confirm at
+Step 11 full-verification** (run integration serially / default config).
 
 OVE-105 deviations recorded: HEIC/EXIF stubbed (HEIC cleanly refused) → OVE-108; one raw-allowed
 module `src/lib/import/usage.ts` (atomic owned-table quota, pinned to `import_usage_days` by the guard
