@@ -81,7 +81,7 @@ Full inventory retained in run context; condensed digest above drives design/spe
 | 5 | Resolved Decisions | ✅ recorded in spec §Resolved Decisions (RD-0..RD-14) |
 | 6 | Linear tickets + milestone | ✅ milestone + OVE-105..110 (chained) |
 | 7 | Feature PR | ✅ [#130](https://github.com/troyrhodes02/overload-training/pull/130) (DO NOT MERGE) |
-| 8 | Implement all tickets | 🔄 OVE-105,106 done; OVE-107 in progress |
+| 8 | Implement all tickets | 🔄 OVE-105,106,107 done; OVE-108 in progress |
 | 9 | Operator runbook | ✅ `docs/runs/22-workout-plan-import-review-runbook.md` |
 | 10 | Integrate ticket PRs into feature branch | 🔄 OVE-105 (#131), OVE-106 (#132) squash-merged |
 | 11 | Full verification | ⬜ pending |
@@ -148,8 +148,8 @@ is the final visible-change ticket (uses `overload-onboarding`).
 | -- | -- | -- | -- |
 | OVE-105 | [#131](https://github.com/troyrhodes02/overload-training/pull/131) | ✅ squash-merged into feature (`d4da39b`) | lint/typecheck/format ✅, unit 1588 ✅, integration 754 ✅ (migration `9l_plan_import`), build ✅, client-bundle ✅ |
 | OVE-106 | [#132](https://github.com/troyrhodes02/overload-training/pull/132) | ✅ squash-merged into feature (`c4e1ab6`) | lint/typecheck/format ✅, unit 1742 (119 shorthand fixtures) ✅, integration 769 ✅, build ✅, client-bundle ✅ |
-| OVE-107 | — | 🔄 in progress | — |
-| OVE-108 | — | ⬜ | — |
+| OVE-107 | [#133](https://github.com/troyrhodes02/overload-training/pull/133) | ✅ squash-merged into feature (`a92f16b`) | lint/typecheck/format ✅, unit 1762 ✅, integration ✅, build ✅, client-bundle ✅ (`pdfjs-dist@6.5.438`) |
+| OVE-108 | — | 🔄 in progress | — |
 | OVE-109 | — | ⬜ | — |
 | OVE-110 | — | ⬜ | — |
 
