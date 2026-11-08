@@ -119,6 +119,28 @@ async function fullAccount(account: Account, lib: Lib, label: string) {
       position: 0,
     },
   });
+  // Workout Plan Import & Review: a confirmed import session (referencing the
+  // account's own plan mesocycle) and an ordered source part, so the
+  // import_sessions -> mesocycles and import_source_parts -> import_sessions
+  // same-owner relations each have a row on both sides to exercise.
+  const importSession = await account.db.importSession.create({
+    data: {
+      userId: account.userId,
+      status: "confirmed",
+      sourceKind: "text",
+      mesocycleId: plan.meso.id,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+    select: { id: true },
+  });
+  await account.db.importSourcePart.create({
+    data: {
+      userId: account.userId,
+      sessionId: importSession.id,
+      position: 0,
+      text: `${label} plan`,
+    },
+  });
   return plan;
 }
 
@@ -269,9 +291,9 @@ describe("same-owner triggers (database second layer)", () => {
     });
   }
 
-  it("covers every owned relation (21 triggers)", async () => {
+  it("covers every owned relation (23 triggers)", async () => {
     const triggers = await installedTriggers();
-    expect(triggers).toHaveLength(21);
+    expect(triggers).toHaveLength(23);
     // Every foreign key from an owned table to an owned or exercise parent.
     const fks = await raw().$queryRawUnsafe<
       { tbl: string; col: string; ref: string }[]

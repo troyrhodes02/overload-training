@@ -263,18 +263,21 @@ describe("no automatic personalization or recommendations", () => {
   });
 });
 
-describe("the only user image upload path is feedback screenshots", () => {
-  it("file inputs and Storage writes appear only in the feedback-screenshot picker and store", () => {
+describe("the sanctioned user upload paths are feedback screenshots and plan-import sources", () => {
+  it("file inputs and Storage writes appear only in the feedback picker/store and the plan-import intake/store", () => {
     // Admin Center & Feedback: lifters may attach screenshots to a feedback
-    // message. That is the ONE sanctioned user-upload path. The bytes live in
-    // the private feedback-screenshots bucket, written and signed only by the
-    // server-only store module; the only file input is its picker. No other
-    // image or file upload exists anywhere in the app.
-    expect(offenders(/type=["']file["']/)).toEqual([
+    // message. Workout Plan Import & Review (Pitch 22, RD-8): Pro lifters may
+    // upload a plan's PDFs/photos. Those are the ONLY sanctioned user-upload
+    // paths. In each case the bytes live in a PRIVATE bucket, written and signed
+    // only by a server-only store module; the only file inputs are the two
+    // pickers. No other image or file upload exists anywhere in the app.
+    expect(offenders(/type=["']file["']/).sort()).toEqual([
+      "src/components/plan/import/source-intake.tsx",
       "src/components/send-feedback/screenshot-picker.tsx",
     ]);
-    expect(offenders(/\.upload\s*\(|\.storage\b|createBucket/)).toEqual([
+    expect(offenders(/\.upload\s*\(|\.storage\b|createBucket/).sort()).toEqual([
       "src/lib/feedback/screenshots.ts",
+      "src/lib/import/storage.ts",
     ]);
   });
 });
