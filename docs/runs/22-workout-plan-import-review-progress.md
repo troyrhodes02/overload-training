@@ -81,9 +81,9 @@ Full inventory retained in run context; condensed digest above drives design/spe
 | 5 | Resolved Decisions | ✅ recorded in spec §Resolved Decisions (RD-0..RD-14) |
 | 6 | Linear tickets + milestone | ✅ milestone + OVE-105..110 (chained) |
 | 7 | Feature PR | ✅ [#130](https://github.com/troyrhodes02/overload-training/pull/130) (DO NOT MERGE) |
-| 8 | Implement all tickets | 🔄 OVE-105 in progress |
-| 9 | Operator runbook | ⬜ pending |
-| 10 | Integrate ticket PRs into feature branch | ⬜ pending |
+| 8 | Implement all tickets | 🔄 OVE-105,106 done; OVE-107 in progress |
+| 9 | Operator runbook | ✅ `docs/runs/22-workout-plan-import-review-runbook.md` |
+| 10 | Integrate ticket PRs into feature branch | 🔄 OVE-105 (#131), OVE-106 (#132) squash-merged |
 | 11 | Full verification | ⬜ pending |
 | 12 | Review (/review) | ⬜ pending |
 | 13 | Audit & fix (/overload-review-audit) | ⬜ pending |
@@ -147,11 +147,20 @@ is the final visible-change ticket (uses `overload-onboarding`).
 | Ticket | PR | Status | Verification |
 | -- | -- | -- | -- |
 | OVE-105 | [#131](https://github.com/troyrhodes02/overload-training/pull/131) | ✅ squash-merged into feature (`d4da39b`) | lint/typecheck/format ✅, unit 1588 ✅, integration 754 ✅ (migration `9l_plan_import`), build ✅, client-bundle ✅ |
-| OVE-106 | — | 🔄 in progress | — |
-| OVE-107 | — | ⬜ | — |
+| OVE-106 | [#132](https://github.com/troyrhodes02/overload-training/pull/132) | ✅ squash-merged into feature (`c4e1ab6`) | lint/typecheck/format ✅, unit 1742 (119 shorthand fixtures) ✅, integration 769 ✅, build ✅, client-bundle ✅ |
+| OVE-107 | — | 🔄 in progress | — |
 | OVE-108 | — | ⬜ | — |
 | OVE-109 | — | ⬜ | — |
 | OVE-110 | — | ⬜ | — |
+
+OVE-106 facts: `@anthropic-ai/sdk@1.6.0` + `zod@4.6.5` pinned; structured output via
+`messages.parse()` + `zodOutputFormat` over a `.strict()` `ExtractedPlanObservation`; model id from
+env `PLAN_IMPORT_MODEL` (default `claude-opus-4-8`, owner-overridable — NOT hardcoded as fact, RD-11);
+`promptVersion="2026-11-07.1"`; model call outside any tx; provider mocked in all tests (real accuracy
+unverified, owner-gated). New owner env: `PLAN_IMPORT_MODEL`, `PLAN_IMPORT_MONTHLY_SPEND_MICROS`
+(fail-closed when unset), `ANTHROPIC_API_KEY`. Confirm reuses existing writers in one tx, idempotent
+via unique `mesocycleId`, zero LoggedSet/history/baseline writes. Image/PDF byte extraction stubbed
+(text ships fully; file parts evidence-only) → OVE-107/108.
 
 OVE-105 deviations recorded: HEIC/EXIF stubbed (HEIC cleanly refused) → OVE-108; one raw-allowed
 module `src/lib/import/usage.ts` (atomic owned-table quota, pinned to `import_usage_days` by the guard
