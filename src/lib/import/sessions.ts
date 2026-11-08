@@ -179,7 +179,7 @@ export async function addFilePart(
 
   let normalized;
   try {
-    normalized = normalizeForStorage({
+    normalized = await normalizeForStorage({
       bytes: input.bytes,
       sizeBytes: input.sizeBytes,
     });

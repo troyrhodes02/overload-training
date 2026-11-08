@@ -302,20 +302,27 @@ describe("magic-byte validation over spoofed MIME", () => {
     expect(sniffContentType(GIF)).toBeNull();
   });
 
-  it("a spoofed png that is really a GIF is refused", () => {
-    expect(() =>
+  it("a spoofed png that is really a GIF is refused", async () => {
+    await expect(
       normalizeForStorage({ bytes: GIF, sizeBytes: GIF.byteLength }),
-    ).toThrow(SourceValidationError);
+    ).rejects.toThrow(SourceValidationError);
   });
 
-  it("HEIC is cleanly refused in this slice (conversion is OVE-108)", () => {
-    expect(() =>
+  it("an undecodable HEIC stub is cleanly refused (never stored)", async () => {
+    // The real HEIC→accepted-MIME conversion path (with decodable fixtures) is
+    // covered in tests/unit/import-image.test.ts (OVE-108). Here the stub only
+    // has HEIC magic bytes and no decodable payload, so it is refused cleanly
+    // rather than stored unconverted.
+    await expect(
       normalizeForStorage({ bytes: HEIC, sizeBytes: HEIC.byteLength }),
-    ).toThrow(/HEIC/);
+    ).rejects.toThrow(SourceValidationError);
   });
 
-  it("an accepted type passes through with its sniffed content type", () => {
-    const out = normalizeForStorage({ bytes: PDF, sizeBytes: PDF.byteLength });
+  it("a PDF passes through with its sniffed content type", async () => {
+    const out = await normalizeForStorage({
+      bytes: PDF,
+      sizeBytes: PDF.byteLength,
+    });
     expect(out.contentType).toBe("application/pdf");
     expect(out.bytes).toBe(PDF);
   });
@@ -336,10 +343,10 @@ describe("caps", () => {
     });
   });
 
-  it("a size over the per-file cap is refused by the storage seam", () => {
-    expect(() =>
+  it("a size over the per-file cap is refused by the storage seam", async () => {
+    await expect(
       normalizeForStorage({ bytes: PDF, sizeBytes: 11 * 1024 * 1024 }),
-    ).toThrow(SourceValidationError);
+    ).rejects.toThrow(SourceValidationError);
   });
 
   it("the object path is owner-prefixed", () => {
