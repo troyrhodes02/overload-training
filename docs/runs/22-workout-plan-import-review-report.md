@@ -49,9 +49,9 @@ Ticket PRs are squash-merged **into the feature branch in build order**; the fea
 | `verify:client-bundle` (secrets out of client bundle) | ✅ pass |
 | `test` (unit) | ✅ **1818 passed** |
 | `build` | ✅ pass |
-| `test:integration` (embedded Postgres) | ✅ **804 passed** on clean run |
+| `test:integration` (embedded Postgres) | ✅ **804 passed** |
 
-**⚠️ Known flaky test (disclosed, NOT a product defect):** `tests/integration/import-pdf.int.test.ts` intermittently fails (page-count / text-vs-vision assertions) **only under the full 77-suite serial run** — a non-deterministic `pdfjs-dist` ESM/parse timing artifact under accumulated worker memory. It passes **5/5 in isolation**, in small groups, and on clean full re-runs (observed green at 797 and at 804 across separate full runs). No assertion was weakened or disabled. **Follow-up recommended:** harden the suite (`workerIdleMemoryLimit`, or a fresh pdfjs module per test) — a test-infra ticket.
+**Integration flake — root-caused and FIXED.** `tests/integration/import-pdf.int.test.ts` was intermittently failing (page-count / text-vs-vision assertions) **only under the full 77-suite serial run** — a non-deterministic `pdfjs-dist` ESM parser degradation under accumulated single-worker heap pressure (it always passed 5/5 in isolation and in small groups; the code is correct). **Fix:** added `workerIdleMemoryLimit: "512MB"` to `jest.integration.config.js` so the single worker recycles its heap before a late suite runs. **Confirmed green on two consecutive full runs (804/804, exit 0) after the fix.** No assertion was weakened, skipped, or disabled.
 
 ## 4. Acceptance criteria matrix (P22-01 … P22-10)
 

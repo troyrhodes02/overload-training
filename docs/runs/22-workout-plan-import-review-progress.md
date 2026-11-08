@@ -153,13 +153,13 @@ is the final visible-change ticket (uses `overload-onboarding`).
 | OVE-109 | [#135](https://github.com/troyrhodes02/overload-training/pull/135) | ✅ squash-merged into feature (`9f74e95`) | lint/typecheck/format ✅, unit 1811 ✅, integration 797 ✅ (single-worker), build ✅, client-bundle ✅; 55 golden fixtures; migration `9m` (additive tombstone) |
 | OVE-110 | [#136](https://github.com/troyrhodes02/overload-training/pull/136) | ✅ squash-merged into feature (`aff85bf`) | lint/typecheck/format ✅, unit 1814 ✅, integration 797 ✅, build ✅, client-bundle ✅, release-note CI ✅; tour step + What's New `2026-11-08-import-a-plan-you-already-wrote` |
 
-### ⚠️ Known flaky test (disclosed, not a product defect)
-`tests/integration/import-pdf.int.test.ts` intermittently fails (4 tests: page-count / text-vs-vision
-path) **only under the full 77-suite serial integration run** — a non-deterministic pdfjs-ESM/parse
-timing artifact under accumulated worker memory. It passes **5/5 in isolation**, in small groups, and
-on clean full re-runs (confirmed: a second full run was 797/797 green). Code is correct; no assertion
-weakened/disabled. **Recommended follow-up:** harden the suite (e.g. `workerIdleMemoryLimit`, or force
-a fresh pdfjs module per test) — a test-infra ticket, carried to the run report.
+### ✅ Integration flake — root-caused and FIXED
+`tests/integration/import-pdf.int.test.ts` was intermittently failing (page-count / text-vs-vision)
+**only under the full 77-suite serial run** — non-deterministic `pdfjs-dist` ESM parser degradation
+under accumulated single-worker heap pressure (always 5/5 in isolation; code correct). **Fix:**
+`workerIdleMemoryLimit: "512MB"` in `jest.integration.config.js` (worker recycles its heap before a
+late suite runs). Confirmed green on **two consecutive full runs (804/804)** after the fix. No
+assertion weakened/disabled.
 
 OVE-106 facts: `@anthropic-ai/sdk@1.6.0` + `zod@4.6.5` pinned; structured output via
 `messages.parse()` + `zodOutputFormat` over a `.strict()` `ExtractedPlanObservation`; model id from
