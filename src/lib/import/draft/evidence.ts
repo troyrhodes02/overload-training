@@ -55,3 +55,31 @@ export function verifyEvidence(
   if (needle === "") return null;
   return haystack.includes(needle);
 }
+
+/**
+ * Validate a model-returned page citation against the ACTUAL page count of the
+ * cited part (blueprint §3.2: "validate any model-returned page ranges against
+ * actual page count and prevent overlaps/out-of-bounds"). Independent of the
+ * quote check, so an out-of-bounds page is caught even when no quote is given.
+ *
+ * Returns:
+ *  - true  when the page is within [1, pageCount] of a PDF part, OR no page is
+ *          claimed (nothing to validate);
+ *  - false when a page is claimed that is < 1, > the part's page count, points
+ *          at a part that doesn't exist, or is claimed on a non-paged part.
+ *
+ * A page claimed on a part whose page count is unknown (e.g. an image, or a PDF
+ * whose count we couldn't read) is NOT failed here — the caller treats an
+ * unknown bound as unverifiable, never as a false certainty.
+ */
+export function isPageInBounds(
+  evidence: EvidenceRef | null,
+  parts: SourceTextPart[],
+): boolean {
+  if (!evidence || evidence.page == null) return true; // nothing to validate
+  if (evidence.partIndex == null) return false; // a page with no part is nonsense
+  const part = parts.find((p) => p.index === evidence.partIndex);
+  if (!part) return false; // cites a part that doesn't exist
+  if (part.pageCount == null) return true; // unknown bound — unverifiable, not a failure
+  return evidence.page >= 1 && evidence.page <= part.pageCount;
+}

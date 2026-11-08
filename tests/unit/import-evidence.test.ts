@@ -1,5 +1,6 @@
 import {
   verifyEvidence,
+  isPageInBounds,
   type SourceTextPart,
 } from "@/lib/import/draft/evidence";
 
@@ -79,5 +80,80 @@ describe("verifyEvidence", () => {
       ),
     ).toBeNull();
     expect(verifyEvidence(null, parts)).toBeNull();
+  });
+});
+
+describe("isPageInBounds — page citation validation (OVE-107)", () => {
+  it("a page within [1, pageCount] of a PDF part is in bounds", () => {
+    expect(
+      isPageInBounds(
+        { partIndex: 1, page: 1, quote: null, locationHint: null },
+        parts,
+      ),
+    ).toBe(true);
+    expect(
+      isPageInBounds(
+        { partIndex: 1, page: 3, quote: null, locationHint: null },
+        parts,
+      ),
+    ).toBe(true);
+  });
+
+  it("a page past the part's real page count is out of bounds (no quote needed)", () => {
+    expect(
+      isPageInBounds(
+        { partIndex: 1, page: 4, quote: null, locationHint: null },
+        parts,
+      ),
+    ).toBe(false);
+  });
+
+  it("page 0 or negative is out of bounds", () => {
+    expect(
+      isPageInBounds(
+        { partIndex: 1, page: 0, quote: null, locationHint: null },
+        parts,
+      ),
+    ).toBe(false);
+  });
+
+  it("a page citing a non-existent part is out of bounds", () => {
+    expect(
+      isPageInBounds(
+        { partIndex: 9, page: 1, quote: null, locationHint: null },
+        parts,
+      ),
+    ).toBe(false);
+  });
+
+  it("a page with no part index is out of bounds (nonsense)", () => {
+    expect(
+      isPageInBounds(
+        { partIndex: null, page: 2, quote: null, locationHint: null },
+        parts,
+      ),
+    ).toBe(false);
+  });
+
+  it("no page claimed → nothing to validate (true)", () => {
+    expect(
+      isPageInBounds(
+        { partIndex: 0, page: null, quote: "x", locationHint: null },
+        parts,
+      ),
+    ).toBe(true);
+    expect(isPageInBounds(null, parts)).toBe(true);
+  });
+
+  it("a page on a part whose count is unknown is unverifiable, not a failure", () => {
+    const unknown: SourceTextPart[] = [
+      { index: 0, text: null, pageCount: null },
+    ];
+    expect(
+      isPageInBounds(
+        { partIndex: 0, page: 7, quote: null, locationHint: null },
+        unknown,
+      ),
+    ).toBe(true);
   });
 });

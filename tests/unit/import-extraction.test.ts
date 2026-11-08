@@ -183,3 +183,54 @@ describe("buildImportDraft — issues & matches", () => {
     if (match.kind === "matched") expect(match.exerciseId).toBe("lib-1");
   });
 });
+
+describe("page-citation bounds in the built draft (OVE-107)", () => {
+  // An exercise whose name evidence cites a page out of the PDF part's range.
+  function withNameEvidence(page: number) {
+    const o = observation();
+    (
+      o.days[0].exercises[0] as {
+        name: { raw: string; legible: boolean; evidence: unknown };
+      }
+    ).name = {
+      raw: "Bench Press",
+      legible: true,
+      evidence: { partIndex: 0, page, quote: null, locationHint: null },
+    };
+    return ExtractedPlanObservationSchema.parse(o);
+  }
+
+  it("flags an out-of-bounds page citation as EVIDENCE_PAGE_OUT_OF_BOUNDS (info)", () => {
+    const o = withNameEvidence(5); // part 0 is a 2-page PDF
+    const matches: MatchOutcome[] = [
+      { kind: "matched", exerciseId: "lib-1", name: "Barbell Bench Press" },
+    ];
+    const draft = buildImportDraft({
+      observation: o,
+      matches,
+      parts: [{ index: 0, text: null, pageCount: 2 }],
+    });
+    const issue = draft.issues.find(
+      (i) => i.code === ISSUE_CODES.EVIDENCE_PAGE_OUT_OF_BOUNDS,
+    );
+    expect(issue).toBeDefined();
+    expect(issue?.severity).toBe("info");
+  });
+
+  it("does not flag an in-bounds page citation", () => {
+    const o = withNameEvidence(2); // within a 2-page PDF
+    const matches: MatchOutcome[] = [
+      { kind: "matched", exerciseId: "lib-1", name: "Barbell Bench Press" },
+    ];
+    const draft = buildImportDraft({
+      observation: o,
+      matches,
+      parts: [{ index: 0, text: null, pageCount: 2 }],
+    });
+    expect(
+      draft.issues.some(
+        (i) => i.code === ISSUE_CODES.EVIDENCE_PAGE_OUT_OF_BOUNDS,
+      ),
+    ).toBe(false);
+  });
+});

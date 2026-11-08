@@ -145,7 +145,12 @@ export async function commitPartAction(
   _prev: unknown,
   formData: FormData,
 ): Promise<
-  ActionResult<{ objectPath: string; contentType: string; position: number }>
+  ActionResult<{
+    objectPath: string;
+    contentType: string;
+    position: number;
+    pageCount: number | null;
+  }>
 > {
   return toActionResult(async () => {
     const account = await guardImport();
