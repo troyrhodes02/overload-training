@@ -144,6 +144,19 @@ is the final visible-change ticket (uses `overload-onboarding`).
 - **Feature PR:** [#130](https://github.com/troyrhodes02/overload-training/pull/130) — *DO NOT MERGE* (owner approval). Base commit: planning artifacts.
 - Ticket branches/PRs captured below as implemented.
 
+| Ticket | PR | Status | Verification |
+| -- | -- | -- | -- |
+| OVE-105 | [#131](https://github.com/troyrhodes02/overload-training/pull/131) | ✅ squash-merged into feature (`d4da39b`) | lint/typecheck/format ✅, unit 1588 ✅, integration 754 ✅ (migration `9l_plan_import`), build ✅, client-bundle ✅ |
+| OVE-106 | — | 🔄 in progress | — |
+| OVE-107 | — | ⬜ | — |
+| OVE-108 | — | ⬜ | — |
+| OVE-109 | — | ⬜ | — |
+| OVE-110 | — | ⬜ | — |
+
+OVE-105 deviations recorded: HEIC/EXIF stubbed (HEIC cleanly refused) → OVE-108; one raw-allowed
+module `src/lib/import/usage.ts` (atomic owned-table quota, pinned to `import_usage_days` by the guard
+test) — anticipated by spec RD-9.
+
 ### Process decision (RD-impl-integration)
 Run prompt Step 8 says "each next branch off the preceding ticket branch" and Step 10 "squash-merge
 all ticket PRs into the feature branch in order." To keep each ticket PR a clean single-ticket diff
