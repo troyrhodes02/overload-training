@@ -237,3 +237,47 @@ All files built. Verification (run honestly):
 - Real-provider extraction accuracy: UNVERIFIED (owner-gated — no paid call made).
 Deps added+pinned: @anthropic-ai/sdk@1.6.0, zod@4.6.5.
 STOP BEFORE MERGE. PR opened against 22-workout-plan-import-review.
+
+---
+
+# OVE-109 Progress — Import 5: Reliability, cost & privacy controls + golden-set eval
+
+Branch: `ove-109-reliability-cost-privacy` off `22-workout-plan-import-review`. STOP BEFORE MERGE. MOCK provider. No real paid calls.
+
+## Status: IN PROGRESS
+
+## Already shipped by earlier slices (verified by reading code)
+spend reserve/reconcile/release (spend.ts, fail-closed); daily quota atomic counter (usage.ts, fail-closed, started-attempt); kill switch default-OFF enforced in guardImport() on every action; lease CAS + stale reclaim + bounded attempts + retry (extract.ts); idempotent confirm one-tx zero-history (confirm.ts); confirm/discard cleanup + account-deletion stored-object sweep (deletion.ts); scope.ts UNOWNED_SYSTEM_MODELS has ImportSpendLedger; eslint raw-allow for usage.ts+spend.ts.
+
+## Gaps THIS ticket completes
+1. Lazy per-request expiry sweep — src/lib/import/retention.ts (acting account's OWN overdue unconfirmed sessions). NEW.
+2. Retriable blob-delete tombstone — add `sourcesPurgedAt` column to ImportSession (additive migration). NEW.
+3. Operator cleanup script scripts/operator/plan-import-cleanup/ (dry-run default, loopback-only, one tx). NEW.
+4. Privacy hardening — ANTHROPIC_API_KEY + PLAN_IMPORT_* tokens in check-client-bundle.mjs; log/DTO audit. NEW.
+5. Golden-set eval harness tests/fixtures/import-golden/ >=50 synthetic fixtures + eval runner. Mocked default; real-provider owner-gated → unverified. NEW.
+6. Tests for all of the above + threat tests.
+
+## Decisions
+- RD-A: Tombstone = ImportSession.sourcesPurgedAt nullable column, not a new table (reuses existing RLS/scope/deletion/export). Authority: own judgment; spec §17 leaves tombstone shape open.
+- RD-B: Lazy sweep scoped to acting account only; global purge is the operator script's job. Authority: account-isolation invariant.
+
+## Retention posture (RD-13)
+Implemented: lazy per-request sweep, confirm/discard cleanup, account-deletion sweep, retriable tombstones, operator script. BLOCKED: reliable <=24h *scheduled* purge of abandoned-never-reopened sessions — no scheduler/cron/queue (architecture non-goal). Documented in-code + report. NOT building cron.
+
+## Stop conditions: none hit.
+
+## OVE-109 status: implementation COMPLETE (pending full integration pass + PR)
+
+Built:
+- schema: ImportSession.sourcesPurgedAt (tombstone) + migration 9m_plan_import_retention (additive; RLS already on; partial index).
+- src/lib/import/retention.ts — sweepExpiredImports / retryTombstones / runImportRetention (account-scoped, bounded, non-throwing).
+- confirm.ts cleanupSources sets sourcesPurgedAt on success; leaves tombstone on failure.
+- page.tsx wires runImportRetention after capability check.
+- extract.ts: finished stale-extracting reclaim — beginExtraction resumes a live lease (idempotent) and reclaims an expired one; claimLease threshold aligned (leaseExpiresAt < now) so no dead zone.
+- storage.ts signSourceReadUrls now resilient (never throws; nulls on failure).
+- scripts/check-client-bundle.mjs: ANTHROPIC_API_KEY + PLAN_IMPORT_* tokens + key value.
+- scripts/operator/plan-import-cleanup/{cleanup,cli}.ts + npm script plan-import:cleanup (dry-run default, loopback-only, one tx).
+- tests/fixtures/import-golden/ (55 synthetic fixtures, all 5 kinds + hard cases) + runner + eval.
+- tests: import-golden-eval, import-privacy (unit); import-retention, import-spend, import-hardening, import-threats, plan-import-cleanup (integration).
+
+Verification so far: typecheck PASS, lint PASS (0 err), format:check PASS, unit PASS (1811), golden-eval 55 fixtures 0 hallucinations. Integration full-suite running. build + verify:client-bundle pending.

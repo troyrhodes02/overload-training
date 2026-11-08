@@ -231,7 +231,9 @@ export async function confirmImport(
     });
 
     // 4) Queue source cleanup AFTER commit. A failed blob delete never undoes the
-    //    plan (best-effort; the lazy sweep / account deletion are the backstops).
+    //    plan: it only leaves a RETRIABLE TOMBSTONE (sourcesPurgedAt stays null)
+    //    for the lazy sweep / operator script to retry. The lazy sweep and account
+    //    deletion are the other backstops.
     await cleanupSources(account, session.id);
 
     return { mesocycleId };
@@ -249,7 +251,12 @@ export async function confirmImport(
   }
 }
 
-/** Best-effort source-object cleanup after a confirmed plan. */
+/**
+ * Best-effort source-object cleanup after a confirmed plan. On success the
+ * session's `sourcesPurgedAt` tombstone is cleared (marked done); on ANY failure
+ * it is left null so the lazy sweep (retention.ts) and the operator cleanup script
+ * retry it. A failed blob delete never undoes the plan — it is a hygiene concern.
+ */
 async function cleanupSources(
   account: Account,
   sessionId: string,
@@ -263,7 +270,13 @@ async function cleanupSources(
       .map((p) => p.objectPath)
       .filter((p): p is string => p !== null);
     if (paths.length > 0) await removeSourceObjects(paths);
+    // Mark the tombstone done: the stored objects are gone (or there were none).
+    await account.db.importSession.updateMany({
+      where: { id: sessionId, sourcesPurgedAt: null },
+      data: { sourcesPurgedAt: new Date() },
+    });
   } catch {
-    // Cleanup is a hygiene concern, never a correctness one. The plan stands.
+    // Cleanup is a hygiene concern, never a correctness one. The plan stands and
+    // the tombstone (sourcesPurgedAt still null) is retried later.
   }
 }

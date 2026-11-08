@@ -108,18 +108,21 @@ async function claimLease(
 ): Promise<string | null> {
   const token = randomUUID();
   const now = new Date();
-  const leaseDeadline = new Date(now.getTime() - LEASE_TTL_MS);
   const nextExpiry = new Date(now.getTime() + LEASE_TTL_MS);
 
   // CAS: move to `extracting`, set a fresh lease + bump attemptCount, but only
   // from a claimable state. `updateMany` with a WHERE guard is the atomic claim;
-  // the loser of a concurrent race updates 0 rows.
+  // the loser of a concurrent race updates 0 rows. A session is claimable when it
+  // is `uploaded`/`failed_retryable`, OR it is `extracting` with an EXPIRED lease
+  // (`leaseExpiresAt < now` — the owning request crashed/was torn down). This is
+  // the SAME threshold `beginExtraction` uses to decide a lease is no longer live,
+  // so there is no dead zone between "reported in-progress" and "reclaimable".
   const result = await account.db.importSession.updateMany({
     where: {
       id: sessionId,
       OR: [
         { status: { in: ["uploaded", "failed_retryable"] } },
-        { status: "extracting", leaseExpiresAt: { lt: leaseDeadline } },
+        { status: "extracting", leaseExpiresAt: { lt: now } },
       ],
     },
     data: {
@@ -401,7 +404,23 @@ export async function beginExtraction(
     // Already past extraction — idempotent: just report where it is.
     return getImportStatus(account, session.id);
   }
-  if (session.status !== "uploaded" && session.status !== "failed_retryable") {
+  // Durable recovery (RD-10): a session stuck in `extracting` whose lease is still
+  // LIVE is an in-progress attempt — report its status (interruption-safe resume),
+  // never start a second. A session whose lease has EXPIRED (the owning request
+  // crashed or was torn down) is STALE and reclaimable by the compare-and-set
+  // claim below; it is NOT an error. Only a truly non-startable state is refused.
+  if (session.status === "extracting") {
+    const leaseLive =
+      session.leaseExpiresAt != null &&
+      session.leaseExpiresAt.getTime() > Date.now();
+    if (leaseLive) {
+      return getImportStatus(account, session.id);
+    }
+    // else: stale lease — fall through to reclaim it via claimLease.
+  } else if (
+    session.status !== "uploaded" &&
+    session.status !== "failed_retryable"
+  ) {
     throw new DomainError(
       "invalid_state_transition",
       "This import isn't ready to process.",

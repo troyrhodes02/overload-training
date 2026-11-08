@@ -1011,6 +1011,14 @@ model ImportSession {
   mesocycleId    String?          @unique @map("mesocycle_id") @db.Uuid
   /// Retention clock: at-most-24h from creation for unconfirmed content.
   expiresAt      DateTime         @map("expires_at") @db.Timestamptz
+  /// Retriable blob-delete tombstone (OVE-109). Null means the stored source
+  /// objects for this session still need removing (a terminal session whose
+  /// blob delete has not yet fully succeeded is an OBSERVABLE, RETRIABLE
+  /// tombstone: it is found by `WHERE sources_purged_at IS NULL AND status IN
+  /// (terminal)`). Set to the completion instant only when every object is gone.
+  /// A failed blob delete NEVER undoes a confirmed plan — it only leaves this
+  /// null so the lazy sweep / operator script retry it later.
+  sourcesPurgedAt DateTime?       @map("sources_purged_at") @db.Timestamptz
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
 
