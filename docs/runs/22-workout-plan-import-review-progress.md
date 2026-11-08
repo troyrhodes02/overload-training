@@ -84,11 +84,11 @@ Full inventory retained in run context; condensed digest above drives design/spe
 | 8 | Implement all tickets | ✅ OVE-105..110 all done & verified |
 | 9 | Operator runbook | ✅ `docs/runs/22-workout-plan-import-review-runbook.md` |
 | 10 | Integrate ticket PRs into feature branch | ✅ #131..#136 squash-merged into feature (`aff85bf`) |
-| 11 | Full verification | ✅ lint/typecheck/format/client-bundle ✅, unit 1814 ✅, build ✅, integration 797 ✅ (clean re-run); ⚠️ flaky `import-pdf.int` note below |
-| 12 | Review (/review) | 🔄 in progress |
-| 13 | Audit & fix (/overload-review-audit) | ⬜ pending |
-| 14 | Stop before merge | ⬜ pending |
-| 15 | Run report | ⬜ pending |
+| 11 | Full verification | ✅ unit 1814 / integration 797 / build / lint / typecheck / format / client-bundle; ⚠️ flaky `import-pdf.int` noted |
+| 12 | Review (/review) | ✅ 10 inline comments on PR #130; all core invariants verified holding |
+| 13 | Audit & fix (/overload-review-audit) | ✅ 8 implemented, 1 deferred (RD-17), 1 skipped; re-verified unit 1818 / integration 804 |
+| 14 | Stop before merge | ✅ PR #130 OPEN/unmerged; #131-136 merged into feature; `main` untouched |
+| 15 | Run report | ✅ `docs/runs/22-workout-plan-import-review-report.md` |
 
 ## Resolved decisions (accumulating)
 
