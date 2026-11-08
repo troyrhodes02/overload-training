@@ -4,9 +4,10 @@
 pipeline deliberately did not perform. Nothing here was executed by the run.
 
 **Status at handoff:** Feature PR [#130](https://github.com/troyrhodes02/overload-training/pull/130)
-open and **unmerged**. All ticket PRs (OVE-105..110) integrated into the feature branch. Verified on
-isolated embedded-Postgres + mocked provider/storage. **No** production migration, real-provider call,
-or spend activation has occurred.
+open and **unmerged**. Ticket PRs OVE-105..109 integrated into the feature branch; OVE-110 (this
+guidance + handoff ticket) is the final one, PR open for owner approval. Verified on isolated
+embedded-Postgres + mocked provider/storage. **No** production migration, real-provider call, or spend
+activation has occurred.
 
 > ⛔ **Protected environment.** Supabase project ref `ycxvdiklpefyhdclxyau` is **Production**, and was
 > used from local/Preview during an earlier cutover. Treat ANY connection to it as live. Do not point
@@ -21,13 +22,19 @@ The feature is built to **fail closed** until each of these is satisfied. None m
 
 | # | Decision | Why it blocks | Where it's wired |
 | - | -------- | ------------- | ---------------- |
-| G1 | **Monthly global AI spend cap (USD).** | Imports are disabled unless a cap is configured; the code reserves estimated cost before each call and fails closed when the cap/price-map is missing. | `IMPORT_MONTHLY_BUDGET_*` env + `ImportSpendLedger`; see §4 |
-| G2 | **Consent to send real user uploads to Anthropic** + reviewed data-processing terms (storage region, deletion, subprocessors). | Real-provider calls are off until the owner approves sending personal photos/PDFs to a third party. | provider enablement; §3 |
+| G1 | **Monthly global AI spend cap (micro-dollars).** | Imports are disabled unless a cap is configured; the code reserves a conservative per-attempt estimate before each call and fails closed when the cap is missing. | `PLAN_IMPORT_MONTHLY_SPEND_MICROS` env + `ImportSpendLedger`; see §4 |
+| G2 | **Consent to send real user uploads to Anthropic** + reviewed data-processing terms (storage region, deletion, subprocessors). | Real-provider calls are off until the owner approves sending personal photos/PDFs to a third party. | `ANTHROPIC_API_KEY` + `PLAN_IMPORT_MODEL`; §3 |
 | G3 | **≤24h scheduled-purge infrastructure decision.** The repo has **no scheduler/cron/queue** (deliberate architecture non-goal). The reliable scheduled purge of abandoned-never-reopened sessions cannot be guaranteed by the implemented parts alone. | Retention AC (P22-04) is **partially blocked** until this is decided. | §6 |
 | G4 | **Production migration application** (with backup). | New tables/RLS must reach prod by a human runbook step, never the run. | §2 |
 | G5 | **Real-provider golden-set evaluation authorization** + an owner-reviewed quality/hallucination threshold before enabling for real users. | Accuracy is **unverified** until a budgeted eval runs; mocks don't prove provider quality. | §7 |
 
 Until G1–G5 are satisfied, keep `PLAN_IMPORT_ENABLED` unset/`false` in Production.
+
+**Environment variables (shipped names).** `PLAN_IMPORT_ENABLED` (kill switch; `"true"` to enable),
+`PLAN_IMPORT_MODEL` (Anthropic model id; sensible default if unset), `PLAN_IMPORT_MONTHLY_SPEND_MICROS`
+(global monthly cap in micro-dollars; unset = fail closed), and `ANTHROPIC_API_KEY` (server-only). The
+private Storage bucket name `plan-import-sources` is a code constant (`PLAN_IMPORT_SOURCE_BUCKET` in
+`src/lib/import/storage.ts`), not an env var.
 
 ---
 
@@ -46,9 +53,11 @@ Until G1–G5 are satisfied, keep `PLAN_IMPORT_ENABLED` unset/`false` in Product
 ## 2. Applying the schema migration to Production (human, G4)
 
 1. Take a fresh production database **backup** immediately before (and verify it restores).
-2. Review the migration `prisma/migrations/<n>_plan_import/migration.sql` — confirm it only **creates**
-   the four import tables, enables deny-all RLS on each, and adds FKs/triggers/CHECKs. It must not
-   alter or drop any existing table/column.
+2. Review both import migrations — `prisma/migrations/9l_plan_import/migration.sql` (creates the four
+   import tables `import_sessions`, `import_source_parts`, `import_usage_days`, `import_spend_ledger`,
+   enables deny-all RLS on each, and adds FKs/triggers/CHECKs) and
+   `prisma/migrations/9m_plan_import_retention/migration.sql` (adds the `sources_purged_at` retention
+   column to `import_sessions` only). Neither may alter or drop any existing table/column.
 3. Apply with the **direct** connection (`DIRECT_URL`) using the project's standard migration path
    (`prisma migrate deploy`), from the runbook, by a human — never the pipeline.
 4. Post-apply checks: all four tables exist with RLS **enabled and no policies** (the anon Data API
@@ -70,9 +79,10 @@ Until G1–G5 are satisfied, keep `PLAN_IMPORT_ENABLED` unset/`false` in Product
 
 ## 4. Budget, kill switch, enable/disable, rollback (G1)
 
-- **Enable:** set the monthly cap env (e.g. `IMPORT_MONTHLY_BUDGET_USD`) and the price map, configure
-  the provider, then set `PLAN_IMPORT_ENABLED=true`. With the cap/provider unset, the feature refuses
-  cleanly (`import_unavailable`) — demonstrate this before enabling.
+- **Enable:** set the monthly cap env `PLAN_IMPORT_MONTHLY_SPEND_MICROS` (micro-dollars; the per-attempt
+  estimate reserved up front is a code constant, not an env), configure the provider (`ANTHROPIC_API_KEY`,
+  optional `PLAN_IMPORT_MODEL`), then set `PLAN_IMPORT_ENABLED=true`. With the cap or provider unset, the
+  feature refuses cleanly (`import_unavailable`) — demonstrate this before enabling.
 - **Demonstrate fail-closed states** before launch: `PLAN_IMPORT_ENABLED=false`/unset (refuses uploads
   and model work), provider outage, budget exhausted (reservation blocks new calls), and per-user daily
   quota (6th attempt refused).

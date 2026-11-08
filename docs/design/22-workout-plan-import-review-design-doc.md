@@ -629,6 +629,14 @@ Use `Alert` for autosave and processing failures, inline `destructive` text for 
 - **One new step**, anchored to the **Import existing plan** action on the Plan list. Copy: *"Already have a plan written down? Import it — paste it or upload a photo, review what we read, and nothing saves until you confirm."* Behaves as a standard tour step on phone (anchored above the action, bottom sheet) and desktop (popover). The `overload-onboarding` skill makes the final keep/skip call against the shipped surface; it is warranted because the entry is easy to miss and the capability is a trial-conversion driver.
 - No step on the Free locked note (it self-explains) and none inside the review (the screen is self-describing).
 
+### Tour steps added
+
+Decided by `overload-onboarding` in OVE-110. Same columns as the Onboarding Tour's initial table; the registry's copy is pinned to this table. One step, placed after the Plan step (journey order: both live on `/plan`). The target renders only for a Pro account with import enabled; otherwise the anchor is absent and the mechanism skips the step.
+
+| # | id | Screen | Targets (first visible wins) | Title | Body |
+| - | -- | ------ | ---------------------------- | ----- | ---- |
+| 5 | `plan-import` | Plan `/plan` | Import existing plan action | **Import an existing plan** | Already have a plan written down? Import it — paste it or upload a photo, review what we read, and nothing saves until you confirm. |
+
 **What's New (release note)**
 - Title: **"Import a plan you already wrote"**
 - Body: *"Bring an existing program into Overload — paste the text or upload a PDF, screenshots, or photos. Review what we read next to your source, fix anything, and create the plan. Part of Pro."*

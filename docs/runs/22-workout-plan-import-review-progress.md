@@ -281,3 +281,23 @@ Built:
 - tests: import-golden-eval, import-privacy (unit); import-retention, import-spend, import-hardening, import-threats, plan-import-cleanup (integration).
 
 Verification so far: typecheck PASS, lint PASS (0 err), format:check PASS, unit PASS (1811), golden-eval 55 fixtures 0 hallucinations. Integration full-suite running. build + verify:client-bundle pending.
+
+## OVE-110 status: implementation COMPLETE (stop before merge; PR open for owner approval)
+
+Branch: `ove-110-guidance-launch` (off `22-workout-plan-import-review` HEAD). The final visible-change ticket: user guidance + launch handoff.
+
+Built:
+- Tour step `plan-import` (ADDED) — `src/lib/tour/steps.ts`: new anchor `plan-import`, step placed after `plan` (journey order, both on /plan). Copy verbatim from design doc §13. Target renders only for a Pro account with import enabled; otherwise absent and the engine skips it (graceful).
+- Anchor wired on the active "Import existing plan" Button in `src/components/plan/import-entry.tsx` (locked/unavailable notes self-explain → no anchor).
+- Design doc §13 gains a `### Tour steps added` table (pins the step's copy for tests/unit/tour-registry.test.ts).
+- What's New entry `2026-11-08-import-a-plan-you-already-wrote` (significant, audience internal) at the TOP of `src/lib/release-notes/entries.ts`. Provisional ship date 2026-11-08 per contract.
+- Registry/engine tests updated to reflect the added step (tour-registry, tour-engine, tour-extensibility) — assertions still pin exact order/counts, now with 10 desktop / 11 phone.
+- Runbook drift fixed (`docs/runs/22-...-runbook.md`): budget env corrected to `PLAN_IMPORT_MONTHLY_SPEND_MICROS` (was `IMPORT_MONTHLY_BUDGET_*`); env-var reference block added (`PLAN_IMPORT_ENABLED`/`PLAN_IMPORT_MODEL`/`ANTHROPIC_API_KEY`, bucket constant note); migrations named explicitly (`9l_plan_import` + `9m_plan_import_retention`); handoff status corrected (OVE-110 is the final ticket).
+
+Tour-step decision: ADDED. Design doc §13 warrants it (easy-to-miss entry, trial-conversion driver); onboarding rubric agrees (new control to discover, degrades gracefully).
+
+Safety pass (blueprint §12 + CLAUDE.md invariants): 8/8 PASS, zero defects. Same confirm path for every source kind; Free/anon refused server-side (capability then kill switch in guardImport); account B cannot see A's import; source is data not instructions; confirm atomic+idempotent through existing plan writers with no LoggedSet/baseline writes; RLS enabled no-policy on all four import tables; spend cap/quota/kill-switch server-controlled and race-safe; no admin exposure of import content. No code changed by the pass.
+
+Verification: lint PASS, typecheck PASS, format:check PASS, unit PASS (1814), integration PASS (797), build PASS, verify:client-bundle PASS, release-note CI validation PASS. On-device phone+desktop tour rendering: UNVERIFIED (needs a real browser; reported honestly, not faked).
+
+## Stop conditions: none hit.

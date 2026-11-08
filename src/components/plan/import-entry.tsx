@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { Account } from "@/lib/data/account";
 import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import { isPlanImportEnabled } from "@/lib/import/config";
+import { tourAnchor } from "@/lib/tour/steps";
 
 /**
  * Workout Plan Import & Review (Pitch 22) — the "Import existing plan" entry on
@@ -48,7 +49,12 @@ export async function ImportEntry({ account }: { account: Account }) {
   }
 
   return (
-    <Button asChild variant="outline" className="h-11 w-full justify-start">
+    <Button
+      asChild
+      variant="outline"
+      className="h-11 w-full justify-start"
+      {...tourAnchor("plan-import")}
+    >
       <Link href="/plan/import">
         <Upload aria-hidden className="size-4" />
         Import existing plan
