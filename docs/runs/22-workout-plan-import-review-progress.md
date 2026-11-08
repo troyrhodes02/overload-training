@@ -81,11 +81,11 @@ Full inventory retained in run context; condensed digest above drives design/spe
 | 5 | Resolved Decisions | ✅ recorded in spec §Resolved Decisions (RD-0..RD-14) |
 | 6 | Linear tickets + milestone | ✅ milestone + OVE-105..110 (chained) |
 | 7 | Feature PR | ✅ [#130](https://github.com/troyrhodes02/overload-training/pull/130) (DO NOT MERGE) |
-| 8 | Implement all tickets | 🔄 OVE-105..109 done; OVE-110 in progress |
+| 8 | Implement all tickets | ✅ OVE-105..110 all done & verified |
 | 9 | Operator runbook | ✅ `docs/runs/22-workout-plan-import-review-runbook.md` |
-| 10 | Integrate ticket PRs into feature branch | 🔄 #131,#132,#133,#134,#135 squash-merged into feature |
-| 11 | Full verification | ⬜ pending |
-| 12 | Review (/review) | ⬜ pending |
+| 10 | Integrate ticket PRs into feature branch | ✅ #131..#136 squash-merged into feature (`aff85bf`) |
+| 11 | Full verification | ✅ lint/typecheck/format/client-bundle ✅, unit 1814 ✅, build ✅, integration 797 ✅ (clean re-run); ⚠️ flaky `import-pdf.int` note below |
+| 12 | Review (/review) | 🔄 in progress |
 | 13 | Audit & fix (/overload-review-audit) | ⬜ pending |
 | 14 | Stop before merge | ⬜ pending |
 | 15 | Run report | ⬜ pending |
@@ -151,7 +151,15 @@ is the final visible-change ticket (uses `overload-onboarding`).
 | OVE-107 | [#133](https://github.com/troyrhodes02/overload-training/pull/133) | ✅ squash-merged into feature (`a92f16b`) | lint/typecheck/format ✅, unit 1762 ✅, integration ✅, build ✅, client-bundle ✅ (`pdfjs-dist@6.5.438`) |
 | OVE-108 | [#134](https://github.com/troyrhodes02/overload-training/pull/134) | ✅ squash-merged into feature (`bf7749d`) | lint/typecheck/format ✅, unit 1778 ✅, integration 774 ✅ (isolation), build ✅, client-bundle ✅ (`sharp@0.34.4`, `heic-convert@2.1.0` server-external) |
 | OVE-109 | [#135](https://github.com/troyrhodes02/overload-training/pull/135) | ✅ squash-merged into feature (`9f74e95`) | lint/typecheck/format ✅, unit 1811 ✅, integration 797 ✅ (single-worker), build ✅, client-bundle ✅; 55 golden fixtures; migration `9m` (additive tombstone) |
-| OVE-110 | — | 🔄 in progress | — |
+| OVE-110 | [#136](https://github.com/troyrhodes02/overload-training/pull/136) | ✅ squash-merged into feature (`aff85bf`) | lint/typecheck/format ✅, unit 1814 ✅, integration 797 ✅, build ✅, client-bundle ✅, release-note CI ✅; tour step + What's New `2026-11-08-import-a-plan-you-already-wrote` |
+
+### ⚠️ Known flaky test (disclosed, not a product defect)
+`tests/integration/import-pdf.int.test.ts` intermittently fails (4 tests: page-count / text-vs-vision
+path) **only under the full 77-suite serial integration run** — a non-deterministic pdfjs-ESM/parse
+timing artifact under accumulated worker memory. It passes **5/5 in isolation**, in small groups, and
+on clean full re-runs (confirmed: a second full run was 797/797 green). Code is correct; no assertion
+weakened/disabled. **Recommended follow-up:** harden the suite (e.g. `workerIdleMemoryLimit`, or force
+a fresh pdfjs module per test) — a test-infra ticket, carried to the run report.
 
 OVE-106 facts: `@anthropic-ai/sdk@1.6.0` + `zod@4.6.5` pinned; structured output via
 `messages.parse()` + `zodOutputFormat` over a `.strict()` `ExtractedPlanObservation`; model id from
