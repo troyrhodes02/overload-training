@@ -40,6 +40,9 @@ const OWNED = [
   "Goal",
   "Gym",
   "GymExerciseBaseline",
+  "ImportSession",
+  "ImportSourcePart",
+  "ImportUsageDay",
   "LoggedExercise",
   "LoggedSession",
   "LoggedSet",
@@ -69,9 +72,12 @@ describe("classification", () => {
     // un-owned and holds no personal data. Adding to either list is a reviewed
     // decision, never a shortcut.
     // Plans, Billing (spec RD-14): the Stripe event ledger is un-owned too.
+    // Workout Plan Import & Review (spec RD-6): the global provider-spend ledger
+    // is un-owned (no account, no PII), written only by the extraction module.
     expect([...UNOWNED_SYSTEM_MODELS]).toEqual([
       "AuthThrottle",
       "WebhookEvent",
+      "ImportSpendLedger",
     ]);
     expect(SHARED_OR_OWNED_MODEL).toBe("Exercise");
   });

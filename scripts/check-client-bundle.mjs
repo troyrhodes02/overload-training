@@ -35,6 +35,15 @@ const forbiddenTokens = [
   // The Turnstile SECRET is server-only (Public Accounts, R6). The SITE key is
   // public (NEXT_PUBLIC_TURNSTILE_SITE_KEY) and intentionally not on this list.
   "TURNSTILE_SECRET_KEY",
+  // Plan import (Workout Plan Import & Review, OVE-109): the language-model
+  // provider key and the server-only import config NEVER ship to the browser.
+  // The model call is server-only (the client never learns the key, chooses a
+  // model, or sees the spend cap / kill switch). The kill switch and cap are
+  // read on the server; the browser is told only "available / unavailable".
+  "ANTHROPIC_API_KEY",
+  "PLAN_IMPORT_ENABLED",
+  "PLAN_IMPORT_MODEL",
+  "PLAN_IMPORT_MONTHLY_SPEND_MICROS",
 ];
 
 // Actual secret values present in the build env (never their public NEXT_PUBLIC_ vars).
@@ -43,6 +52,8 @@ const forbiddenValues = [
   process.env.DIRECT_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   process.env.TURNSTILE_SECRET_KEY,
+  // The provider key value itself must never appear in a client chunk.
+  process.env.ANTHROPIC_API_KEY,
 ].filter((v) => typeof v === "string" && v.length > 0);
 
 function walk(dir) {
