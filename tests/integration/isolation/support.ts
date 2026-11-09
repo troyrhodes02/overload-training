@@ -76,9 +76,6 @@ const OWNED_TABLES = [
   "entitlements",
   "billing_accounts",
   "promo_redemptions",
-  "import_sessions",
-  "import_source_parts",
-  "import_usage_days",
 ] as const;
 
 /** Every row an account owns, in a stable order — to prove it never changed. */

@@ -130,32 +130,6 @@ async function populate(account: Account, lib: Lib, label: string) {
       redeemedAt: new Date(),
     },
   });
-  // Workout Plan Import & Review: a CONFIRMED import session (referencing the
-  // account's own plan mesocycle, to exercise the RESTRICT FK + deletion order),
-  // an ordered source part, and a daily usage counter. All owned, all removed by
-  // account deletion; the mesocycle_id proves the session is deleted before the
-  // mesocycle it points at.
-  const importSession = await account.db.importSession.create({
-    data: {
-      userId: account.userId,
-      status: "confirmed",
-      sourceKind: "text",
-      mesocycleId: plan.meso.id,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    },
-    select: { id: true },
-  });
-  await account.db.importSourcePart.create({
-    data: {
-      userId: account.userId,
-      sessionId: importSession.id,
-      position: 0,
-      text: `${label} pasted a plan`,
-    },
-  });
-  await account.db.importUsageDay.create({
-    data: { userId: account.userId, dayKey: "2026-11-07", count: 1 },
-  });
   return plan;
 }
 
@@ -189,9 +163,6 @@ const OWNED_TABLES = [
   "entitlements",
   "billing_accounts",
   "promo_redemptions",
-  "import_sessions",
-  "import_source_parts",
-  "import_usage_days",
 ];
 
 let a: Account;

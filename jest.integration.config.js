@@ -6,12 +6,6 @@
  *
  * Run serially (maxWorkers: 1) so tests share one throwaway database with a
  * truncate between each.
- *
- * workerIdleMemoryLimit recycles the single worker's heap when it grows past the
- * limit, so a late-running suite starts from a clean heap. This keeps the
- * memory-sensitive native dependencies used by a few suites (pdfjs-dist's ESM
- * parser, sharp) from degrading under accumulated heap pressure across the full
- * serial run — the cause of an intermittent import-pdf parse flake.
  */
 /** @type {import('jest').Config} */
 module.exports = {
@@ -20,7 +14,6 @@ module.exports = {
   roots: ["<rootDir>/tests/integration"],
   testMatch: ["**/*.int.test.ts"],
   maxWorkers: 1,
-  workerIdleMemoryLimit: "512MB",
   globalSetup: "<rootDir>/tests/integration/support/global-setup.ts",
   globalTeardown: "<rootDir>/tests/integration/support/global-teardown.ts",
   setupFilesAfterEnv: ["<rootDir>/tests/integration/support/after-env.ts"],

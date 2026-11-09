@@ -3,7 +3,6 @@ import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
 import { deleteAuthUser } from "@/lib/supabase/admin";
 import { removeFeedbackScreenshots } from "@/lib/feedback/screenshots";
-import { removeSourceObjects } from "@/lib/import/storage";
 
 /**
  * THE ACCOUNT-DELETION MODULE (CLAUDE.md first invariant; Accounts spec R12).
@@ -41,11 +40,6 @@ export const ACCOUNT_DELETION_ORDER = [
   "PlannedCardio",
   "SessionExercise",
   "Session",
-  // Plan Import: an ImportSession may reference a confirmed draft Mesocycle
-  // (FK onDelete: Restrict), so its parts and the session itself must go BEFORE
-  // the mesocycles. Parts reference their session (Restrict), so parts first.
-  "ImportSourcePart",
-  "ImportSession",
   "Mesocycle",
   "ExerciseFavorite",
   "Exercise", // custom exercises only: the scoped write filter excludes the library
@@ -57,7 +51,6 @@ export const ACCOUNT_DELETION_ORDER = [
   "PromoRedemption", // Plans, Billing: references only the profile
   "BillingAccount", // Plans, Billing: the Stripe mirror; references only the profile
   "Entitlement", // Plans, Billing: trial/comp records; references only the profile
-  "ImportUsageDay", // Plan Import: the per-account daily quota counter; references only the profile
   "Profile",
 ] as const;
 
@@ -88,9 +81,6 @@ const DELETE: Record<
   PromoRedemption: (tx) => tx.promoRedemption.deleteMany({}),
   BillingAccount: (tx) => tx.billingAccount.deleteMany({}),
   Entitlement: (tx) => tx.entitlement.deleteMany({}),
-  ImportSourcePart: (tx) => tx.importSourcePart.deleteMany({}),
-  ImportSession: (tx) => tx.importSession.deleteMany({}),
-  ImportUsageDay: (tx) => tx.importUsageDay.deleteMany({}),
   Profile: (tx) => tx.profile.deleteMany({}),
 };
 
@@ -118,17 +108,6 @@ export async function deleteAccount(
     })
   ).map((a) => a.objectPath);
 
-  // Plan Import: capture every stored source object before the part rows go, so
-  // the private-bucket bytes are swept best-effort once the rows are deleted.
-  const importSourcePaths = (
-    await account.db.importSourcePart.findMany({
-      where: { objectPath: { not: null } },
-      select: { objectPath: true },
-    })
-  )
-    .map((p) => p.objectPath)
-    .filter((p): p is string => p !== null);
-
   const deleted = await account.db.$transaction(
     async (tx) => {
       const counts = {} as Record<AccountDeletionModel, number>;
@@ -140,11 +119,9 @@ export async function deleteAccount(
     { timeout: TRANSACTION_TIMEOUT_MS, maxWait: TRANSACTION_TIMEOUT_MS },
   );
 
-  // The attachment and import-source rows are gone; remove their Storage objects
-  // so none of the account's personal data is left behind. Best-effort (never
-  // throws).
+  // The attachment rows are gone; remove their Storage objects so none of the
+  // account's personal data is left behind. Best-effort (never throws).
   await removeFeedbackScreenshots(screenshotPaths);
-  await removeSourceObjects(importSourcePaths);
 
   let identityRemoved = false;
   try {

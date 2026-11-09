@@ -29,10 +29,6 @@ describe("ownership backfill coverage", () => {
       "entitlements",
       "billing_accounts",
       "promo_redemptions",
-      // Workout Plan Import & Review (9l): born owned, never pre-ownership.
-      "import_sessions",
-      "import_source_parts",
-      "import_usage_days",
     ];
     expect([...LEGACY_OWNED_TABLES].sort()).toEqual(
       owned

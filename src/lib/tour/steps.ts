@@ -29,7 +29,6 @@ export const TOUR_ANCHORS = [
   "nav-exercises",
   "nav-gyms",
   "page-plan",
-  "plan-import",
   "page-history",
   "page-goals",
   "page-exercises",
@@ -103,18 +102,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     targets: [{ anchor: "nav-plan", side: RAIL }, { anchor: "page-plan" }],
     title: "Plan",
     body: "Build your training here: a mesocycle of weeks, sessions on the days you train, and the sets and rep ranges for each exercise. Overload follows the plan you write.",
-  },
-  {
-    // Workout Plan Import & Review (overload-onboarding, OVE-110): the Import
-    // existing plan action is easy to miss and is a Pro capability, so the tour
-    // points it out. The target renders only for a Pro account with import
-    // enabled; otherwise it is absent and the step is skipped. Copy is that
-    // design doc's "Tour steps added" table, verbatim.
-    id: "plan-import",
-    route: "/plan",
-    targets: [{ anchor: "plan-import" }],
-    title: "Import an existing plan",
-    body: "Already have a plan written down? Import it — paste it or upload a photo, review what we read, and nothing saves until you confirm.",
   },
   {
     id: "history",

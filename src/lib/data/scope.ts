@@ -93,12 +93,6 @@ export const UNOWNED_SYSTEM_MODELS: readonly string[] = [
   // account-scoped client. Entitlement/BillingAccount/PromoRedemption all carry
   // user_id, so they are scoped automatically as owned models.
   "WebhookEvent",
-  // Workout Plan Import & Review (spec RD-6): the global provider-spend ledger.
-  // Un-owned (no account), no personal data (model id, micro-dollars, month
-  // bucket); written only by the extraction module (a raw-allowed path, OVE-106),
-  // never through the account-scoped client. ImportSession/ImportSourcePart/
-  // ImportUsageDay all carry user_id, so they are scoped automatically as owned.
-  "ImportSpendLedger",
 ];
 
 /**

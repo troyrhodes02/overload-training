@@ -13,12 +13,6 @@ export type ErrorCode =
   // reaches a Pro-only server action gets this; Pro read surfaces withhold in
   // the query layer instead.
   | "plan_required"
-  // Workout Plan Import & Review (Pitch 22, spec §11): the feature kill switch is
-  // off, the monthly budget is exhausted, or the provider is unconfigured — the
-  // import can't run right now. Distinct from plan_required (a capability gate).
-  | "import_unavailable"
-  // Workout Plan Import & Review: the per-account daily import quota is spent.
-  | "rate_limited"
   | "unauthorized"
   | "internal_error";
 
