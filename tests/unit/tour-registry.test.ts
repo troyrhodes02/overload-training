@@ -57,8 +57,6 @@ describe("registry validity", () => {
       "logging",
       "navigation",
       "plan",
-      // Added by Workout Plan Import & Review (OVE-110), after the Plan step.
-      "plan-import",
       "history",
       "goals",
       // Added by Exercise History & PR Intelligence (OVE-72), in rail order.
@@ -142,11 +140,7 @@ describe("copy is the design doc's, verbatim (R32)", () => {
 
   it("the design doc tables were found", () => {
     expect(initial.length).toBe(9); // eight steps + the logging step's (b) body
-    expect(added.map((r) => r.id)).toEqual([
-      "exercises",
-      "plan-billing",
-      "plan-import",
-    ]);
+    expect(added.map((r) => r.id)).toEqual(["exercises", "plan-billing"]);
   });
 
   it.each(TOUR_STEPS.map((s) => [s.id, s]))(

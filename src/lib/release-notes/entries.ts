@@ -35,23 +35,6 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
-    // Workout Plan Import & Review (Pitch 22; OVE-110, overload-onboarding).
-    // A headline trial-era capability lifters will look for, so it is
-    // significant (opens the dialog). It describes only what shipped — paste or
-    // upload, review against the source, confirm to create — and names Pro
-    // without claiming public availability or live payments. PROVISIONAL date:
-    // written during the pipeline run on 2026-11-08 while the feature PR waits
-    // for human approval (stop before merge). Before merging, set `date` and the
-    // id's date prefix to the production-ship day (the contract forbids
-    // backdating); once it reaches production it is published and never re-dated.
-    id: "2026-11-08-import-a-plan-you-already-wrote",
-    date: "2026-11-08",
-    title: "Import a plan you already wrote",
-    body: "Bring an existing program into Overload — paste the text or upload a PDF, screenshots, or photos. Review what we read next to your source, fix anything, and create the plan. Part of Pro.",
-    significant: true,
-    audience: "internal",
-  },
-  {
     // Public Landing Page & Changelog (Pitch 21 / slug 20; OVE-103,
     // overload-onboarding). Changes nothing about how a lifter trains, so NOT
     // significant: list only, no dialog. No tour step (design doc §13).

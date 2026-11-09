@@ -56,9 +56,6 @@ function fakeAccount(): {
     entitlement: { findMany: list("entitlement") },
     billingAccount: { findUnique: one("billingAccount") },
     promoRedemption: { findMany: list("promoRedemption") },
-    importSession: { findMany: list("importSession") },
-    importSourcePart: { findMany: list("importSourcePart") },
-    importUsageDay: { findMany: list("importUsageDay") },
   };
   const account = {
     userId: "11111111-1111-1111-1111-111111111111",
@@ -121,12 +118,6 @@ const OWNED_MODEL_EXPORT: Record<
     exportKey: "promoRedemptions",
     dbModel: "promoRedemption",
   },
-  ImportSession: { exportKey: "importSessions", dbModel: "importSession" },
-  ImportSourcePart: {
-    exportKey: "importSourceParts",
-    dbModel: "importSourcePart",
-  },
-  ImportUsageDay: { exportKey: "importUsageDays", dbModel: "importUsageDay" },
 };
 
 /** The owned models the export must cover: deletion order minus the Profile. */

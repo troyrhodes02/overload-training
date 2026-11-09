@@ -126,30 +126,6 @@ async function populate(account: Account, lib: Lib, label: string) {
       redeemedAt: new Date(),
     },
   });
-  // Workout Plan Import & Review: an import session (metadata + staged draft),
-  // an ordered source part (metadata only — no bytes), and a usage counter, so
-  // the import export lists are non-empty and carry no raw bytes.
-  const importSession = await account.db.importSession.create({
-    data: {
-      userId: account.userId,
-      status: "review",
-      sourceKind: "text",
-      draft: { version: 0, title: `${label} plan` },
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    },
-    select: { id: true },
-  });
-  await account.db.importSourcePart.create({
-    data: {
-      userId: account.userId,
-      sessionId: importSession.id,
-      position: 0,
-      text: `${label} pasted plan`,
-    },
-  });
-  await account.db.importUsageDay.create({
-    data: { userId: account.userId, dayKey: "2026-11-07", count: 1 },
-  });
   return { plan, oldGym, oldExercise };
 }
 
@@ -193,9 +169,6 @@ const LIST_SECTION_KEY: Record<
   FeedbackAttachment: "feedbackAttachments",
   Entitlement: "entitlements",
   PromoRedemption: "promoRedemptions",
-  ImportSession: "importSessions",
-  ImportSourcePart: "importSourceParts",
-  ImportUsageDay: "importUsageDays",
 };
 
 const LIST_SECTIONS = ACCOUNT_DELETION_ORDER.filter(
