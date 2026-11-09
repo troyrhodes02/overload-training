@@ -141,7 +141,7 @@ Exercise images are public-domain assets from free-exercise-db. They are the onl
 
 ### Secrets
 
-`DATABASE_URL`, `DIRECT_URL`, the Supabase service-role key, the invite code, the SMTP credentials, the Stripe secret and webhook signing keys, and the language-model API key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Vercel preview deployments and local development point at the Supabase dev project, never at production.
+`DATABASE_URL`, `DIRECT_URL`, the Supabase service-role key, the invite code, the SMTP credentials, the Stripe secret and webhook signing keys, and the language-model API key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Local development points at the Supabase CLI local stack; Vercel preview deployments point at the Supabase dev project (`overload-dev`, synthetic data only); neither ever points at production (`ycxvdiklpefyhdclxyau`). A Preview or Development deployment whose database or Supabase variables name the production ref fails its build and refuses to start (`src/lib/env/deployment-guard.ts`). See `docs/technical/environment-isolation.md`.
 
 ### Personal data
 
@@ -273,6 +273,7 @@ A pitch with genuinely no UI surface records the UI design step as skipped and c
 
 Some work is done by the product's owner directly, not as an application feature or a pipeline run: applying a migration to production, and seeding a friend's plan from their written plan. Seeding is run interactively with a Claude Code prompt that uses the seeding example already in the repository. Any operator task that writes production data follows these rules:
 
+- Confirm the target **database** by Supabase project ref before connecting, never by hostname: Production and the dev project share the pooler host. Every operator script runs the target-identity guard (`scripts/operator/target-identity.ts`) first. A hosted target needs `--confirm-ref <ref>`, and a dev target must carry its identity marker. Development tooling refuses production outright; the few runbook-sanctioned production tools need both `--production` and the production ref.
 - Name the target account explicitly, by email, and confirm the resolved account before writing anything. Never infer it.
 - Do a dry run first that shows exactly what would be created and changes nothing.
 - Create only. Never delete, overwrite, or merge into existing data in the account.

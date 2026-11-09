@@ -17,6 +17,7 @@
     "test:e2e:accounts": "playwright test --config playwright.accounts.config.ts",
     "verify:client-bundle": "node scripts/check-client-bundle.mjs",
     "db:seed": "prisma db seed",
+    "db:migrate:dev": "tsx scripts/operator/migrate-dev/cli.ts",
     "import:plan": "tsx --conditions=react-server scripts/import/real-plan/cli.ts",
     "ownership:backfill": "tsx --conditions=react-server scripts/operator/account-ownership/cli.ts",
     "founding-members:grant": "tsx --conditions=react-server scripts/operator/founding-members/cli.ts",

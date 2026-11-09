@@ -94,19 +94,26 @@ describe("CLI arguments", () => {
     expect(args.execute).toBe(false);
     expect(typeof args.before).toBe("string");
   });
-  it("accepts --execute, an explicit --before, and --confirm-host", () => {
+  it("accepts --execute, an explicit --before, --confirm-ref and --production", () => {
     const args = parseArgs([
       "--before",
       "2026-11-01T00:00:00Z",
       "--execute",
-      "--confirm-host",
-      "db.example.com",
+      "--confirm-ref",
+      "abcdefghijklmnopqrst",
+      "--production",
     ]);
     expect(args).toMatchObject({
       before: "2026-11-01T00:00:00Z",
       execute: true,
-      confirmHost: "db.example.com",
+      confirmRef: "abcdefghijklmnopqrst",
+      production: true,
       unexpected: [],
     });
+  });
+  it("no longer accepts --confirm-host (OVE-111: hosts are shared by projects)", () => {
+    expect(parseArgs(["--confirm-host", "h"]).unexpected).toContain(
+      "--confirm-host",
+    );
   });
 });

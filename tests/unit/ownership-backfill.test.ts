@@ -59,24 +59,33 @@ describe("backfill CLI arguments", () => {
     ).toEqual({
       email: "a@b.c",
       timeZone: "America/Chicago",
-      confirmHost: undefined,
+      confirmRef: undefined,
+      production: false,
       execute: false,
       unexpected: [],
     });
   });
 
-  it("reads --execute and --confirm-host", () => {
+  it("reads --execute, --confirm-ref and --production", () => {
     const args = parseArgs([
       "--email",
       "a@b.c",
       "--time-zone",
       "UTC",
       "--execute",
-      "--confirm-host",
-      "db.example.supabase.co",
+      "--confirm-ref",
+      "abcdefghijklmnopqrst",
+      "--production",
     ]);
     expect(args.execute).toBe(true);
-    expect(args.confirmHost).toBe("db.example.supabase.co");
+    expect(args.confirmRef).toBe("abcdefghijklmnopqrst");
+    expect(args.production).toBe(true);
+  });
+
+  it("no longer accepts --confirm-host (OVE-111: hosts are shared by projects)", () => {
+    expect(
+      parseArgs(["--email", "a@b.c", "--confirm-host", "h"]).unexpected,
+    ).toContain("--confirm-host");
   });
 
   it("collects anything unexpected (e.g. PowerShell dropping `--` options)", () => {

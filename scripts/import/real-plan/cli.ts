@@ -2,88 +2,73 @@
  * One-time import of the lifter's real plan into the database in DATABASE_URL.
  * Admin tooling: never imported by `src/`, no route, no browser surface.
  *
- *   npm run import:plan -- --account-email <email>                          # DRY RUN (default)
- *   npm run import:plan -- --account-email <email> --apply --confirm-host <host>
+ *   npm run import:plan -- --account-email <email> [--confirm-ref <ref>]   # DRY RUN (default)
+ *   … --apply                                                              # writes, one transaction
  *
- * The dry run prints the target host, the target account (resolved from the
- * email to exactly one auth user, which must already have a profile), every
- * gym / exercise / session / cardio decision, and any blocker. --apply refuses
- * unless the dry run is clean and <host> exactly matches the DATABASE_URL host
- * (no secrets are printed). The account is never inferred (CLAUDE.md →
- * Operator tasks; Multi-User Foundation R19).
+ * Before ANY connection, the target-identity guard (scripts/operator/
+ * target-identity.ts, OVE-111) identifies the project from DATABASE_URL,
+ * DIRECT_URL and NEXT_PUBLIC_SUPABASE_URL. A hosted project needs
+ * --confirm-ref <its ref> (a hostname is never confirmation) plus its database
+ * identity marker; PRODUCTION additionally needs --production. The dry run
+ * prints the target, the target account (resolved from the email to exactly
+ * one auth user, which must already have a profile), every gym / exercise /
+ * session / cardio decision, and any blocker. --apply refuses unless the dry
+ * run is clean. No secrets are printed. The account is never inferred
+ * (CLAUDE.md → Operator tasks; Multi-User Foundation R19).
  */
 import "dotenv/config";
 import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { BLOCKS, SESSIONS } from "./plan";
-
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+import {
+  CONFIRM_HOST_RETIRED,
+  TargetRefused,
+  assertOperatorTarget,
+  describeTarget,
+  verifyTargetMarker,
+  type VerifiedTarget,
+} from "../../operator/target-identity";
 
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
 }
 
-function target() {
-  const raw = process.env.DATABASE_URL;
-  if (!raw) fail("DATABASE_URL is not set.");
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    fail("DATABASE_URL is not a valid URL.");
-  }
-  const host = url.hostname.toLowerCase();
-  const user = decodeURIComponent(url.username).toLowerCase();
-  // The app's Supabase project must be the same environment as the database.
-  const appUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  let project = "local";
-  if (appUrl) {
-    const appHost = new URL(appUrl).hostname.toLowerCase();
-    const ref = /^([a-z0-9]+)\.supabase\.(co|com|in|net)$/.exec(appHost)?.[1];
-    if (ref) {
-      project = ref;
-      if (!(user.endsWith(`.${ref}`) || host === `db.${ref}.supabase.co`)) {
-        fail(
-          `Refusing: DATABASE_URL does not belong to the Supabase project "${ref}" in NEXT_PUBLIC_SUPABASE_URL.`,
-        );
-      }
-    } else if (!LOCAL_HOSTS.has(appHost) || !LOCAL_HOSTS.has(host)) {
-      fail(
-        "Refusing: the database and NEXT_PUBLIC_SUPABASE_URL are different environments.",
-      );
-    }
+const VALUE_FLAGS = new Set(["--account-email", "--confirm-ref"]);
+
+export function parseArgs(argv: string[]) {
+  const values: Record<string, string> = {};
+  let apply = false;
+  let production = false;
+  const unexpected: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--apply") apply = true;
+    else if (arg === "--production") production = true;
+    else if (VALUE_FLAGS.has(arg) && i + 1 < argv.length)
+      values[arg] = argv[++i];
+    else unexpected.push(arg);
   }
   return {
-    host,
-    project,
-    local: LOCAL_HOSTS.has(host),
-    database: url.pathname.replace(/^\//, "") || "postgres",
+    accountEmail: values["--account-email"],
+    confirmRef: values["--confirm-ref"],
+    apply,
+    production,
+    unexpected,
   };
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const apply = args.includes("--apply");
-  const confirmIdx = args.indexOf("--confirm-host");
-  const confirmHost = confirmIdx >= 0 ? args[confirmIdx + 1] : undefined;
-  const emailIdx = args.indexOf("--account-email");
-  const accountEmail = emailIdx >= 0 ? args[emailIdx + 1] : undefined;
+  const args = parseArgs(process.argv.slice(2));
+  const { apply, accountEmail } = args;
+  if (args.unexpected.includes("--confirm-host")) fail(CONFIRM_HOST_RETIRED);
   // Anything else is a mistake — e.g. PowerShell swallowing `--`, so npm eats
-  // --apply/--confirm-host and only the host arrives. Fail loudly, never
-  // silently fall back to a different mode.
-  const unexpected = args.filter(
-    (a, i) =>
-      a !== "--apply" &&
-      a !== "--confirm-host" &&
-      a !== "--account-email" &&
-      !(args[i - 1] === "--confirm-host" && i === confirmIdx + 1) &&
-      !(args[i - 1] === "--account-email" && i === emailIdx + 1),
-  );
-  if (unexpected.length) {
+  // the flags and only their values arrive. Fail loudly, never silently fall
+  // back to a different mode.
+  if (args.unexpected.length) {
     fail(
-      `Unexpected argument(s): ${unexpected.join(" ")}\n` +
+      `Unexpected argument(s): ${args.unexpected.join(" ")}\n` +
         "In PowerShell, npm drops options after `--`. Run the script directly instead:\n" +
-        "  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --account-email <email> --apply --confirm-host <host>",
+        "  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --account-email <email> [--confirm-ref <ref>] --apply",
     );
   }
   if (!accountEmail) {
@@ -92,11 +77,19 @@ async function main() {
     );
   }
 
-  const t = target();
-  if (apply && confirmHost !== t.host) {
-    fail(
-      `Refusing to write: re-run with --apply --confirm-host ${t.host} after reviewing the dry run.`,
-    );
+  // Identity first — before the module that builds the Prisma client loads.
+  let t: VerifiedTarget;
+  try {
+    t = assertOperatorTarget({
+      env: process.env,
+      uses: ["DATABASE_URL"],
+      confirmRef: args.confirmRef,
+      production: "explicit-opt-in",
+      productionOptIn: args.production,
+    });
+  } catch (error) {
+    if (error instanceof TargetRefused) fail(error.message);
+    throw error;
   }
 
   // Loaded only after the target checks: these create the Prisma client.
@@ -106,6 +99,12 @@ async function main() {
   const { accountFor } = await import("@/lib/data/operator");
 
   try {
+    try {
+      await verifyTargetMarker(t, (sql) => prisma.$queryRawUnsafe(sql));
+    } catch (error) {
+      if (error instanceof TargetRefused) fail(error.message);
+      throw error;
+    }
     const target = await resolveTargetAccount(prisma, accountEmail);
     if ("error" in target) fail(`Refusing: ${target.error}`);
     const account = await accountFor(target.userId);
@@ -116,10 +115,7 @@ async function main() {
     );
     out.push(``);
     out.push(`## Environment`);
-    out.push(
-      `  Database host   ${t.host}${t.local ? " (LOCAL)" : " (REMOTE)"} / ${t.database}`,
-    );
-    out.push(`  Supabase project ${t.project}`);
+    out.push(`  Target          ${describeTarget(t)}`);
     out.push(`  Target account  ${target.email} → ${target.userId}`);
     out.push(
       `  Auth accounts   ${ins.authAccounts ?? "n/a"} (never created or changed)`,
@@ -202,7 +198,11 @@ async function main() {
     if (!apply) {
       out.push(`Dry run clean. To write (works in PowerShell too):`);
       out.push(
-        `  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --account-email ${target.email} --apply --confirm-host ${t.host}`,
+        `  npx tsx --conditions=react-server scripts/import/real-plan/cli.ts --account-email ${target.email}` +
+          (t.kind === "hosted"
+            ? ` --confirm-ref ${t.ref}${t.production ? " --production" : ""}`
+            : "") +
+          " --apply",
       );
       console.log(out.join("\n"));
       return;
@@ -234,7 +234,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

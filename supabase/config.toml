@@ -1,7 +1,9 @@
 # Supabase CLI config for LOCAL development (`npx supabase start`).
 # This drives the local Docker stack (Postgres + Auth + Studio) that stands in
-# for a cloud project during development. The only CLOUD Supabase project is
-# `overload-prod` (production); there is no dev cloud project.
+# for a cloud project during development. The CLOUD projects are `overload-dev`
+# (Vercel Preview only, synthetic data) and `overload-prod` (production). Their
+# auth and storage settings are configured in each project's dashboard, not here;
+# see docs/technical/environment-isolation.md.
 #
 # If your installed CLI needs a different `[db].major_version` image than below,
 # change it to match (or run `npx supabase init` to regenerate a full config and
