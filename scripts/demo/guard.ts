@@ -3,19 +3,32 @@
  * 4). It runs BEFORE any database connection, in every mode (dry run
  * included), and has no override flag.
  *
- * Overload's only cloud project, ref `ycxvdiklpefyhdclxyau`, IS PRODUCTION,
- * whatever a `.env` or a Preview label calls it — and the repository's `.env`
- * points at it. So the demo tools:
+ * Supabase ref `ycxvdiklpefyhdclxyau` IS PRODUCTION, whatever a `.env` or a
+ * Preview label calls it. So the demo tools:
  *   - never load `.env` (they read only what the operator exported);
  *   - refuse outright if ANY database or Supabase variable in the process
- *     names a production project ref or any hosted Supabase host;
- *   - accept only a loopback database (the local Supabase CLI stack, or an
- *     embedded test Postgres).
- * A future, separately owner-approved production demo account is NOT
- * reachable from these tools (runbook: separate operator procedure).
+ *     names a production project ref — with no override, in every mode;
+ *   - by default accept only a loopback database (the local Supabase CLI
+ *     stack, or an embedded test Postgres) and refuse any hosted Supabase;
+ *   - with `--confirm-ref <ref>` (OVE-111), accept exactly ONE hosted
+ *     non-production project — the development project — when DATABASE_URL
+ *     (and DIRECT_URL, if set) and NEXT_PUBLIC_SUPABASE_URL all identify that
+ *     same ref (scripts/operator/target-identity.ts). The CLI then verifies
+ *     the database identity marker before anything is read or written.
+ * A production demo account is NOT reachable from these tools (runbook:
+ * separate operator procedure).
  */
+import {
+  PRODUCTION_PROJECT_REFS,
+  TargetRefused,
+  assertOperatorTarget,
+  describeTarget,
+  verifyTargetMarker,
+  type VerifiedTarget,
+} from "../operator/target-identity";
 
-export const PRODUCTION_PROJECT_REFS = ["ycxvdiklpefyhdclxyau"] as const;
+export { PRODUCTION_PROJECT_REFS, describeTarget, verifyTargetMarker };
+export type { VerifiedTarget };
 
 /** Every variable that could point a tool at a database or Supabase project. */
 export const GUARDED_ENV_VARS = [
@@ -51,11 +64,14 @@ export function isLoopbackHost(host: string | null): boolean {
 
 /**
  * Throws DemoSeedRefused unless the environment is provably isolated. Returns
- * the guarded DATABASE_URL and its host. Never echoes a credential.
+ * the guarded DATABASE_URL, its host, and the verified target. Never echoes a
+ * credential. `confirmRef` (the CLI's --confirm-ref) is the ONLY way to reach a
+ * hosted project, and it can never reach Production.
  */
 export function assertSafeEnvironment(
   env: Record<string, string | undefined> = process.env,
-): { databaseUrl: string; host: string } {
+  opts: { confirmRef?: string } = {},
+): { databaseUrl: string; host: string; target: VerifiedTarget } {
   for (const name of GUARDED_ENV_VARS) {
     const value = env[name];
     if (!value) continue;
@@ -63,10 +79,19 @@ export function assertSafeEnvironment(
     for (const ref of PRODUCTION_PROJECT_REFS) {
       if (lower.includes(ref)) {
         throw new DemoSeedRefused(
-          `${name} names the PRODUCTION project (${ref}). The demo tools never touch production. Export local-stack values instead.`,
+          `${name} names the PRODUCTION project (${ref}). The demo tools never touch production. Export local-stack or development values instead.`,
         );
       }
     }
+  }
+
+  const confirmRef = opts.confirmRef?.trim();
+  if (confirmRef) return assertConfirmedHostedTarget(env, confirmRef);
+
+  for (const name of GUARDED_ENV_VARS) {
+    const value = env[name];
+    if (!value) continue;
+    const lower = value.toLowerCase();
     const host = hostOf(value);
     if (host && HOSTED_SUPABASE.test(host)) {
       throw new DemoSeedRefused(
@@ -92,7 +117,35 @@ export function assertSafeEnvironment(
       `DATABASE_URL host ${host ?? "(unparseable)"} is not loopback. The demo tools run only against a local, isolated database.`,
     );
   }
-  return { databaseUrl, host: host! };
+  return { databaseUrl, host: host!, target: { kind: "local", host: host! } };
+}
+
+/** The --confirm-ref path: one explicitly confirmed, non-production project. */
+function assertConfirmedHostedTarget(
+  env: Record<string, string | undefined>,
+  confirmRef: string,
+): { databaseUrl: string; host: string; target: VerifiedTarget } {
+  let target: VerifiedTarget;
+  try {
+    target = assertOperatorTarget({
+      env,
+      uses: ["DATABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      confirmRef,
+      production: "refuse",
+      allowLocal: false,
+    });
+  } catch (error) {
+    if (error instanceof TargetRefused) {
+      throw new DemoSeedRefused(error.message);
+    }
+    throw error;
+  }
+  if (target.kind !== "hosted" || target.production) {
+    throw new DemoSeedRefused(
+      "--confirm-ref accepts only a hosted, non-production project.",
+    );
+  }
+  return { databaseUrl: env.DATABASE_URL!, host: target.host, target };
 }
 
 /** "demo@example.test" → "d***@example.test" (never print a full email). */

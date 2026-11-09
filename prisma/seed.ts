@@ -5,11 +5,15 @@
  *
  * Run with `npm run db:seed` (→ `prisma db seed` → `tsx prisma/seed.ts`).
  *
- * Environment (from the operator's shell; see docs/runs/02-library-gyms-setup-runbook.md):
+ * Environment (from the operator's shell; see docs/technical/environment-isolation.md):
  *   DATABASE_URL               target database (pooled URL is fine)
+ *   DIRECT_URL                 if set, must name the same project
  *   NEXT_PUBLIC_SUPABASE_URL   target Supabase project URL
  *   SUPABASE_SERVICE_ROLE_KEY  server-only; used here ONLY to write Storage
- *   OVERLOAD_IMPORT_CONFIRM_HOST  required when DATABASE_URL is not local
+ * Flags (hosted targets; run `npx tsx prisma/seed.ts …` so they arrive):
+ *   --confirm-ref <ref>   required for a hosted project (or OVERLOAD_IMPORT_CONFIRM_REF)
+ *   --production          only for a deliberate, runbook-driven production run
+ * See ./seed/target-guard.ts (OVE-111) for the identity rules.
  *
  * This process builds its own PrismaClient: src/lib/db.ts is `server-only` and
  * cannot load outside Next. It is a separate CLI process, so "one client per
@@ -25,6 +29,10 @@ import {
   loadVendoredDataset,
 } from "./seed/free-exercise-db/source";
 import { assertImportTargetAllowed } from "./seed/target-guard";
+import {
+  describeTarget,
+  verifyTargetMarker,
+} from "../scripts/operator/target-identity";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -33,19 +41,18 @@ function requireEnv(name: string): string {
 }
 
 async function main() {
+  // Identity first (OVE-111): database AND Storage must be the same project;
+  // a hosted project needs its ref confirmed. Runs before any connection.
+  const { target } = assertImportTargetAllowed(
+    process.env,
+    process.argv.slice(2),
+  );
   const databaseUrl = requireEnv("DATABASE_URL");
   const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
-  // Database AND Storage must be the same environment; remote needs confirmation.
-  const { host, remote } = assertImportTargetAllowed(
-    databaseUrl,
-    supabaseUrl,
-    process.env.OVERLOAD_IMPORT_CONFIRM_HOST,
-  );
   const serviceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
   console.log(
-    `Importing free-exercise-db @ ${FREE_EXERCISE_DB_COMMIT.slice(0, 7)} into ${host}` +
-      (remote ? " (REMOTE — confirmed)" : " (local)"),
+    `Importing free-exercise-db @ ${FREE_EXERCISE_DB_COMMIT.slice(0, 7)} into ${describeTarget(target)}`,
   );
 
   const prisma = new PrismaClient({
@@ -56,6 +63,8 @@ async function main() {
   });
 
   try {
+    // Independent proof from the connected database, before any write.
+    await verifyTargetMarker(target, (sql) => prisma.$queryRawUnsafe(sql));
     const report = await importCatalog({
       prisma,
       records: loadVendoredDataset(),

@@ -1,5 +1,7 @@
 # Library & Gyms Setup — External Setup Runbook
 
+> **Superseded confirmation (OVE-111, 2026-11-09).** `OVERLOAD_IMPORT_CONFIRM_HOST` is retired and refused. Production and the dev project share the Supabase pooler hostname, so a host cannot confirm a target. The import now needs `--confirm-ref <project ref>` (run `npx tsx prisma/seed.ts …` so the flags arrive); for Production it also needs the explicit `--production` flag. Export `DATABASE_URL`, `DIRECT_URL` and `NEXT_PUBLIC_SUPABASE_URL` for the same project. See `docs/technical/environment-isolation.md`. The commands below are kept as the historical record.
+
 Everything here is a **human / external** step the autonomous run could not (and
 must not) perform: applying the migration to `overload-prod`, creating the
 production image bucket, using the Supabase **service-role** key, running the

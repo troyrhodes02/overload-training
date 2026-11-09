@@ -1269,17 +1269,28 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
 
   it("a machine goal is touched only at its gym; a swap counts to the performed exercise", async () => {
     const { meso, bench, chestPress, downtown, campus } = await setup();
-    await createGoal(account, {
-      exerciseId: chestPress.id,
-      gymId: downtown.id,
-      targetWeightLbs: 200,
-      targetReps: 10,
-    });
-    await createGoal(account, {
-      exerciseId: bench.id,
-      targetWeightLbs: 315,
-      targetReps: 1,
-    });
+    // Set before both workouts (2026-11-02, 2026-11-09), on a fixed date: with
+    // the wall clock, the goals became "newer" than the 2026-11-09 workout from
+    // 2026-11-09T13:00Z on and were (correctly) excluded, failing this test.
+    await createGoal(
+      account,
+      {
+        exerciseId: chestPress.id,
+        gymId: downtown.id,
+        targetWeightLbs: 200,
+        targetReps: 10,
+      },
+      new Date("2026-11-01T00:00:00Z"),
+    );
+    await createGoal(
+      account,
+      {
+        exerciseId: bench.id,
+        targetWeightLbs: 315,
+        targetReps: 1,
+      },
+      new Date("2026-11-01T00:00:00Z"),
+    );
 
     const atCampus = await logPerf({
       mesocycleId: meso.id,
@@ -1316,11 +1327,18 @@ describe("post-session goal rows (OVE-32; design Screen 8)", () => {
 
   it("an in-progress or scheduled-deload session touches no goal", async () => {
     const { meso, bench } = await setup();
-    await createGoal(account, {
-      exerciseId: bench.id,
-      targetWeightLbs: 315,
-      targetReps: 1,
-    });
+    // Set before both workouts (2026-11-02, 2026-11-30) on a fixed date, so the
+    // empty result proves the in-progress / deload rule — not the separate
+    // "goal set after the workout" rule, which the wall clock would trigger.
+    await createGoal(
+      account,
+      {
+        exerciseId: bench.id,
+        targetWeightLbs: 315,
+        targetReps: 1,
+      },
+      new Date("2026-11-01T00:00:00Z"),
+    );
     const inProgress = await logPerf({
       mesocycleId: meso.id,
       exerciseId: bench.id,

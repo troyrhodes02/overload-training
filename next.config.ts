@@ -1,4 +1,10 @@
 import type { NextConfig } from "next";
+import { assertDeploymentTarget } from "./src/lib/env/deployment-guard";
+
+// OVE-111: fail a Preview/Development BUILD whose database or Supabase
+// variables reference the Production project. Production and local builds are
+// unaffected. The error names the variable only, never its value.
+assertDeploymentTarget(process.env);
 
 const nextConfig: NextConfig = {
   cacheComponents: true,

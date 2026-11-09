@@ -5,83 +5,173 @@ import {
 import { assertImportTargetAllowed } from "../../prisma/seed/target-guard";
 import { importedImageObjectPath } from "../../prisma/seed/catalog-import";
 
-describe("catalog import target guard", () => {
+describe("catalog import target guard (OVE-111: identity by project ref)", () => {
+  const PROD = "ycxvdiklpefyhdclxyau";
+  const DEV = "abcdefghijklmnopqrst";
+  const POOLER_HOST = "aws-0-us-east-1.pooler.supabase.com";
   const LOCAL_DB = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
   const LOCAL_API = "http://127.0.0.1:54321";
-  const PROD_POOLER =
-    "postgresql://postgres.abcdref:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres";
-  const PROD_DIRECT =
-    "postgresql://postgres:pw@db.abcdref.supabase.co:5432/postgres";
-  const PROD_API = "https://abcdref.supabase.co";
-  const OTHER_API = "https://otherref.supabase.co";
+  const pooled = (ref: string) =>
+    `postgresql://postgres.${ref}:pw@${POOLER_HOST}:6543/postgres`;
+  const api = (ref: string) => `https://${ref}.supabase.co`;
+  const hosted = (ref: string, extra: Record<string, string> = {}) => ({
+    DATABASE_URL: pooled(ref),
+    NEXT_PUBLIC_SUPABASE_URL: api(ref),
+    ...extra,
+  });
 
   it("allows a local database with local Storage, without confirmation", () => {
-    expect(assertImportTargetAllowed(LOCAL_DB, LOCAL_API, undefined)).toEqual({
-      host: "127.0.0.1",
-      remote: false,
-    });
     expect(
-      assertImportTargetAllowed(
-        "postgresql://u:p@localhost:5432/db",
-        "http://localhost:54321",
-        undefined,
-      ).remote,
-    ).toBe(false);
+      assertImportTargetAllowed({
+        DATABASE_URL: LOCAL_DB,
+        NEXT_PUBLIC_SUPABASE_URL: LOCAL_API,
+      }),
+    ).toMatchObject({ host: "127.0.0.1", remote: false });
   });
 
   it("refuses mixed environments (rows and images must go to the same place)", () => {
     expect(() =>
-      assertImportTargetAllowed(LOCAL_DB, PROD_API, undefined),
-    ).toThrow(/different environments/);
-    expect(() =>
-      assertImportTargetAllowed(
-        PROD_POOLER,
-        LOCAL_API,
-        "aws-0-us-east-1.pooler.supabase.com",
-      ),
+      assertImportTargetAllowed({
+        DATABASE_URL: LOCAL_DB,
+        NEXT_PUBLIC_SUPABASE_URL: api(DEV),
+        OVERLOAD_IMPORT_CONFIRM_REF: DEV,
+      }),
     ).toThrow(/different environments/);
   });
 
-  it("refuses a remote database from a different Supabase project than Storage", () => {
+  it("refuses a database from a different project than Storage", () => {
     expect(() =>
-      assertImportTargetAllowed(
-        PROD_POOLER,
-        OTHER_API,
-        "aws-0-us-east-1.pooler.supabase.com",
-      ),
-    ).toThrow(/does not belong/);
+      assertImportTargetAllowed({
+        DATABASE_URL: pooled("zyxwvutsrqponmlkjihg"),
+        NEXT_PUBLIC_SUPABASE_URL: api(DEV),
+        OVERLOAD_IMPORT_CONFIRM_REF: DEV,
+      }),
+    ).toThrow(/different projects/);
   });
 
-  it("refuses a remote target unless the exact database host is confirmed", () => {
+  it("refuses the retired host confirmation — the pooler host is shared by every project", () => {
     expect(() =>
-      assertImportTargetAllowed(PROD_POOLER, PROD_API, undefined),
-    ).toThrow(/Refusing/);
+      assertImportTargetAllowed(
+        hosted(DEV, { OVERLOAD_IMPORT_CONFIRM_HOST: POOLER_HOST }),
+      ),
+    ).toThrow(/no longer accepted/);
+  });
+
+  it("refuses a hosted development project without an explicit ref confirmation", () => {
+    expect(() => assertImportTargetAllowed(hosted(DEV))).toThrow(
+      /--confirm-ref|never sufficient/,
+    );
     expect(() =>
-      assertImportTargetAllowed(PROD_POOLER, PROD_API, "some-other-host"),
-    ).toThrow(/Refusing/);
+      assertImportTargetAllowed(
+        hosted(DEV, { OVERLOAD_IMPORT_CONFIRM_REF: POOLER_HOST }),
+      ),
+    ).toThrow(/does not match/);
+  });
+
+  it("allows the confirmed development project", () => {
     expect(
       assertImportTargetAllowed(
-        PROD_POOLER,
-        PROD_API,
-        "aws-0-us-east-1.pooler.supabase.com",
+        hosted(DEV, { OVERLOAD_IMPORT_CONFIRM_REF: DEV }),
       ),
-    ).toEqual({ host: "aws-0-us-east-1.pooler.supabase.com", remote: true });
+    ).toMatchObject({
+      host: POOLER_HOST,
+      remote: true,
+      target: { kind: "hosted", ref: DEV, production: false },
+    });
+  });
+
+  it("refuses PRODUCTION unless the --production flag AND the production ref are both given", () => {
+    expect(() => assertImportTargetAllowed(hosted(PROD))).toThrow(/PRODUCTION/);
+    expect(() =>
+      assertImportTargetAllowed(hosted(PROD), ["--confirm-ref", PROD]),
+    ).toThrow(/PRODUCTION/);
+    expect(() =>
+      assertImportTargetAllowed(hosted(PROD), ["--production"]),
+    ).toThrow(/PRODUCTION/);
+    expect(() =>
+      assertImportTargetAllowed(hosted(PROD), [
+        "--production",
+        "--confirm-ref",
+        DEV,
+      ]),
+    ).toThrow(/PRODUCTION/);
     expect(
-      assertImportTargetAllowed(PROD_DIRECT, PROD_API, "db.abcdref.supabase.co")
-        .remote,
-    ).toBe(true);
+      assertImportTargetAllowed(hosted(PROD), [
+        "--production",
+        "--confirm-ref",
+        PROD,
+      ]).target,
+    ).toMatchObject({ ref: PROD, production: true });
+  });
+
+  it("has no environment-variable form of the production opt-in", () => {
+    for (const value of ["true", "false", ""]) {
+      expect(() =>
+        assertImportTargetAllowed(
+          hosted(PROD, {
+            OVERLOAD_IMPORT_PRODUCTION: value,
+            OVERLOAD_IMPORT_CONFIRM_REF: PROD,
+          }),
+        ),
+      ).toThrow(/--production command-line flag only/);
+    }
+  });
+
+  it("never treats --production as a fallback for a non-production target", () => {
+    expect(() =>
+      assertImportTargetAllowed(hosted(DEV), [
+        "--production",
+        "--confirm-ref",
+        DEV,
+      ]),
+    ).toThrow(/not Production/);
+    expect(() =>
+      assertImportTargetAllowed(
+        { DATABASE_URL: LOCAL_DB, NEXT_PUBLIC_SUPABASE_URL: LOCAL_API },
+        ["--production"],
+      ),
+    ).toThrow(/local stack/);
+  });
+
+  it("accepts the dev confirmation as a flag, and refuses a conflicting env confirmation", () => {
+    expect(
+      assertImportTargetAllowed(hosted(DEV), ["--confirm-ref", DEV]).target,
+    ).toMatchObject({ ref: DEV, production: false });
+    expect(() =>
+      assertImportTargetAllowed(
+        hosted(DEV, { OVERLOAD_IMPORT_CONFIRM_REF: "zyxwvutsrqponmlkjihg" }),
+        ["--confirm-ref", DEV],
+      ),
+    ).toThrow(/disagree/);
+    expect(() =>
+      assertImportTargetAllowed(hosted(DEV), ["--confirm-host", POOLER_HOST]),
+    ).toThrow(/no longer accepted/);
+  });
+
+  it("refuses a production DIRECT_URL left in the environment beside a dev target", () => {
+    expect(() =>
+      assertImportTargetAllowed(
+        hosted(DEV, {
+          OVERLOAD_IMPORT_CONFIRM_REF: DEV,
+          DIRECT_URL: `postgresql://postgres:pw@db.${PROD}.supabase.co:5432/postgres`,
+        }),
+      ),
+    ).toThrow();
   });
 
   it("refuses when a target is missing or malformed", () => {
     expect(() =>
-      assertImportTargetAllowed(undefined, LOCAL_API, undefined),
-    ).toThrow();
+      assertImportTargetAllowed({ NEXT_PUBLIC_SUPABASE_URL: LOCAL_API }),
+    ).toThrow(/DATABASE_URL is not set/);
+    expect(() => assertImportTargetAllowed({ DATABASE_URL: LOCAL_DB })).toThrow(
+      /NEXT_PUBLIC_SUPABASE_URL is not set/,
+    );
     expect(() =>
-      assertImportTargetAllowed(LOCAL_DB, undefined, undefined),
-    ).toThrow();
-    expect(() =>
-      assertImportTargetAllowed("not a url", LOCAL_API, undefined),
-    ).toThrow();
+      assertImportTargetAllowed({
+        DATABASE_URL: "not a url",
+        NEXT_PUBLIC_SUPABASE_URL: LOCAL_API,
+      }),
+    ).toThrow(/cannot be identified/);
   });
 });
 

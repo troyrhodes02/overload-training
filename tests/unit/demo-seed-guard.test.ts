@@ -109,6 +109,86 @@ describe("production hard refusal (RD-16)", () => {
   });
 });
 
+describe("one explicitly confirmed development project (OVE-111)", () => {
+  const DEV = "abcdefghijklmnopqrst";
+  const POOLER = "aws-0-us-east-1.pooler.supabase.com";
+  const devEnv = (extra: Record<string, string> = {}) => ({
+    DATABASE_URL: `postgresql://postgres.${DEV}:pw@${POOLER}:6543/postgres`,
+    NEXT_PUBLIC_SUPABASE_URL: `https://${DEV}.supabase.co`,
+    ...extra,
+  });
+
+  it("still refuses a hosted project when no --confirm-ref is given", () => {
+    expect(() => assertSafeEnvironment(devEnv())).toThrow(DemoSeedRefused);
+  });
+
+  it("accepts exactly the confirmed development project", () => {
+    const out = assertSafeEnvironment(devEnv(), { confirmRef: DEV });
+    expect(out.target).toEqual({
+      kind: "hosted",
+      ref: DEV,
+      host: POOLER,
+      production: false,
+    });
+  });
+
+  it("refuses a confirmation that names the shared pooler host or another ref", () => {
+    for (const confirmRef of [POOLER, "zyxwvutsrqponmlkjihg"]) {
+      expect(() => assertSafeEnvironment(devEnv(), { confirmRef })).toThrow(
+        DemoSeedRefused,
+      );
+    }
+  });
+
+  it("never reaches Production, even when the production ref is confirmed", () => {
+    const prodEnv = {
+      DATABASE_URL: `postgresql://postgres.${PROD_REF}:pw@${POOLER}:6543/postgres`,
+      NEXT_PUBLIC_SUPABASE_URL: `https://${PROD_REF}.supabase.co`,
+    };
+    expect(() =>
+      assertSafeEnvironment(prodEnv, { confirmRef: PROD_REF }),
+    ).toThrow(/PRODUCTION/);
+  });
+
+  it("refuses a database and Supabase URL from different projects", () => {
+    expect(() =>
+      assertSafeEnvironment(
+        devEnv({
+          NEXT_PUBLIC_SUPABASE_URL: "https://zyxwvutsrqponmlkjihg.supabase.co",
+        }),
+        { confirmRef: DEV },
+      ),
+    ).toThrow(/different projects/);
+  });
+
+  it("requires NEXT_PUBLIC_SUPABASE_URL to cross-check a hosted target", () => {
+    const { NEXT_PUBLIC_SUPABASE_URL: _omit, ...env } = devEnv();
+    void _omit;
+    expect(() => assertSafeEnvironment(env, { confirmRef: DEV })).toThrow(
+      DemoSeedRefused,
+    );
+  });
+
+  it("refuses --confirm-ref against the local stack", () => {
+    expect(() =>
+      assertSafeEnvironment(
+        {
+          DATABASE_URL: LOCAL,
+          NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+        },
+        { confirmRef: DEV },
+      ),
+    ).toThrow(DemoSeedRefused);
+  });
+
+  it("reads --confirm-ref from the arguments", () => {
+    const ID = "b0000000-0000-4000-8000-000000000002";
+    const args = parseArgs(["--user-id", ID, "--confirm-ref", DEV]);
+    expect(args.confirmRef).toBe(DEV);
+    expect(argsProblem(args)).toBeNull();
+  });
+});
+
 describe("arguments: explicit target, dry run by default", () => {
   const ID = "b0000000-0000-4000-8000-000000000002";
 
@@ -198,9 +278,16 @@ describe("static invariants of scripts/demo (RD-17)", () => {
       ...cli.matchAll(/^import[^;]*from\s+["']([^"']+)["']/gm),
     ].map((m) => m[1]);
     expect(staticImports).toEqual(["./guard"]);
-    expect(cli.indexOf("assertSafeEnvironment(process.env)")).toBeLessThan(
-      cli.indexOf('import("@prisma/client")'),
-    );
+    const guardAt = cli.indexOf("assertSafeEnvironment(process.env");
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(guardAt).toBeLessThan(cli.indexOf('import("@prisma/client")'));
+  });
+
+  it("the CLI verifies the database identity marker before reading anything", () => {
+    const cli = fs.readFileSync(path.join(DEMO_DIR, "cli.ts"), "utf8");
+    const markerAt = cli.indexOf("verifyTargetMarker(target");
+    expect(markerAt).toBeGreaterThan(-1);
+    expect(markerAt).toBeLessThan(cli.indexOf("FROM auth.users"));
   });
 
   it("writes history only through the app's write modules", () => {

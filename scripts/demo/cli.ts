@@ -1,24 +1,38 @@
 /**
  * Demo seed CLI (Public Landing Page & Changelog, spec §13; RD-16). Operator
- * tooling for an ISOLATED LOCAL stack only.
+ * tooling for an ISOLATED stack: the local Supabase CLI stack, or (OVE-111) the
+ * one explicitly confirmed development project — never Production.
  *
  *   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres \
  *   npm run demo:seed -- --user-id <uuid> [--email <addr>] [--anchor YYYY-MM-DD]
  *       → DRY RUN (default): prints the target, its state, and the counts.
  *   … --execute --confirm-user <same uuid>
  *       → writes the fixture in one transaction (only into an EMPTY account).
+ *   … --confirm-ref <dev project ref>
+ *       → targets the hosted DEVELOPMENT project instead of the local stack:
+ *         DATABASE_URL and NEXT_PUBLIC_SUPABASE_URL (and DIRECT_URL, if set)
+ *         must all name that ref, and the database identity marker must match.
  *
- * It never loads .env (the repo's .env points at PRODUCTION). The guard runs
- * before any connection and refuses the production project, any hosted
- * Supabase host, and any non-loopback database — with no override flag.
+ * It never loads .env. The guard runs before any connection and refuses the
+ * production project in every form — with no override flag. Without
+ * --confirm-ref it also refuses any hosted Supabase host and any non-loopback
+ * database.
  */
-import { DemoSeedRefused, assertSafeEnvironment, maskEmail } from "./guard";
+import {
+  DemoSeedRefused,
+  assertSafeEnvironment,
+  describeTarget,
+  maskEmail,
+  verifyTargetMarker,
+  type VerifiedTarget,
+} from "./guard";
 
 const VALUE_FLAGS = new Set([
   "--user-id",
   "--email",
   "--anchor",
   "--confirm-user",
+  "--confirm-ref",
 ]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -27,6 +41,7 @@ export type DemoCliArgs = {
   email: string | undefined;
   anchor: string | undefined;
   confirmUser: string | undefined;
+  confirmRef: string | undefined;
   execute: boolean;
   unexpected: string[];
 };
@@ -47,6 +62,7 @@ export function parseArgs(argv: string[]): DemoCliArgs {
     email: values["--email"],
     anchor: values["--anchor"],
     confirmUser: values["--confirm-user"],
+    confirmRef: values["--confirm-ref"],
     execute,
     unexpected,
   };
@@ -76,10 +92,12 @@ async function main() {
   if (problem) fail(problem);
 
   // Guard FIRST — before any module that could open a connection is loaded.
-  let host: string;
   let databaseUrl: string;
+  let target: VerifiedTarget;
   try {
-    ({ host, databaseUrl } = assertSafeEnvironment(process.env));
+    ({ databaseUrl, target } = assertSafeEnvironment(process.env, {
+      confirmRef: args.confirmRef,
+    }));
   } catch (error) {
     if (error instanceof DemoSeedRefused) fail(`REFUSED: ${error.message}`);
     throw error;
@@ -99,6 +117,14 @@ async function main() {
     adapter: new PrismaPg({ connectionString: databaseUrl }),
   });
   try {
+    // Independent proof from the connected database (hosted dev only).
+    try {
+      await verifyTargetMarker(target, (sql) => base.$queryRawUnsafe(sql));
+    } catch (error) {
+      fail(
+        `REFUSED: ${error instanceof Error ? error.message : "identity marker check failed"}`,
+      );
+    }
     const userId = args.userId!;
     // Identity check: the auth user exists, and (if given) the email matches.
     const rows = await base.$queryRawUnsafe<{ email: string }[]>(
@@ -117,7 +143,7 @@ async function main() {
     console.log(
       `Overload demo seed — ${args.execute ? "EXECUTE" : "DRY RUN (no changes)"}`,
     );
-    console.log(`  host:     ${host} (loopback)`);
+    console.log(`  target:   ${describeTarget(target)}`);
     console.log(`  account:  ${userId} (${maskEmail(email)})`);
     console.log(`  fixture:  ${DEMO_FIXTURE_VERSION}   anchor: ${anchor}`);
     console.log(formatInspection(inspection));

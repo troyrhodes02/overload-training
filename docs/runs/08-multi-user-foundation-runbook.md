@@ -1,5 +1,7 @@
 # Pitch 8 — Multi-User Foundation — Production Runbook
 
+> **Superseded confirmation (OVE-111, 2026-11-09).** `--confirm-host` is retired and refused. Production and the dev project share the Supabase pooler hostname. The backfill now identifies its target by project ref: a hosted project needs `--confirm-ref <ref>`, and Production also needs `--production`, before any connection opens. See `docs/technical/environment-isolation.md`. The commands below are kept as the historical record.
+
 **Who runs this:** the product's owner, by hand, from a trusted machine. The
 autonomous pipeline prepared and rehearsed it and never touched production.
 **What it does:** converts the single-user production database to account

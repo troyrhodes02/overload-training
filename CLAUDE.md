@@ -122,7 +122,7 @@ Exercise images are public-domain assets from free-exercise-db. They are the onl
 
 ### Secrets
 
-`DATABASE_URL`, `DIRECT_URL`, and the Supabase service-role key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Local development runs against the Supabase CLI local stack (`npx supabase start`, Docker); the only cloud project is `overload-prod` (production). There is no dev cloud project and no staging tier. Vercel deploys production only — there are no DB-backed preview deployments, so nothing but production ever points at `overload-prod`. (The Architecture Doc's "separate Supabase development project" wording predates this and is a pending upstream amendment.)
+`DATABASE_URL`, `DIRECT_URL`, and the Supabase service-role key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Local development runs against the Supabase CLI local stack (`npx supabase start`, Docker). Vercel Preview deployments run against the `overload-dev` Supabase project (synthetic data only), and only Vercel Production points at `overload-prod` (ref `ycxvdiklpefyhdclxyau`). There is no staging tier. A Preview or Development deployment whose database or Supabase variables name the Production ref fails its build and refuses to start (`src/lib/env/deployment-guard.ts`). Operator scripts identify their target by Supabase project ref, never hostname, through `scripts/operator/target-identity.ts`; a hosted target needs `--confirm-ref` and the dev identity marker. See `docs/technical/environment-isolation.md` (OVE-111).
 
 ## Business logic
 

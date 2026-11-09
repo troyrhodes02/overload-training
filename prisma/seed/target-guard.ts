@@ -1,75 +1,93 @@
 /**
- * Refuses to run the catalog import unless its two targets — the database
- * (DATABASE_URL) and Storage (NEXT_PUBLIC_SUPABASE_URL + service-role key) —
- * are the SAME environment, and refuses a remote environment unless the
- * operator confirms the exact database host (spec D29). The repo's local `.env`
- * has, at times, held production values; an accidental or mixed run must not
- * write rows to one project and images to another.
+ * Refuses to run the catalog import unless its targets — the database
+ * (DATABASE_URL, cross-checked with DIRECT_URL when set) and Storage
+ * (NEXT_PUBLIC_SUPABASE_URL + service-role key) — are provably the SAME
+ * environment, and a hosted project is explicitly confirmed by REF (OVE-111;
+ * originally spec D29).
+ *
+ * Confirmation used to be the database HOST. Through Supabase's shared pooler,
+ * Production and the development project have the same host, so a host is no
+ * longer accepted (OVERLOAD_IMPORT_CONFIRM_HOST is refused outright). Rules,
+ * via scripts/operator/target-identity.ts:
+ *
+ *   - local stack (database AND Storage local): runs without confirmation;
+ *   - a hosted project: `--confirm-ref <its ref>` on the command line (or
+ *     OVERLOAD_IMPORT_CONFIRM_REF=<its ref>), then the database identity
+ *     marker is verified before any write (seed.ts);
+ *   - PRODUCTION: additionally the explicit `--production` COMMAND-LINE FLAG.
+ *     There is no environment-variable form of the production opt-in (a
+ *     variable can linger in a shell; a flag is typed per run), and the
+ *     retired OVERLOAD_IMPORT_PRODUCTION is refused if set. The library was
+ *     imported into Production by the Library & Gyms runbook; a re-run is a
+ *     deliberate, runbook-driven human step only.
+ *
+ * Run hosted imports directly so the flags arrive (npm drops options after
+ * `--` in PowerShell):  npx tsx prisma/seed.ts --confirm-ref <ref>
  */
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+import {
+  CONFIRM_HOST_RETIRED,
+  TargetRefused,
+  assertOperatorTarget,
+  type VerifiedTarget,
+} from "../../scripts/operator/target-identity";
 
-function hostOf(url: string, label: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    throw new Error(`${label} is not a valid URL.`);
+export type SeedArgs = {
+  confirmRef: string | undefined;
+  production: boolean;
+  unexpected: string[];
+};
+
+export function parseSeedArgs(argv: string[]): SeedArgs {
+  let confirmRef: string | undefined;
+  let production = false;
+  const unexpected: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--production") production = true;
+    else if (arg === "--confirm-ref" && i + 1 < argv.length)
+      confirmRef = argv[++i];
+    else unexpected.push(arg);
   }
-}
-
-/** Supabase project ref from `https://<ref>.supabase.co`, or null. */
-function supabaseProjectRef(supabaseHost: string): string | null {
-  const match = /^([a-z0-9]+)\.supabase\.(co|com|in|net)$/i.exec(supabaseHost);
-  return match ? match[1].toLowerCase() : null;
-}
-
-/** Does this Postgres URL belong to the given Supabase project? */
-function databaseBelongsToProject(databaseUrl: string, ref: string): boolean {
-  const url = new URL(databaseUrl);
-  const user = decodeURIComponent(url.username).toLowerCase();
-  const host = url.hostname.toLowerCase();
-  // Pooler: user `postgres.<ref>`; direct: host `db.<ref>.supabase.co`.
-  return user.endsWith(`.${ref}`) || host === `db.${ref}.supabase.co`;
+  return { confirmRef, production, unexpected };
 }
 
 export function assertImportTargetAllowed(
-  databaseUrl: string | undefined,
-  supabaseUrl: string | undefined,
-  confirmHost: string | undefined,
-): { host: string; remote: boolean } {
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL is not set; the import has no target.");
+  env: Record<string, string | undefined>,
+  argv: string[] = [],
+): { host: string; remote: boolean; target: VerifiedTarget } {
+  const args = parseSeedArgs(argv);
+  if (args.unexpected.includes("--confirm-host")) {
+    throw new TargetRefused(`Refusing: ${CONFIRM_HOST_RETIRED}`);
   }
-  if (!supabaseUrl) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL is not set; the import has no Storage target.",
+  if (args.unexpected.length > 0) {
+    throw new TargetRefused(
+      `Refusing: unexpected argument(s): ${args.unexpected.join(" ")}. Accepted: --confirm-ref <ref>, --production.`,
     );
   }
-  const host = hostOf(databaseUrl, "DATABASE_URL");
-  const storageHost = hostOf(supabaseUrl, "NEXT_PUBLIC_SUPABASE_URL");
-  const dbLocal = LOCAL_HOSTS.has(host);
-  const storageLocal = LOCAL_HOSTS.has(storageHost);
-
-  if (dbLocal && storageLocal) return { host, remote: false };
-  if (dbLocal !== storageLocal) {
-    throw new Error(
-      `Refusing to import: the database ("${host}") and Storage ("${storageHost}") ` +
-        "are different environments. Both must be local, or both the same remote project.",
+  if (env.OVERLOAD_IMPORT_CONFIRM_HOST) {
+    throw new TargetRefused(
+      "Refusing: OVERLOAD_IMPORT_CONFIRM_HOST is no longer accepted: Production and the development project share the pooler " +
+        "hostname. Unset it and pass --confirm-ref <project ref> instead.",
     );
   }
-
-  const ref = supabaseProjectRef(storageHost);
-  if (!ref || !databaseBelongsToProject(databaseUrl, ref)) {
-    throw new Error(
-      `Refusing to import: DATABASE_URL does not belong to the Supabase project at "${storageHost}". ` +
-        "Rows and images must go to the same project.",
+  if (env.OVERLOAD_IMPORT_PRODUCTION !== undefined) {
+    throw new TargetRefused(
+      "Refusing: OVERLOAD_IMPORT_PRODUCTION is not accepted: the production opt-in is the explicit --production command-line flag only. Unset it.",
     );
   }
-  if (confirmHost !== host) {
-    throw new Error(
-      `Refusing to import into non-local database host "${host}". ` +
-        `If this is the deliberate, runbook-driven production import, re-run with ` +
-        `OVERLOAD_IMPORT_CONFIRM_HOST=${host}.`,
+  const flagRef = args.confirmRef?.trim();
+  const envRef = env.OVERLOAD_IMPORT_CONFIRM_REF?.trim();
+  if (flagRef && envRef && flagRef.toLowerCase() !== envRef.toLowerCase()) {
+    throw new TargetRefused(
+      "Refusing: --confirm-ref and OVERLOAD_IMPORT_CONFIRM_REF disagree. Pass one confirmation.",
     );
   }
-  return { host, remote: true };
+  const target = assertOperatorTarget({
+    env,
+    uses: ["DATABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+    confirmRef: flagRef || envRef,
+    production: "explicit-opt-in",
+    productionOptIn: args.production,
+  });
+  return { host: target.host, remote: target.kind === "hosted", target };
 }

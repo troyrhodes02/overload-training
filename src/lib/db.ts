@@ -1,6 +1,7 @@
 import "server-only";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { assertDeploymentTarget } from "@/lib/env/deployment-guard";
 
 // The single shared Prisma client for the whole application.
 //
@@ -12,6 +13,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 // Do NOT construct another PrismaClient anywhere. Import this one.
 
 function createPrismaClient() {
+  // OVE-111: a Preview/Development deployment never builds a client that
+  // reaches Production. Names the variable only; never echoes a value.
+  assertDeploymentTarget();
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error(

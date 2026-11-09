@@ -26,10 +26,13 @@ Create your single local user in local Studio (http://127.0.0.1:54323 →
 Authentication → Add user), then sign in at `/login`.
 
 **Environment model:** local development runs against the **Supabase CLI local
-stack** (`npx supabase start`); the only cloud project is **`overload-prod`**
-(production). There is no dev cloud project and no staging tier. Vercel deploys
-**production only** — there are no DB-backed preview deployments; verify changes
-locally and in production. See `docs/runs/01-foundation-runbook.md`.
+stack** (`npx supabase start`). Vercel **Preview** deployments run against the
+**`overload-dev`** Supabase project (synthetic data only), and Vercel
+**Production** runs against **`overload-prod`**. There is no staging tier. A
+Preview build or server whose database or Supabase variables name the
+Production project refuses to run. Operator scripts identify their target by
+Supabase project ref and need `--confirm-ref` for any hosted project. See
+**`docs/technical/environment-isolation.md`**.
 
 ## Scripts
 
@@ -45,6 +48,7 @@ locally and in production. See `docs/runs/01-foundation-runbook.md`.
 | `npm run test:e2e` | Playwright auth-boundary tests (uses system Chrome via `channel`) |
 | `npm run test:e2e:accounts` | Accounts lifecycle in a real browser (self-signup with username, isolation, sign out/in, Settings, deletion). Needs `npx supabase start`; uses only the local stack (refuses anything else) and removes the temporary accounts it creates |
 | `npm run verify:client-bundle` | Fails if a server DB secret leaked into `.next/static` (run after `build`) |
+| `npm run db:migrate:dev` | Guarded `prisma migrate status` / `deploy` (`--execute`) for the local stack or the confirmed dev project (`--confirm-ref`); refuses Production with no override |
 
 ## Database & migrations
 
@@ -58,8 +62,9 @@ data. Do not add a policy to make a query work.
 
 ## Deployment
 
-Deployment is via Vercel, **production only** (no DB-backed previews). The build
-runs `next build` only — it does **not** apply migrations. Production database
-migrations and all external provisioning (the `overload-prod` Supabase project,
-environment variables, the single production user) are performed by a human
-following **`docs/runs/01-foundation-runbook.md`**.
+Deployment is via Vercel: **Production** (→ `overload-prod`) and **Preview**
+(→ `overload-dev`). The build runs `next build` only — it does **not** apply
+migrations. Production database migrations and all external provisioning are
+performed by a human from a runbook, with a fresh backup. The development
+project is initialized with the guarded procedure in
+**`docs/technical/environment-isolation.md`**.

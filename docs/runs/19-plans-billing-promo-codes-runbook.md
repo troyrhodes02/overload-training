@@ -1,5 +1,7 @@
 # Runbook — Plans, Billing & Promo Codes (Pitch 19 / roadmap 20)
 
+> **Superseded confirmation (OVE-111, 2026-11-09).** `--confirm-host` is retired and refused. Production and the dev project share the Supabase pooler hostname. The founding-member grant now needs `--confirm-ref <project ref>` for any hosted project, and `--production` as well for Production, before it connects (dry run included). Export `DATABASE_URL`, `DIRECT_URL` and `NEXT_PUBLIC_SUPABASE_URL` for the same project. See `docs/technical/environment-isolation.md`.
+
 Human-only production steps. The autonomous run used **Stripe test mode only** and applied the migration to the **dev/embedded** database only. Nothing here runs by itself; the owner performs each step deliberately. Do not switch Stripe to live, collect real payments, or enable public signup until **Launch Readiness & Closed Beta** passes.
 
 ## 0. Pre-flight
