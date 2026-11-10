@@ -1,5 +1,6 @@
 import "server-only";
 import type { ImportSession } from "@prisma/client";
+import { IMPORT_EXPIRED_MESSAGE } from "./errors";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import { isEquipment, isMuscleGroup } from "@/lib/exercises/taxonomy";
@@ -30,6 +31,9 @@ async function requireReviewSession(
   });
   if (!session) {
     throw new DomainError("not_found", "That import could not be found.");
+  }
+  if (session.status === "expired" || session.status === "purged") {
+    throw new DomainError("invalid_state_transition", IMPORT_EXPIRED_MESSAGE);
   }
   if (session.status !== "review") {
     throw new DomainError(

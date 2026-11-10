@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
   // Next never attempts to bundle them for the client. storage.ts is
   // `server-only`, so verify:client-bundle stays green regardless.
   serverExternalPackages: ["sharp", "heic-convert"],
+  // src/lib/import/pdf.ts loads pdfjs-dist through a runtime-built import() (the
+  // legacy build is ESM-only and must dodge the CommonJS test transform), which
+  // Vercel's file tracer cannot see. Without this the package is missing from
+  // the deployed function and every PDF upload fails before it is even opened.
+  outputFileTracingIncludes: {
+    "/plan/import": [
+      "./node_modules/pdfjs-dist/package.json",
+      "./node_modules/pdfjs-dist/legacy/build/**/*",
+    ],
+  },
   // Feedback screenshots upload through a server action. Raise the default 1 MB
   // body cap to admit a small set of images; the feedback validation caps the
   // combined payload well under this (and under the host's own 4.5 MB limit).

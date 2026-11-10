@@ -2,11 +2,8 @@
 
 import { requireAccount } from "@/lib/data/account";
 import type { Account } from "@/lib/data/account";
-import {
-  toActionResult,
-  DomainError,
-  type ActionResult,
-} from "@/lib/actions/result";
+import { DomainError, type ActionResult } from "@/lib/actions/result";
+import { importResult } from "@/lib/import/errors";
 import { requireCapability } from "@/lib/entitlements/require";
 import { isPlanImportEnabled } from "@/lib/import/config";
 import {
@@ -14,6 +11,8 @@ import {
   MAX_PARTS,
   UPLOAD_ACCEPT_ATTR,
 } from "@/lib/import/constants";
+
+const MAX_FILE_MB = MAX_FILE_BYTES / (1024 * 1024);
 import {
   addFilePart,
   addText,
@@ -57,7 +56,7 @@ async function guardImport(): Promise<Account> {
   if (!isPlanImportEnabled()) {
     throw new DomainError(
       "import_unavailable",
-      "Plan import is temporarily unavailable.",
+      "Plan import is turned off right now. Try again later.",
     );
   }
   return account;
@@ -66,26 +65,34 @@ async function guardImport(): Promise<Account> {
 export async function startImportAction(input: {
   mode: "text" | "files";
 }): Promise<ActionResult<{ sessionId: string }>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    if (input.mode !== "text" && input.mode !== "files") {
-      throw new DomainError(
-        "validation_error",
-        "Choose how your plan is saved.",
-      );
-    }
-    return createImportSession(account, { mode: input.mode });
-  }, "Couldn't start the import. Nothing was changed.");
+  return importResult(
+    "startImportAction",
+    async () => {
+      const account = await guardImport();
+      if (input.mode !== "text" && input.mode !== "files") {
+        throw new DomainError(
+          "validation_error",
+          "Choose how your plan is saved.",
+        );
+      }
+      return createImportSession(account, { mode: input.mode });
+    },
+    "Couldn't start the import. Nothing was changed.",
+  );
 }
 
 export async function addTextAction(input: {
   sessionId: string;
   text: string;
 }): Promise<ActionResult<{ sessionId: string }>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return addText(account, input);
-  }, "Couldn't save your text. It's still here.");
+  return importResult(
+    "addTextAction",
+    async () => {
+      const account = await guardImport();
+      return addText(account, input);
+    },
+    "Couldn't save your text. It's still here.",
+  );
 }
 
 /**
@@ -101,38 +108,42 @@ export async function reserveUploadAction(input: {
   contentType: string;
   sizeBytes: number;
 }): Promise<ActionResult<{ ok: true; accept: string; maxFileBytes: number }>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    if (input.sizeBytes <= 0 || input.sizeBytes > MAX_FILE_BYTES) {
-      throw new DomainError(
-        "validation_error",
-        "That file is too large to import.",
-      );
-    }
-    if (!UPLOAD_ACCEPT_ATTR.split(",").includes(input.contentType)) {
-      throw new DomainError(
-        "validation_error",
-        "That file type can't be used.",
-      );
-    }
-    // Confirm the bundle still has room. The count is through account.db, so a
-    // session that isn't the acting account's (or doesn't exist) simply counts 0
-    // — another account's session is never revealed or reserved against.
-    const count = await account.db.importSourcePart.count({
-      where: { sessionId: input.sessionId },
-    });
-    if (count >= MAX_PARTS) {
-      throw new DomainError(
-        "validation_error",
-        `You can add at most ${MAX_PARTS} files.`,
-      );
-    }
-    return {
-      ok: true as const,
-      accept: UPLOAD_ACCEPT_ATTR,
-      maxFileBytes: MAX_FILE_BYTES,
-    };
-  }, "Couldn't check that file. Nothing was changed.");
+  return importResult(
+    "reserveUploadAction",
+    async () => {
+      const account = await guardImport();
+      if (input.sizeBytes <= 0 || input.sizeBytes > MAX_FILE_BYTES) {
+        throw new DomainError(
+          "validation_error",
+          `This file is too large. Choose a file under ${MAX_FILE_MB} MB.`,
+        );
+      }
+      if (!UPLOAD_ACCEPT_ATTR.split(",").includes(input.contentType)) {
+        throw new DomainError(
+          "validation_error",
+          "This file type isn't supported. Upload a PDF or a JPEG, PNG, WebP, or HEIC image.",
+        );
+      }
+      // Confirm the bundle still has room. The count is through account.db, so a
+      // session that isn't the acting account's (or doesn't exist) simply counts 0
+      // — another account's session is never revealed or reserved against.
+      const count = await account.db.importSourcePart.count({
+        where: { sessionId: input.sessionId },
+      });
+      if (count >= MAX_PARTS) {
+        throw new DomainError(
+          "validation_error",
+          `You can add at most ${MAX_PARTS} files.`,
+        );
+      }
+      return {
+        ok: true as const,
+        accept: UPLOAD_ACCEPT_ATTR,
+        maxFileBytes: MAX_FILE_BYTES,
+      };
+    },
+    "Couldn't check that file. Nothing was changed.",
+  );
 }
 
 /**
@@ -152,52 +163,68 @@ export async function commitPartAction(
     pageCount: number | null;
   }>
 > {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    const sessionId = formData.get("sessionId");
-    const file = formData.get("file");
-    if (typeof sessionId !== "string" || sessionId.length === 0) {
-      throw new DomainError("validation_error", "Missing import.");
-    }
-    if (!(file instanceof File) || file.size === 0) {
-      throw new DomainError("validation_error", "Choose a file to upload.");
-    }
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    return addFilePart(account, {
-      sessionId,
-      bytes,
-      sizeBytes: file.size,
-    });
-  }, "Couldn't add that file. Nothing was changed.");
+  return importResult(
+    "commitPartAction",
+    async () => {
+      const account = await guardImport();
+      const sessionId = formData.get("sessionId");
+      const file = formData.get("file");
+      if (typeof sessionId !== "string" || sessionId.length === 0) {
+        throw new DomainError("validation_error", "Missing import.");
+      }
+      if (!(file instanceof File) || file.size === 0) {
+        throw new DomainError("validation_error", "Choose a file to upload.");
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      return addFilePart(account, {
+        sessionId,
+        bytes,
+        sizeBytes: file.size,
+      });
+    },
+    "Couldn't add that file. Nothing was changed.",
+  );
 }
 
 export async function reorderPartsAction(input: {
   sessionId: string;
   order: string[];
 }): Promise<ActionResult<{ sessionId: string }>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return reorderParts(account, input);
-  }, "Couldn't reorder. Nothing was changed.");
+  return importResult(
+    "reorderPartsAction",
+    async () => {
+      const account = await guardImport();
+      return reorderParts(account, input);
+    },
+    "Couldn't reorder. Nothing was changed.",
+  );
 }
 
 export async function removePartAction(input: {
   sessionId: string;
   objectPath: string;
 }): Promise<ActionResult<{ sessionId: string }>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return removePart(account, input);
-  }, "Couldn't remove that file. Nothing was changed.");
+  return importResult(
+    "removePartAction",
+    async () => {
+      const account = await guardImport();
+      return removePart(account, input);
+    },
+    "Couldn't remove that file. Nothing was changed.",
+  );
 }
 
 export async function discardImportAction(input: {
   sessionId: string;
 }): Promise<ActionResult<{ sessionId: string }>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return discardImport(account, input);
-  }, "Couldn't discard. Nothing was changed.");
+  return importResult(
+    "discardImportAction",
+    async () => {
+      const account = await guardImport();
+      return discardImport(account, input);
+    },
+    "Couldn't discard. Nothing was changed.",
+  );
 }
 
 /**
@@ -210,34 +237,46 @@ export async function discardImportAction(input: {
 export async function beginExtractionAction(input: {
   sessionId: string;
 }): Promise<ActionResult<ImportStatusDto>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return beginExtraction(account, {
-      sessionId: input.sessionId,
-      dayKey: importDayKey(account),
-    });
-  }, "Couldn't start processing. Nothing was changed.");
+  return importResult(
+    "beginExtractionAction",
+    async () => {
+      const account = await guardImport();
+      return beginExtraction(account, {
+        sessionId: input.sessionId,
+        dayKey: importDayKey(account),
+      });
+    },
+    "Couldn't start processing. Nothing was changed.",
+  );
 }
 
 export async function retryExtractionAction(input: {
   sessionId: string;
 }): Promise<ActionResult<ImportStatusDto>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return retryExtraction(account, {
-      sessionId: input.sessionId,
-      dayKey: importDayKey(account),
-    });
-  }, "Couldn't retry. Nothing was changed.");
+  return importResult(
+    "retryExtractionAction",
+    async () => {
+      const account = await guardImport();
+      return retryExtraction(account, {
+        sessionId: input.sessionId,
+        dayKey: importDayKey(account),
+      });
+    },
+    "Couldn't retry. Nothing was changed.",
+  );
 }
 
 export async function getImportStatusAction(input: {
   sessionId: string;
 }): Promise<ActionResult<ImportStatusDto>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return getImportStatus(account, input.sessionId);
-  }, "Couldn't check the import. Nothing was changed.");
+  return importResult(
+    "getImportStatusAction",
+    async () => {
+      const account = await guardImport();
+      return getImportStatus(account, input.sessionId);
+    },
+    "Couldn't check the import. Nothing was changed.",
+  );
 }
 
 export async function saveDraftEditAction(input: {
@@ -245,10 +284,14 @@ export async function saveDraftEditAction(input: {
   version: number;
   patch: DraftEditPatch;
 }): Promise<ActionResult<ImportDraftDto>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return saveDraftEdit(account, input);
-  }, "Couldn't save that edit. Nothing was changed.");
+  return importResult(
+    "saveDraftEditAction",
+    async () => {
+      const account = await guardImport();
+      return saveDraftEdit(account, input);
+    },
+    "Couldn't save that edit. Nothing was changed.",
+  );
 }
 
 export async function resolveMatchAction(input: {
@@ -257,10 +300,14 @@ export async function resolveMatchAction(input: {
   exerciseKey: string;
   exerciseId: string;
 }): Promise<ActionResult<ImportDraftDto>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return resolveMatch(account, input);
-  }, "Couldn't set that match. Nothing was changed.");
+  return importResult(
+    "resolveMatchAction",
+    async () => {
+      const account = await guardImport();
+      return resolveMatch(account, input);
+    },
+    "Couldn't set that match. Nothing was changed.",
+  );
 }
 
 export async function stageCustomExerciseAction(input: {
@@ -271,18 +318,26 @@ export async function stageCustomExerciseAction(input: {
   primaryMuscle: string;
   equipmentType: string;
 }): Promise<ActionResult<ImportDraftDto>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return stageCustomExercise(account, input);
-  }, "Couldn't stage that exercise. Nothing was changed.");
+  return importResult(
+    "stageCustomExerciseAction",
+    async () => {
+      const account = await guardImport();
+      return stageCustomExercise(account, input);
+    },
+    "Couldn't stage that exercise. Nothing was changed.",
+  );
 }
 
 export async function confirmImportAction(input: {
   sessionId: string;
   version: number;
 }): Promise<ActionResult<{ mesocycleId: string }>> {
-  return toActionResult(async () => {
-    const account = await guardImport();
-    return confirmImport(account, input);
-  }, "Couldn't create the plan. Nothing was changed.");
+  return importResult(
+    "confirmImportAction",
+    async () => {
+      const account = await guardImport();
+      return confirmImport(account, input);
+    },
+    "Couldn't create the plan. Nothing was changed.",
+  );
 }

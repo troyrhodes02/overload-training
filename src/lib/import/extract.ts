@@ -1,6 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type { ImportSession, ImportStatus } from "@prisma/client";
+import {
+  EXTRACTION_UNAVAILABLE_MESSAGE,
+  IMPORT_EXPIRED_MESSAGE,
+} from "./errors";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import { bumpImportUsage, refundImportUsage } from "./usage";
@@ -78,6 +82,9 @@ async function requireOwnSession(
   });
   if (!session) {
     throw new DomainError("not_found", "That import could not be found.");
+  }
+  if (session.status === "expired" || session.status === "purged") {
+    throw new DomainError("invalid_state_transition", IMPORT_EXPIRED_MESSAGE);
   }
   return session;
 }
@@ -444,10 +451,7 @@ export async function beginExtraction(
     // No work will run: refund the quota slot we just counted so a refused
     // reservation never costs the lifter one of the day's imports.
     await refundImportUsage(account.userId, input.dayKey).catch(() => {});
-    throw new DomainError(
-      "import_unavailable",
-      "Plan import is temporarily unavailable.",
-    );
+    throw new DomainError("import_unavailable", EXTRACTION_UNAVAILABLE_MESSAGE);
   }
 
   const token = await claimLease(account, session.id);

@@ -7,6 +7,7 @@ import {
   type AcceptedContentType,
 } from "./constants";
 import { ImageConversionError, normalizeImage } from "./image";
+import { StorageUploadError } from "./errors";
 
 /**
  * Workout Plan Import & Review (Pitch 22) — private source storage, mirroring
@@ -157,14 +158,20 @@ export async function normalizeForStorage(input: {
   sizeBytes: number;
 }): Promise<NormalizedSource> {
   if (input.sizeBytes <= 0 || input.sizeBytes > MAX_FILE_BYTES) {
-    throw new SourceValidationError("That file is too large to import.");
+    throw new SourceValidationError(
+      `This file is too large. Choose a file under ${MAX_FILE_BYTES / (1024 * 1024)} MB.`,
+    );
   }
   if (input.bytes.byteLength !== input.sizeBytes) {
-    throw new SourceValidationError("That file could not be read.");
+    throw new SourceValidationError(
+      "We couldn't read this file. Try choosing it again.",
+    );
   }
   const sniffed = sniffContentType(input.bytes);
   if (sniffed === null) {
-    throw new SourceValidationError("That file type can't be used.");
+    throw new SourceValidationError(
+      "This file type isn't supported. Upload a PDF or a JPEG, PNG, WebP, or HEIC image.",
+    );
   }
 
   // PDFs are stored as-is; the intake path inspects them separately.
@@ -196,14 +203,18 @@ export async function normalizeForStorage(input: {
       normalized.bytes.byteLength <= 0 ||
       normalized.bytes.byteLength > MAX_FILE_BYTES
     ) {
-      throw new SourceValidationError("That image is too large to import.");
+      throw new SourceValidationError(
+        `This image is too large. Choose a file under ${MAX_FILE_BYTES / (1024 * 1024)} MB.`,
+      );
     }
     return { bytes: normalized.bytes, contentType: normalized.contentType };
   }
 
   // Defensive: a sniffed type that is neither PDF nor a known image is refused.
   if (!(ACCEPTED_CONTENT_TYPES as readonly string[]).includes(sniffed)) {
-    throw new SourceValidationError("That file type can't be used.");
+    throw new SourceValidationError(
+      "This file type isn't supported. Upload a PDF or a JPEG, PNG, WebP, or HEIC image.",
+    );
   }
   return { bytes: input.bytes, contentType: sniffed };
 }
@@ -225,7 +236,8 @@ export async function uploadSourceObject(
   });
   if (error) {
     await removeSourceObjects([objectPath]);
-    throw error;
+    // Typed so the action reports "couldn't be uploaded", never an AI error.
+    throw new StorageUploadError(error.message);
   }
 }
 
