@@ -52,6 +52,7 @@ There is no separate staging database or tier. `overload-dev` serves every Previ
 | Real-plan import | `npm run import:plan` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
 | Founding-member grant | `npm run founding-members:grant` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
 | Ownership backfill | `npm run ownership:backfill` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
+| Dev test-account provisioning | `npx tsx scripts/operator/provision-dev-test-user/cli.ts` | refused | `--confirm-ref vdxrmfadikwzodjljbdi` + marker + dev service-role key; `--execute` to write | **refused, no override** |
 
 The production opt-in exists only where an approved runbook already sanctions a deliberate, human production run. It is stricter than the host confirmation it replaces. Every production step still requires a fresh backup immediately before. In PowerShell, npm drops options after `--`, so run the CLIs with `npx tsx …` directly.
 

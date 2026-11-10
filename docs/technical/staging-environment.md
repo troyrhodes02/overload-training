@@ -97,3 +97,31 @@ Run after each `staging` deploy. Nothing here uses real data or a paid provider.
 | Clean failure when unconfigured | Cost, accuracy and handwriting quality |
 
 Review, edit, matching and confirm are covered by the integration tests with an in-memory mock provider (`tests/integration/import-*.int.test.ts`), but have no browser path until a draft can exist. Enabling the provider needs the owner's spend limit, the consent and data terms decision, and the evaluation gates in `docs/runs/22-workout-plan-import-review-runbook.md`.
+
+## Reusable staging test account
+
+`overload-dev` has signup disabled for the public and the signup form is gated by Turnstile (plus an invite code and a rate limit). **Login is not**: `signInAction` (`src/app/login/actions.ts`) calls `signInWithPassword` with no challenge. Turnstile protects only signup and password recovery. So a test account provisioned directly can sign in on the permanent staging URL with just an email and password.
+
+`scripts/operator/provision-dev-test-user/cli.ts` creates that account, in the development project only:
+
+- one Supabase Auth user (admin API, email pre-confirmed, no email sent) with a CSPRNG password;
+- its `Profile` (verified, username `staging_tester`) and `TourProgress` row, as signup creates;
+- one **comp** Pro entitlement (reason `tester`, no end date): no Stripe, no billing row, no subscription;
+- no training data, no model-API call.
+
+The default login email is `overload-staging-tester@example.com`, a reserved non-routable address, so nothing can ever be mailed to a real person. Pass `--email` to use another.
+
+### Run it
+
+Export the **development** values in the shell (never in `.env`): `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Then:
+
+```sh
+npx tsx scripts/operator/provision-dev-test-user/cli.ts --confirm-ref vdxrmfadikwzodjljbdi            # dry run
+npx tsx scripts/operator/provision-dev-test-user/cli.ts --confirm-ref vdxrmfadikwzodjljbdi --execute  # create
+```
+
+Before connecting it requires `--confirm-ref vdxrmfadikwzodjljbdi`, checks all four variables name that project (a service-role key for Production or any other project is refused), refuses Production with no override, and verifies the database identity marker. The password is written to `~/.overload-dev/test-user.txt` (directory `0700`, file `0600`, outside the repo) and never printed; view it with `cat ~/.overload-dev/test-user.txt`. Save it in a password manager.
+
+### Idempotency and password resets
+
+A re-run reuses the existing account, fills in anything missing (profile, comp), and **never changes the password**. To reset it deliberately, set a new password in the Supabase dashboard (overload-dev → Authentication → Users → the user → Send password recovery is unavailable on the example.com address, so use "Update user" / reset password there), or delete the Auth user in that dashboard and delete the profile row before re-running. Deleting is a human step; the tool never deletes an account it did not create in the same run.
