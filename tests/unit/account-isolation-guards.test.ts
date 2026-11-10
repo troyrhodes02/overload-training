@@ -24,11 +24,27 @@ function walk(dir: string, acc: string[] = []): string[] {
 const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
 const read = (f: string) => fs.readFileSync(f, "utf8");
 
-// The ONE sanctioned raw-client user outside src/lib/data (and db.ts itself):
-// the pre-auth rate limiter (Public Accounts R4/R5). AuthThrottle is un-owned
-// and holds no personal data, so it cannot go through account.db; this module
-// is the only code allowed to touch it.
+// The sanctioned raw-client users outside src/lib/data (and db.ts itself):
+//  - the pre-auth rate limiter (Public Accounts R4/R5). AuthThrottle is
+//    un-owned and holds no personal data, so it cannot go through account.db.
+//  - the plan-import daily quota (Workout Plan Import & Review RD-9). Its atomic
+//    upsert counter can't be expressed through the scoped client without a
+//    read-modify-write race; the OWNED table is reached only here, and this
+//    module stamps and filters user_id on every statement.
+//  - the plan-import global spend ledger (Workout Plan Import & Review RD-6,
+//    OVE-106). UN-owned (no account) and holds no personal data; its atomic
+//    reserve/reconcile upsert can't go through the account-scoped client (there
+//    is no account). The only code that touches import_spend_ledger.
+// Each is the only code allowed to touch its table. Each is asserted below to
+// name no OTHER owned table in its raw SQL.
 const THROTTLE_MODULE = "src/lib/accounts/throttle.ts";
+const IMPORT_USAGE_MODULE = "src/lib/import/usage.ts";
+const IMPORT_SPEND_MODULE = "src/lib/import/spend.ts";
+const RAW_ALLOWED_MODULES = [
+  THROTTLE_MODULE,
+  IMPORT_USAGE_MODULE,
+  IMPORT_SPEND_MODULE,
+];
 /** Code only: comments may legitimately name what they forbid. */
 const code = (f: string) =>
   read(f)
@@ -61,40 +77,69 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     ).toBe(false);
   });
 
-  it("only src/lib/data, src/lib/db.ts, and the throttle module reach the raw Prisma client", () => {
+  it("only src/lib/data, src/lib/db.ts, and the sanctioned raw modules reach the raw Prisma client", () => {
     const offenders = appFiles()
       .filter((f) => rel(f) !== "src/lib/db.ts")
-      .filter((f) => rel(f) !== THROTTLE_MODULE)
+      .filter((f) => !RAW_ALLOWED_MODULES.includes(rel(f)))
       .filter((f) => RAW_CLIENT.test(code(f)));
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("no raw SQL outside src/lib/data except the throttle module (raw queries bypass the scope)", () => {
+  it("no raw SQL outside src/lib/data except the sanctioned raw modules (raw queries bypass the scope)", () => {
     const offenders = appFiles()
-      .filter((f) => rel(f) !== THROTTLE_MODULE)
+      .filter((f) => !RAW_ALLOWED_MODULES.includes(rel(f)))
       .filter((f) => /\$(queryRaw|executeRaw)(Unsafe)?\b/.test(code(f)));
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("the throttle module is the ONLY non-data-layer raw toucher, and it touches only auth_throttle", () => {
+  // Owned tables an unscoped raw query must never name — leaking one would open a
+  // hole the scope layer exists to close. The two raw-allowed modules each touch
+  // exactly one table (their own), neither on this list.
+  const OWNED_TABLE_RE =
+    /^(mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen|feedback|feedback_attachments|entitlements|billing_accounts|promo_redemptions|import_sessions|import_source_parts|admin_audit_entries)$/;
+
+  it("the throttle module is a raw toucher that touches only auth_throttle", () => {
     const throttle = code(path.join(REPO_ROOT, THROTTLE_MODULE));
-    // It does reach the raw client (that is the sanctioned exception) …
     expect(RAW_CLIENT.test(throttle)).toBe(true);
-    // … and the only table its raw SQL names is auth_throttle — never an owned
-    // table, so no owned data can leak through this bypass.
     const quotedTables = [...throttle.matchAll(/"([a-z_]+)"/g)]
       .map((m) => m[1])
-      .filter((t) =>
-        /^(mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen|feedback|feedback_attachments|admin_audit_entries)$/.test(
-          t,
-        ),
-      );
+      .filter((t) => OWNED_TABLE_RE.test(t));
     expect(quotedTables).toEqual([]);
     expect(throttle).toMatch(/"auth_throttle"/);
     // AuthThrottle is never reachable through the account-scoped client: it is
     // classified as an unowned system model in scope.ts (R5).
     const scope = read(path.join(SRC, "lib", "data", "scope.ts"));
     expect(scope).toMatch(/UNOWNED_SYSTEM_MODELS[^=]*=\s*\[\s*"AuthThrottle"/);
+  });
+
+  it("the import-usage module is a raw toucher that touches only import_usage_days", () => {
+    const usage = code(path.join(REPO_ROOT, IMPORT_USAGE_MODULE));
+    expect(RAW_CLIENT.test(usage)).toBe(true);
+    // The only owned-schema table its raw SQL names is its own counter, which is
+    // NOT on the forbidden list; no other owned table appears.
+    const quotedTables = [...usage.matchAll(/"([a-z_]+)"/g)]
+      .map((m) => m[1])
+      .filter((t) => OWNED_TABLE_RE.test(t));
+    expect(quotedTables).toEqual([]);
+    expect(usage).toMatch(/"import_usage_days"/);
+    // The module stamps and filters user_id itself on every statement so no
+    // other account's row is ever touched.
+    expect(usage).toMatch(/user_id/);
+  });
+
+  it("the import-spend module is a raw toucher that touches only import_spend_ledger", () => {
+    const spend = code(path.join(REPO_ROOT, IMPORT_SPEND_MODULE));
+    expect(RAW_CLIENT.test(spend)).toBe(true);
+    // The ledger is UN-owned; its raw SQL names no owned-schema table at all.
+    const quotedTables = [...spend.matchAll(/"([a-z_]+)"/g)]
+      .map((m) => m[1])
+      .filter((t) => OWNED_TABLE_RE.test(t));
+    expect(quotedTables).toEqual([]);
+    expect(spend).toMatch(/"import_spend_ledger"/);
+    // ImportSpendLedger is never reachable through the account-scoped client: it
+    // is classified as an unowned system model in scope.ts (RD-6).
+    const scope = read(path.join(SRC, "lib", "data", "scope.ts"));
+    expect(scope).toMatch(/"ImportSpendLedger"/);
   });
 
   it("application code never builds an Account for an arbitrary id", () => {
@@ -111,6 +156,10 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
   it("outside src/lib/data, userId appears only as the session-derived account.userId", () => {
     const offenders = walk(SRC)
       .filter((f) => !rel(f).startsWith(DATA_LAYER))
+      // The sanctioned raw-allowed modules take a userId by design: the import
+      // quota counter stamps and filters user_id itself on its atomic upsert
+      // (RD-9), which the dedicated guard above already pins to its own table.
+      .filter((f) => !RAW_ALLOWED_MODULES.includes(rel(f)))
       .filter((f) => {
         const stripped = code(f)
           .replace(/\buserId:\s*account\.userId\b/g, "")
@@ -143,13 +192,26 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     expect(offenders.map(rel)).toEqual([]);
   });
 
-  it("eslint enforces the same boundary with no exemption beyond src/lib/data, db.ts, and the throttle module", () => {
+  it("eslint enforces the same boundary with only the sanctioned raw-allowed exemptions", () => {
     const eslint = read(path.join(REPO_ROOT, "eslint.config.mjs"));
-    // The ignore list is exactly these three sanctioned entries — nothing else
-    // may be added without a reviewed decision (R4/R5).
-    expect(eslint).toMatch(
-      /ignores:\s*\[\s*"src\/lib\/data\/\*\*",\s*"src\/lib\/db\.ts",\s*"src\/lib\/accounts\/throttle\.ts",\s*\]/,
+    // Comments between entries are allowed (each exemption is documented), but
+    // the set of ignored paths is exactly these four sanctioned entries — nothing
+    // else may be added without a reviewed decision (R4/R5, RD-9).
+    const stripped = eslint
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const match = stripped.match(/ignores:\s*\[([\s\S]*?)\]/);
+    expect(match).not.toBeNull();
+    const entries = [...(match?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(
+      (m) => m[1],
     );
+    expect(entries).toEqual([
+      "src/lib/data/**",
+      "src/lib/db.ts",
+      "src/lib/accounts/throttle.ts",
+      "src/lib/import/usage.ts",
+      "src/lib/import/spend.ts",
+    ]);
     expect(eslint).not.toMatch(/NOT_YET_SCOPED/);
   });
 });

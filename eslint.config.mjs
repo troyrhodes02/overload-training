@@ -66,6 +66,18 @@ const eslintConfig = defineConfig([
       "src/lib/data/**",
       "src/lib/db.ts",
       "src/lib/accounts/throttle.ts",
+      // Workout Plan Import & Review (spec RD-9): the per-account daily import
+      // quota is an atomic upsert counter that can't be expressed through the
+      // scoped client without a read-modify-write race. Like the pre-auth
+      // throttle it is a sanctioned raw-allowed module; unlike it the table is
+      // OWNED, so the module stamps and filters user_id on every statement, and
+      // the guard test asserts it touches only import_usage_days.
+      "src/lib/import/usage.ts",
+      // Workout Plan Import & Review (spec RD-6, OVE-106): the global provider-
+      // spend ledger is UN-OWNED and holds no personal data, so it cannot and
+      // must not go through account.db. Reached only through this dedicated
+      // raw-allowed module; the guard test asserts it touches only the ledger.
+      "src/lib/import/spend.ts",
     ],
     rules: {
       "no-restricted-imports": ["error", RAW_DATA_ACCESS],

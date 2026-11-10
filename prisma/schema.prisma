@@ -127,6 +127,9 @@ model Mesocycle {
   plannedCardio        PlannedCardio[]
   cardioLogs           CardioLog[]
   profile              Profile               @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  /// Workout Plan Import & Review: the import session that created this draft
+  /// mesocycle (if any). The confirming session attaches here, uniquely.
+  importSession        ImportSession?
 
   @@index([status])
   @@index([userId])
@@ -586,6 +589,9 @@ model Profile {
   entitlements         Entitlement[]
   billingAccount       BillingAccount?
   promoRedemptions     PromoRedemption[]
+  importSessions       ImportSession[]
+  importSourceParts    ImportSourcePart[]
+  importUsageDays      ImportUsageDay[]
 
   @@map("profiles")
 }
@@ -940,4 +946,158 @@ enum AuthThrottleAction {
   password_reset_request
 
   @@map("auth_throttle_action")
+}
+
+/// Workout Plan Import & Review (Pitch 22) — the state machine of one import
+/// attempt. OWNED (carries user_id); temporary, never a training plan. Holds
+/// its status, source kind, the staged ImportDraft JSON (observed fields + user
+/// edits + issues — NEVER a stored progression tag or e1RM), sanitized model
+/// accounting (never prompt bodies or source content), a compare-and-set
+/// extraction lease, a safe error CATEGORY, the created draft mesocycle after
+/// confirm (unique, so a retried confirm returns the same plan), and a
+/// retention clock. RLS deny-all; user_id immutable (trigger, 9l); FK Restrict;
+/// same-owner trigger on mesocycle_id.
+enum ImportStatus {
+  created
+  uploaded
+  extracting
+  review
+  needs_input
+  not_a_plan
+  confirming
+  confirmed
+  failed_retryable
+  failed_final
+  discarded
+  expired
+  purged
+}
+
+/// The source kind of an import bundle (one pipeline, five inputs collapse to
+/// these three stored kinds): pasted/typed text, a PDF, or image(s).
+enum ImportSourceKind {
+  text
+  pdf
+  image
+
+  @@map("import_source_kind")
+}
+
+model ImportSession {
+  id             String           @id @default(uuid()) @db.Uuid
+  /// Owning account (Multi-User Foundation). Required, immutable (DB trigger).
+  userId         String           @map("user_id") @db.Uuid
+  status         ImportStatus     @default(created)
+  sourceKind     ImportSourceKind @map("source_kind")
+  /// The staged, versioned ImportDraft (observed fields + user edits + issues).
+  /// Validated-shape JSON; never a stored progression/e1RM value.
+  draft          Json?
+  draftVersion   Int              @default(0) @map("draft_version")
+  /// Sanitized model accounting — NEVER prompt bodies or source content.
+  modelId        String?          @map("model_id")
+  promptVersion  String?          @map("prompt_version")
+  inputTokens    Int?             @map("input_tokens")
+  outputTokens   Int?             @map("output_tokens")
+  /// Count of STARTED provider attempts for this session (quota accounting).
+  attemptCount   Int              @default(0) @map("attempt_count")
+  /// Extraction lease: the request that owns the running extraction, and when
+  /// its claim expires. A stale lease is reclaimable via compare-and-set.
+  leaseToken     String?          @map("lease_token")
+  leaseExpiresAt DateTime?        @map("lease_expires_at") @db.Timestamptz
+  /// Safe error CATEGORY only (e.g. "provider_timeout"); never raw errors.
+  errorCode      String?          @map("error_code")
+  /// The created draft mesocycle after confirm. Null until confirmed. Unique so
+  /// a retried confirm returns the same plan instead of creating a second.
+  mesocycleId    String?          @unique @map("mesocycle_id") @db.Uuid
+  /// Retention clock: at-most-24h from creation for unconfirmed content.
+  expiresAt      DateTime         @map("expires_at") @db.Timestamptz
+  /// Retriable blob-delete tombstone (OVE-109). Null means the stored source
+  /// objects for this session still need removing (a terminal session whose
+  /// blob delete has not yet fully succeeded is an OBSERVABLE, RETRIABLE
+  /// tombstone: it is found by `WHERE sources_purged_at IS NULL AND status IN
+  /// (terminal)`). Set to the completion instant only when every object is gone.
+  /// A failed blob delete NEVER undoes a confirmed plan — it only leaves this
+  /// null so the lazy sweep / operator script retry it later.
+  sourcesPurgedAt DateTime?       @map("sources_purged_at") @db.Timestamptz
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile   Profile            @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  mesocycle Mesocycle?         @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
+  parts     ImportSourcePart[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, expiresAt])
+  @@map("import_sessions")
+}
+
+/// Workout Plan Import & Review (Pitch 22) — one ordered part of a source
+/// bundle: either inline text (pasted) or a reference to a stored private
+/// object. Child of ImportSession; OWNED (carries user_id, same owner as its
+/// session). Exactly one of text / object_path is set (DB XOR CHECK). RLS
+/// deny-all; user_id immutable (trigger); FK Restrict; same-owner trigger on
+/// session_id.
+model ImportSourcePart {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Owning account. Required, immutable (DB trigger). Same owner as its session.
+  userId      String   @map("user_id") @db.Uuid
+  sessionId   String   @map("session_id") @db.Uuid
+  position    Int
+  /// Inline text for the text source kind; null for file parts.
+  text        String?
+  /// Private storage object path for a file part; null for text.
+  objectPath  String?  @map("object_path")
+  contentType String?  @map("content_type")
+  sizeBytes   Int?     @map("size_bytes")
+  sha256      String?
+  pageCount   Int?     @map("page_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  session ImportSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  profile Profile       @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([sessionId, position])
+  @@index([userId])
+  @@index([sessionId, position])
+  @@map("import_source_parts")
+}
+
+/// Workout Plan Import & Review (Pitch 22) — per-account atomic daily counter
+/// of STARTED import attempts (modeled on AuthThrottle). One row per
+/// (user_id, day_key); bumped in a single statement. Enforces 5/account/day.
+/// OWNED (carries user_id). RLS deny-all; user_id immutable (trigger); FK Restrict.
+model ImportUsageDay {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// Account-local calendar day "YYYY-MM-DD" (account timezone, like lastActiveOn).
+  dayKey    String   @map("day_key")
+  count     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([userId, dayKey])
+  @@index([userId])
+  @@map("import_usage_days")
+}
+
+/// Workout Plan Import & Review (Pitch 22) — UN-OWNED system table: a durable
+/// global reservation/reconciliation ledger for provider spend against the
+/// owner-set monthly cap. No personal data (model id, micro-dollars, month
+/// bucket). Classified in scope.ts UNOWNED_SYSTEM_MODELS; written only by the
+/// extraction module (a raw-allowed path, added in OVE-106). RLS deny-all.
+model ImportSpendLedger {
+  id             String   @id @default(uuid()) @db.Uuid
+  /// Month bucket "YYYY-MM" (UTC): the reservation/reconciliation window.
+  monthKey       String   @map("month_key")
+  /// A single aggregate row per month: reserved/actual micro-dollars.
+  reservedMicros BigInt   @default(0) @map("reserved_micros")
+  actualMicros   BigInt   @default(0) @map("actual_micros")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([monthKey])
+  @@map("import_spend_ledger")
 }

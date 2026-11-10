@@ -75,4 +75,14 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Entitlement: ["billing.int.test.ts", "account-deletion.int.test.ts"],
   BillingAccount: ["billing.int.test.ts", "account-deletion.int.test.ts"],
   PromoRedemption: ["billing.int.test.ts", "account-deletion.int.test.ts"],
+  // Workout Plan Import & Review (Pitch 22): plan-import.int.test.ts proves a
+  // second account can't read, list, search, change, confirm, discard, or detect
+  // an account's ImportSession, ImportSourcePart, or ImportUsageDay — by id, by
+  // relation, by object path. ImportSpendLedger is deliberately UN-OWNED (a
+  // global spend ledger with no userId, classified in UNOWNED_SYSTEM_MODELS), so
+  // it is NOT in this registry; plan-import.int.test.ts instead proves it has
+  // deny-all RLS and is unreachable from account.db.
+  ImportSession: ["plan-import.int.test.ts", "account-deletion.int.test.ts"],
+  ImportSourcePart: ["plan-import.int.test.ts", "account-deletion.int.test.ts"],
+  ImportUsageDay: ["plan-import.int.test.ts", "account-deletion.int.test.ts"],
 };

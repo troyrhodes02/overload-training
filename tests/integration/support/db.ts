@@ -40,6 +40,13 @@ export const APP_TABLES = [
   "billing_accounts",
   "promo_redemptions",
   "webhook_events",
+  // Workout Plan Import & Review: owned import tables (parts/sessions reachable
+  // via the profiles CASCADE, listed for clarity) and the un-owned global spend
+  // ledger (no FK to profiles, so it must be truncated explicitly).
+  "import_source_parts",
+  "import_sessions",
+  "import_usage_days",
+  "import_spend_ledger",
 ] as const;
 
 /** Tables that belong to no account (spec 17 R11): no owner column at all. */
@@ -55,6 +62,8 @@ export const UNOWNED_TABLES: readonly string[] = [
   "auth_throttle",
   // Plans, Billing & Promo Codes: the Stripe event-id ledger has no owner.
   "webhook_events",
+  // Workout Plan Import & Review: the global provider-spend ledger has no owner.
+  "import_spend_ledger",
 ];
 
 let client: PrismaClient | undefined;
