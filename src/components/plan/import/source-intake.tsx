@@ -86,6 +86,9 @@ export function SourceIntake() {
     return res.data.sessionId;
   }
 
+  const [dragging, setDragging] = React.useState(false);
+  const uploadDisabled = busy || parts.length >= MAX_PARTS;
+
   async function onChooseFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setError(null);
@@ -239,18 +242,45 @@ export function SourceIntake() {
           </TabsContent>
 
           <TabsContent value="upload" className="space-y-4">
-            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-card p-6 text-center">
+            <div
+              role="button"
+              tabIndex={0}
+              aria-disabled={busy || parts.length >= MAX_PARTS}
+              aria-label="Choose files to upload, or drop them here"
+              data-dragging={dragging || undefined}
+              className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-card p-6 text-center outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring data-[dragging]:border-primary data-[dragging]:bg-muted aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+              onClick={() => {
+                if (!uploadDisabled) fileInput.current?.click();
+              }}
+              onKeyDown={(e) => {
+                if ((e.key === "Enter" || e.key === " ") && !uploadDisabled) {
+                  e.preventDefault();
+                  fileInput.current?.click();
+                }
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                if (!uploadDisabled) setDragging(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                  setDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                if (!uploadDisabled) void onChooseFiles(e.dataTransfer.files);
+              }}
+            >
               <Upload aria-hidden className="size-6 text-muted-foreground" />
               <p className="text-sm">
                 Drop files here or{" "}
-                <Button
-                  variant="link"
-                  className="h-auto p-0 align-baseline"
-                  disabled={busy || parts.length >= MAX_PARTS}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  Choose files
-                </Button>
+                <span className="font-medium text-primary underline-offset-4">
+                  click to choose
+                </span>
               </p>
               <p className="text-xs text-muted-foreground">
                 PDF, JPG, PNG, WebP, HEIC · up to {mb(MAX_FILE_BYTES)} each
@@ -261,6 +291,8 @@ export function SourceIntake() {
                 multiple
                 accept={UPLOAD_ACCEPT_ATTR}
                 className="sr-only"
+                tabIndex={-1}
+                onClick={(e) => e.stopPropagation()}
                 onChange={(e) => onChooseFiles(e.target.files)}
               />
             </div>
