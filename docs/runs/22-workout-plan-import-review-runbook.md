@@ -116,7 +116,10 @@ review/error state, never silent truncation.
 **Implemented (reliable):** cleanup on confirm/discard; a **lazy per-request sweep** of the acting
 account's own expired unconfirmed sessions; **account-deletion** removes all import rows + stored
 objects; **retriable blob-delete tombstones**; an **operator cleanup script**
-(`scripts/operator/plan-import-cleanup`, default dry-run, loopback-only) the owner can run on demand.
+(`scripts/operator/plan-import-cleanup`, default dry-run) the owner can run on demand. Since OVE-111 it
+identifies its target by Supabase project ref: a hosted project needs `--confirm-ref <ref>` and its identity
+marker, and Production additionally needs `--production`. `--confirm-host` is retired. See
+`docs/technical/environment-isolation.md`.
 
 **🔴 Gap:** a reliable **scheduled** ≤24h purge of sessions that are *abandoned and never reopened*
 requires scheduling infrastructure the repo deliberately lacks. Options for the owner (a conscious
