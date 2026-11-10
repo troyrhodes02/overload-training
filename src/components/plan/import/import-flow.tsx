@@ -12,9 +12,21 @@ import {
   CircleHelp,
   CheckCircle2,
   ChevronLeft,
+  ChevronDown,
+  ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
   Sheet,
@@ -265,52 +277,113 @@ function ReviewStep({
     else setError(res.error.message);
   }
 
+  // Set once a plan has been created. From then on nothing on this screen can
+  // submit again or discard: the import is finished, so the only way on is to
+  // open the plan.
+  const [created, setCreated] = React.useState(false);
+  const submitting = React.useRef(false);
+  const [discardOpen, setDiscardOpen] = React.useState(false);
+
   async function onConfirm() {
+    // A ref, not state: two clicks in the same tick must not both submit.
+    if (submitting.current || created) return;
+    submitting.current = true;
     setBusy(true);
     setError(null);
     const res = await confirmImportAction({
       sessionId,
       version: draft.version,
     });
-    setBusy(false);
     if (res.ok) {
-      router.push(`/plan/import?session=${sessionId}`);
-      router.refresh();
-    } else {
-      setError(res.error.message);
+      setCreated(true);
+      // Go straight to the plan that was just saved, by its real id. (The old
+      // push back to this page re-rendered the server tree, but this client
+      // component kept its own "review" state, so the review stayed open.)
+      router.push(`/plan/${res.data.mesocycleId}?created=1`);
+      return;
     }
+    submitting.current = false;
+    setBusy(false);
+    setError(res.error.message);
   }
   async function onDiscard() {
+    if (created) return;
     setBusy(true);
-    await discardImportAction({ sessionId });
+    const res = await discardImportAction({ sessionId });
+    if (!res.ok) {
+      setBusy(false);
+      setError(res.error.message);
+      return;
+    }
     router.push("/plan");
     router.refresh();
   }
 
   const sourcePane = <SourcePane source={source} />;
 
+  const exerciseCount = draft.days.reduce((n, d) => n + d.exercises.length, 0);
+  const unresolved = React.useMemo(
+    () =>
+      draft.days.flatMap((d) =>
+        d.exercises.filter(isUnresolved).map((e) => e.key),
+      ),
+    [draft],
+  );
+  const cursor = React.useRef(0);
+
+  /** Scroll to the next exercise that still needs a decision and focus its control. */
+  function goToNextUnresolved() {
+    if (unresolved.length === 0) return;
+    const key = unresolved[cursor.current % unresolved.length];
+    cursor.current += 1;
+    const row = document.getElementById(exerciseRowId(key));
+    if (!row) return;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    row.scrollIntoView({
+      block: "center",
+      behavior: reduce ? "auto" : "smooth",
+    });
+    // The first control that is actually visible (the md+ disclosure button, or
+    // the phone layout's first radio / name field).
+    const target = Array.from(
+      row.querySelectorAll<HTMLElement>("[data-match-focus]"),
+    ).find((el) => el.offsetParent !== null);
+    target?.focus({ preventScroll: true });
+  }
+
   return (
-    <div className="relative flex min-h-full flex-col">
-      <header className="flex h-14 items-center justify-between gap-2 border-b border-border px-1">
+    <div data-wide-page className="relative flex min-h-full min-w-0 flex-col">
+      <header className="flex h-14 items-center justify-between gap-2 border-b border-border px-1 xl:px-0">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             className="text-muted-foreground"
-            onClick={onDiscard}
+            disabled={busy || created}
+            onClick={() => setDiscardOpen(true)}
           >
             <ChevronLeft aria-hidden className="size-4" /> Discard
           </Button>
-          <span className="text-sm font-medium">Review your plan</span>
+          <span className="whitespace-nowrap text-sm font-medium">
+            Review your plan
+          </span>
+          <span className="ml-2 hidden whitespace-nowrap text-sm text-muted-foreground tabular-nums xl:inline">
+            {draft.days.length} day{draft.days.length === 1 ? "" : "s"} ·{" "}
+            {exerciseCount} exercise{exerciseCount === 1 ? "" : "s"}
+          </span>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="md:hidden"
-          onClick={() => setSheetOpen(true)}
-        >
-          View source
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="xl:hidden"
+            onClick={() => setSheetOpen(true)}
+          >
+            View source
+          </Button>
+        </div>
       </header>
 
       {error && (
@@ -322,27 +395,36 @@ function ReviewStep({
         </div>
       )}
 
-      <div className="grid flex-1 gap-4 p-2 md:grid-cols-2">
-        <div className="hidden md:block">{sourcePane}</div>
-        <section className="space-y-4">
+      <div className="grid flex-1 gap-4 p-2 xl:grid-cols-[minmax(320px,2fr)_3fr] xl:items-start xl:gap-6 xl:p-4 xl:pl-0">
+        {/* Source: a reference panel beside the plan at lg+, pinned and scrolling
+            on its own. Below lg it opens from "View source" instead. */}
+        <aside
+          aria-label="Your source"
+          className="hidden xl:sticky xl:top-4 xl:block xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto"
+        >
+          {sourcePane}
+        </aside>
+        <section className="min-w-0 space-y-4">
           <OneTimeNote />
-          <TextSaveField
-            key={`title-${draft.version}-${draft.title.value ?? ""}`}
-            label="Plan name"
-            defaultValue={draft.title.value ?? ""}
-            status={draft.title.status}
-            disabled={busy}
-            placeholder="Plan name"
-            onSave={(value) =>
-              apply(() =>
-                saveDraftEditAction({
-                  sessionId,
-                  version: draft.version,
-                  patch: { kind: "title", value },
-                }),
-              )
-            }
-          />
+          <div className="md:max-w-md">
+            <TextSaveField
+              key={`title-${draft.version}-${draft.title.value ?? ""}`}
+              label="Plan name"
+              defaultValue={draft.title.value ?? ""}
+              status={draft.title.status}
+              disabled={busy}
+              placeholder="Plan name"
+              onSave={(value) =>
+                apply(() =>
+                  saveDraftEditAction({
+                    sessionId,
+                    version: draft.version,
+                    patch: { kind: "title", value },
+                  }),
+                )
+              }
+            />
+          </div>
           {draft.days.map((day) => (
             <DayCard
               key={day.key}
@@ -374,7 +456,10 @@ function ReviewStep({
             </div>
           )}
 
-          <div className="flex items-center justify-between">
+          {/* Phones: the action sits at the end of the content, as before.
+              md+: it pins to the bottom of the viewport so Create plan is
+              always reachable. */}
+          <div className="flex items-center justify-between gap-3 md:sticky md:bottom-0 md:z-10 md:-mx-2 md:border-t md:border-border md:bg-background/95 md:px-2 md:py-3 md:backdrop-blur xl:mx-0 xl:px-0">
             {blocked ? (
               <span className="flex items-center gap-2 text-sm text-destructive">
                 <TriangleAlert aria-hidden className="size-4" />
@@ -386,12 +471,41 @@ function ReviewStep({
                 Looks ready.
               </span>
             )}
-            <Button disabled={busy || blocked} onClick={onConfirm}>
-              Create plan
-            </Button>
+            <div className="flex items-center gap-2">
+              {unresolved.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hidden md:inline-flex"
+                  onClick={goToNextUnresolved}
+                >
+                  <ArrowDown aria-hidden className="size-4" />
+                  Next unresolved ({unresolved.length})
+                </Button>
+              )}
+              <Button disabled={busy || blocked || created} onClick={onConfirm}>
+                Create plan
+              </Button>
+            </div>
           </div>
         </section>
       </div>
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this import?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Nothing has been added to your plans yet. Discarding throws away
+              this unfinished import and your edits to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
+            <AlertDialogAction onClick={onDiscard}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="bottom" className="max-h-[85%]">
@@ -403,6 +517,21 @@ function ReviewStep({
       </Sheet>
     </div>
   );
+}
+
+/** An exercise still needs the lifter: an unresolved match or a needed field. */
+export function isUnresolved(ex: DraftExercise): boolean {
+  return (
+    ex.match.kind === "ambiguous" ||
+    ex.match.kind === "unknown" ||
+    ex.sets.status === "needed" ||
+    ex.repMin.status === "needed" ||
+    ex.repMax.status === "needed"
+  );
+}
+
+export function exerciseRowId(key: string): string {
+  return `import-ex-${key}`;
 }
 
 function OneTimeNote() {
@@ -479,7 +608,7 @@ function SourcePartView({ part }: { part: SourcePart }) {
           data={part.url}
           type="application/pdf"
           aria-label={`Source part ${part.position + 1} (PDF)`}
-          className="h-96 w-full rounded border border-border"
+          className="h-96 w-full rounded border border-border xl:h-[70dvh]"
         >
           <a
             href={part.url}
@@ -568,26 +697,37 @@ function DayCard({
   disabled: boolean;
   onApply: ApplyFn;
 }) {
+  const open = exercises.filter(isUnresolved).length;
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-card p-3">
-      <TextSaveField
-        key={`day-${version}-${dayKey}-${label.value ?? ""}`}
-        label="Day"
-        defaultValue={label.value ?? ""}
-        status={label.status}
-        disabled={disabled}
-        placeholder="Day name"
-        onSave={(value) =>
-          onApply(() =>
-            saveDraftEditAction({
-              sessionId,
-              version,
-              patch: { kind: "dayLabel", dayKey, value },
-            }),
-          )
-        }
-      />
-      <div className="space-y-3">
+    <div className="space-y-3 rounded-lg border border-border bg-card p-3 md:p-4">
+      <div className="md:flex md:items-end md:justify-between md:gap-4 min-w-0">
+        <div className="md:w-full md:max-w-xs">
+          <TextSaveField
+            key={`day-${version}-${dayKey}-${label.value ?? ""}`}
+            label="Day"
+            defaultValue={label.value ?? ""}
+            status={label.status}
+            disabled={disabled}
+            placeholder="Day name"
+            onSave={(value) =>
+              onApply(() =>
+                saveDraftEditAction({
+                  sessionId,
+                  version,
+                  patch: { kind: "dayLabel", dayKey, value },
+                }),
+              )
+            }
+          />
+        </div>
+        <p className="hidden whitespace-nowrap pb-2 text-sm text-muted-foreground tabular-nums md:block">
+          {exercises.length} exercise{exercises.length === 1 ? "" : "s"}
+          {open > 0 && (
+            <span className="text-destructive"> · {open} to resolve</span>
+          )}
+        </p>
+      </div>
+      <div className="space-y-3 md:space-y-2">
         {exercises.map((ex) => (
           <ExerciseRow
             key={ex.key}
@@ -629,17 +769,32 @@ function ExerciseRow({
       }),
     );
   }
+  const unresolved = isUnresolved(ex);
+  // Phones: the original stacked card (match, fields, chips). md+: one compact
+  // row — the match on the left, sets / rep min / rep max on the right — by
+  // placing the same three blocks on a grid (DOM order is unchanged).
   return (
-    <div className="space-y-2 rounded-md border border-border/60 p-2">
-      <MatchControl
-        sessionId={sessionId}
-        version={version}
-        exerciseKey={ex.key}
-        match={ex.match}
-        disabled={disabled}
-        onApply={onApply}
-      />
-      <div className="flex flex-wrap items-end gap-3">
+    <div
+      id={exerciseRowId(ex.key)}
+      data-unresolved={unresolved ? "true" : undefined}
+      className={
+        "scroll-mt-24 space-y-2 rounded-md border p-2 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-x-6 md:gap-y-1 md:space-y-0 md:p-3 " +
+        (unresolved
+          ? "border-destructive/40 bg-destructive/5"
+          : "border-border/60")
+      }
+    >
+      <div className="md:col-start-1 md:row-start-1">
+        <MatchControl
+          sessionId={sessionId}
+          version={version}
+          exerciseKey={ex.key}
+          match={ex.match}
+          disabled={disabled}
+          onApply={onApply}
+        />
+      </div>
+      <div className="flex flex-wrap items-end gap-3 md:col-start-2 md:row-span-2 md:row-start-1 md:flex-nowrap">
         <NumField
           label="Sets"
           field={ex.sets}
@@ -660,7 +815,7 @@ function ExerciseRow({
         />
       </div>
       {ex.context.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 md:col-start-1 md:row-start-2">
           {ex.context.map((c, i) => (
             <ContextChip key={i}>
               {c.label}: {c.value}
@@ -688,6 +843,7 @@ function MatchControl({
   onApply: ApplyFn;
 }) {
   const [showCustom, setShowCustom] = React.useState(false);
+  const [showChoices, setShowChoices] = React.useState(false);
 
   if (match.kind === "matched") {
     return (
@@ -723,18 +879,43 @@ function MatchControl({
   );
 
   if (match.kind === "ambiguous") {
+    const panelId = `match-panel-${exerciseKey}`;
     return (
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">
             &ldquo;{match.raw}&rdquo;
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <CircleHelp aria-hidden className="size-3" /> choose a match
           </span>
+          {/* md+: suggestions stay closed until asked for; phones list them. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden md:inline-flex"
+            data-match-focus
+            aria-expanded={showChoices}
+            aria-controls={panelId}
+            onClick={() => setShowChoices((v) => !v)}
+          >
+            Choose match ({match.candidates.length})
+            <ChevronDown
+              aria-hidden
+              className={
+                "size-4 transition-transform " +
+                (showChoices ? "rotate-180" : "")
+              }
+            />
+          </Button>
         </div>
-        <div role="radiogroup" className="space-y-1">
-          {match.candidates.map((c) => (
+        <div
+          id={panelId}
+          role="radiogroup"
+          aria-label={`Matches for ${match.raw}`}
+          className={"space-y-1 " + (showChoices ? "" : "md:hidden")}
+        >
+          {match.candidates.map((c, i) => (
             <label
               key={c.exerciseId}
               className="flex cursor-pointer items-center gap-2 text-sm"
@@ -743,6 +924,7 @@ function MatchControl({
                 type="radio"
                 name={`match-${exerciseKey}`}
                 disabled={disabled}
+                data-match-focus={i === 0 ? true : undefined}
                 onChange={() =>
                   onApply(() =>
                     resolveMatchAction({
@@ -777,13 +959,24 @@ function MatchControl({
   // unknown
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground">&ldquo;{match.raw}&rdquo;</span>
         <span className="flex items-center gap-1 text-xs text-destructive">
           <TriangleAlert aria-hidden className="size-3" /> not in library
         </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="hidden md:inline-flex"
+          data-match-focus
+          aria-expanded={showCustom}
+          onClick={() => setShowCustom((v) => !v)}
+        >
+          Create custom exercise…
+        </Button>
       </div>
-      {staged}
+      {/* Phones show the form straight away (as before); md+ opens it on demand. */}
+      <div className={showCustom ? "" : "md:hidden"}>{staged}</div>
     </div>
   );
 }
@@ -813,6 +1006,7 @@ function CustomExerciseForm({
       <Input
         value={name}
         disabled={disabled}
+        data-match-focus
         onChange={(e) => setName(e.target.value)}
         placeholder="Exercise name"
       />
@@ -897,7 +1091,7 @@ function NumField({
       <Input
         key={`num-${current}-${field.status}`}
         inputMode="numeric"
-        className="h-11 w-16 tabular-nums"
+        className="h-11 w-16 tabular-nums md:h-9"
         defaultValue={current}
         disabled={disabled}
         onBlur={(e) => {

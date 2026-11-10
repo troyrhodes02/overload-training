@@ -4,7 +4,7 @@ import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 import { beginExtraction, retryExtraction } from "@/lib/import/extract";
 import { confirmImport } from "@/lib/import/confirm";
-import { createImportSession } from "@/lib/import/sessions";
+import { createImportSession, discardImport } from "@/lib/import/sessions";
 import { stageCustomExercise } from "@/lib/import/review";
 import {
   __setPlanExtractionPort,
@@ -405,5 +405,121 @@ describe("retry / stale-lease recovery (P22-07)", () => {
     await expect(
       retryExtraction(account, { sessionId, dayKey: DAY }),
     ).rejects.toMatchObject({ code: "invalid_state_transition" });
+  });
+});
+
+describe("a full three-day import (staging regression)", () => {
+  const DAYS = [
+    [
+      "Monday — Workout A",
+      ["Barbell Bench Press", "Overhead Press", "Cable Fly"],
+    ],
+    ["Wednesday — Workout B", ["Lat Pulldown", "Barbell Row", "Hammer Curl"]],
+    [
+      "Friday — Workout C",
+      ["Hack Squat", "Romanian Deadlift", "Standing Calf Raise"],
+    ],
+  ] as const;
+
+  function threeDays() {
+    return mockSuccess({
+      isWorkoutPlan: true,
+      title: field("3-Day Full Body Strength Plan"),
+      days: DAYS.map(([label, names], d) => ({
+        order: d,
+        label: field(label),
+        notes: field(null),
+        exercises: names.map((name, i) => ({
+          order: i,
+          groupLabel: field(null),
+          name: field(name),
+          sets: field("3"),
+          reps: field(`${8 + i * 2}-${8 + i * 2}`),
+          load: field(null),
+          rest: field(null),
+          tempo: field(null),
+          notes: field(null),
+          alternativeReadings: [],
+        })),
+      })),
+      generalNotes: field(null),
+      unreadable: [],
+      contradictions: [],
+    });
+  }
+
+  async function reviewed(account: Account): Promise<string> {
+    for (const [, names] of DAYS)
+      for (const n of names) await seedLibraryExercise(n);
+    __setPlanExtractionPort(new MockPlanExtractionPort(threeDays()));
+    const sessionId = await seedUploadedTextSession(account, "3 day plan");
+    await beginExtraction(account, { sessionId, dayKey: DAY });
+    return sessionId;
+  }
+
+  it("persists every day and exercise with its sets and rep range, as an unscheduled draft with no start date", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    const sessionId = await reviewed(account);
+    const { mesocycleId } = await confirmImport(account, {
+      sessionId,
+      version: 0,
+    });
+
+    const meso = await prisma.mesocycle.findUniqueOrThrow({
+      where: { id: mesocycleId },
+      include: {
+        sessions: {
+          orderBy: { position: "asc" },
+          include: { sessionExercises: { orderBy: { position: "asc" } } },
+        },
+      },
+    });
+    // Expected Draft state: not active, no start date, nothing scheduled.
+    expect(meso.status).toBe("draft");
+    expect(meso.startDate).toBeNull();
+    expect(meso.name).toBe("3-Day Full Body Strength Plan");
+    expect(meso.sessions.map((x) => x.name)).toEqual(DAYS.map(([l]) => l));
+    expect(meso.sessions.every((x) => x.dayOfWeek === null)).toBe(true);
+    // All nine exercises with their sets and rep ranges.
+    expect(meso.sessions.map((x) => x.sessionExercises.length)).toEqual([
+      3, 3, 3,
+    ]);
+    for (const sess of meso.sessions) {
+      expect(
+        sess.sessionExercises.map((e) => [
+          e.plannedSets,
+          e.targetRepMin,
+          e.targetRepMax,
+        ]),
+      ).toEqual([
+        [3, 8, 8],
+        [3, 10, 10],
+        [3, 12, 12],
+      ]);
+    }
+  });
+
+  it("repeated confirms leave exactly one plan, and discarding a finished import is refused and keeps the plan", async () => {
+    const account = await createTestAccount();
+    const prisma = getTestPrisma();
+    const sessionId = await reviewed(account);
+    const before = await prisma.mesocycle.count();
+    const results = await Promise.all([
+      confirmImport(account, { sessionId, version: 0 }),
+      confirmImport(account, { sessionId, version: 0 }),
+      confirmImport(account, { sessionId, version: 0 }),
+    ]);
+    expect(new Set(results.map((r) => r.mesocycleId)).size).toBe(1);
+    expect(await prisma.mesocycle.count()).toBe(before + 1);
+
+    await expect(discardImport(account, { sessionId })).rejects.toMatchObject({
+      code: "invalid_state_transition",
+    });
+    const stillThere = await prisma.mesocycle.findUnique({
+      where: { id: results[0].mesocycleId },
+      include: { sessions: true },
+    });
+    expect(stillThere?.sessions).toHaveLength(3);
   });
 });
