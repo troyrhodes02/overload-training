@@ -23,6 +23,7 @@ import {
   UPLOAD_ACCEPT_ATTR,
 } from "@/lib/import/constants";
 import type { ActionResult } from "@/lib/actions/result";
+import { runStartFlow } from "@/lib/import/start-flow";
 import {
   startImportAction,
   addTextAction,
@@ -148,26 +149,24 @@ export function SourceIntake() {
     setBusy(true);
     setError(null);
     try {
-      if (mode === "paste") {
-        const id = await ensureSession("text");
-        if (!id) return;
-        const res = await addTextAction({ sessionId: id, text });
-        if (!res.ok) {
-          setError(res.error.message);
-          return;
-        }
+      // One session for the whole sequence (see start-flow.ts): never read the
+      // stale `sessionId` state after creating a session in the same handler.
+      const result = await runStartFlow(
+        { mode, text, sessionId },
+        {
+          startImport: startImportAction,
+          addText: addTextAction,
+          beginExtraction: beginExtractionAction,
+        },
+      );
+      if (result.sessionId) setSessionId(result.sessionId);
+      if (!result.ok) {
+        setError(result.message);
+        return;
       }
       // The source is persisted. Hand the session id to the Processing step: the
       // flow is server-status-driven from here, so a revisit resumes correctly.
-      const id =
-        sessionId ?? (mode === "paste" ? await ensureSession("text") : null);
-      if (!id) return;
-      const begin = await beginExtractionAction({ sessionId: id });
-      if (!begin.ok) {
-        setError(begin.error.message);
-        return;
-      }
-      router.push(`/plan/import?session=${id}`);
+      router.push(`/plan/import?session=${result.sessionId}`);
       router.refresh();
     } finally {
       setBusy(false);
