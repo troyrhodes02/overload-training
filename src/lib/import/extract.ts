@@ -15,7 +15,10 @@ import {
   reserveSpend,
 } from "./spend";
 import { getPlanExtractionPort } from "./extraction";
+import { providerMayHaveBilled } from "./provider-billing";
+import { logDiagnostic } from "./diagnostics";
 import type { ExtractionPart, ExtractionResult } from "./extraction/port";
+import type { ExtractedPlanObservation } from "./extraction/schema";
 import { matchExercises } from "./match/library";
 import { buildImportDraft } from "./draft/build";
 import type { SourceTextPart } from "./draft/evidence";
@@ -41,12 +44,25 @@ import { inspectPdf, isTextLayerDefensible } from "./pdf";
  * request-owned task before returning, so Vercel does not tear down the work.
  */
 
-/** How long a lease is honoured before it may be reclaimed as stale (ms). */
-const LEASE_TTL_MS = 90_000;
-/** Hard wall-clock cap on a single provider call (ms). */
-const EXTRACTION_TIMEOUT_MS = 60_000;
-/** Max started attempts for one session before it is terminal-failed. */
-const MAX_ATTEMPTS = 3;
+/**
+ * Hard wall-clock cap on a single provider call (ms). A long plan is thousands
+ * of output tokens, which a 60 s cap aborted mid-answer; this stays under the
+ * page's maxDuration (plan/import/page.tsx) with room for the surrounding work.
+ */
+const EXTRACTION_TIMEOUT_MS = 100_000;
+/**
+ * How long a lease is honoured before it may be reclaimed as stale (ms). It must
+ * OUTLAST the call: if it expired mid-call, a second request could reclaim the
+ * session and run a second billable extraction concurrently.
+ */
+const LEASE_TTL_MS = EXTRACTION_TIMEOUT_MS + 45_000;
+/**
+ * Max started (billable) attempts for one session before it is terminal-failed:
+ * the first try plus ONE retry. (The old value, 3, never took effect: the count
+ * handed to failSession already included the attempt being failed, so the third
+ * attempt was unreachable. Two is now stated outright, keeping spend bounded.)
+ */
+const MAX_ATTEMPTS = 2;
 
 const MAX_TEXT_SNIPPET = 20_000;
 
@@ -258,7 +274,7 @@ async function loadParts(
   return { extraction, text };
 }
 
-/** Write a terminal status for a failure, releasing the spend reservation. */
+/** Write a terminal status for a failure (billing-aware spend handling below). */
 async function failSession(
   account: Account,
   sessionId: string,
@@ -266,7 +282,18 @@ async function failSession(
   outcome: Extract<ExtractionResult, { ok: false }>,
   attemptCount: number,
 ): Promise<void> {
-  await releaseReservation(ESTIMATED_ATTEMPT_MICROS).catch(() => {});
+  // A failure BEFORE the provider could have done billable work releases the
+  // reservation. A failure AFTER it may have (a timeout or abort, a truncated or
+  // unusable answer, a refusal) keeps the estimate as spent: the provider may
+  // already have billed it, and the global cap must not drift below reality.
+  if (providerMayHaveBilled(outcome.code)) {
+    await reconcileSpend({
+      reservedMicros: ESTIMATED_ATTEMPT_MICROS,
+      actualMicros: ESTIMATED_ATTEMPT_MICROS,
+    }).catch(() => {});
+  } else {
+    await releaseReservation(ESTIMATED_ATTEMPT_MICROS).catch(() => {});
+  }
 
   let status: ImportStatus;
   if (outcome.code === "cancelled") {
@@ -356,31 +383,30 @@ async function runExtraction(
   }
 
   if (!result.ok) {
-    await failSession(
-      account,
-      session.id,
-      token,
-      result,
-      session.attemptCount + 1,
-    );
+    await failSession(account, session.id, token, result, session.attemptCount);
     return;
   }
 
   // Deterministic interpretation (code decides). Match names over the real
-  // library (through account.db), then build the versioned draft.
-  const rawNames: string[] = [];
-  for (const day of result.observation.days) {
-    for (const ex of day.exercises) rawNames.push(ex.name.raw ?? "");
+  // library (through account.db), then build the versioned draft. The provider
+  // call has ALREADY happened (and may have been billed), so a failure here must
+  // end the attempt cleanly. Left to escape, it would strand the session in
+  // `extracting` until the lease went stale and a refresh re-ran (and re-billed)
+  // the whole extraction.
+  let draft: ImportDraft;
+  try {
+    draft = await interpretObservation(account, result.observation, text);
+  } catch {
+    logDiagnostic({ event: "draft_build_failed", code: "draft_build_failed" });
+    await failSession(
+      account,
+      session.id,
+      token,
+      { ok: false, code: "draft_build_failed", retryable: false },
+      session.attemptCount,
+    );
+    return;
   }
-  const matches = result.observation.isWorkoutPlan
-    ? await matchExercises(account, rawNames)
-    : [];
-
-  const draft = buildImportDraft({
-    observation: result.observation,
-    matches,
-    parts: text,
-  });
 
   await completeSession(
     account,
@@ -394,6 +420,27 @@ async function runExtraction(
     },
     !result.observation.isWorkoutPlan,
   );
+}
+
+async function interpretObservation(
+  account: Account,
+  observation: ExtractedPlanObservation,
+  text: SourceTextPart[],
+): Promise<ImportDraft> {
+  const rawNames: string[] = [];
+  for (const day of observation.days) {
+    for (const ex of day.exercises) rawNames.push(ex.name.raw ?? "");
+  }
+  const matches = observation.isWorkoutPlan
+    ? await matchExercises(account, rawNames)
+    : [];
+
+  const draft = buildImportDraft({
+    observation,
+    matches,
+    parts: text,
+  });
+  return draft;
 }
 
 /**
@@ -497,7 +544,7 @@ export async function retryExtraction(
     });
     throw new DomainError(
       "import_unavailable",
-      "We couldn't read this after several tries. Nothing was charged.",
+      "We couldn't read this after several tries. Try a smaller import, or paste the text.",
     );
   }
   // Retrying is a new started attempt: re-run the begin path (quota + spend + lease).

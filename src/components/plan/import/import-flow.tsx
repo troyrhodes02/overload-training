@@ -132,7 +132,18 @@ export function ImportFlow({
       <ReviewStep sessionId={sessionId} draft={initialDraft} source={source} />
     );
   }
-  return <ProcessingStep sessionId={sessionId} status={status} />;
+  return (
+    <ProcessingStep
+      sessionId={sessionId}
+      status={status}
+      onStatus={(next) => {
+        setStatus(next);
+        // The server owns the draft: once it says "review" or "done", re-render
+        // the page so the new props (draft, source, plan id) arrive.
+        if (next.step === "review" || next.step === "done") router.refresh();
+      }}
+    />
+  );
 }
 
 /* ----------------------------- Processing ------------------------------ */
@@ -140,12 +151,16 @@ export function ImportFlow({
 function ProcessingStep({
   sessionId,
   status,
+  onStatus,
 }: {
   sessionId: string;
   status: ImportStatusDto;
+  onStatus: (next: ImportStatusDto) => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  const [retrying, setRetrying] = React.useState(false);
+  const [retryError, setRetryError] = React.useState<string | null>(null);
 
   async function onCancel() {
     setBusy(true);
@@ -154,25 +169,28 @@ function ProcessingStep({
     router.refresh();
   }
   async function onRetry() {
+    if (retrying) return;
     setBusy(true);
-    const res = await retryExtractionAction({ sessionId });
-    setBusy(false);
-    if (res.ok) router.refresh();
+    setRetrying(true);
+    setRetryError(null);
+    // The retry runs the whole extraction inside this call, so keep showing the
+    // working state while it does, and apply the status it RETURNS. (Before, the
+    // card stayed as it was: the new status only arrived through props that this
+    // component's own state ignored, so "Try again" looked stuck until a reload.)
+    try {
+      const res = await retryExtractionAction({ sessionId });
+      if (res.ok) onStatus(res.data);
+      else setRetryError(res.error.message);
+    } catch {
+      setRetryError("Couldn't retry. Please try again.");
+    } finally {
+      setRetrying(false);
+      setBusy(false);
+    }
   }
 
-  if (status.status === "extracting") {
-    return (
-      <Centered>
-        <Loader2
-          aria-hidden
-          className="mx-auto size-7 animate-spin text-muted-foreground"
-        />
-        <p className="text-sm text-muted-foreground">Reading your plan…</p>
-        <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
-          Cancel
-        </Button>
-      </Centered>
-    );
+  if (status.status === "extracting" || retrying || status.step === "review") {
+    return <ReadingState busy={busy} onCancel={onCancel} />;
   }
 
   const retryCopy = extractionFailureCopy(status.errorCode, true);
@@ -183,7 +201,7 @@ function ProcessingStep({
       <OutcomeCard
         tone="destructive"
         title={retryCopy.title}
-        body={retryCopy.body}
+        body={retryError ? `${retryCopy.body} ${retryError}` : retryCopy.body}
         actions={
           <>
             <Button disabled={busy} onClick={onRetry}>
@@ -203,7 +221,7 @@ function ProcessingStep({
       <OutcomeCard
         tone="muted"
         title="That doesn't look like a workout plan"
-        body="We couldn't find a plan in what you shared, so nothing was saved. You can start over with different text or files."
+        body="We couldn't find a plan in what you shared, so no plan was created. You can start over with different text or files."
         actions={
           <Button variant="outline" disabled={busy} onClick={onCancel}>
             Start over
@@ -218,7 +236,7 @@ function ProcessingStep({
       <OutcomeCard
         tone="muted"
         title="You've reached today's import limit"
-        body="Imports are limited per day. Try again tomorrow — nothing was charged."
+        body="Imports are limited per day. Try again tomorrow."
         actions={
           <Button variant="outline" asChild>
             <Link href="/plan">Back to Plan</Link>
@@ -240,6 +258,55 @@ function ProcessingStep({
         </Button>
       }
     />
+  );
+}
+
+/**
+ * The working state: a calm skeleton of the review that is coming, an elapsed
+ * timer, and an honest expectation (longer plans take longer). Motion stops for
+ * people who ask for reduced motion.
+ */
+function ReadingState({
+  busy,
+  onCancel,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+}) {
+  const [seconds, setSeconds] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setSeconds((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <Centered>
+      <div role="status" aria-live="polite" className="space-y-4">
+        <Loader2
+          aria-hidden
+          className="mx-auto size-7 animate-spin text-muted-foreground motion-reduce:animate-none"
+        />
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Reading your plan…</p>
+          <p className="text-sm text-muted-foreground">
+            Longer plans can take a minute or two. You can leave this page and
+            come back.
+          </p>
+        </div>
+        <div aria-hidden className="mx-auto max-w-xs space-y-2">
+          {[3 / 4, 1, 2 / 3].map((w, i) => (
+            <div
+              key={i}
+              style={{ width: `${w * 100}%` }}
+              className="h-3 rounded bg-muted motion-safe:animate-pulse"
+            />
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground tabular-nums">{seconds}s</p>
+      </div>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
+        Cancel
+      </Button>
+    </Centered>
   );
 }
 

@@ -13,6 +13,7 @@ import type {
   PlanExtractionPort,
 } from "./port";
 import { PROMPT_VERSION, SYSTEM_PROMPT, USER_PREAMBLE } from "./prompt";
+import { logDiagnostic } from "../diagnostics";
 
 /**
  * Workout Plan Import & Review (Pitch 22, OVE-106) — the Anthropic
@@ -42,7 +43,23 @@ export function resolvedModelId(): string {
   return configured && configured.length > 0 ? configured : "claude-opus-4-8";
 }
 
-const MAX_OUTPUT_TOKENS = 8000;
+/**
+ * Output budget. Each exercise is reported field by field with evidence, which
+ * costs roughly 450 output tokens per exercise (measured on a real run: 4.2k
+ * tokens for 9 exercises), so a cap of 8000 truncated any plan past ~15
+ * exercises mid-JSON. Truncation is detected explicitly (stop_reason) below.
+ */
+export const MAX_OUTPUT_TOKENS = 12_000;
+
+/**
+ * Transcription needs no deep reasoning, and reasoning tokens count against
+ * max_tokens and against the time limit. `effort: "low"` keeps both small. It is
+ * sent only to models that accept the parameter (Haiku 4.x and Sonnet 4.5 and
+ * earlier reject it with a 400).
+ */
+export function effortFor(modelId: string): "low" | undefined {
+  return /haiku-4|sonnet-4-5|claude-3/.test(modelId) ? undefined : "low";
+}
 
 function toBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
@@ -121,8 +138,9 @@ function classifyError(error: unknown): {
   ) {
     return { code: "provider_timeout", retryable: true };
   }
-  // Anything else (including schema validation / parse failures) is terminal.
-  return { code: "malformed_output", retryable: false };
+  // Parsing is done by the caller now, so anything else escaping the SDK call is
+  // a transport/internal fault, not bad model output: retryable.
+  return { code: "provider_unavailable", retryable: true };
 }
 
 function retryAfterMs(
@@ -143,7 +161,11 @@ function retryAfterMs(
 export class AnthropicPlanExtractionPort implements PlanExtractionPort {
   private readonly client: Anthropic;
 
-  constructor() {
+  constructor(client?: Pick<Anthropic, "messages">) {
+    if (client) {
+      this.client = client as Anthropic;
+      return;
+    }
     const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
     if (!apiKey) {
       // Defer the "unconfigured" decision to extract() so construction never
@@ -159,42 +181,78 @@ export class AnthropicPlanExtractionPort implements PlanExtractionPort {
       return { ok: false, code: "provider_unconfigured", retryable: false };
     }
     const modelId = resolvedModelId();
+    const effort = effortFor(modelId);
+    const startedAt = Date.now();
+    let stopReason: string | null = null;
+    let usage: { inputTokens: number; outputTokens: number } | null = null;
+
+    // Sanitized diagnostics: codes, token counts and timing only. Never a prompt,
+    // source text, or the provider's response body.
+    const fail = (
+      code: ExtractionErrorCode,
+      retryable: boolean,
+      extra: { retryAfterMs?: number } = {},
+    ): ExtractionResult => {
+      logDiagnostic({
+        event: "extraction_failed",
+        code,
+        stopReason,
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        elapsedMs: Date.now() - startedAt,
+      });
+      return { ok: false, code, retryable, ...extra };
+    };
+
     try {
-      const message = await this.client.messages.parse(
+      // create() + our own parse (not messages.parse): parse() throws a generic
+      // error for BOTH a truncated answer and an invalid one, which collapsed
+      // them into "malformed_output". Here stop_reason is read first.
+      const format = zodOutputFormat(ExtractedPlanObservationSchema);
+      const message = await this.client.messages.create(
         {
           model: modelId,
           max_tokens: MAX_OUTPUT_TOKENS,
           system: SYSTEM_PROMPT,
-          output_config: {
-            format: zodOutputFormat(ExtractedPlanObservationSchema),
-          },
+          output_config: { ...(effort ? { effort } : {}), format },
           messages: [{ role: "user", content: userContent(request.parts) }],
         },
         { signal: request.signal },
       );
+      stopReason = message.stop_reason ?? null;
+      usage = {
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+      };
 
-      if (message.stop_reason === "refusal") {
-        return { ok: false, code: "provider_rejected", retryable: false };
+      if (message.stop_reason === "refusal")
+        return fail("provider_rejected", false);
+      if (message.stop_reason === "max_tokens")
+        return fail("output_truncated", false);
+
+      const text = message.content
+        .map((b) => (b.type === "text" ? b.text : ""))
+        .join("");
+      if (!text.trim()) return fail("malformed_output", false);
+
+      let observation: ExtractedPlanObservation;
+      try {
+        // Defence in depth: the strict schema, so the model can never smuggle
+        // an extra field past us.
+        observation = ExtractedPlanObservationSchema.parse(JSON.parse(text));
+      } catch {
+        return fail("malformed_output", false);
       }
-      const parsed = message.parsed_output as ExtractedPlanObservation | null;
-      if (parsed == null) {
-        return { ok: false, code: "malformed_output", retryable: false };
-      }
-      // Defence in depth: re-validate against the strict schema. The model must
-      // not smuggle extra fields past the SDK's parse.
-      const observation = ExtractedPlanObservationSchema.parse(parsed);
       return {
         ok: true,
         observation,
         modelId,
         promptVersion: PROMPT_VERSION,
-        usage: {
-          inputTokens: message.usage.input_tokens,
-          outputTokens: message.usage.output_tokens,
-        },
+        usage,
       };
     } catch (error) {
-      return { ok: false, ...classifyError(error) };
+      const c = classifyError(error);
+      return fail(c.code, c.retryable, { retryAfterMs: c.retryAfterMs });
     }
   }
 }
