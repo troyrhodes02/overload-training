@@ -4,6 +4,7 @@ import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 import { beginExtraction, retryExtraction } from "@/lib/import/extract";
 import { confirmImport } from "@/lib/import/confirm";
+import { createImportSession } from "@/lib/import/sessions";
 import { stageCustomExercise } from "@/lib/import/review";
 import {
   __setPlanExtractionPort,
@@ -138,6 +139,27 @@ describe("extraction → review (mocked provider)", () => {
     // Load/rest are context only, never plan fields.
     const ctx = draft.days[0].exercises[0].context.map((c) => c.label);
     expect(ctx).toEqual(expect.arrayContaining(["Load", "Rest"]));
+  });
+
+  it("an empty `created` session is refused with a clear message BEFORE any provider call or spend", async () => {
+    const account = await createTestAccount();
+    const port = new MockPlanExtractionPort(planObservation());
+    const extract = jest.spyOn(port, "extract");
+    __setPlanExtractionPort(port);
+    const { sessionId } = await createImportSession(account, { mode: "text" });
+
+    await expect(
+      beginExtraction(account, { sessionId, dayKey: DAY }),
+    ).rejects.toMatchObject({
+      code: "invalid_state_transition",
+      message: "Add your plan text or a file before processing.",
+    });
+    expect(extract).not.toHaveBeenCalled();
+    const row = await getTestPrisma().importSession.findUniqueOrThrow({
+      where: { id: sessionId },
+      select: { status: true, attemptCount: true },
+    });
+    expect(row).toEqual({ status: "created", attemptCount: 0 });
   });
 
   it("isWorkoutPlan:false → not_a_plan, no draft, nothing to confirm", async () => {

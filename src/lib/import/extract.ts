@@ -424,6 +424,13 @@ export async function beginExtraction(
       return getImportStatus(account, session.id);
     }
     // else: stale lease — fall through to reclaim it via claimLease.
+  } else if (session.status === "created") {
+    // Nothing has been added yet (no text, no file): say what to do, not that
+    // the import is "not ready".
+    throw new DomainError(
+      "invalid_state_transition",
+      "Add your plan text or a file before processing.",
+    );
   } else if (
     session.status !== "uploaded" &&
     session.status !== "failed_retryable"
