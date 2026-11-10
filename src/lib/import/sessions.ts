@@ -21,6 +21,7 @@ import {
   uploadSourceObject,
 } from "./storage";
 import { inspectPdf, PdfValidationError } from "./pdf";
+import { IMPORT_EXPIRED_MESSAGE } from "./errors";
 import { MAX_PDF_PAGES } from "./constants";
 import { ESTIMATED_ATTEMPT_MICROS, releaseReservation } from "./spend";
 
@@ -78,7 +79,15 @@ async function requireOwnSession(
   if (!session) {
     throw new DomainError("not_found", "That import could not be found.");
   }
+  assertNotExpired(session);
   return session;
+}
+
+/** Expired/purged imports have had their sources removed; say so plainly. */
+function assertNotExpired(session: ImportSession): void {
+  if (session.status === "expired" || session.status === "purged") {
+    throw new DomainError("invalid_state_transition", IMPORT_EXPIRED_MESSAGE);
+  }
 }
 
 /** A session is still assembling its source while in `created` or `uploaded`. */
@@ -180,7 +189,7 @@ export async function addFilePart(
   if (usedBytes + input.sizeBytes > MAX_TOTAL_BYTES) {
     throw new DomainError(
       "validation_error",
-      "That's over the total size limit for one import.",
+      "These files are too large together. Remove one or choose smaller files.",
     );
   }
 
@@ -204,7 +213,7 @@ export async function addFilePart(
   if (usedBytes + storedBytes > MAX_TOTAL_BYTES) {
     throw new DomainError(
       "validation_error",
-      "That's over the total size limit for one import.",
+      "These files are too large together. Remove one or choose smaller files.",
     );
   }
 
@@ -277,12 +286,12 @@ export async function addFilePart(
 function pdfRejectionMessage(error: PdfValidationError): string {
   switch (error.reason) {
     case "encrypted":
-      return "That PDF is password-protected. Remove the password and try again.";
+      return "This PDF is password-protected. Remove the password and try again.";
     case "too_many_pages":
       return `That PDF has too many pages. Import a PDF of at most ${MAX_PDF_PAGES} pages.`;
     case "malformed":
     default:
-      return "That PDF couldn't be read. It may be damaged or not a real PDF.";
+      return "We couldn't read this PDF. Try exporting it again.";
   }
 }
 

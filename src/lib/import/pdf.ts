@@ -1,5 +1,6 @@
 import "server-only";
 import { MAX_PDF_PAGES } from "./constants";
+import { PdfEngineError } from "./errors";
 
 /**
  * Workout Plan Import & Review (Pitch 22, OVE-107) — the single server-side PDF
@@ -64,7 +65,14 @@ async function loadPdfjs(): Promise<PdfjsModule> {
   if (!pdfjsPromise) {
     pdfjsPromise = nativeImport("pdfjs-dist/legacy/build/pdf.mjs");
   }
-  return pdfjsPromise;
+  try {
+    return await pdfjsPromise;
+  } catch {
+    // The library itself could not load (a deployment problem, not a bad PDF):
+    // report it as such, and allow the next request to try loading again.
+    pdfjsPromise = null;
+    throw new PdfEngineError();
+  }
 }
 
 /**

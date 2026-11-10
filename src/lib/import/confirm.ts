@@ -1,5 +1,6 @@
 import "server-only";
 import type { ImportSession } from "@prisma/client";
+import { IMPORT_EXPIRED_MESSAGE } from "./errors";
 import { DomainError, isUniqueViolation } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import { requireCapability } from "@/lib/entitlements/require";
@@ -53,6 +54,9 @@ async function requireConfirmSession(
   });
   if (!session) {
     throw new DomainError("not_found", "That import could not be found.");
+  }
+  if (session.status === "expired" || session.status === "purged") {
+    throw new DomainError("invalid_state_transition", IMPORT_EXPIRED_MESSAGE);
   }
   return session;
 }

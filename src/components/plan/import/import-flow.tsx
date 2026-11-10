@@ -1,5 +1,6 @@
 "use client";
 
+import { extractionFailureCopy } from "@/lib/import/failure-copy";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -162,12 +163,15 @@ function ProcessingStep({
     );
   }
 
+  const retryCopy = extractionFailureCopy(status.errorCode, true);
+  const finalCopy = extractionFailureCopy(status.errorCode, false);
+
   if (status.status === "failed_retryable") {
     return (
       <OutcomeCard
         tone="destructive"
-        title="We couldn't read this one"
-        body="Something went wrong reading your plan. Nothing was charged. Try again."
+        title={retryCopy.title}
+        body={retryCopy.body}
         actions={
           <>
             <Button disabled={busy} onClick={onRetry}>
@@ -216,8 +220,8 @@ function ProcessingStep({
   return (
     <OutcomeCard
       tone="muted"
-      title="Plan import is unavailable right now"
-      body="We couldn't process this import. Nothing was saved and nothing was charged."
+      title={finalCopy.title}
+      body={finalCopy.body}
       actions={
         <Button variant="outline" disabled={busy} onClick={onCancel}>
           Back to Plan
