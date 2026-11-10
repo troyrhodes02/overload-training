@@ -124,4 +124,4 @@ Before connecting it requires `--confirm-ref vdxrmfadikwzodjljbdi`, checks all f
 
 ### Idempotency and password resets
 
-A re-run reuses the existing account, fills in anything missing (profile, comp), and **never changes the password**. To reset it deliberately, set a new password in the Supabase dashboard (overload-dev → Authentication → Users → the user → Send password recovery is unavailable on the example.com address, so use "Update user" / reset password there), or delete the Auth user in that dashboard and delete the profile row before re-running. Deleting is a human step; the tool never deletes an account it did not create in the same run.
+A re-run reuses the existing account, fills in anything missing (profile, comp), and **never changes the password**. To reset it deliberately, open overload-dev in the Supabase dashboard → Authentication → Users, choose the user, and set a new password there (recovery email cannot reach the example.com address), then update the saved file by hand. The tool never deletes an account it did not create in the same run.
