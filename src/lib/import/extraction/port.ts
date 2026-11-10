@@ -61,7 +61,9 @@ export type ExtractionErrorCode =
   | "provider_timeout" // abort/deadline — retryable
   | "provider_rejected" // 400 — terminal (bad request / too large)
   | "provider_unauthorized" // 401/403 — terminal (config problem)
-  | "malformed_output" // schema violation / unparseable — terminal
+  | "malformed_output" // returned, but not valid JSON / not our schema — terminal
+  | "output_truncated" // hit the output-token cap mid-answer (plan too long) — terminal
+  | "draft_build_failed" // the model answered, but building the review draft failed — terminal
   | "cancelled" // user cancelled — terminal
   | "provider_unconfigured"; // no API key / model — terminal
 

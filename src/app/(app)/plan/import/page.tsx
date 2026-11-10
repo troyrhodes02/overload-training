@@ -16,6 +16,11 @@ import type { ImportDraftDto } from "@/lib/import/draft/types";
 
 export const metadata = { title: "Import plan · Overload" };
 
+// Extraction runs inside the server action that starts or retries it, bounded
+// at 100 s (src/lib/import/extract.ts). The route must be allowed to run longer
+// than that, or the platform ends the request mid-call.
+export const maxDuration = 120;
+
 /**
  * Workout Plan Import & Review (Pitch 22) — the full-page import flow at
  * /plan/import (OVE-105 foundation: the Source intake step). The route enforces
@@ -106,6 +111,9 @@ export default async function PlanImportPage({
 
     return (
       <ImportFlow
+        // A new server status or failure code remounts the flow, so its client
+        // state can never lag behind what the server says.
+        key={`${status.status}:${status.errorCode ?? ""}`}
         sessionId={sessionId}
         initialStatus={status}
         initialDraft={draft}

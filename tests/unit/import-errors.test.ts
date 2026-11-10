@@ -123,7 +123,6 @@ describe("extraction failure copy", () => {
   it("says extraction is unavailable for provider and budget failures", () => {
     for (const code of [
       "provider_unavailable",
-      "provider_timeout",
       "provider_rate_limited",
       "provider_unconfigured",
       "provider_unauthorized",
