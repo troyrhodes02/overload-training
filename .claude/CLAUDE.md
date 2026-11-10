@@ -20,7 +20,7 @@ This file is persistent context for Claude Code. It encodes the non-obvious rule
 
 Planned for the commercial launch, and not to be added before the pitch that introduces them: **Stripe** (Billing, hosted Checkout, and the Customer Portal; the only place money and card data live), a **custom SMTP provider** for account email (Public Accounts), a **language-model API** called from the server for plan import only (Plan Import), and **Capacitor** iOS and Android shells around the same web app (iOS Foundation, then Android Foundation).
 
-Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no staging environment, no maps or geocoding service (gym location is free text), no health-data integration (HealthKit is unreachable from a website), and no role system for lifters. The owner-only admin area, once built, is separate (see the admin boundary). An agent that does not know these were rejected will add them.
+Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no separate staging database or tier (a `staging` Git branch previews against `overload-dev` (see `docs/technical/staging-environment.md`)), no maps or geocoding service (gym location is free text), no health-data integration (HealthKit is unreachable from a website), and no role system for lifters. The owner-only admin area, once built, is separate (see the admin boundary). An agent that does not know these were rejected will add them.
 
 Do not add libraries or infrastructure not already decided in the Architecture Doc without flagging it first.
 
@@ -255,7 +255,7 @@ Test the risky logic hard; lean tests or manual verification are fine for low-ri
 2. Commit with descriptive messages referencing the Linear issue ID. The team key is `OVE`, for example `OVE-123`.
 3. Push and open a PR via `gh pr create`; use the Vercel preview deployment to verify before merging. Previews run against the Supabase dev project.
 
-Anything touching `LoggedSet` writes, deletion behavior, or baseline correction gets verified on a preview deployment with real-shaped data before it reaches production, since there is no staging tier and a bad deploy there corrupts the only copy of a lifter's history. Anything touching ownership, scoping, authentication, or the production migration is also verified on a preview deployment with at least two accounts.
+Anything touching `LoggedSet` writes, deletion behavior, or baseline correction gets verified on a preview deployment with real-shaped data before it reaches production, since there is no separate staging database and a bad deploy there corrupts the only copy of a lifter's history. Anything touching ownership, scoping, authentication, or the production migration is also verified on a preview deployment with at least two accounts.
 
 ### UI-bearing pitches
 

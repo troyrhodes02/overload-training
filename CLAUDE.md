@@ -15,7 +15,7 @@ This file is persistent context for Claude Code. It encodes the non-obvious rule
 
 - **Tailwind CSS with shadcn/ui** — the single component and styling system, with `lucide-react` icons. It owns layout, theming, and every UI primitive. It is **not** a license to mix in a second library: no Material UI, styled-components, CSS modules, or other component kit. Design rules for how it looks live in the `overload-ui-design` skill, not here.
 
-Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no staging environment, no maps or geocoding service (gym location is free text), and no health-data integration (HealthKit is unreachable from a website). An agent that does not know these were rejected will add them.
+Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no separate staging database or tier (a `staging` Git branch previews against `overload-dev` (see `docs/technical/staging-environment.md`)), no maps or geocoding service (gym location is free text), and no health-data integration (HealthKit is unreachable from a website). An agent that does not know these were rejected will add them.
 
 Do not add libraries or infrastructure not already decided in the Architecture Doc without flagging it first.
 
@@ -186,7 +186,7 @@ Test the risky logic hard; lean tests or manual verification are fine for low-ri
 2. Commit with descriptive messages referencing the Linear issue ID.
 3. Push and open a PR via `gh pr create`; use the Vercel preview deployment to verify before merging. Previews run against the Supabase dev project.
 
-Anything touching `LoggedSet` writes, deletion behavior, or baseline correction gets verified on a preview deployment with real-shaped data before it reaches production, since there is no staging tier and a bad deploy there corrupts the only copy of the lifter's history.
+Anything touching `LoggedSet` writes, deletion behavior, or baseline correction gets verified on a preview deployment with real-shaped data before it reaches production, since there is no separate staging database and a bad deploy there corrupts the only copy of the lifter's history.
 
 ## Consistency with the planning docs
 

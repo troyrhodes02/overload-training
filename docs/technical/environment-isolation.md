@@ -12,7 +12,7 @@ It describes where each environment points, the rules that keep Preview and oper
 | **Preview** | Vercel Preview deployments (every PR branch) | The **development** project `overload-dev`, ref **`vdxrmfadikwzodjljbdi`** | Synthetic only: test accounts and the demo fixture |
 | **Production** | Vercel Production | `overload-prod`, ref **`ycxvdiklpefyhdclxyau`** | Real lifters' data. The only copy. |
 
-There is still **no staging tier**. `overload-dev` is a sandbox for Preview, not a staging copy of Production. Nothing is promoted from it, and no Production data is ever copied into it.
+There is no separate staging database or tier. `overload-dev` serves every Preview, including the permanent `staging` branch (`docs/technical/staging-environment.md`), and is a sandbox, not a staging copy of Production. Nothing is promoted from it, and no Production data is ever copied into it.
 
 ## Rules
 
