@@ -322,7 +322,7 @@ All screens are single column at the base width. The Range/Fixed control sits on
 ## 12. User guidance
 
 - **Tour.** No new step and no change. The Plan step's "sets and rep ranges" stays true, since a single target is a range with equal ends, and nothing new needs pointing at.
-- **Release note** (list only, not significant):
+- **Release note** (proposed as list only; the guidance ticket made it **significant**, because it corrects a recommendation; spec RD-14):
   - Title: "Single rep targets and wider swaps"
   - Body: "Plan an exercise as 3 × 10 as well as 3 × 8–10. Swap can now reach any muscle group. And after a set below your planned minimum, Overload asks you to reassess the weight instead of telling you to stay at it."
 

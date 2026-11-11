@@ -183,7 +183,7 @@ The reassess copy is fixed by the builder (design doc Screen 2 table):
 
 `hold_short` evidence also uses `formatRepTarget`.
 
-**User guidance.** Tour: no change. Release note: one non-significant `internal` entry, built in the guidance ticket via `overload-onboarding`, with the design doc's text.
+**User guidance.** Tour: no change. Release note: one significant `internal` entry (RD-14), built in the guidance ticket via `overload-onboarding`, with the design doc's text.
 
 **Client scope.** Web only. Plan placement:
 
@@ -344,7 +344,7 @@ Recorded under the Autonomous Pipeline Policy (`CLAUDE.md`); authority in bracke
 - **RD-11. Admin Plan column: Pro (subscription), Pro + "trial" (trial only), Comped, Free, with precedence subscription → comp → trial.** The trial note keeps a free trial from reading as a paid subscriber, while the three pitch labels stay the only words. [Pitch §6; `getAccountBilling` precedence; PRD "a comp is never counted as a paying subscriber".]
 - **RD-12. Doc amendments this run makes, because the owner-approved pitch mandates them:** `pitch-roadmap.md` (chores included in Pitch 24, one run), `prd.md` (swap rule, Workout Logging Refinements criteria), and both `CLAUDE.md` copies (the swap sentence), plus `method-note.md`. This deliberately overrides the general "no `docs/planning/` edits during a run" rule, and is reported in the owner notes. [Pitch "Required Roadmap Amendment" and "Update any conflicting PRD or roadmap wording explicitly"; run prompt §3.]
 - **RD-13. All six items ship together, and the chores are not deferred.** [Open Question 9: the scope stayed within M; no schema change.]
-- **RD-14. Release note: one non-significant internal entry, and no tour change.** [Design doc §12; `overload-onboarding`.]
+- **RD-14. Release note: one significant internal entry, and no tour change.** The design doc proposed a non-significant entry. The guidance ticket raised it to significant, because `overload-onboarding` flags as significant any fix to the correctness of recommendations, and the below-minimum fix is one. No tour step: there is no new surface, and the Plan step still reads true. [`overload-onboarding` rubric; design doc §12.]
 
 ## 17. Open Questions
 
