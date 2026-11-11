@@ -12,7 +12,7 @@ The staging URL runs against `overload-dev` (synthetic data only). Sign in with 
 2. **Fixed target.** In Plan, open an exercise and choose **Fixed**, enter 10, and save. The row reads "3 sets · 10 reps". Today and the logging card read "3 × 10".
 3. **Swap.** Start a workout and tap Swap exercise. The picker opens on the planned muscle. Choose **Core** under Muscle group, then pick Crunches. The card shows "· bodyweight, reps only" and takes reps only.
 4. **Free.** On a Free test account (trial ended, no comp), the same history shows the quiet Pro note in place of the reassess line. Logging and planning are unchanged.
-5. **Public copy.** Signed out, `/pricing` and the landing CTA note read: "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month." `/blizzy` reads "try Pro free for 14 days, no credit card needed".
+5. **Public copy** (reworked in OVE-118). Signed out, `/pricing` opens with "Every new account starts with 14 days of Pro, free" and three steps, then one short trial line per plan card and the trial questions. With billing off, nothing offers a way to pay. `/blizzy` no longer exists: signed out it goes to sign-in, signed in it is not found.
 6. **Admin.** With your id in `OVERLOAD_ADMIN_USER_IDS` (Preview scope), `/admin/accounts` shows a Plan column (Pro / Pro trial / Comped / Free). A non-admin gets not-found.
 7. **What's New.** The entry "Single rep targets and wider swaps" opens once, then not again.
 

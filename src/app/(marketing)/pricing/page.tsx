@@ -11,6 +11,7 @@ import {
   PRICING,
   PRICING_FAQ,
   PRO_FEATURES,
+  TRIAL,
 } from "@/lib/marketing/copy";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +27,54 @@ export const metadata = publicPageMetadata({
  * says "Not on sale yet" and offers no way to pay. With billing on, the Pro
  * action routes to the existing Plan & Billing flow — never to Checkout from
  * here.
+ *
+ * The trial (OVE-118) is explained once, above the plans: it starts on its
+ * own, you can upgrade during it, and at the end you subscribe or move to Free.
+ * Each card carries one short line, and the questions cover the details. Any
+ * sentence offering a way to pay has a billing-off wording.
  */
+
+/** A sentence that offers a way to pay, with its billing-off wording. */
+function Billed({ on, off }: { on: string; off?: string }) {
+  return off ? <WhenBilling on={on} off={off} skeleton="none" /> : <>{on}</>;
+}
+
+function TrialExplainer() {
+  return (
+    <section
+      aria-labelledby="trial"
+      className="rounded-lg border border-border bg-card p-6"
+    >
+      <h2 id="trial" className="text-lg font-semibold tracking-tight">
+        {TRIAL.title}
+      </h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+        {TRIAL.intro}
+      </p>
+      <ol className="mt-6 grid gap-6 md:grid-cols-3">
+        {TRIAL.steps.map((step, i) => (
+          <li key={step.title} className="flex gap-3">
+            <span
+              aria-hidden
+              className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-xs font-medium tabular-nums text-muted-foreground"
+            >
+              {i + 1}
+            </span>
+            <div>
+              <p className="text-sm font-medium">{step.title}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <Billed
+                  on={step.body}
+                  off={"billingOff" in step ? step.billingOff : undefined}
+                />
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 
 function PlanCard({
   title,
@@ -81,10 +129,22 @@ export default function PricingPage() {
         </p>
       </div>
 
+      <TrialExplainer />
+
       <div className="grid gap-6 md:grid-cols-2">
         <PlanCard
           title="Free"
-          price={<p className="text-3xl font-semibold tabular-nums">$0</p>}
+          price={
+            <div>
+              <p className="text-3xl font-semibold tabular-nums">$0</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                <Billed
+                  on={PRICING.freeCardNote}
+                  off={PRICING.freeCardNoteBillingOff}
+                />
+              </p>
+            </div>
+          }
         >
           <FeatureList items={FREE_FEATURES} />
           <div className="mt-auto pt-8">
@@ -107,6 +167,7 @@ export default function PricingPage() {
                 or {PRICING.annual} / year (about {PRICING.annualPerMonth} a
                 month)
               </p>
+              <p className="mt-1 text-sm font-medium">{PRICING.proCardNote}</p>
               <WhenBilling
                 off={
                   <div className="mt-3 space-y-1.5">
@@ -121,7 +182,6 @@ export default function PricingPage() {
           }
         >
           <FeatureList items={PRO_FEATURES} />
-          <p className="mt-6 text-sm text-muted-foreground">{PRICING.trial}</p>
           <div className="mt-auto pt-8">
             <ModeCta placement="pro-card" />
           </div>
@@ -136,11 +196,11 @@ export default function PricingPage() {
           Questions
         </h2>
         <dl className="grid gap-6 md:grid-cols-2">
-          {PRICING_FAQ.map(({ q, a }) => (
+          {PRICING_FAQ.map(({ q, a, aBillingOff }) => (
             <div key={q}>
               <dt className="font-medium">{q}</dt>
               <dd className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                {a}
+                <Billed on={a} off={aBillingOff} />
               </dd>
             </div>
           ))}

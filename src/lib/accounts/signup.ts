@@ -7,7 +7,6 @@ import {
 import { isUsernameAvailable } from "@/lib/data/usernames";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
-import { isCampaign } from "@/lib/marketing/campaign";
 import { isInviteValid, signupMode } from "./signup-gate";
 import { checkAndIncrement } from "./throttle";
 import { verifyChallenge } from "./turnstile";
@@ -84,13 +83,6 @@ export type RawSignUp = {
    * It is SHA-256-hashed inside the throttle before touching the database.
    */
   throttleKey?: unknown;
-  /**
-   * The allowlisted campaign this browser arrived from (Public Landing Page &
-   * Changelog, RD-9). The server action reads it from the first-party cookie
-   * on the server — never from a form field — and it is re-validated here, so
-   * anything but an allowlisted name records nothing.
-   */
-  signupCampaign?: unknown;
 };
 
 export type SignUpDeps = {
@@ -235,9 +227,6 @@ export async function signUp(
       lastName: last.value,
       username: username.value,
       timeZone,
-      signupCampaign: isCampaign(raw.signupCampaign)
-        ? raw.signupCampaign
-        : null,
     });
   } catch (error) {
     // The unique index refused the username: another signup took it between

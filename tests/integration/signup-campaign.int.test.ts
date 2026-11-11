@@ -10,12 +10,13 @@ import { AdminScopeError } from "@/lib/data/admin/gate";
 import { getTestPrisma } from "./support/db";
 
 /**
- * Public Landing Page & Changelog — L4 (OVE-99; spec §8, §9, §14; RD-7, RD-9,
- * RD-10; P21-AC7) over a real (embedded) Postgres with migration
- * 9k_signup_campaign applied. Provenance is written once at profile creation,
- * belongs to its own account only, travels with the export, drives the Plan &
- * Billing code reminder only where Subscribe already appears, and reaches the
- * admin area as one aggregate count it cannot change.
+ * Signup provenance over a real (embedded) Postgres (Public Landing Page &
+ * Changelog OVE-99; amended by OVE-118). The /blizzy page and its attribution
+ * were removed, so signup records no campaign any more. Values recorded
+ * before that are kept: they belong to their own account only, travel with
+ * the export, drive the Plan & Billing code reminder only where Subscribe
+ * already appears, and reach the admin area as one aggregate count it cannot
+ * change.
  */
 
 const ADMIN_ID = "a0000000-0000-4000-8000-00000000ad21";
@@ -32,6 +33,10 @@ afterEach(() => {
   process.env.STRIPE_BILLING_ENABLED = "true";
 });
 
+/**
+ * A new account. `"blizzy"` stands for an account recorded before OVE-118
+ * (the column is set directly, as only history now carries it).
+ */
 async function signUpAs(campaign: "blizzy" | null) {
   const userId = randomUUID();
   await establishProfile(
@@ -41,9 +46,14 @@ async function signUpAs(campaign: "blizzy" | null) {
       lastName: "Lifter",
       username: `c_${userId.slice(0, 8)}`,
       timeZone: "UTC",
-      signupCampaign: campaign,
     },
   );
+  if (campaign) {
+    await getTestPrisma().profile.update({
+      where: { userId },
+      data: { signupCampaign: campaign },
+    });
+  }
   return userId;
 }
 
@@ -56,11 +66,8 @@ const campaignOf = async (userId: string) =>
   ).signupCampaign;
 
 describe("signup provenance (RD-9)", () => {
-  it("records blizzy on the new account, and nothing for an organic signup", async () => {
-    const fromBlizzy = await signUpAs("blizzy");
-    const organic = await signUpAs(null);
-    expect(await campaignOf(fromBlizzy)).toBe("blizzy");
-    expect(await campaignOf(organic)).toBeNull();
+  it("a new signup records no campaign (OVE-118)", async () => {
+    expect(await campaignOf(await signUpAs(null))).toBeNull();
   });
 
   it("cross-account: each account's export carries only its own provenance", async () => {
@@ -73,7 +80,7 @@ describe("signup provenance (RD-9)", () => {
     expect(JSON.stringify(exportB)).not.toContain(a);
   });
 
-  it("a re-run of profile creation without a campaign never clears one (no duplicate/overwrite)", async () => {
+  it("a re-run of profile creation never clears a recorded campaign", async () => {
     const userId = await signUpAs("blizzy");
     await establishProfile(
       { id: userId },
@@ -82,7 +89,6 @@ describe("signup provenance (RD-9)", () => {
         lastName: "Lifter",
         username: `c_${userId.slice(0, 8)}`,
         timeZone: "UTC",
-        signupCampaign: null,
       },
     );
     expect(await campaignOf(userId)).toBe("blizzy");
@@ -114,14 +120,10 @@ describe("Plan & Billing code reminder (RD-7)", () => {
     expect(off.promoReminder).toBeNull();
   });
 
-  it("an organic account sees it only with a valid same-browser campaign hint", async () => {
+  it("an account without a recorded campaign never sees it", async () => {
     const account = await accountFor(await signUpAs(null));
     process.env.STRIPE_BILLING_ENABLED = "true";
     expect((await getBillingScreen(account)).promoReminder).toBeNull();
-    expect(
-      (await getBillingScreen(account, { campaignHint: "blizzy" }))
-        .promoReminder,
-    ).toBe("BLIZZY");
   });
 });
 
