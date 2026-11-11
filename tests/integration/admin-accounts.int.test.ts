@@ -99,6 +99,8 @@ describe("directory and account page", () => {
         "isAdmin",
         "lastActiveOn",
         "lastName",
+        // Workout Logging Refinements RD-11: the plan label (metadata only).
+        "membership",
         "signupOn",
         "status",
         "tour",
