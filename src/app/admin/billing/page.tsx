@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BLIZZY } from "@/lib/billing/config";
 import { requireAdmin } from "@/lib/data/admin/identity";
 import { getBillingOverview } from "@/lib/data/admin/billing";
 
@@ -45,7 +46,8 @@ export default async function AdminBillingPage() {
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="text-base font-semibold">Promotions</h2>
         <p className="mt-1 text-sm">
-          {o.promo.code} — 50% off 3 months (monthly)
+          {o.promo.code} — {BLIZZY.percentOff}% off Pro for{" "}
+          {BLIZZY.durationMonths} months
         </p>
         <p className="text-sm text-muted-foreground">
           Redemptions{" "}

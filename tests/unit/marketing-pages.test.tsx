@@ -144,7 +144,7 @@ describe("pricing (design Screen 2)", () => {
     const html = await page("pricing", ctx);
     const t = text(html);
     expect(t).toContain("Not on sale yet");
-    expect(t).toContain("Subscriptions aren't on sale yet");
+    expect(t).toContain("Pro subscriptions aren't on sale yet");
     // No ACTION toward paying: no link or button labelled for it. (Plan
     // descriptions like "unless you subscribe" are words, not actions.)
     expect(actions(html).join(" | ")).not.toMatch(
@@ -283,5 +283,52 @@ describe("screenshot manifest (RD-19)", () => {
         );
       }
     }
+  });
+});
+
+describe("creator promotion placement (OVE-112)", () => {
+  it.each([true, false])(
+    "pricing never names the BLIZZY code or links to /blizzy (billing on: %s)",
+    async (billingEnabled) => {
+      const html = await page("pricing", off({ billingEnabled }));
+      expect(html).not.toMatch(/blizzy/i);
+      expect(text(html)).not.toMatch(/discount code|promo code/i);
+    },
+  );
+
+  it("the landing page never names the BLIZZY code", async () => {
+    const html = await page("welcome", off({ billingEnabled: true }));
+    expect(html).not.toMatch(/blizzy/i);
+  });
+
+  async function blizzy(ctx: MarketingContext) {
+    mockContext.mockResolvedValue(ctx);
+    const { default: Page } = await import("@/app/(marketing)/blizzy/page");
+    return text(await renderHtml(<Page />));
+  }
+
+  it("/blizzy states the current offer: 25% off for three months, up to 200 redemptions", async () => {
+    const t = await blizzy(off({ billingEnabled: true }));
+    expect(t).toContain("BLIZZY");
+    expect(t).toContain("25% off Overload Pro for three months.");
+    expect(t).toContain("Up to 200 redemptions");
+    expect(t).not.toMatch(/50%/);
+  });
+
+  it("/blizzy is not monthly-only and never promises discounted annual renewals", async () => {
+    const t = await blizzy(off({ billingEnabled: true }));
+    expect(t).not.toMatch(/monthly plan only/i);
+    expect(t).toContain("25% off your first three monthly payments");
+    expect(t).toContain("25% off your first annual payment only");
+    expect(t).toContain("Renewals are at the regular annual price");
+  });
+
+  it("/blizzy says the code can't be used yet only while billing is off", async () => {
+    expect(await blizzy(off({ billingEnabled: false }))).toContain(
+      "aren't on sale yet",
+    );
+    expect(await blizzy(off({ billingEnabled: true }))).not.toContain(
+      "aren't on sale yet",
+    );
   });
 });

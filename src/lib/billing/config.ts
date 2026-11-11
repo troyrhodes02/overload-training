@@ -50,10 +50,21 @@ export const PRICE_DISPLAY = {
   annual: "$39.99",
 } as const;
 
-/** The first promotional campaign (RD-7). Terms configured in Stripe (runbook). */
+/**
+ * The creator promotion (RD-7; OVE-112). Display only: the authoritative terms
+ * live on the Stripe coupon and promotion code, which code never creates,
+ * changes, or redeems. The coupon is 25% off the Overload Pro PRODUCT for a
+ * three-month duration, so on monthly it discounts the first three monthly
+ * payments and on annual it discounts only the first annual payment (the next
+ * annual renewal falls after the three months). It is promoted only on the
+ * creator's /blizzy page, never on the generic pricing or upgrade surfaces.
+ */
 export const BLIZZY = {
   code: "BLIZZY",
-  terms: "50% off for 3 months, then the regular monthly price",
+  percentOff: 25,
+  durationMonths: 3,
+  terms:
+    "25% off Pro for three months: the first three monthly payments, or the first annual payment",
   maxRedemptions: 200,
 } as const;
 
