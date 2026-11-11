@@ -44,8 +44,15 @@ export type Performance = {
   /** True iff `week` is a scheduled-deload week; excluded from sequences (R38). */
   scheduledDeload: boolean;
   gymId: string | null;
-  /** All planned working sets present (R9, R44). */
+  /** All planned working sets present AND the workout finished (R9, R44). */
   complete: boolean;
+  /**
+   * The workout (LoggedSession) finished, whether or not every planned set was
+   * logged (Workout Logging Refinements RD-3). A finished-but-short workout
+   * never counts toward a window, but a set it logged below the minimum still
+   * stops a stay-at-weight or Progress line. Always true when `complete`.
+   */
+  finished: boolean;
   /** This performance's OWN planned rep range (R8). */
   repMin: number;
   repMax: number;
@@ -122,6 +129,36 @@ export function hasBelowMin(p: Performance): boolean {
 }
 
 /**
+ * A short failed workout the windows can't see (Workout Logging Refinements
+ * RD-3): among the workouts FINISHED after the latest counted (qualifying)
+ * one, short of the plan (not `complete`) and outside a scheduled-deload week,
+ * the latest with a planned working set below its minimum — or null. It never
+ * counts toward a Deload or Progress window (R9, R44), and it stays decisive
+ * until the next counted session: a later short workout without a failed set
+ * doesn't erase it. A workout still in progress (not finished) and a
+ * scheduled-deload week (never judged, R37) are excluded.
+ */
+export function shortFailureSinceLastCounted(
+  perfs: Performance[],
+  seq: Performance[] = qualifyingSequence(perfs),
+): Performance | null {
+  const lastCounted = seq.at(-1);
+  if (!lastCounted) return null;
+  const failed = perfs
+    .filter(
+      (p) =>
+        p.finished &&
+        !p.complete &&
+        !p.scheduledDeload &&
+        byDate(lastCounted, p) < 0 &&
+        hasBelowMin(p),
+    )
+    .slice()
+    .sort(byDate);
+  return failed[failed.length - 1] ?? null;
+}
+
+/**
  * Case A (R12): at least one planned working set was reported at the limit.
  * An unrecorded (null) RIR is never taken as 0.
  */
@@ -144,8 +181,8 @@ export function hasRepsToSpare(p: Performance): boolean {
 /**
  * The weights-and-reps call (the Progressive Overload Engine ladder, unchanged
  * by RIR Logging) over a scope's performances, following the precedence ladder
- * in spec §6: insufficient → reactive Deload → raw Progress (→ stall gate) →
- * Hold. Deload is evaluated before Progress, so in any defensive conflict Deload
+ * in spec §6: insufficient → reactive Deload → below-minimum reassess
+ * (Workout Logging Refinements) → raw Progress (→ stall gate) → Hold. Deload is evaluated before Progress, so in any defensive conflict Deload
  * wins and load is never increased on repeated below-range history (R7 precedence).
  *
  * Scheduled-deload SUPPRESSION of a specific occurrence (precedence step 1) is
@@ -183,6 +220,21 @@ function sharedValue(
   return perfs.every((p) => pick(p) === first) ? first : null;
 }
 
+/** The facts a reassess hold reads: that performance's sets and range. */
+function reassessEvidence(p: Performance): DecisionEvidence {
+  return {
+    kind: "reassess",
+    reps: p.workingSets
+      .slice()
+      .sort((a, b) => a.setNumber - b.setNumber)
+      .map((s) => s.reps),
+    repMin: p.repMin,
+    repMax: p.repMax,
+    sessions: DELOAD_CONSECUTIVE_SESSIONS,
+    latest: ref(p),
+  };
+}
+
 function evaluateBase(
   perfs: Performance[],
   { e1rmApplicable = true }: { e1rmApplicable?: boolean } = {},
@@ -214,6 +266,15 @@ function evaluateBase(
     });
   }
 
+  // Below-minimum reassessment (Workout Logging Refinements RD-1–RD-3): since
+  // the latest counted session, the lifter finished a workout cut short with a
+  // set below the planned minimum. It doesn't count toward any window (R9, R44), but it
+  // outranks an older Progress candidate or a stay-at-weight hold: after a
+  // failed set the call is to reassess, never to add or keep the load. A
+  // complete below-minimum session is handled in the hold branch below.
+  const shortFailure = shortFailureSinceLastCounted(perfs, seq);
+  if (shortFailure) return call("hold", reassessEvidence(shortFailure));
+
   // Raw Progress candidate.
   const progressWindow = seq.slice(-PROGRESS_CONSECUTIVE_SESSIONS);
   const progressCandidate =
@@ -230,6 +291,9 @@ function evaluateBase(
         latest: ref(latest),
       });
     }
+    // A set below the minimum, short of the two-session reactive Deload:
+    // reassess, never "stay at this weight" (RD-1).
+    if (hasBelowMin(latest)) return call("hold", reassessEvidence(latest));
     return call("hold", {
       kind: "hold_short",
       reps: latest.workingSets

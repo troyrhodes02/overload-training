@@ -1,4 +1,5 @@
 import type { SignupMode } from "@/lib/accounts/signup-gate";
+import { TRIAL_NOTE_TEXT } from "@/lib/marketing/copy";
 
 /**
  * The public call-to-action rule (Public Landing Page & Changelog, design doc
@@ -52,8 +53,8 @@ export const FAIL_CLOSED_CONTEXT: MarketingContext = {
 
 const SIGN_IN: CtaAction = { label: "Sign in", href: "/login" };
 
-export const TRIAL_NOTE =
-  "Free to use. New accounts get 14 days of Pro, no card.";
+/** The CTA's trial note (OVE-118): short; /pricing explains the trial in full. */
+export const TRIAL_NOTE = TRIAL_NOTE_TEXT;
 export const INVITE_NOTE =
   "Overload is invite-only right now. You'll need an invite code to create an account.";
 export const CLOSED_NOTE = "Overload isn't taking new accounts right now.";

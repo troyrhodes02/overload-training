@@ -15,7 +15,6 @@ export const SITE_DESCRIPTION =
 export const INDEXABLE_PUBLIC_PATHS = [
   "/",
   "/pricing",
-  "/blizzy",
   "/changelog",
   "/support",
 ] as const;

@@ -31,6 +31,7 @@ type Opts = {
   rir?: (number | null)[];
   scheduledDeload?: boolean;
   complete?: boolean;
+  finished?: boolean;
   dateIso?: string;
 };
 
@@ -43,6 +44,7 @@ function perf(reps: number[], opts: Opts = {}): Performance {
     scheduledDeload: opts.scheduledDeload ?? false,
     gymId: null,
     complete: opts.complete ?? true,
+    finished: opts.finished ?? opts.complete ?? true,
     repMin: 6,
     repMax: 8,
     workingSets: reps.map((r, i) => ({

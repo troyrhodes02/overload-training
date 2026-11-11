@@ -40,7 +40,7 @@ For machine-based exercises, the working weight is tracked as its own value per 
 
 ### Journey: Swapping a planned exercise
 
-If an exercise on a given day needs to be swapped (equipment unavailable, machine broken), the lifter can substitute it mid-session. Only other exercises tagged to the same muscle group are offered as swap options — no cross-muscle-group substitution.
+If an exercise on a given day needs to be swapped (equipment unavailable, machine broken), the lifter can substitute it mid-session. The picker opens on exercises tagged to the planned exercise's muscle group, and the lifter can switch its muscle filter to any group and substitute from there (amended by Workout Logging Refinements; this supersedes the original same-muscle-group-only rule).
 
 ### Journey: Logging cardio
 
@@ -174,13 +174,13 @@ A lifter can download everything their account holds, on either plan, at any tim
   - Multiple consecutive missed days are handled without compounding the shift indefinitely beyond the current week.
 
 #### Exercise Swap
-- **What it does:** Mid-session substitution of a planned exercise, restricted to other exercises tagged to the same muscle group.
+- **What it does:** Mid-session substitution of a planned exercise, starting from the planned exercise's muscle group, with a filter that can reach any muscle group (amended by Workout Logging Refinements).
 - **Why:** Handles real-world gym constraints (equipment unavailable or broken) without breaking the muscle-group intent of the day.
 - **Acceptance criteria:**
-  - Swapping an exercise only surfaces same-muscle-group alternatives.
+  - Swapping an exercise first surfaces same-muscle-group alternatives, and the muscle filter can be changed to any group.
   - A swap applies to that single occurrence without altering the underlying session template unless the lifter explicitly saves it back.
 - **Edge cases / failure states:**
-  - No other exercises exist in the library for that muscle group, and the swap flow communicates that clearly rather than showing an empty, unexplained list.
+  - No other exercises exist in the library for the selected muscle group, and the swap flow says so and keeps the muscle filter so the lifter can choose another group.
 
 #### Cardio Logging
 - **What it does:** Cardio sessions assigned to specific split days; logs type and duration only.
@@ -343,8 +343,10 @@ The admin center, public accounts, plans and billing, the landing page, and plan
   - 90 lb planned at 6 to 10 and logged at 3 never recommends staying at 90 lb, and does not overwrite a reliable baseline by itself.
   - A 3 × 10 exercise plans, logs, and progresses correctly.
   - Swap can reach exercises in any muscle group.
+  - Abs exercises with bodyweight equipment log reps only, like pull-ups: no load, no e1RM from a missing load, no machine baseline.
 - **Edge cases / failure states:**
   - Not every missed set reduces weight. The rule uses the existing progression constants and history.
+  - One session below the minimum produces a call to reassess the weight; two sessions running below it produce the existing deload. A set in a scheduled deload week or in a workout still in progress is not judged.
 
 #### Wing-It Workouts
 - **What it does:** Start a workout with no plan, choose exercises as you go, log sets, and save it to history.

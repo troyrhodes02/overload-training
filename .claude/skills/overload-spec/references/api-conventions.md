@@ -192,7 +192,7 @@ The mobile app is the one client that calls HTTP endpoints. Everything else here
 | Code | HTTP status | When to use |
 | ---- | ----------- | ----------- |
 | `not_found` | 404 | Resource does not exist |
-| `validation_error` | 400 | Invalid input, including a cross-muscle-group swap |
+| `validation_error` | 400 | Invalid input, including a swap to an archived or unavailable exercise |
 | `invalid_state_transition` | 400 | Action not allowed for the current state |
 | `duplicate_resource` | 409 | A true uniqueness constraint blocked the write |
 | `conflict` | 409 | Incompatible change, such as a retried set colliding with an existing one |

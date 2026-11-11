@@ -236,6 +236,7 @@ export async function gatherRows(
         scheduledDeload,
         gymId: le.gymId,
         complete: completed,
+        finished: le.loggedSession.status === "complete",
         repMin: le.targetRepMin,
         repMax: le.targetRepMax,
         workingSets,
@@ -419,8 +420,11 @@ async function describeDecision(
   recommendation: RecommendationDto | null;
 }> {
   const { decision } = args;
+  // A reassess prints no weight (Workout Logging Refinements RD-5), so it
+  // needs no working-weight read.
   const needsWeight =
     args.externalLoad &&
+    decision.evidence.kind !== "reassess" &&
     (decision.state === "progress" ||
       decision.state === "hold" ||
       decision.state === "stalled");

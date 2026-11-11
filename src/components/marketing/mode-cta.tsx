@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMarketingContext } from "@/lib/marketing/context";
-import { resolveCta, type ResolvedCta } from "@/lib/marketing/cta";
+import { resolveCta, TRIAL_NOTE, type ResolvedCta } from "@/lib/marketing/cta";
 import { cn } from "@/lib/utils";
 
 /**
@@ -59,7 +59,9 @@ async function ModeCtaInner({ placement }: { placement: CtaPlacement }) {
           {placement === "hero" ? <ArrowRight aria-hidden /> : null}
         </Link>
       </Button>
-      {cta.note ? (
+      {/* On /pricing the trial has its own explanation above the plans, so
+          the Free card shows only the invite or closed notes (OVE-118). */}
+      {cta.note && !(placement === "free-card" && cta.note === TRIAL_NOTE) ? (
         <p className="text-sm text-muted-foreground">
           {cta.note}
           {cta.closed ? (

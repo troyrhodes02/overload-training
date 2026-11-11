@@ -1,8 +1,4 @@
-import {
-  BLIZZY,
-  PRICE_DISPLAY,
-  TRIAL_DURATION_DAYS,
-} from "@/lib/billing/config";
+import { PRICE_DISPLAY, TRIAL_DURATION_DAYS } from "@/lib/billing/config";
 
 /**
  * The public pages' words (design doc §6; spec RD-14). Kept in one module so
@@ -16,6 +12,46 @@ import {
  * gates today (progression_insights, e1rm_trends, exercise_history_
  * intelligence) — never plan import, which has not shipped.
  */
+
+/**
+ * How the trial works, said once and plainly (OVE-118, owner feedback on the
+ * Workout Logging Refinements trial-wording chore). Every new account starts
+ * on Pro for TRIAL_DURATION_DAYS automatically, with no card; the lifter may
+ * subscribe during the trial; at the end they either subscribe or the account
+ * moves to Free on its own. Copy only: no billing, trial, or entitlement
+ * behavior depends on these strings, and the numbers come from the billing
+ * display constants.
+ *
+ * Anything that offers a way to pay has a `billingOff` wording, used while
+ * Pro subscriptions are not on sale (the public pages never promise a
+ * purchase that can't be made).
+ */
+export const TRIAL = {
+  title: `Every new account starts with ${TRIAL_DURATION_DAYS} days of Pro, free`,
+  intro:
+    "It starts on its own when you sign up. There's no credit card to enter and nothing to cancel.",
+  steps: [
+    {
+      title: `Days 1 to ${TRIAL_DURATION_DAYS}: Pro, free`,
+      body: "Every Pro feature is on from your first workout: the calls, the reasons behind them, and the trends.",
+    },
+    {
+      title: "Upgrade any time",
+      body: `Like it already? Subscribe to Pro during the trial, for ${PRICE_DISPLAY.monthly} a month or ${PRICE_DISPLAY.annual} a year.`,
+      billingOff:
+        "Pro subscriptions aren't on sale yet. When they are, you can subscribe during the trial or after it.",
+    },
+    {
+      title: `Day ${TRIAL_DURATION_DAYS}: your call`,
+      body: "Subscribe to keep Pro, or do nothing and your account moves to Free on its own. Nothing you logged is deleted.",
+      billingOff:
+        "Your account moves to Free on its own. Nothing you logged is deleted.",
+    },
+  ],
+} as const;
+
+/** The short trial note under the landing page's call to action. */
+export const TRIAL_NOTE_TEXT = `Every new account gets ${TRIAL_DURATION_DAYS} days of Pro, free. No credit card needed.`;
 
 export const HERO = {
   title: "You logged the reps. Know what to do next.",
@@ -162,7 +198,14 @@ export const PRICING = {
   annual: PRICE_DISPLAY.annual,
   /** $39.99 / 12, shown as "about". */
   annualPerMonth: "$3.33",
-  trial: `New accounts get ${TRIAL_DURATION_DAYS} days of Pro, no card. After that you're on Free unless you subscribe, and nothing is deleted.`,
+  /** Workout Logging Refinements RD-10: the approved trial sentence, verbatim. */
+  /** Under the Free card's price: where an account lands after the trial. */
+  freeCardNote:
+    "Free forever. Your account moves here when the trial ends, unless you've subscribed.",
+  freeCardNoteBillingOff:
+    "Free forever. Your account moves here when the trial ends.",
+  /** Under the Pro card's price. */
+  proCardNote: `Free for your first ${TRIAL_DURATION_DAYS} days.`,
   notOnSale:
     "Pro subscriptions aren't on sale yet. These are the prices when they are.",
 } as const;
@@ -185,20 +228,38 @@ export const PRO_FEATURES = [
   "Rep records and the call each past session led to",
 ] as const;
 
-export const PRICING_FAQ = [
+/**
+ * The pricing questions (OVE-118). `aBillingOff`, when present, replaces the
+ * answer while Pro subscriptions are not on sale.
+ */
+export const PRICING_FAQ: readonly {
+  q: string;
+  a: string;
+  aBillingOff?: string;
+}[] = [
+  {
+    q: "How does the free trial work?",
+    a: `Every new account gets Pro for ${TRIAL_DURATION_DAYS} days, starting automatically when you sign up. You don't enter a credit card, and there's nothing to cancel.`,
+  },
+  {
+    q: "Can I upgrade before the trial ends?",
+    a: "Yes. Subscribe from Plan & Billing whenever you like. Paid billing starts that day, and the rest of the free trial isn't added on.",
+    aBillingOff:
+      "Not yet: Pro subscriptions aren't on sale. When they are, you'll be able to subscribe during the trial or after it.",
+  },
   {
     q: "What happens when the trial ends?",
-    a: "You move to Free. Your plans, history, goals, and export stay. The calls and trends are Pro.",
+    a: "If you haven't subscribed, your account moves to Free on its own. Your plans, history, goals, and export stay. The calls and trends are Pro.",
   },
   {
     q: "What if I stop paying?",
-    a: "Same as above. Nothing you logged is deleted, and logging never stops.",
+    a: "Your account moves to Free. Nothing you logged is deleted, and logging never stops.",
   },
   {
     q: "Can I take my data with me?",
     a: "Yes. Export everything from Settings, any time, on either plan.",
   },
-] as const;
+];
 
 /** Phrases the public pages must never use (design doc §6 review check). */
 export const BANNED_PHRASES = [
@@ -223,37 +284,3 @@ export const BANNED_PHRASES = [
   "lifters trust",
   "plan import",
 ] as const;
-
-/**
- * The BLIZZY page (design doc Screen 3; spec RD-7, RD-13; OVE-112). The only
- * public place the code appears: it is a creator promotion found through the
- * creator's videos and links, so the generic pricing, landing, and upgrade
- * surfaces never name it. Terms mirror the Stripe coupon (25% off the Pro
- * product for three months, up to the redemption cap): on monthly that is the
- * first three monthly payments; on annual it is the first annual payment only,
- * never three discounted annual renewals.
- */
-export const BLIZZY_PAGE = {
-  eyebrow: "The BLIZZY offer",
-  title: `${BLIZZY.percentOff}% off Overload Pro for three months.`,
-  conditions: [
-    `Monthly (${PRICE_DISPLAY.monthly} / month): ${BLIZZY.percentOff}% off your first three monthly payments, then the regular price.`,
-    `Annual (${PRICE_DISPLAY.annual} / year): ${BLIZZY.percentOff}% off your first annual payment only. Renewals are at the regular annual price.`,
-    `Up to ${BLIZZY.maxRedemptions} redemptions in total, so it can run out.`,
-    "Entered at checkout. The total shown there is final.",
-  ],
-  availableOn: `Enter ${BLIZZY.code} at checkout. Checkout shows whether it applies to you.`,
-  availableOff:
-    "Pro subscriptions aren't on sale yet, so the code can't be used today. When they are, you'll enter it at checkout.",
-  trialFit: `How it fits the trial: new accounts start with ${TRIAL_DURATION_DAYS} days of Pro, no card. Use the code whenever you subscribe, during the trial or after it.`,
-  /**
-   * Creator disclosure shown under the offer. States only what is known — that
-   * this is a promotion offered through the creator — and asserts no
-   * compensation fact. Plain marketing copy, not a legal document.
-   */
-  disclosureDraft:
-    "This is a promotion for Overload offered through the creator BLIZZY.",
-  aboutTitle: "What Overload is",
-  about:
-    "A workout log for lifters who write their own plan. It keeps every set and, on Pro, makes the call for each lift: go up, hold, or back off.",
-} as const;

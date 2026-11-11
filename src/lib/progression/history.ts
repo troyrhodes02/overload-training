@@ -190,7 +190,10 @@ export function computeRecords(
  * week is never evaluated (suppression). With `noGymScope` (machine rows with
  * no gym) there are no calls at all: machine calls are made per gym (R6).
  *
- * The newest counted session's call is, by construction, the engine's call on
+ * A short workout with a set below the minimum is judged too (Workout Logging
+ * Refinements RD-3): the engine reads it until the next counted session.
+ *
+ * The newest judged session's call is, by construction, the engine's call on
  * the whole scope — the current call.
  */
 export function callsBySession(
@@ -204,11 +207,22 @@ export function callsBySession(
     if (opts.noGymScope) return calls.set(id, "none");
     if (!r.finished) return calls.set(id, "in_progress");
     if (r.perf.scheduledDeload) return calls.set(id, "deload_week");
-    if (!r.perf.complete) return calls.set(id, "not_counted");
-    const { state } = evaluateReactiveDecision(
-      ordered.slice(0, i + 1).map((x) => x.perf),
-      { e1rmApplicable: opts.externalLoad },
-    );
+    const prefix = ordered.slice(0, i + 1).map((x) => x.perf);
+    const { state, evidence } = evaluateReactiveDecision(prefix, {
+      e1rmApplicable: opts.externalLoad,
+    });
+    // A short workout is not counted — unless it is the one that produced
+    // the call: a reassess after a set below the minimum (Workout Logging
+    // Refinements RD-3). When too little history or a reactive Deload
+    // decided instead, it counted toward nothing and says so.
+    if (
+      !r.perf.complete &&
+      !(
+        evidence.kind === "reassess" &&
+        evidence.latest.loggedExerciseId === r.perf.loggedExerciseId
+      )
+    )
+      return calls.set(id, "not_counted");
     calls.set(id, state === "insufficient" ? "insufficient" : state);
   });
   return calls;

@@ -245,7 +245,7 @@ Overload-specific flows:
 - Open app → missed-day prompt (if a prior day was missed) → log late / shift / skip → today's session.
 - Today → exercise card → next exercise card → all done → session summary → day-complete dashboard.
 - History → a past day → edit a set → the tag on that exercise visibly updates.
-- Exercise card → swap → same-muscle-group picker → back to the card with the substitute.
+- Exercise card → swap → picker (opens on the planned muscle group, filter can reach any group) → back to the card with the substitute.
 - Goals → set a goal → progress rows; goal reached → completion card → set a new one or dismiss.
 
 ### 8. Interaction specifications
@@ -482,7 +482,7 @@ Before finalizing a design doc, verify:
 - Goal completion is a calm card, not a celebration animation.
 - Cardio has no tag, chart, or trend, only type and duration.
 - The missed-day prompt offers exactly three choices (log it late, shift, skip), each one tap.
-- The swap picker lists only same-muscle-group exercises and explains clearly when none exist.
+- The swap picker opens on the planned muscle group, can switch to any group, and explains clearly when the selected group has none.
 - Tailwind with shadcn/ui is the only styling system present.
 - The theme toggle appears only in Settings, and every screen works via tokens in light and dark.
 - The primary actions are reachable one-handed on a phone at the base breakpoint.

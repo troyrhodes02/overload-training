@@ -4,7 +4,9 @@ test.describe("authentication boundary", () => {
   test("unauthenticated visit to a protected route redirects to /login", async ({
     page,
   }) => {
-    await page.goto("/");
+    // Signed-out "/" is the public landing page since Public Landing Page &
+    // Changelog (a rewrite, by design), so prove the boundary on an app route.
+    await page.goto("/plan");
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
   });

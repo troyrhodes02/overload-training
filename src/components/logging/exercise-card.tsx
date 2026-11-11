@@ -1,5 +1,6 @@
 "use client";
 
+import { formatRepTarget } from "@/lib/plan/rep-target";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -231,8 +232,8 @@ export function ExerciseCard({
           Unavailable — choose a substitute
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          This planned exercise was archived. Pick a same-muscle substitute to
-          complete it. The plan is not changed.
+          This planned exercise was archived. Pick a substitute to complete it.
+          The plan is not changed.
         </p>
         {swapSlot ? <div className="mt-4">{swapSlot}</div> : null}
         {skipControl}
@@ -357,8 +358,11 @@ export function ExerciseCard({
             {exercise.performedExerciseName}
           </h2>
           <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-            {exercise.plannedSets} × {exercise.plannedRepRange.min}–
-            {exercise.plannedRepRange.max}
+            {exercise.plannedSets} ×{" "}
+            {formatRepTarget(
+              exercise.plannedRepRange.min,
+              exercise.plannedRepRange.max,
+            )}
             {!needsWeight ? " · bodyweight, reps only" : ""}
           </p>
         </div>

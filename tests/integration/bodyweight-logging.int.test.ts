@@ -7,7 +7,11 @@ import {
   createTestSessionExercise,
 } from "./support/plan-factories";
 import { editLoggedSet, logSet } from "@/lib/logging/logged-sets";
-import { completeWorkout, startOrResumeWorkout } from "@/lib/logging/sessions";
+import {
+  completeWorkout,
+  startOrResumeWorkout,
+  swapExercise,
+} from "@/lib/logging/sessions";
 import {
   currentWorkingWeightLbs,
   getLoggedWorkoutDetail,
@@ -46,12 +50,13 @@ async function makePlan(opts: {
   plannedSets?: number;
   repMin?: number;
   repMax?: number;
+  muscle?: string;
 }) {
   const meso = await createTestMesocycle();
   const exercise = await createTestExercise({
     name: opts.name,
     equipmentType: opts.equipment as never,
-    primaryMuscle: "back",
+    primaryMuscle: (opts.muscle ?? "back") as never,
   });
   const session = await createTestSession(meso.id, {
     name: "Pull Day 1",
@@ -476,5 +481,115 @@ describe("goals: bodyweight lifts have no valid goal math", () => {
       kind: "bodyweight_unsupported",
       exerciseName: "Wide-Grip Pull-Ups",
     });
+  });
+});
+
+/**
+ * Workout Logging Refinements — the abs / bodyweight logging audit (spec §3.3,
+ * RD-9). Abs filed as bodyweight log exactly like pull-ups. Loaded abs (cable,
+ * machine, weighted) still take a weight. No defect was reproduced, so these
+ * prove the existing behavior rather than a fix.
+ */
+describe("abs log like pull-ups (Workout Logging Refinements audit)", () => {
+  const CRUNCHES = {
+    name: "Crunches",
+    equipment: "bodyweight",
+    muscle: "core",
+  };
+
+  it("a core bodyweight exercise logs reps only, NULL weight, refuses a weight", async () => {
+    const plan = await makePlan(CRUNCHES);
+    const { loggedExerciseId } = await start(plan, "2026-11-02");
+    const set = await logSet(account, {
+      loggedExerciseId,
+      setNumber: 1,
+      reps: 20,
+    });
+    expect(set.weightLbs).toBeNull();
+    await expect(
+      logSet(account, {
+        loggedExerciseId,
+        setNumber: 2,
+        weightLbs: 10,
+        reps: 20,
+      }),
+    ).rejects.toMatchObject({ code: "validation_error" });
+  });
+
+  it("creates no baseline, no e1RM point, no load suggestion — like pull-ups", async () => {
+    for (const ex of [CRUNCHES, { ...PULL_UPS, name: "Pullups" }]) {
+      const plan = await makePlan(ex);
+      await pullUpSession(plan, "2026-11-02", [12, 12]);
+      await pullUpSession(plan, "2026-11-09", [12, 12]);
+      const page = (await getExerciseProgression(account, plan.exerciseId))!;
+      expect(page.requiresExternalWeight).toBe(false);
+      expect(page.points).toEqual([]);
+      expect(page.currentE1rm).toBeNull();
+      expect(page.suggestion).toBeNull();
+      expect(page.state).toBe("progress");
+      expect(page.recommendation?.action).not.toMatch(/lb/);
+      expect(
+        await getQualifyingSessionE1rms(account, plan.exerciseId, null),
+      ).toEqual([]);
+    }
+    expect(await db().gymExerciseBaseline.count()).toBe(0);
+  });
+
+  it("a loaded abs exercise (cable) still needs a weight and keeps its baseline", async () => {
+    const plan = await makePlan({
+      name: "Cable Crunch",
+      equipment: "cable",
+      muscle: "core",
+    });
+    const { loggedExerciseId } = await start(plan, "2026-11-02");
+    await expect(
+      logSet(account, { loggedExerciseId, setNumber: 1, reps: 12 }),
+    ).rejects.toMatchObject({ code: "validation_error" });
+    await logSet(account, {
+      loggedExerciseId,
+      setNumber: 1,
+      weightLbs: 70,
+      reps: 12,
+    });
+    await logSet(account, {
+      loggedExerciseId,
+      setNumber: 2,
+      weightLbs: 70,
+      reps: 12,
+    });
+    expect(await db().gymExerciseBaseline.count()).toBe(1);
+  });
+
+  it("swapping a loaded planned exercise for a bodyweight core one logs it reps only", async () => {
+    const plan = await makePlan({
+      name: "Lat Pulldown",
+      equipment: "cable",
+      muscle: "back",
+    });
+    const crunches = await createTestExercise({
+      name: "Crunches",
+      equipmentType: "bodyweight",
+      primaryMuscle: "core",
+    });
+    const w = await start(plan, "2026-11-02");
+    await swapExercise(account, {
+      loggedExerciseId: w.loggedExerciseId,
+      newExerciseId: crunches.id,
+    });
+    const card = (await getWorkout(account, w.loggedSessionId))!.exercises[0];
+    expect(card.requiresExternalWeight).toBe(false);
+    const set = await logSet(account, {
+      loggedExerciseId: w.loggedExerciseId,
+      setNumber: 1,
+      reps: 20,
+    });
+    expect(set.weightLbs).toBeNull();
+    await logSet(account, {
+      loggedExerciseId: w.loggedExerciseId,
+      setNumber: 2,
+      reps: 20,
+    });
+    await completeWorkout(account, { loggedSessionId: w.loggedSessionId });
+    expect(await db().gymExerciseBaseline.count()).toBe(0);
   });
 });
