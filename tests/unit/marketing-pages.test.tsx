@@ -132,7 +132,11 @@ describe("pricing (design Screen 2)", () => {
     expect(t.indexOf("Free")).toBeLessThan(t.indexOf("Pro"));
     expect(t).toContain("$4.99 / month");
     expect(t).toContain("$39.99 / year");
-    expect(t).toContain("New accounts get 14 days of Pro, no card.");
+    // Workout Logging Refinements RD-10: the approved trial sentence.
+    expect(t).toContain(
+      "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month.",
+    );
+    expect(t).not.toMatch(/no card\b/i);
   });
 
   it.each([
@@ -330,5 +334,28 @@ describe("creator promotion placement (OVE-112)", () => {
     expect(await blizzy(off({ billingEnabled: true }))).not.toContain(
       "aren't on sale yet",
     );
+  });
+});
+
+describe("trial wording (Workout Logging Refinements, RD-10)", () => {
+  it("every public trial string is plain and consistent, with no 'no card'", async () => {
+    const { TRIAL_SENTENCE, PRICING, BLIZZY_PAGE } =
+      await import("@/lib/marketing/copy");
+    const { TRIAL_NOTE } = await import("@/lib/marketing/cta");
+    expect(TRIAL_SENTENCE).toBe(
+      "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month.",
+    );
+    expect(PRICING.trial).toBe(TRIAL_SENTENCE);
+    expect(TRIAL_NOTE).toBe(TRIAL_SENTENCE);
+    expect(BLIZZY_PAGE.trialFit).toBe(
+      "How it fits the trial: try Pro free for 14 days, no credit card needed. Use the code whenever you subscribe, during the trial or after it.",
+    );
+    for (const s of [
+      TRIAL_SENTENCE,
+      PRICING.trial,
+      TRIAL_NOTE,
+      BLIZZY_PAGE.trialFit,
+    ])
+      expect(s).not.toMatch(/no card\b/i);
   });
 });

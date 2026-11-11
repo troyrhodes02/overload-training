@@ -17,6 +17,15 @@ import {
  * intelligence) — never plan import, which has not shipped.
  */
 
+/**
+ * The public description of the trial (Workout Logging Refinements, RD-10;
+ * roadmap chore "landing page trial wording"). Plain and brief, replacing the
+ * "no card" wording a reader found confusing. Copy only: the numbers come from
+ * the billing display constants, and no billing or trial behavior depends on
+ * this string.
+ */
+export const TRIAL_SENTENCE = `Try Pro free for ${TRIAL_DURATION_DAYS} days. No credit card needed. After that, keep using Overload on the free plan or upgrade for ${PRICE_DISPLAY.monthly} a month.`;
+
 export const HERO = {
   title: "You logged the reps. Know what to do next.",
   body: "Overload reads each set you log against the plan you wrote, then makes the call for every lift: go up, hold, or back off.",
@@ -162,7 +171,8 @@ export const PRICING = {
   annual: PRICE_DISPLAY.annual,
   /** $39.99 / 12, shown as "about". */
   annualPerMonth: "$3.33",
-  trial: `New accounts get ${TRIAL_DURATION_DAYS} days of Pro, no card. After that you're on Free unless you subscribe, and nothing is deleted.`,
+  /** Workout Logging Refinements RD-10: the approved trial sentence, verbatim. */
+  trial: TRIAL_SENTENCE,
   notOnSale:
     "Pro subscriptions aren't on sale yet. These are the prices when they are.",
 } as const;
@@ -245,7 +255,7 @@ export const BLIZZY_PAGE = {
   availableOn: `Enter ${BLIZZY.code} at checkout. Checkout shows whether it applies to you.`,
   availableOff:
     "Pro subscriptions aren't on sale yet, so the code can't be used today. When they are, you'll enter it at checkout.",
-  trialFit: `How it fits the trial: new accounts start with ${TRIAL_DURATION_DAYS} days of Pro, no card. Use the code whenever you subscribe, during the trial or after it.`,
+  trialFit: `How it fits the trial: try Pro free for ${TRIAL_DURATION_DAYS} days, no credit card needed. Use the code whenever you subscribe, during the trial or after it.`,
   /**
    * Creator disclosure shown under the offer. States only what is known — that
    * this is a promotion offered through the creator — and asserts no
