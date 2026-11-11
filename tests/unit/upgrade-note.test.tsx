@@ -1,10 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
-  UPGRADE_HREF,
   UpgradeNote,
   UpgradeNoteView,
 } from "@/components/billing/upgrade-note";
+import { UPGRADE_HREF } from "@/lib/billing/config";
 import { ExerciseRecords } from "@/components/exercises/history/exercise-records";
 import { SessionHistoryList } from "@/components/exercises/history/session-history-list";
 import type {

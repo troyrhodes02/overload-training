@@ -162,13 +162,13 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
                   {e.name}
                 </span>
                 <span className="flex shrink-0 items-center gap-2 text-muted-foreground">
-                  {p.gymVariable && !p.locked ? (
+                  {p.gymVariable ? (
                     <span className="text-xs">once gym is set</span>
                   ) : p.suggestion ? (
                     <SuggestedLoad suggestion={p.suggestion} />
                   ) : null}
                   <ProgressTag state={p.tag} />
-                  {!p.tag && (!p.gymVariable || p.locked) ? e.scheme : null}
+                  {!p.tag && !p.gymVariable ? e.scheme : null}
                 </span>
                 {/* A tagged lift's evidence, on its own line (spec R12). */}
                 {p.tag && p.recommendation ? (

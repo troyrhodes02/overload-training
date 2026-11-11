@@ -81,6 +81,9 @@ export function isCheckoutEnabled(): boolean {
   return process.env.STRIPE_BILLING_ENABLED === "true";
 }
 
+/** The existing plan-selection flow: every upgrade invitation links here. */
+export const UPGRADE_HREF = "/settings/billing";
+
 export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function addDays(from: Date, days: number): Date {

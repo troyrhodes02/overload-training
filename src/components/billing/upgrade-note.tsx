@@ -4,9 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-/** The existing plan-selection flow: every upgrade invitation links here. */
-export const UPGRADE_HREF = "/settings/billing";
+import { UPGRADE_HREF } from "@/lib/billing/config";
 
 /**
  * Plans, Billing & Promo Codes — the one quiet, dismissible invitation shown
