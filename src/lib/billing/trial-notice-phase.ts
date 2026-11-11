@@ -18,8 +18,11 @@ import { addDays, isoDateInZone } from "@/lib/plan/calendar";
  *              long ago, or that later lost a subscription, isn't told its
  *              trial "has ended").
  *
- * Never for an account that has, or ever had, complimentary access: comp is
- * Overload's own grant and is never solicited for payment. Each phase shows
+ * Never for an account with valid complimentary access, and never for one
+ * whose comp was covering it when the trial ended (that trial's end was no
+ * downgrade, and comp is never solicited for payment). A comp that was
+ * revoked or lapsed BEFORE the trial ended doesn't count: that lifter is a
+ * regular trial user again. Each phase shows
  * once per account: a non-null shown-at timestamp suppresses it for good.
  * Nothing here changes an entitlement — the resolver never reads this.
  */
@@ -44,13 +47,20 @@ export function trialNoticePhase({
   timeZone,
   now,
 }: TrialNoticeInput): TrialNoticePhase | null {
-  if (entitlements.some((e) => e.source === "comp")) return null;
   // The original trial: one per account (partial unique index), never revoked.
   const trial = entitlements.find(
     (e) => e.source === "trial" && e.revokedAt === null && e.endsAt !== null,
   );
   if (!trial || !trial.endsAt) return null;
   const endsAt = trial.endsAt;
+  if (
+    entitlements.some(
+      (e) =>
+        e.source === "comp" && (compCovers(e, now) || compCovers(e, endsAt)),
+    )
+  ) {
+    return null;
+  }
 
   const resolved = computeEntitlement(entitlements, billing, now);
 
@@ -75,4 +85,14 @@ export function trialNoticePhase({
     return null;
   }
   return { phase: "ended" };
+}
+
+/** Whether a comp entitlement granted Pro at instant `t`. */
+function compCovers(e: Entitlement, t: Date): boolean {
+  const at = t.getTime();
+  return (
+    e.startedAt.getTime() <= at &&
+    (e.revokedAt === null || at < e.revokedAt.getTime()) &&
+    (e.endsAt === null || at < e.endsAt.getTime())
+  );
 }
