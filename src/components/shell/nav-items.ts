@@ -1,27 +1,35 @@
 import {
   Building2,
   CalendarRange,
+  CreditCard,
   Dumbbell,
   History,
   House,
   MessageSquare,
+  ScrollText,
   Settings,
+  Shield,
   Target,
 } from "lucide-react";
 import type { TourAnchor } from "@/lib/tour/steps";
 
 /**
- * The app's primary destinations — one list, rendered two ways: the left rail
- * at md+ (AppNav) and the phone navigation sheet below md (MobileNav). Built
- * as an extensible list so later pitches add destinations without
- * restructuring the shell. Library & Gyms Setup added Exercises and Gyms;
- * Split & Mesocycle Builder added Plan; Goals added Goals.
+ * The app's navigation — one set of lists, rendered two ways: the left
+ * sidebar at md+ (AppNav) and the phone navigation sheet below md
+ * (MobileNav), so both always hold the same destinations in the same order.
+ *
+ * - NAV_ITEMS: the training destinations (unchanged order).
+ * - moreNavItems(): below a divider, a collapsible group with the account and
+ *   app pages (OVE-119): Settings, Plan & Billing, What's New, Send feedback,
+ *   and — only when the server resolved the account as an admin — Admin.
+ *   Hiding Admin is courtesy; requireAdmin() is the check.
+ * - The account (initials, username, sign out) sits at the bottom of both.
  */
 export type NavItem = {
   href: string;
   label: string;
   icon: typeof House;
-  /** The rail item's onboarding-tour anchor (desktop rail only). */
+  /** The sidebar item's onboarding-tour anchor (desktop sidebar only). */
   tourAnchor?: TourAnchor;
 };
 
@@ -44,23 +52,52 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/gyms", label: "Gyms", icon: Building2, tourAnchor: "nav-gyms" },
 ];
 
-/**
- * Secondary entries shown only in the phone sheet, below a divider
- * (Personalization & Navigation Polish R10). Settings and Send feedback
- * (Admin Center & Feedback) are already reachable from the account menu at
- * every width; neither is a rail destination.
- */
-export const SECONDARY_NAV_ITEMS: readonly NavItem[] = [
+const MORE_NAV_ITEMS: readonly NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings },
+  {
+    href: "/settings/billing",
+    label: "Plan & Billing",
+    icon: CreditCard,
+    tourAnchor: "nav-billing",
+  },
+  { href: "/settings/whats-new", label: "What's New", icon: ScrollText },
   { href: "/feedback", label: "Send feedback", icon: MessageSquare },
 ];
 
+const ADMIN_NAV_ITEM: NavItem = {
+  href: "/admin",
+  label: "Admin",
+  icon: Shield,
+};
+
+/** The collapsible group's items; Admin only for an allowlisted account. */
+export function moreNavItems(isAdmin: boolean): readonly NavItem[] {
+  return isAdmin ? [...MORE_NAV_ITEMS, ADMIN_NAV_ITEM] : MORE_NAV_ITEMS;
+}
+
+/** The collapsible group's heading. */
+export const MORE_NAV_LABEL = "Account & app";
+
 /**
- * Active state is derived from the current path so adding items stays correct
- * (one active item, correct aria-current): Today only on `/`, every other
- * destination on its path and sub-paths.
+ * Whether `href` is the current destination. Today matches only `/`; every
+ * other destination matches its path and sub-paths — except when a more
+ * specific destination also matches (Settings vs. Plan & Billing at
+ * /settings/billing), so exactly one item is ever active.
  */
-export function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
+export function isActive(
+  pathname: string,
+  href: string,
+  all: readonly NavItem[] = [...NAV_ITEMS, ...moreNavItems(true)],
+): boolean {
+  const matches = (h: string) =>
+    h === "/"
+      ? pathname === "/"
+      : pathname === h || pathname.startsWith(`${h}/`);
+  if (!matches(href)) return false;
+  return !all.some((i) => i.href.length > href.length && matches(i.href));
+}
+
+/** True when the current page is one of the group's destinations. */
+export function isInMoreGroup(pathname: string, isAdmin: boolean): boolean {
+  return moreNavItems(isAdmin).some((i) => isActive(pathname, i.href));
 }

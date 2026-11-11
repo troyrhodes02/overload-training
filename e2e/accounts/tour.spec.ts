@@ -153,8 +153,18 @@ async function signIn(p: Page, who: typeof T) {
 }
 
 async function signOut(p: Page) {
-  await p.getByRole("button", { name: "Account menu" }).click();
-  await p.getByRole("menuitem", { name: "Sign out" }).click();
+  // OVE-119: Sign out is in the account footer — the sidebar on desktop,
+  // the navigation sheet on a phone.
+  const menu = p.getByRole("button", { name: "Open navigation" });
+  if (await menu.isVisible()) {
+    await menu.click();
+    await p
+      .getByRole("dialog")
+      .getByRole("button", { name: "Sign out" })
+      .click();
+  } else {
+    await p.getByRole("button", { name: "Sign out" }).click();
+  }
   await expect(p).toHaveURL(/\/login/);
 }
 

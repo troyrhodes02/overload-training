@@ -157,9 +157,13 @@ describe("every published entry is public-safe (RD-11)", () => {
 });
 
 describe("Settings links to the public pages (RD-22)", () => {
-  it("has the Changelog link (legal pages deferred until there's a need)", () => {
+  it("the release history is in the navigation, not Settings (OVE-119)", () => {
     const src = read("src/app/(app)/settings/page.tsx");
-    expect(src).toContain(`href="/changelog"`);
+    // What's New (the in-app changelog, same entries) is a navigation item.
+    expect(src).not.toContain(`href="/changelog"`);
+    expect(read("src/components/shell/nav-items.ts")).toContain(
+      `href: "/settings/whats-new"`,
+    );
     // Privacy/Terms were removed with the rest of the legal surface.
     expect(src).not.toContain(`href="/privacy"`);
     expect(src).not.toContain(`href="/terms"`);

@@ -1,20 +1,23 @@
 import Link from "next/link";
 import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { ModeCta } from "./mode-cta";
+import { SiteLinks, SiteMobileNav } from "./marketing-nav";
 
 /**
- * The public pages' frame (design doc §6 "Shared"): a quiet header with the
- * wordmark, Pricing and Changelog links (from sm), and the server-resolved
- * action; and a footer of plain links. Not the app shell — no app navigation,
- * account menu, tour, or What's New dialog.
+ * The public pages' frame (design doc §6 "Shared"; regrouped by OVE-119): a
+ * quiet header and a footer of plain links. Not the app shell — no app
+ * navigation, account menu, tour, or What's New dialog.
+ *
+ * md+: the wordmark, then Home, Pricing, Changelog, and the server-resolved
+ * actions on the right. Below md: the wordmark and a menu button whose sheet
+ * holds the same links and the actions, so nothing needs a scroll to reach.
  */
-
 export function MarketingHeader() {
   return (
-    <header className="border-b border-border bg-background md:sticky md:top-0 md:z-20 md:bg-background/90 md:backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
       <nav
         aria-label="Site"
-        className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4 md:px-6"
+        className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4 md:px-6"
       >
         <Link
           href="/"
@@ -22,20 +25,12 @@ export function MarketingHeader() {
         >
           <OverloadLockup />
         </Link>
-        <div className="flex items-center gap-1 sm:gap-2">
-          <Link
-            href="/pricing"
-            className="hidden px-2 text-sm text-muted-foreground hover:text-foreground sm:inline"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/changelog"
-            className="hidden px-2 text-sm text-muted-foreground hover:text-foreground sm:inline"
-          >
-            Changelog
-          </Link>
+        <SiteLinks />
+        <div className="ml-auto hidden items-center gap-2 md:flex">
           <ModeCta placement="header" />
+        </div>
+        <div className="ml-auto md:hidden">
+          <SiteMobileNav actions={<ModeCta placement="sheet" />} />
         </div>
       </nav>
     </header>

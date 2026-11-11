@@ -164,8 +164,8 @@ test("sign out ends access; signing back in returns the same account", async ({
 }) => {
   const page = await newPage(browser);
   await signIn(page, A.email, A.password);
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  // OVE-119: Sign out sits in the sidebar's account footer.
+  await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/gyms");
   await expect(page).toHaveURL(/\/login$/);
@@ -185,8 +185,10 @@ test("Settings edits the name, username, and timezone of this account only", asy
 }) => {
   const page = await newPage(browser);
   await signIn(page, A.email, A.password);
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Settings" })
+    .click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByLabel("First name")).toHaveValue("Test");
   await expect(page.getByLabel("Username")).toHaveValue(A.username);

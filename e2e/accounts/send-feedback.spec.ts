@@ -11,7 +11,7 @@ import {
 /**
  * Send feedback against the LOCAL Supabase stack (Admin Center & Feedback,
  * spec §14.3; design doc Screens 1 and 10): reached from the phone sheet and
- * the ⋮ menu, validation keeps the draft, a sent message is stored exactly
+ * the desktop sidebar, validation keeps the draft, a sent message is stored exactly
  * as typed (trimmed) for the signed-in account with nothing attached, and the
  * confirmation replaces the form. Screenshots at 375 light and 1280 dark for
  * comparison with the preview. One temporary account, removed through the app.
@@ -37,7 +37,7 @@ test("a lifter sends feedback from the phone menu", async ({ browser }) => {
   const page = await ctx.newPage();
   await signUpThroughApp(page, WHO);
 
-  // Phone sheet: Settings, then Send feedback (never Admin).
+  // Phone sheet: the Account & app group has Send feedback (never Admin).
   await page.getByRole("button", { name: "Open navigation" }).click();
   const sheet = page.getByRole("dialog");
   await expect(
@@ -106,7 +106,7 @@ test("a lifter sends feedback from the phone menu", async ({ browser }) => {
   await ctx.close();
 });
 
-test("the ⋮ menu reaches it on desktop, dark", async ({ browser }) => {
+test("the sidebar reaches it on desktop, dark", async ({ browser }) => {
   const ctx = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     colorScheme: "dark",
@@ -118,9 +118,10 @@ test("the ⋮ menu reaches it on desktop, dark", async ({ browser }) => {
   await page.getByLabel("Password", { exact: true }).fill(WHO.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await expect(page.getByRole("menuitem", { name: /admin/i })).toHaveCount(0);
-  await page.getByRole("menuitem", { name: "Send feedback" }).click();
+  // OVE-119: the desktop sidebar (no ⋮ menu).
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link", { name: /admin/i })).toHaveCount(0);
+  await nav.getByRole("link", { name: "Send feedback" }).click();
   await expect(page).toHaveURL(/\/feedback$/);
   await page.getByLabel("Idea").check();
   await page.screenshot({
