@@ -46,6 +46,23 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   //     fix anything, and create the plan. Part of Pro."
   //   significant: true, audience: "internal" (or "public" after launch)
   {
+    // Workout Logging Refinements (Pitch 24; OVE-117, overload-onboarding).
+    // SIGNIFICANT (opens the dialog): it fixes advice that was wrong after a
+    // failed set (a correctness fix to recommendations), and changes how a
+    // lifter plans and swaps. No tour step: no new surface, and the existing
+    // Plan step ("sets and rep ranges") still reads true (spec RD-14).
+    // PROVISIONAL date: written during the pipeline run on 2026-11-11, the day
+    // the feature merges into staging. Before promotion, set `date` and the
+    // id's date prefix to the production-ship day (the contract forbids
+    // backdating); once it reaches production it is never re-dated.
+    id: "2026-11-11-single-rep-targets-and-wider-swaps",
+    date: "2026-11-11",
+    title: "Single rep targets and wider swaps",
+    body: "Plan an exercise as 3 × 10 as well as 3 × 8–10. Swap can now reach any muscle group. And after a set below your planned minimum, Overload asks you to reassess the weight instead of telling you to stay at it.",
+    significant: true,
+    audience: "internal",
+  },
+  {
     // Public Landing Page & Changelog (Pitch 21 / slug 20; OVE-103,
     // overload-onboarding). Changes nothing about how a lifter trains, so NOT
     // significant: list only, no dialog. No tour step (design doc §13).
