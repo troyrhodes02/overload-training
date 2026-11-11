@@ -13,8 +13,11 @@ import { tourAnchor } from "@/lib/tour/steps";
  *     outline Button to /plan/import. It sits on its own, below the plan
  *     lists, not in the New mesocycle / Clone previous action bar.
  *   - Pro + kill switch OFF: a plain operational "temporarily unavailable" note.
- *   - Free (capability absent): ONE quiet locked note pointing at Pro, distinct
- *     in copy from the operational one.
+ *   - Free (capability absent) + kill switch ON: ONE quiet locked note pointing
+ *     at Pro, distinct in copy from the operational one.
+ *   - Free + kill switch OFF: nothing. A Free lifter is never invited to buy a
+ *     feature that is switched off in this deployment (Entitlement Audit; the
+ *     trial notices omit it on the same switch, pro-highlights.ts).
  * Visibility is NOT the gate — the /plan/import route re-checks the capability
  * and kill switch server-side, so a direct visit never returns a Pro result.
  * This component renders no training content and takes the acting account only.
@@ -24,6 +27,7 @@ export async function ImportEntry({ account }: { account: Account }) {
   const isPro = can(resolved, "plan_import");
 
   if (!isPro) {
+    if (!isPlanImportEnabled()) return null;
     return (
       <div className="flex items-start gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground">
         <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -33,7 +37,7 @@ export async function ImportEntry({ account }: { account: Account }) {
             href="/settings/billing"
             className="text-primary underline-offset-4 hover:underline"
           >
-            See Pro
+            Explore Pro
           </Link>
         </p>
       </div>

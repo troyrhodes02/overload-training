@@ -80,37 +80,40 @@ export function ExerciseRecords({
                 <Meta>{records.heaviest.dateLabel}</Meta>
               </Cell>
             </div>
-            <div className="px-3.5 py-3">
-              <table className="w-full text-sm tabular-nums">
-                <caption className="pb-1 text-left text-xs text-muted-foreground">
-                  Rep records · most reps at this weight or heavier
-                </caption>
-                <thead>
-                  <tr className="text-xs text-muted-foreground">
-                    <th scope="col" className="pb-0.5 text-left font-normal">
-                      Weight
-                    </th>
-                    <th scope="col" className="pb-0.5 text-right font-normal">
-                      Reps
-                    </th>
-                    <th scope="col" className="pb-0.5 text-right font-normal">
-                      Date
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.repRecords.map((r) => (
-                    <tr key={`${r.weightLbs}-${r.reps}`}>
-                      <td className="py-0.5">{formatLoad(r.weightLbs)} lb</td>
-                      <td className="py-0.5 text-right">{r.reps}</td>
-                      <td className="py-0.5 text-right text-xs text-muted-foreground">
-                        {r.dateLabel}
-                      </td>
+            {/* The rep-record frontier is Pro (null when withheld on Free). */}
+            {records.repRecords !== null ? (
+              <div className="px-3.5 py-3">
+                <table className="w-full text-sm tabular-nums">
+                  <caption className="pb-1 text-left text-xs text-muted-foreground">
+                    Rep records · most reps at this weight or heavier
+                  </caption>
+                  <thead>
+                    <tr className="text-xs text-muted-foreground">
+                      <th scope="col" className="pb-0.5 text-left font-normal">
+                        Weight
+                      </th>
+                      <th scope="col" className="pb-0.5 text-right font-normal">
+                        Reps
+                      </th>
+                      <th scope="col" className="pb-0.5 text-right font-normal">
+                        Date
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {records.repRecords.map((r) => (
+                      <tr key={`${r.weightLbs}-${r.reps}`}>
+                        <td className="py-0.5">{formatLoad(r.weightLbs)} lb</td>
+                        <td className="py-0.5 text-right">{r.reps}</td>
+                        <td className="py-0.5 text-right text-xs text-muted-foreground">
+                          {r.dateLabel}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </>
         )}
       </div>

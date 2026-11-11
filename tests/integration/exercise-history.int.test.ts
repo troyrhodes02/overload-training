@@ -405,9 +405,9 @@ describe("corrections flow through on the next read (Journey I)", () => {
       reps: 10,
       dateIso: "2026-11-02",
     });
-    expect(after.records.repRecords.map((r) => [r.weightLbs, r.reps])).toEqual([
-      [185, 10],
-    ]);
+    expect(after.records.repRecords?.map((r) => [r.weightLbs, r.reps])).toEqual(
+      [[185, 10]],
+    );
     expect(after.trend.weight?.points.map((p) => p.value)).toEqual([185, 185]);
     expect(after.sessions.rows[0].call).toBe("hold");
     expect(after.next).toMatchObject({ kind: "call", tag: null });
