@@ -45,7 +45,8 @@ it("shows the empty state when there are no entries", async () => {
   // Faster Logging UX, so the launch state is pinned here, not by entries.ts.
   const html = await renderPage([]);
   expect(html).toContain("What&#x27;s New</h1>");
-  expect(html).toContain('href="/settings"');
+  // A navigation destination of its own since OVE-119: no "‹ Settings" link.
+  expect(html).not.toContain('href="/settings"');
   expect(html).toContain(
     "No updates yet. When something changes in Overload, it&#x27;s listed here.",
   );

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { User } from "@supabase/supabase-js";
@@ -32,3 +33,9 @@ export async function requireUser(): Promise<User> {
   }
   return user;
 }
+
+/**
+ * requireUser(), once per request (React `cache`): the app layout and
+ * requireAccount() share one Auth-server check instead of making two.
+ */
+export const currentUser = cache(requireUser);

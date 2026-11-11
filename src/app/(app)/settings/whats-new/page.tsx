@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 import {
   orderedReleaseNotes,
   toReleaseNoteView,
@@ -19,13 +17,7 @@ export default function WhatsNewPage() {
   const entries = orderedReleaseNotes().map(toReleaseNoteView);
   return (
     <section className="space-y-6 pb-20 md:pb-0">
-      <Link
-        href="/settings"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ChevronLeft aria-hidden className="size-4" />
-        Settings
-      </Link>
+      {/* A navigation destination of its own since OVE-119: no "‹ Settings". */}
       <div className="space-y-2">
         <h1 className="text-xl font-semibold">What&apos;s New</h1>
         <p className="text-sm text-muted-foreground">

@@ -1,7 +1,12 @@
-jest.mock("@/lib/auth", () => ({
-  requireUser: jest.fn(),
-  getAuthUser: jest.fn(),
-}));
+jest.mock("@/lib/auth", () => {
+  const requireUser = jest.fn();
+  // currentUser is requireUser, once per request (OVE-119).
+  return {
+    requireUser,
+    getAuthUser: jest.fn(),
+    currentUser: (...args: unknown[]) => requireUser(...args),
+  };
+});
 jest.mock("@/lib/data/account-db", () => ({ createAccountClient: jest.fn() }));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((to: string) => {

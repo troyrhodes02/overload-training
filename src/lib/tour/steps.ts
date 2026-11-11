@@ -34,7 +34,8 @@ export const TOUR_ANCHORS = [
   "page-goals",
   "page-exercises",
   "page-gyms",
-  "settings-billing",
+  "nav-billing",
+  "page-billing",
   "settings-replay",
 ] as const;
 
@@ -155,8 +156,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   {
     id: "plan-billing",
-    route: "/settings",
-    targets: [{ anchor: "settings-billing" }],
+    route: "/settings/billing",
+    targets: [
+      { anchor: "nav-billing", side: RAIL },
+      { anchor: "page-billing" },
+    ],
     title: "Plan & Billing",
     body: "Your plan lives here. New accounts get 14 days of Pro — after that you stay on Free with everything you've logged.",
   },
@@ -165,6 +169,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     route: "/settings",
     targets: [{ anchor: "settings-replay" }],
     title: "Settings",
-    body: "Your name, timezone, and appearance live here, under the ⋮ menu at the top. Come back to replay this tour any time.",
+    body: "Your name, timezone, and appearance live here, in the Account & app section of the navigation. Come back to replay this tour any time.",
   },
 ];

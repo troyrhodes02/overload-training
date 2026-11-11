@@ -250,9 +250,10 @@ test("phone: no bottom bar; the sheet lists every destination and closes on choi
     "Goals",
     "Exercises",
     "Gyms",
+    // OVE-119: the Account & app group. Admin appears only for admins.
     "Settings",
-    // Admin Center & Feedback (design doc Screen 1): every lifter's way to
-    // the owner. The admin area is never a sheet entry.
+    "Plan & Billing",
+    "What's New",
     "Send feedback",
   ]);
   await expect(sheet.getByRole("link", { name: "Today" })).toHaveAttribute(
