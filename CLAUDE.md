@@ -182,7 +182,7 @@ Test the risky logic hard; lean tests or manual verification are fine for low-ri
 
 ## Workflow
 
-1. Work against the current pitch. Keep changes scoped to that pitch's in-scope list; don't wander into a later pitch. Expanded pitches live at `pitches/NN-pitch-name.md`, numbered and named to match the Pitch Roadmap (for example `pitches/04-guided-workout-logging.md`).
+1. Work against the current pitch. Keep changes scoped to that pitch's in-scope list; don't wander into a later pitch. Expanded pitches live at `docs/pitches/<milestone>/NN-pitch-name/pitch.md`, numbered and named to match the Pitch Roadmap (for example `docs/pitches/mvp-1-core-training/04-guided-workout-logging/pitch.md`).
 2. Commit with descriptive messages referencing the Linear issue ID.
 3. Push and open a PR via `gh pr create`; use the Vercel preview deployment to verify before merging. Previews run against the Supabase dev project.
 

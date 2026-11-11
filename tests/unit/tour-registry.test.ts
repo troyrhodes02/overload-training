@@ -115,7 +115,10 @@ describe("copy is the design doc's, verbatim (R32)", () => {
     return rows;
   }
   const doc = fs.readFileSync(
-    path.join(REPO_ROOT, "docs/design/11-onboarding-tour-design-doc.md"),
+    path.join(
+      REPO_ROOT,
+      "docs/pitches/mvp-2-multi-user/11-onboarding-tour/design.md",
+    ),
     "utf8",
   );
   const initial = tableRows(
@@ -126,10 +129,11 @@ describe("copy is the design doc's, verbatim (R32)", () => {
   );
   // A later pitch that adds a step records its copy in its own design doc,
   // under "### Tour steps added", in the same columns (overload-onboarding).
-  const designDir = path.join(REPO_ROOT, "docs/design");
+  const designDir = path.join(REPO_ROOT, "docs/pitches");
   const added = fs
-    .readdirSync(designDir)
-    .filter((f) => f.endsWith(".md"))
+    .readdirSync(designDir, { recursive: true, encoding: "utf8" })
+    .filter((f) => path.basename(f) === "design.md")
+    .sort()
     .flatMap((f) => {
       const text = fs.readFileSync(path.join(designDir, f), "utf8");
       const at = text.indexOf("### Tour steps added");
