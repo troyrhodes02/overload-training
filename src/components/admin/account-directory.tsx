@@ -10,13 +10,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { AccountStatusBadge, AdminBadge } from "./account-status-badge";
+import {
+  AccountStatusBadge,
+  AdminBadge,
+  PlanBadge,
+} from "./account-status-badge";
 
 /**
  * The account directory (Admin Center & Feedback design doc Screen 4;
  * preview "4 · Accounts"): search and status filter as URL state, stacked
- * rows on a phone and a table from md. Metadata only — and no plan column
- * until Plans, Billing & Promo Codes adds one.
+ * rows on a phone and a table from md. Metadata only: the Plan column
+ * (Workout Logging Refinements RD-11) is resolved from entitlement and
+ * billing records, never training content.
  */
 
 const TOUR: Record<AdminAccountRowDto["tour"], string> = {
@@ -167,7 +172,8 @@ export function AccountDirectory({
                       {subLine(row)}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground tabular-nums">
-                      <AccountStatusBadge status={row.status} /> · Joined{" "}
+                      <AccountStatusBadge status={row.status} /> ·{" "}
+                      <PlanBadge membership={row.membership} /> · Joined{" "}
                       {shortDate(row.signupOn, today)} ·{" "}
                       {row.lastActiveOn
                         ? `Seen ${seen(row, today).replace("Today", "today")}`
@@ -188,13 +194,18 @@ export function AccountDirectory({
               <caption className="sr-only">Accounts</caption>
               <thead className="text-left text-xs text-muted-foreground">
                 <tr className="border-b border-border">
-                  {["Account", "Status", "Joined", "Last seen", "Tour"].map(
-                    (h) => (
-                      <th key={h} scope="col" className="px-3 py-2 font-medium">
-                        {h}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    "Account",
+                    "Status",
+                    "Plan",
+                    "Joined",
+                    "Last seen",
+                    "Tour",
+                  ].map((h) => (
+                    <th key={h} scope="col" className="px-3 py-2 font-medium">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="tabular-nums">
@@ -216,6 +227,9 @@ export function AccountDirectory({
                     </td>
                     <td className="px-3 py-2.5">
                       <AccountStatusBadge status={row.status} />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <PlanBadge membership={row.membership} />
                     </td>
                     <td className="px-3 py-2.5">
                       {shortDate(row.signupOn, today)}

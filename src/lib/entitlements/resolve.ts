@@ -23,7 +23,21 @@ export function can(resolved: ResolvedEntitlement, cap: Capability): boolean {
   return resolved.capabilities.has(cap);
 }
 
-function trialActive(e: Entitlement, now: Date): boolean {
+/**
+ * The columns the pure resolver reads, and nothing else. Callers may pass
+ * whole rows; the admin layer (which must select every field it reads) passes
+ * exactly these, and the compiler refuses a read of any other column.
+ */
+export type ResolverEntitlement = Pick<
+  Entitlement,
+  "source" | "revokedAt" | "startedAt" | "endsAt"
+>;
+export type ResolverBilling = Pick<
+  BillingAccount,
+  "status" | "cancelAtPeriodEnd" | "interval" | "graceEndsAt"
+>;
+
+function trialActive(e: ResolverEntitlement, now: Date): boolean {
   return (
     e.source === "trial" &&
     e.revokedAt === null &&
@@ -33,7 +47,7 @@ function trialActive(e: Entitlement, now: Date): boolean {
   );
 }
 
-function compActive(e: Entitlement, now: Date): boolean {
+function compActive(e: ResolverEntitlement, now: Date): boolean {
   return (
     e.source === "comp" &&
     e.revokedAt === null &&
@@ -53,7 +67,7 @@ type SubResolution = {
  * within the grace window; everything else grants nothing.
  */
 export function subscriptionResolution(
-  billing: BillingAccount | null,
+  billing: ResolverBilling | null,
   now: Date,
 ): SubResolution {
   if (!billing || billing.status === null) return { pro: false, display: null };
@@ -84,8 +98,8 @@ export function subscriptionResolution(
  * reads the rows through the account-scoped client and calls this.
  */
 export function computeEntitlement(
-  entitlements: Entitlement[],
-  billing: BillingAccount | null,
+  entitlements: ResolverEntitlement[],
+  billing: ResolverBilling | null,
   now: Date,
 ): ResolvedEntitlement {
   const trial = entitlements.find((e) => trialActive(e, now)) ?? null;

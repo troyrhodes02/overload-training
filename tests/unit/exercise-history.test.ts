@@ -1,5 +1,6 @@
 import {
   evaluateReactiveDecision,
+  hasBelowMin,
   type Performance,
   type WorkingSet,
 } from "@/lib/progression/engine";
@@ -22,6 +23,32 @@ import {
   type LoadedRecordSet,
 } from "@/lib/progression/history";
 import { bestPerformance } from "@/lib/goals/progress";
+
+/** Counted: finished, every planned set, outside a scheduled-deload week. */
+const counted = (x: HistoryRow): boolean =>
+  x.finished && !x.perf.scheduledDeload && x.perf.complete;
+
+/**
+ * A session the engine judges (Workout Logging Refinements RD-3): counted, or
+ * a finished short one that produced the call — a reassess naming it, on the
+ * history up to and including it.
+ */
+function judgedIn(
+  rows: HistoryRow[],
+  opts: { e1rmApplicable: boolean },
+): (x: HistoryRow) => boolean {
+  return (x) => {
+    if (counted(x)) return true;
+    if (!x.finished || x.perf.scheduledDeload || !hasBelowMin(x.perf))
+      return false;
+    const prefix = rows.slice(0, rows.indexOf(x) + 1).map((y) => y.perf);
+    const { evidence } = evaluateReactiveDecision(prefix, opts);
+    return (
+      evidence.kind === "reassess" &&
+      evidence.latest.loggedExerciseId === x.perf.loggedExerciseId
+    );
+  };
+}
 
 /**
  * Exercise History & PR Intelligence — the pure projections (spec §4, §6,
@@ -57,6 +84,7 @@ function row(o: RowOpts): HistoryRow {
       scheduledDeload: o.deload ?? false,
       gymId: null,
       complete: finished && workingSets.length >= planned,
+      finished,
       repMin: (o.range ?? [8, 10])[0],
       repMax: (o.range ?? [8, 10])[1],
       workingSets,
@@ -510,6 +538,7 @@ function randomRows(r: () => number, bodyweight: boolean): HistoryRow[] {
       scheduledDeload: r() < 0.1,
       gymId: null,
       complete: finished && logged >= planned,
+      finished,
       repMin: 8,
       repMax: 10,
       workingSets: sets,
@@ -555,19 +584,20 @@ describe("sweep: 2,000 histories", () => {
               ? -1
               : 1,
         );
+      const judged = judgedIn(ordered, opts);
       ordered.forEach((row_, idx) => {
         const call = calls.get(row_.perf.loggedExerciseId)!;
         seen.add(call);
-        if (row_.finished && !row_.perf.scheduledDeload && row_.perf.complete) {
+        // Judged: counted sessions, and short ones that logged a set below
+        // the minimum (Workout Logging Refinements RD-3).
+        if (judged(row_)) {
           const prefix = ordered.slice(0, idx + 1).map((x) => x.perf);
           expect(call).toBe(evaluateReactiveDecision(prefix, opts).state);
         }
       });
-      const counted = ordered.filter(
-        (x) => x.finished && !x.perf.scheduledDeload && x.perf.complete,
-      );
-      if (counted.length > 0) {
-        expect(calls.get(counted.at(-1)!.perf.loggedExerciseId)).toBe(
+      const judgedRows = ordered.filter(judged);
+      if (ordered.some(counted)) {
+        expect(calls.get(judgedRows.at(-1)!.perf.loggedExerciseId)).toBe(
           evaluateReactiveDecision(
             rows.map((x) => x.perf),
             opts,
@@ -630,5 +660,44 @@ describe("sweep: 2,000 histories", () => {
     ]) {
       expect(seen).toContain(k);
     }
+  });
+});
+
+describe("short failed workouts in the session list (Workout Logging Refinements RD-3)", () => {
+  let n = 0;
+  const mk = (date: string, reps: number[]) =>
+    row({
+      id: `wlr-${++n}`,
+      date,
+      sets: reps.map((r) => [90, r] as [number, number]),
+      planned: 3,
+      range: [6, 10],
+    });
+  const short = mk;
+  const full = mk;
+  const label = (rows: HistoryRow[], id: string) =>
+    callsBySession(rows, { externalLoad: true, noGymScope: false }).get(id);
+
+  it("is labelled with the hold it produced, after enough history", () => {
+    const rows = [
+      full("2026-10-01", [8, 8, 8]),
+      full("2026-10-08", [8, 8, 8]),
+      short("2026-10-15", [3]),
+    ];
+    expect(label(rows, rows[2].perf.loggedExerciseId)).toBe("hold");
+  });
+
+  it("is 'not counted' when too little history decided instead", () => {
+    const rows = [full("2026-10-01", [8, 8, 8]), short("2026-10-08", [3])];
+    expect(label(rows, rows[1].perf.loggedExerciseId)).toBe("not_counted");
+  });
+
+  it("is 'not counted' when the reactive Deload decided instead", () => {
+    const rows = [
+      full("2026-10-01", [5, 8, 8]),
+      full("2026-10-08", [5, 8, 8]),
+      short("2026-10-15", [3]),
+    ];
+    expect(label(rows, rows[2].perf.loggedExerciseId)).toBe("not_counted");
   });
 });

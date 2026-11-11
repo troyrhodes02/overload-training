@@ -98,6 +98,13 @@ export type CohortRowDto = {
   active30Pct: number | null;
 };
 
+/**
+ * The plan label in the account directory (Workout Logging Refinements
+ * RD-11): Pro, Pro on a trial, Comped, or Free. Account metadata only,
+ * resolved from entitlement and billing records — never training content.
+ */
+export type MembershipValue = "pro" | "trial" | "comped" | "free";
+
 export type AdminAccountRowDto = {
   id: string;
   firstName: string;
@@ -112,6 +119,8 @@ export type AdminAccountRowDto = {
   /** "YYYY-MM-DD", or null before its first tracked request. */
   lastActiveOn: string | null;
   tour: TourState;
+  /** Pro / Pro (trial) / Comped / Free, resolved on read (RD-11). */
+  membership: MembershipValue;
 };
 
 export type AdminAccountListDto = {

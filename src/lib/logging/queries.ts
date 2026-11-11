@@ -1,4 +1,5 @@
 import "server-only";
+import { formatRepTarget } from "@/lib/plan/rep-target";
 import { accountToday, type Account } from "@/lib/data/account";
 import type { LoggedSessionStatus } from "@prisma/client";
 import {
@@ -11,7 +12,11 @@ import { isGymVariable } from "@/lib/exercises/gym-variable";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
 import { exerciseHistoryHref } from "@/lib/progression/history-format";
-import { muscleGroupLabel } from "@/lib/exercises/taxonomy";
+import {
+  isMuscleGroup,
+  muscleGroupLabel,
+  type MuscleGroupValue,
+} from "@/lib/exercises/taxonomy";
 import { favoriteExerciseIds } from "@/lib/exercises/queries";
 import { getCardioWeek, type CardioOccurrenceDto } from "@/lib/cardio/queries";
 import { loadScheduleContext } from "./schedule-context";
@@ -147,7 +152,7 @@ export type WorkoutDto = {
 };
 
 function scheme(sets: number, min: number, max: number): string {
-  return `${sets} × ${min}–${max}`;
+  return `${sets} × ${formatRepTarget(min, max)}`;
 }
 
 /** The active mesocycle and its effective-schedule context, or null if none. */
@@ -663,20 +668,30 @@ export type SwapCandidate = { id: string; name: string; isFavorite: boolean };
 export type SwapContextDto = {
   loggedExerciseId: string;
   plannedExerciseName: string;
+  /** The planned exercise's primary muscle (the picker's starting filter). */
+  plannedMuscle: MuscleGroupValue;
   primaryMuscleLabel: string;
+  /** The muscle group the candidates are listed for. */
+  selectedMuscle: MuscleGroupValue;
+  selectedMuscleLabel: string;
   swapLocked: boolean;
   candidates: SwapCandidate[];
 };
 
 /**
- * Swap eligibility (Resolved Decisions 25–29): active exercises sharing the
- * PLANNED exercise's primary muscle, excluding the one already performed.
- * Favorites sort first but never gate eligibility. Secondary muscles never
- * qualify. Swap is locked once a set exists on the occurrence.
+ * Swap candidates (Guided Workout Logging RD 25–29, amended by Workout
+ * Logging Refinements RD-6): the account's active exercises (the library plus
+ * its own custom ones) whose PRIMARY muscle is the selected group, excluding
+ * the one already performed. The picker opens on the planned exercise's
+ * primary muscle and can be switched to any canonical group; `muscle` is the
+ * requested group, and anything unrecognized falls back to the planned one.
+ * Favorites sort first but never gate eligibility. Swap is locked once a set
+ * exists on the occurrence.
  */
 export async function getSwapContext(
   account: Account,
   loggedExerciseId: string,
+  muscle?: string | null,
 ): Promise<SwapContextDto | null> {
   const le = await account.db.loggedExercise.findUnique({
     where: { id: loggedExerciseId },
@@ -687,11 +702,13 @@ export async function getSwapContext(
   });
   if (!le) return null;
 
+  const plannedMuscle = le.plannedExercise.primaryMuscle;
+  const selectedMuscle = isMuscleGroup(muscle) ? muscle : plannedMuscle;
   const [rows, favorites] = await Promise.all([
     account.db.exercise.findMany({
       where: {
         deletedAt: null,
-        primaryMuscle: le.plannedExercise.primaryMuscle,
+        primaryMuscle: selectedMuscle,
         id: { not: le.exerciseId },
       },
       select: { id: true, name: true },
@@ -707,7 +724,10 @@ export async function getSwapContext(
   return {
     loggedExerciseId: le.id,
     plannedExerciseName: le.plannedExercise.name,
-    primaryMuscleLabel: muscleGroupLabel(le.plannedExercise.primaryMuscle),
+    plannedMuscle,
+    primaryMuscleLabel: muscleGroupLabel(plannedMuscle),
+    selectedMuscle,
+    selectedMuscleLabel: muscleGroupLabel(selectedMuscle),
     swapLocked: le.sets.length > 0,
     candidates,
   };
