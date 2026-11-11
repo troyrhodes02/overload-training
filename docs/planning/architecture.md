@@ -80,7 +80,7 @@ Because Prisma connects directly to Postgres, it bypasses row-level security, wh
 
 There are no roles for lifters: every account has the same capabilities over its own data and none over anyone else's. Three mechanisms apply.
 
-**Ownership.** Every read and write of owned data goes through a data-access layer that takes the acting account as a required argument, so a query that omits it cannot be written. Fetching a record that belongs to another account behaves exactly like fetching one that does not exist (not found, never forbidden). Library exercises are shared and read-only. Operator tasks, such as applying a production migration or creating a friend's plan from a written document, are run by the owner directly against the database, always name the target account explicitly, and are not an application role.
+**Ownership.** Every read and write of owned data goes through a data-access layer that takes the acting account as a required argument, so a query that omits it cannot be written. Fetching a record that belongs to another account behaves exactly like fetching one that does not exist (not found, never forbidden). Library exercises are shared and read-only. Sharing, when built, works by copy: the recipient reviews and imports their own copy, so no account ever reads another account's data live. Operator tasks, such as applying a production migration or creating a friend's plan from a written document, are run by the owner directly against the database, always name the target account explicitly, and are not an application role.
 
 **Admin.** One owner-only admin area. Admin identity comes from a server-side allowlist of auth user ids held in an environment variable. It is not a database role, nothing in the app can grant it, and every admin operation re-checks it on the server. A non-admin who reaches an admin route gets not-found. Admin code reads account metadata and aggregate counts only, through its own metrics layer, and never returns training content. Every admin mutation writes an append-only audit entry. Billing state shown to the admin is a read-only mirror of Stripe. The admin area is web-only.
 
@@ -124,7 +124,9 @@ No health-data integration (Apple Health/HealthKit or otherwise) exists in this 
 
 ## Environments & Deployment
 
-Local development runs against a separate Supabase development project, with Prisma managing schema migrations across both environments. Production is a single Vercel deployment connected to a production Supabase project, with no staging tier. Production schema changes are applied by a human from a runbook with a fresh backup taken immediately before, and risky ones are rehearsed first on a restored copy in the development project.
+There are three stages. Production is the `main` branch, deployed on Vercel and connected to the Production Supabase project. Permanent staging is the `staging` branch, connected exclusively to the `overload-dev` Supabase project and served from a stable Vercel Preview URL, and it is where features are developed, tested, and fixed. Feature branches start from `staging` and open PRs into it. Environment identity guards (OVE-111) stop development code from touching Production data. Local development runs against the same development project, with Prisma managing schema migrations across environments.
+
+A feature reaches Production only through a release branch cut fresh from `main`, containing just the approved feature and its tested fixes, opened as a PR into `main` and never merged automatically. Production schema changes are applied by a human from a runbook with a fresh backup taken immediately before, and risky ones are rehearsed first on a restored copy in the development project. After a release, `main` is synchronized back into `staging`. The full rule is in `docs/pipeline/branching-and-release-workflow.md`.
 
 Going commercial adds requirements. Production must run on hosting and database plans that allow commercial use and include backups (check the providers' current terms), with a tested restore. Stripe runs in test mode everywhere except production, and live mode is switched on only by a human. Mobile builds (Xcode, Android Studio) cannot be verified by an unattended run, so device checks are reported as unverified.
 
@@ -154,7 +156,7 @@ The third risk is billing and entitlement correctness, together with the admin b
 
 **Open for the commercial launch.** Each must be decided in the controlling pitch and recorded as a documented decision, not guessed by an implementing agent.
 
-- iOS: how Capacitor runs a server-rendered Next.js app (loading the hosted site in the shell, or another approach), decided by the feasibility step and proven on a real iPhone.
+- iOS: how Capacitor runs a server-rendered Next.js app (loading the hosted site in the shell, or another approach), decided by the feasibility step and proven on a real iPhone. Also the two build configurations (a development build for the owner's phone and a Production build for the friends) and how the external TestFlight beta is distributed.
 - Admin: where the allowlist lives and its format, the shape of the metrics layer and the static check that keeps it aggregate-only, and the rule for updating the last-active date (date only, at most once a day).
 - Signup abuse protection (rate limits plus a bot challenge provider) and whether email verification is required before checkout (the default is yes).
 - Email provider and sending domain (Resend recommended), and the sender identities for authentication versus support mail.
@@ -165,3 +167,6 @@ The third risk is billing and entitlement correctness, together with the admin b
 - Launch readiness: error monitoring provider, rate limiting, the backup and restore drill, and the hosting and database plan changes.
 - Store billing paths: how paid access works inside each app (US link-out in the external browser, in-app purchase, or sign-in only), decided in the store release pitches.
 - Android equivalents: what replaces the Live Activity, and what Health Connect covers.
+- Sharing: what a friend is, the share link or code mechanism, and revocation, decided in the sharing pitch's planning step.
+- Wing-it workouts: how progression treats an exercise with no planned rep range (the default is history and e1RM only, with no tag).
+- Advanced cardio and video attachments: each begins with a discovery step before any build.

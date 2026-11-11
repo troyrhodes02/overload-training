@@ -20,7 +20,7 @@ It does not build either mechanism. The Onboarding Tour pitch builds the tour an
 
 ## Before you start
 
-1. **Check that the mechanisms exist.** Read `docs/specs/NN-onboarding-tour-spec.md` and `docs/specs/NN-whats-new-spec.md` (matching the roadmap's numbers and slugs for Onboarding Tour and What's New). If either feature has not shipped, do nothing for it and say so in your summary. Never build a stand-in.
+1. **Check that the mechanisms exist.** Read `spec.md` in the Onboarding Tour and What's New pitch folders (`docs/pitches/mvp-2-multi-user/11-onboarding-tour/` and `docs/pitches/mvp-2-multi-user/12-whats-new/`). If either feature has not shipped, do nothing for it and say so in your summary. Never build a stand-in.
 2. **Learn the mechanism from its spec, not from guesswork.** Those specs record where the tour's step registry lives, the shape of a step, how a step anchors to a control, how existing lifters learn about new steps, and where release-note entries live and what fields they have. Follow them exactly. Do not invent a second registry, a second modal, or a second format.
 3. **Read `CLAUDE.md`** for the rules that always apply, and `overload-ui-design` for the tour popover and What's New patterns.
 4. **Read the pitch's design doc**, especially its User guidance section. It proposes the steps and the release-note entry. This skill decides, applies, and verifies them.
