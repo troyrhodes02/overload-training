@@ -565,6 +565,12 @@ model Profile {
   /// server), or NULL. Written once by signup's profile creation and never
   /// updated by any path. Exported with the profile; deleted with the account.
   signupCampaign SignupCampaign? @map("signup_campaign")
+  /// Trial notices (OVE-112): when the "trial ends tomorrow" and "trial has
+  /// ended" notices were shown to this account, so each appears once per
+  /// account across browsers and the app. Presentation state only: never read
+  /// by entitlement resolution, never an entitlement change. NULL = not shown.
+  trialEndingNoticeAt DateTime? @map("trial_ending_notice_at") @db.Timestamptz
+  trialEndedNoticeAt  DateTime? @map("trial_ended_notice_at") @db.Timestamptz
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
