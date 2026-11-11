@@ -303,14 +303,25 @@ describe("exercise swap (Decisions 25–27)", () => {
     expect(slot.exerciseId).toBe(exerciseId);
   });
 
-  it("rejects a different primary muscle", async () => {
-    const { le, otherMuscle } = await startedWithCandidates();
-    await expect(
-      swapExercise(account, {
-        loggedExerciseId: le.id,
-        newExerciseId: otherMuscle.id,
-      }),
-    ).rejects.toMatchObject({ code: "validation_error" });
+  // Workout Logging Refinements RD-6 superseded the same-muscle-only rule:
+  // a different primary muscle is now a valid substitute, still recorded on
+  // this occurrence only.
+  it("swaps to a different primary muscle without touching the plan", async () => {
+    const { le, exerciseId, sessionId, otherMuscle } =
+      await startedWithCandidates();
+    await swapExercise(account, {
+      loggedExerciseId: le.id,
+      newExerciseId: otherMuscle.id,
+    });
+    const after = await db().loggedExercise.findUniqueOrThrow({
+      where: { id: le.id },
+    });
+    expect(after.exerciseId).toBe(otherMuscle.id);
+    expect(after.plannedExerciseId).toBe(exerciseId);
+    const slot = await db().sessionExercise.findFirstOrThrow({
+      where: { sessionId },
+    });
+    expect(slot.exerciseId).toBe(exerciseId);
   });
 
   it("rejects an archived candidate", async () => {
