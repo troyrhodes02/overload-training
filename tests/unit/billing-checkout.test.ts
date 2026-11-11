@@ -1,4 +1,8 @@
-import { startCheckout, startPortal } from "@/lib/billing/checkout";
+import {
+  checkoutOutcome,
+  startCheckout,
+  startPortal,
+} from "@/lib/billing/checkout";
 import type { Account } from "@/lib/data/account";
 import type { BillingProvider, CheckoutParams } from "@/lib/billing/stripe";
 
@@ -101,12 +105,16 @@ function fakeProvider(overrides: Partial<BillingProvider> = {}): {
     createCheckoutSession: async (params) => {
       calls.push("createCheckoutSession");
       sessions.push(params);
-      return { url: "https://checkout.stripe.test/s/abc" };
+      return {
+        url: "https://checkout.stripe.test/s/abc",
+        sessionId: "cs_test_abc",
+      };
     },
     createPortalSession: async () => {
       calls.push("createPortalSession");
       return { url: "https://billing.stripe.test/p/xyz" };
     },
+    getCheckoutSession: async () => null,
     hasOpenSubscription: async () => {
       calls.push("hasOpenSubscription");
       return false;
@@ -331,7 +339,10 @@ describe("startCheckout", () => {
         },
         createCheckoutSession: async () => {
           order.push("create");
-          return { url: "https://checkout.stripe.test/s/new" };
+          return {
+            url: "https://checkout.stripe.test/s/new",
+            sessionId: "cs_test_new",
+          };
         },
       });
       await startCheckout(account, "month", { provider, ...web });
@@ -376,5 +387,100 @@ describe("startPortal", () => {
       startPortal(account, { provider, inAppShell: async () => true }),
     ).rejects.toMatchObject({ code: "invalid_state_transition" });
     expect(calls).toEqual([]);
+  });
+});
+
+describe("checkoutOutcome — coming back without Stripe's redirect (OVE-112)", () => {
+  const SID = "cs_test_a1B2c3";
+
+  it.each(["open", "complete", "expired"] as const)(
+    "reports this account's own session as %s",
+    async (status) => {
+      const { account } = fakeAccount({
+        emailVerifiedAt: new Date(),
+        stripeCustomerId: "cus_mine",
+      });
+      const { provider } = fakeProvider({
+        getCheckoutSession: async () => ({ status, customerId: "cus_mine" }),
+      });
+      await expect(checkoutOutcome(account, SID, { provider })).resolves.toBe(
+        status,
+      );
+    },
+  );
+
+  it("another customer's session reads as unknown (reveals nothing)", async () => {
+    const { account } = fakeAccount({
+      emailVerifiedAt: new Date(),
+      stripeCustomerId: "cus_mine",
+    });
+    const { provider } = fakeProvider({
+      getCheckoutSession: async () => ({
+        status: "complete",
+        customerId: "cus_someone_else",
+      }),
+    });
+    await expect(checkoutOutcome(account, SID, { provider })).resolves.toBe(
+      "unknown",
+    );
+  });
+
+  it.each([
+    undefined,
+    42,
+    "",
+    "pi_123",
+    "cs_test_",
+    "cs_test_a b",
+    `cs_test_${"x".repeat(300)}`,
+  ])("a malformed id (%p) is unknown and never reaches Stripe", async (bad) => {
+    const { account } = fakeAccount({
+      emailVerifiedAt: new Date(),
+      stripeCustomerId: "cus_mine",
+    });
+    const getCheckoutSession = jest.fn();
+    const { provider } = fakeProvider({ getCheckoutSession });
+    await expect(checkoutOutcome(account, bad, { provider })).resolves.toBe(
+      "unknown",
+    );
+    expect(getCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it("an account with no Stripe customer is unknown, without a Stripe call", async () => {
+    const { account } = fakeAccount({
+      emailVerifiedAt: new Date(),
+      stripeCustomerId: null,
+    });
+    const getCheckoutSession = jest.fn();
+    const { provider } = fakeProvider({ getCheckoutSession });
+    await expect(checkoutOutcome(account, SID, { provider })).resolves.toBe(
+      "unknown",
+    );
+    expect(getCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it("a session Stripe doesn't have is unknown", async () => {
+    const { account } = fakeAccount({
+      emailVerifiedAt: new Date(),
+      stripeCustomerId: "cus_mine",
+    });
+    const { provider } = fakeProvider({ getCheckoutSession: async () => null });
+    await expect(checkoutOutcome(account, SID, { provider })).resolves.toBe(
+      "unknown",
+    );
+  });
+
+  it("startCheckout returns the session id the page notes before leaving", async () => {
+    const { account } = fakeAccount({
+      emailVerifiedAt: new Date(),
+      stripeCustomerId: "cus_mine",
+    });
+    const { provider } = fakeProvider();
+    await expect(
+      startCheckout(account, "month", { provider, ...web }),
+    ).resolves.toEqual({
+      url: "https://checkout.stripe.test/s/abc",
+      sessionId: "cs_test_abc",
+    });
   });
 });

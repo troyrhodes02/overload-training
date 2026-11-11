@@ -58,7 +58,7 @@ export async function startCheckout(
   account: Account,
   interval: BillingInterval,
   deps: Partial<CheckoutDeps> = {},
-): Promise<{ url: string }> {
+): Promise<{ url: string; sessionId: string }> {
   const { provider, ownEmail, inAppShell, now } = { ...defaultDeps, ...deps };
 
   // Kill switch (safe by default): refuse before touching Stripe, so a deploy
@@ -155,6 +155,43 @@ export async function startCheckout(
       cancelUrl: appUrl("/settings/billing?status=cancelled"),
     });
   }, CHECKOUT_TX);
+}
+
+/** Where a Checkout the lifter left stands (OVE-112). */
+export type CheckoutOutcome = "complete" | "open" | "expired" | "unknown";
+
+const CHECKOUT_SESSION_ID = /^cs_(test|live)_[A-Za-z0-9]{1,200}$/;
+
+/**
+ * The outcome of a hosted Checkout session this account started, for when
+ * the lifter returns with the browser's back button instead of through
+ * Stripe's success or cancel redirect (OVE-112).
+ *
+ * Presentation only: "complete" means Stripe took the payment, so the screen
+ * shows the existing "finishing up" state. It grants nothing — paid Pro still
+ * enters only through the verified webhook. A session that isn't this
+ * account's (a different Stripe customer), or that doesn't exist, reads as
+ * "unknown", never revealing anything about it.
+ */
+export async function checkoutOutcome(
+  account: Account,
+  sessionId: unknown,
+  deps: Partial<Pick<CheckoutDeps, "provider">> = {},
+): Promise<CheckoutOutcome> {
+  const { provider } = { provider: defaultDeps.provider, ...deps };
+  if (typeof sessionId !== "string" || !CHECKOUT_SESSION_ID.test(sessionId)) {
+    return "unknown";
+  }
+  const billing = await account.db.billingAccount.findUnique({
+    where: { userId: account.userId },
+    select: { stripeCustomerId: true },
+  });
+  if (!billing) return "unknown";
+  const session = await provider.getCheckoutSession(sessionId);
+  if (!session || session.customerId !== billing.stripeCustomerId) {
+    return "unknown";
+  }
+  return session.status;
 }
 
 /**

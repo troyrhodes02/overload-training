@@ -3,16 +3,33 @@
 import * as React from "react";
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Loader2, CreditCard, ExternalLink, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyCode } from "@/components/marketing/copy-code";
 import {
+  checkoutOutcomeAction,
   createCheckoutSessionAction,
   createPortalSessionAction,
 } from "@/app/(app)/settings/billing/actions";
 import { sendVerificationEmailAction } from "@/app/(app)/settings/actions";
 import type { BillingScreenDto } from "@/lib/billing/screen";
 import { isConfirmingCheckout } from "@/lib/billing/pending";
+import {
+  CHECKOUT_CANCELLED_MESSAGE,
+  checkoutReturn,
+  notePendingCheckout,
+  takePendingCheckout,
+} from "@/lib/billing/checkout-return";
+
+/** This tab's sessionStorage, or null where it can't be used. */
+function tabStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Plans, Billing & Promo Codes — the Plan & Billing screen (design Screen 1/2/5).
@@ -95,10 +112,67 @@ export function PlanBilling({
     return () => clearInterval(id);
   }, [confirming, router]);
 
+  // Coming back from Stripe without its redirect (OVE-112): the browser's
+  // back button restores this page from the back/forward cache exactly as it
+  // was left ("Starting checkout…", buttons disabled), and a reload loses
+  // track of the session. Either way, reset the controls and settle the
+  // return once: Stripe took the payment → the existing "finishing up" state;
+  // otherwise a quiet toast that nothing changed. Stripe's own cancel redirect
+  // (?status=cancelled) gets the same toast.
+  const settling = React.useRef(false);
+  const settleReturn = React.useCallback(async () => {
+    if (settling.current) return;
+    const sessionId = takePendingCheckout(tabStorage());
+    if (!sessionId) return;
+    settling.current = true;
+    try {
+      const result = await checkoutOutcomeAction(sessionId).catch(() => null);
+      const next = checkoutReturn(result?.ok ? result.data.outcome : null);
+      if (next.kind === "confirming") {
+        router.replace("/settings/billing?status=success", { scroll: false });
+      } else {
+        toast(next.message);
+      }
+    } finally {
+      settling.current = false;
+    }
+  }, [router]);
+
+  const handledStatus = React.useRef(false);
+  React.useEffect(() => {
+    if (handledStatus.current) return;
+    handledStatus.current = true;
+    if (status === "success") {
+      takePendingCheckout(tabStorage()); // Stripe's redirect settled it.
+      return;
+    }
+    if (status === "cancelled") {
+      takePendingCheckout(tabStorage());
+      toast(CHECKOUT_CANCELLED_MESSAGE);
+      // Drop ?status so a reload doesn't repeat the toast.
+      router.replace("/settings/billing", { scroll: false });
+      return;
+    }
+    void settleReturn();
+  }, [status, router, settleReturn]);
+
+  React.useEffect(() => {
+    function onPageShow(event: PageTransitionEvent) {
+      if (!event.persisted) return; // a fresh load runs the mount effect
+      // Restored from the back/forward cache (from Checkout or the billing
+      // portal): unstick the controls and re-read the plan from the server.
+      setBusy(null);
+      router.refresh();
+      void settleReturn();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [router, settleReturn]);
+
   async function go(
     key: Busy,
     run: () => Promise<
-      | { ok: true; data: { url: string } }
+      | { ok: true; data: { url: string; sessionId?: string } }
       | { ok: false; error: { message: string } }
     >,
   ) {
@@ -106,6 +180,9 @@ export function PlanBilling({
     setError(null);
     const result = await run();
     if (result.ok) {
+      if (result.data.sessionId) {
+        notePendingCheckout(tabStorage(), result.data.sessionId);
+      }
       window.location.href = result.data.url;
     } else {
       setError(result.error.message);
@@ -153,11 +230,6 @@ export function PlanBilling({
               Finishing up — confirming your subscription. We&apos;ll update
               your plan as soon as payment is confirmed.
             </div>
-          ) : null}
-          {status === "cancelled" ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Checkout cancelled. Your plan hasn&apos;t changed.
-            </p>
           ) : null}
           {error ? (
             <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">

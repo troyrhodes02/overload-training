@@ -12,6 +12,7 @@ const listSubs = jest.fn();
 const createSession = jest.fn();
 const listSessions = jest.fn();
 const expireSession = jest.fn();
+const retrieveSession = jest.fn();
 const cancelSub = jest.fn();
 const listInvoicePayments = jest.fn();
 const createRefund = jest.fn();
@@ -26,6 +27,7 @@ jest.mock("stripe", () => ({
         create: createSession,
         list: listSessions,
         expire: expireSession,
+        retrieve: retrieveSession,
       },
     },
   })),
@@ -298,5 +300,57 @@ describe("single-subscription enforcement deps (OVE-112)", () => {
       prorate: false,
       invoice_now: false,
     });
+  });
+});
+
+describe("checkout session lookup (OVE-112)", () => {
+  beforeEach(() => {
+    retrieveSession.mockReset();
+    createSession.mockReset();
+  });
+
+  it("createCheckoutSession returns the session id with the URL", async () => {
+    createSession.mockResolvedValue({
+      id: "cs_test_1",
+      url: "https://stripe.test/c",
+    });
+    await expect(
+      stripeProvider().createCheckoutSession({
+        customerId: "cus_x",
+        accountId: "acc_x",
+        interval: "month",
+        successUrl: "https://app/ok",
+        cancelUrl: "https://app/no",
+      }),
+    ).resolves.toEqual({
+      url: "https://stripe.test/c",
+      sessionId: "cs_test_1",
+    });
+  });
+
+  it("maps a session's status and customer", async () => {
+    retrieveSession.mockResolvedValue({
+      status: "complete",
+      customer: "cus_x",
+    });
+    await expect(
+      stripeProvider().getCheckoutSession("cs_test_1"),
+    ).resolves.toEqual({ status: "complete", customerId: "cus_x" });
+  });
+
+  it("returns null for a session Stripe doesn't have", async () => {
+    retrieveSession.mockRejectedValue(
+      Object.assign(new Error("No such"), { code: "resource_missing" }),
+    );
+    await expect(
+      stripeProvider().getCheckoutSession("cs_test_gone"),
+    ).resolves.toBeNull();
+  });
+
+  it("rethrows any other failure", async () => {
+    retrieveSession.mockRejectedValue(new Error("network"));
+    await expect(
+      stripeProvider().getCheckoutSession("cs_test_1"),
+    ).rejects.toThrow("network");
   });
 });
