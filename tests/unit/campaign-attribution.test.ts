@@ -305,9 +305,11 @@ describe("a campaign never authorizes a discount (RD-7)", () => {
         false,
       ]);
     }
-    // Promotion codes stay monthly-only, entered on Stripe's own page.
+    // Promotion codes are entered only on Stripe's own page, on either
+    // interval (OVE-112: the coupon is product-wide; Stripe decides). Overload
+    // never pre-applies one.
     expect(read("src/lib/billing/stripe.ts")).toMatch(
-      /allow_promotion_codes: interval === "month"/,
+      /allow_promotion_codes: true/,
     );
   });
 });

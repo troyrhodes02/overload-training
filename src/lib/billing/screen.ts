@@ -28,13 +28,18 @@ export type BillingScreenDto = {
   problem: boolean;
   /** Whether paid checkout is enabled on this deployment (kill switch). */
   billingEnabled: boolean;
+  /**
+   * Whether this request is from an app shell (OVE-112). The shell shows the
+   * plan read-only: no Subscribe, no Manage billing, no promo reminder.
+   */
+  inAppShell: boolean;
   /** Whether a cancellation is scheduled at period end (from the Stripe mirror). */
   cancelAtPeriodEnd: boolean;
   /** The subscription's period-end date, as the UTC calendar date (matches Stripe), or null. */
   endsOn: string | null;
   /**
    * Public Landing Page & Changelog (RD-7): the promo code to remind this
-   * lifter of beside MONTHLY Subscribe, or null. Display only — Stripe's own
+   * lifter of beside Subscribe, or null. Display only — Stripe's own
    * promotion-code field applies or refuses it. Set only when Subscribe is
    * offered and the account signed up from the campaign or this browser
    * visited its page within the campaign window.
@@ -131,8 +136,9 @@ export function formatEndsOn(instant: Date | null): string | null {
 
 export async function getBillingScreen(
   account: Account,
-  opts: { campaignHint?: Campaign | null } = {},
+  opts: { campaignHint?: Campaign | null; inAppShell?: boolean } = {},
 ): Promise<BillingScreenDto> {
+  const inAppShell = opts.inAppShell ?? false;
   const [resolved, profile, billing] = await Promise.all([
     resolveEntitlement(account),
     account.db.profile.findUnique({
@@ -157,9 +163,12 @@ export async function getBillingScreen(
   });
   // Subscribe is offered only when checkout is enabled on this deployment; with
   // the kill switch off the screen shows a plain "not available yet" note.
+  // Free and an active free trial may subscribe (a trial subscribes early and
+  // starts paid billing then, OVE-112); paid, canceling, grace, and comp never
+  // see another purchase. Never inside an app shell.
   const billingEnabled = isCheckoutEnabled();
   const canSubscribe =
-    (state === "free" || state === "trial") && billingEnabled;
+    (state === "free" || state === "trial") && billingEnabled && !inAppShell;
 
   return {
     displayState: state,
@@ -167,12 +176,13 @@ export async function getBillingScreen(
     shortLabel: copy.shortLabel,
     explanation: copy.explanation,
     canSubscribe,
-    canManage: billing?.stripeCustomerId != null,
+    canManage: billing?.stripeCustomerId != null && !inAppShell,
     emailVerified: profile?.emailVerifiedAt != null,
     trialDaysLeft: resolved.trialDaysLeft,
     prices: { monthly: PRICE_DISPLAY.monthly, annual: PRICE_DISPLAY.annual },
     problem: state === "grace",
     billingEnabled,
+    inAppShell,
     cancelAtPeriodEnd: billing?.cancelAtPeriodEnd ?? false,
     endsOn,
     promoReminder:

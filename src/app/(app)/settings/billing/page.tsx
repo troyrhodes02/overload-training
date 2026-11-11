@@ -6,6 +6,7 @@ import { getBillingScreen } from "@/lib/billing/screen";
 import { refreshBillingFromStripe } from "@/lib/billing/sync";
 import { PlanBilling } from "@/components/billing/plan-billing";
 import { CAMPAIGN_COOKIE, parseCampaign } from "@/lib/marketing/campaign";
+import { isAppShellRequest } from "@/lib/platform/request";
 
 export const metadata = { title: "Plan & Billing · Overload" };
 
@@ -31,7 +32,10 @@ export default async function BillingPage({
     (await cookies()).get(CAMPAIGN_COOKIE)?.value,
     new Date(),
   );
-  const screen = await getBillingScreen(account, { campaignHint });
+  const screen = await getBillingScreen(account, {
+    campaignHint,
+    inAppShell: await isAppShellRequest(),
+  });
   const raw = (await searchParams).status;
   const status =
     raw === "success" ? "success" : raw === "cancelled" ? "cancelled" : null;

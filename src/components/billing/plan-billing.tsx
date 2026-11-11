@@ -37,7 +37,31 @@ const PRO = [
   "Exercise history & PR intelligence",
 ];
 
-type Busy = "monthly" | "annual" | "manage" | "verify" | null;
+type Busy = "checkout" | "manage" | "verify" | null;
+type Pick = "month" | "year";
+
+/**
+ * The plain-words disclosure shown before leaving for Stripe (OVE-112). A
+ * trial account is told plainly that subscribing now starts paid billing
+ * today rather than at the end of the trial. Exported for tests.
+ */
+export function checkoutDisclosure(
+  pick: Pick,
+  prices: { monthly: string; annual: string },
+  trial: boolean,
+): { summary: string; detail: string; leave: string } {
+  const price = pick === "year" ? prices.annual : prices.monthly;
+  const per = pick === "year" ? "year" : "month";
+  return {
+    summary: `Pro ${pick === "year" ? "Annual" : "Monthly"} — ${price}/${per}.`,
+    detail: trial
+      ? `Subscribing now starts paid billing today: ${price} is charged when you complete checkout, then every ${per}. The rest of your free trial isn't added on.`
+      : `${price} is charged when you complete checkout, then every ${per}. Cancel anytime.`,
+    leave: trial
+      ? "Checkout is on Stripe. Leaving it without paying changes nothing, and your trial continues."
+      : "Checkout is on Stripe. Leaving it without paying changes nothing.",
+  };
+}
 
 export function PlanBilling({
   screen,
@@ -49,6 +73,7 @@ export function PlanBilling({
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [verifySent, setVerifySent] = useState(false);
+  const [pick, setPick] = useState<Pick | null>(null);
   const router = useRouter();
 
   // The "finishing up" indicator shows only while a checkout-success return is
@@ -93,8 +118,10 @@ export function PlanBilling({
   // plan that could otherwise subscribe: show a plain note instead of buttons.
   const showUnavailable =
     !screen.billingEnabled &&
+    !screen.inAppShell &&
     !confirming &&
     (screen.displayState === "free" || screen.displayState === "trial");
+  const trial = screen.displayState === "trial";
 
   return (
     <div className="space-y-5">
@@ -151,43 +178,48 @@ export function PlanBilling({
               <p>
                 Have the {screen.promoReminder} code? Enter{" "}
                 <span className="font-mono">{screen.promoReminder}</span> at
-                checkout on the monthly plan.
+                checkout. Stripe shows whether it applies.
               </p>
               <CopyCode code={screen.promoReminder} size="xs" />
             </div>
           ) : null}
 
           {showSubscribe && screen.emailVerified ? (
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <Button
-                className="flex-1"
-                disabled={busy !== null}
-                onClick={() =>
-                  go("monthly", () => createCheckoutSessionAction("month"))
-                }
-              >
-                {busy === "monthly" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                {busy === "monthly"
-                  ? "Starting checkout…"
-                  : `Monthly — ${screen.prices.monthly}/mo`}
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                disabled={busy !== null}
-                onClick={() =>
-                  go("annual", () => createCheckoutSessionAction("year"))
-                }
-              >
-                {busy === "annual" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                {busy === "annual"
-                  ? "Starting checkout…"
-                  : `Annual — ${screen.prices.annual}/yr`}
-              </Button>
+            <div
+              id="subscribe"
+              className="mt-4 space-y-2 border-t border-border pt-4"
+            >
+              <p className="text-sm font-medium">Subscribe to Pro</p>
+              {pick === null ? (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    className="h-11 flex-1 sm:h-9"
+                    onClick={() => setPick("month")}
+                  >
+                    Monthly — {screen.prices.monthly}/mo
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-11 flex-1 sm:h-9"
+                    onClick={() => setPick("year")}
+                  >
+                    Annual — {screen.prices.annual}/yr
+                  </Button>
+                </div>
+              ) : (
+                <CheckoutConfirm
+                  disclosure={checkoutDisclosure(pick, screen.prices, trial)}
+                  busy={busy === "checkout"}
+                  disabled={busy !== null}
+                  onBack={() => {
+                    setPick(null);
+                    setError(null);
+                  }}
+                  onContinue={() =>
+                    go("checkout", () => createCheckoutSessionAction(pick))
+                  }
+                />
+              )}
             </div>
           ) : null}
 
@@ -255,6 +287,13 @@ export function PlanBilling({
             </div>
           ) : null}
 
+          {screen.inAppShell ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Your plan is shown here. Plan changes aren&apos;t available in the
+              app.
+            </p>
+          ) : null}
+
           {screen.displayState === "comp" ? (
             <p className="mt-3 text-xs text-muted-foreground">
               Complimentary access is managed by Overload — there&apos;s nothing
@@ -289,6 +328,48 @@ export function PlanBilling({
           billing.
         </p>
       </section>
+    </div>
+  );
+}
+
+function CheckoutConfirm({
+  disclosure,
+  busy,
+  disabled,
+  onBack,
+  onContinue,
+}: {
+  disclosure: { summary: string; detail: string; leave: string };
+  busy: boolean;
+  disabled: boolean;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+      <p className="text-sm">
+        <span className="font-medium tabular-nums">{disclosure.summary}</span>{" "}
+        {disclosure.detail}
+      </p>
+      <p className="text-xs text-muted-foreground">{disclosure.leave}</p>
+      <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-start">
+        <Button
+          className="h-11 sm:h-9"
+          disabled={disabled}
+          onClick={onContinue}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {busy ? "Starting checkout…" : "Continue to checkout"}
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-11 sm:h-9"
+          disabled={disabled}
+          onClick={onBack}
+        >
+          Back
+        </Button>
+      </div>
     </div>
   );
 }

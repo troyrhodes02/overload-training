@@ -8,12 +8,21 @@
  * and an already-ended subscription, with the Stripe SDK mocked (no network).
  */
 const retrieve = jest.fn();
+const listSubs = jest.fn();
 const createSession = jest.fn();
+const listSessions = jest.fn();
+const expireSession = jest.fn();
 jest.mock("stripe", () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
-    subscriptions: { retrieve },
-    checkout: { sessions: { create: createSession } },
+    subscriptions: { retrieve, list: listSubs },
+    checkout: {
+      sessions: {
+        create: createSession,
+        list: listSessions,
+        expire: expireSession,
+      },
+    },
   })),
 }));
 
@@ -119,7 +128,7 @@ it("an already-ended subscription maps status=canceled (resolver shows Free, not
   expect(snap?.status).toBe("canceled");
 });
 
-describe("checkout session: promotions are monthly-only (RD-7)", () => {
+describe("checkout session: promotion codes on both intervals (OVE-112)", () => {
   beforeEach(() => {
     createSession.mockReset();
     createSession.mockResolvedValue({ url: "https://stripe.test/checkout" });
@@ -142,10 +151,63 @@ describe("checkout session: promotions are monthly-only (RD-7)", () => {
     expect(params.line_items[0].price).toBe("price_monthly");
   });
 
-  it("DISABLES the promo-code field on ANNUAL checkout (BLIZZY can't reach annual)", async () => {
+  it("enables the promo-code field on ANNUAL checkout too (the coupon is product-wide; Stripe decides)", async () => {
     await stripeProvider().createCheckoutSession({ ...base, interval: "year" });
     const [params] = createSession.mock.calls[0];
-    expect(params.allow_promotion_codes).toBe(false);
+    expect(params.allow_promotion_codes).toBe(true);
     expect(params.line_items[0].price).toBe("price_annual");
+  });
+
+  it("never sets a Stripe trial, so an early subscription bills immediately", async () => {
+    await stripeProvider().createCheckoutSession({
+      ...base,
+      interval: "month",
+    });
+    const [params] = createSession.mock.calls[0];
+    expect(params.subscription_data).toEqual({
+      metadata: { accountId: "acc_x" },
+    });
+    expect(params.subscription_data.trial_period_days).toBeUndefined();
+    expect(params.subscription_data.trial_end).toBeUndefined();
+    expect(params.mode).toBe("subscription");
+  });
+});
+
+describe("duplicate-subscription guards (OVE-112)", () => {
+  beforeEach(() => {
+    listSubs.mockReset();
+    listSessions.mockReset();
+    expireSession.mockReset();
+  });
+
+  it.each([
+    ["active", true],
+    ["trialing", true],
+    ["past_due", true],
+    ["unpaid", true],
+    ["incomplete", true],
+    ["paused", true],
+    ["canceled", false],
+    ["incomplete_expired", false],
+  ])("a %s subscription counts as open: %s", async (status, open) => {
+    listSubs.mockResolvedValue({ data: [{ id: "sub_1", status }] });
+    await expect(stripeProvider().hasOpenSubscription("cus_x")).resolves.toBe(
+      open,
+    );
+    expect(listSubs).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: "cus_x", status: "all" }),
+    );
+  });
+
+  it("expires every open checkout session for the customer", async () => {
+    listSessions.mockResolvedValue({ data: [{ id: "cs_1" }, { id: "cs_2" }] });
+    expireSession.mockResolvedValue({});
+    await expect(
+      stripeProvider().expireOpenCheckoutSessions("cus_x"),
+    ).resolves.toBe(2);
+    expect(listSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: "cus_x", status: "open" }),
+    );
+    expect(expireSession.mock.calls.map((c) => c[0])).toEqual(["cs_1", "cs_2"]);
   });
 });
