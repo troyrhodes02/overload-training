@@ -44,9 +44,11 @@ Covered one by one in `entitlement-audit.int` through the real read path, and in
 | Comp expired or revoked | Falls back to any remaining source (trial, subscription), otherwise Free |
 | Renewing subscription past its period end (renewal webhook late) | Pro: Stripe renews it, so a paying lifter is never cut off on a late `invoice.paid` |
 
+The admin billing overview counts paying and canceling subscriptions by the same rule, so a lapsed canceling row is not reported as paying (`admin-billing.int`).
+
 ## The upgrade marker
 
-`locked` on a DTO is set only when a Pro result was actually withheld. A Free account with no history, or not enough of it, gets the same empty or not-enough-history state as a Pro account, and no upgrade note. Every surface uses the one `UpgradeNote` component (`src/components/billing/upgrade-note.tsx`). It is dismissible per surface, never rendered on the server, and links "Explore Pro" to `/settings/billing`.
+`locked` on a DTO is set only when a Pro result was actually withheld. A Free account with no history, or not enough of it, gets the same empty or not-enough-history state as a Pro account, and no upgrade note. A bare scheduled-deload line ("Deload week", with no load) is planned recovery and never sets the marker. Free never sees the lines that promise a call it won't get: Today's "once gym is set", and the exercise page's "Calls for machines are made per gym." Every surface uses the one `UpgradeNote` component (`src/components/billing/upgrade-note.tsx`). It is dismissible per surface, never rendered on the server, and links "Explore Pro" to `/settings/billing`.
 
 ## Mobile API
 

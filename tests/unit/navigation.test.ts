@@ -169,9 +169,13 @@ describe("the Account & app group animates instead of popping (OVE-119)", () => 
     const html = renderToStaticMarkup(
       React.createElement(
         NavMoreGroup,
-        // Children go as the third argument (react/no-children-prop); the
-        // cast satisfies the props type, which declares children required.
-        { containsCurrent: false } as Parameters<typeof NavMoreGroup>[0],
+        // Children go as the third argument (react/no-children-prop). The
+        // other props are still type-checked by `satisfies`; the cast only
+        // covers `children`, which the props type declares required.
+        { containsCurrent: false } satisfies Omit<
+          Parameters<typeof NavMoreGroup>[0],
+          "children"
+        > as Parameters<typeof NavMoreGroup>[0],
         React.createElement("a", { href: "/settings" }, "Settings"),
       ),
     );

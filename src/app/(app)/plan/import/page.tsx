@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { requireAccount } from "@/lib/data/account";
 import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import { isPlanImportEnabled } from "@/lib/import/config";
+import { UPGRADE_HREF } from "@/lib/billing/config";
 import { SourceIntake } from "@/components/plan/import/source-intake";
 import { ImportFlow } from "@/components/plan/import/import-flow";
 import {
@@ -51,7 +52,7 @@ export default async function PlanImportPage({
         body="You can still build and edit plans by hand, log, see history, and export — all on Free."
         action={
           <Button asChild variant="outline">
-            <Link href="/settings/billing">Explore Pro</Link>
+            <Link href={UPGRADE_HREF}>Explore Pro</Link>
           </Button>
         }
       />

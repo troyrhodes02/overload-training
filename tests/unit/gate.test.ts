@@ -343,3 +343,96 @@ describe("planned / occurrence / summary marker only when a call was withheld", 
     ).toBeNull();
   });
 });
+
+describe("review follow-ups: no marker or Pro-only line without a withheld result", () => {
+  const planned = {
+    tag: null,
+    rirEffect: null,
+    gymVariable: false,
+    suggestion: null,
+    hasTrend: true,
+    recommendation: null,
+  };
+  it("a free-weight lift with a trend but no call (not enough history) gets no marker", () => {
+    expect(gatePlanned(planned, false).locked).toBeNull();
+  });
+  it("Free never sees the gym-variable placeholder that promises a call", () => {
+    expect(gatePlanned({ ...planned, gymVariable: true }, false)).toMatchObject(
+      { gymVariable: false, locked: "progression_insights" },
+    );
+    expect(
+      gatePlanned({ ...planned, gymVariable: true }, true).gymVariable,
+    ).toBe(true);
+  });
+
+  const deloadRec = {
+    kind: "scheduled_deload",
+    tone: "quiet",
+    action: "Deload week",
+    evidence: "Planned recovery",
+  } as const;
+  const occ = {
+    loggedExerciseId: "le1",
+    scheduledDeloadWeek: true,
+    tag: null,
+    rirEffect: null,
+    suggestion: null,
+    historyHref: null,
+    recommendation: deloadRec,
+  };
+  it("a bare scheduled-deload line (no load) is not a withheld Pro result", () => {
+    expect(gateOccurrence(occ, false).locked).toBeNull();
+    expect(
+      gateSessionSummary(
+        {
+          loggedSessionId: "ls1",
+          scheduledDeloadWeek: true,
+          exercises: [
+            {
+              performedExerciseId: "e1",
+              performedExerciseName: "Bench",
+              tag: null,
+              rirEffect: null,
+              suggestion: null,
+              historyHref: null,
+              recommendation: deloadRec,
+              plannedSets: 3,
+              loggedWorkingSets: 3,
+            },
+          ],
+        },
+        false,
+      ).locked,
+    ).toBeNull();
+  });
+  it("a scheduled-deload load (90%) is withheld and marked", () => {
+    const r = gateOccurrence(
+      {
+        ...occ,
+        suggestion: { lbs: 165, kind: "scheduled_deload" as const },
+        recommendation: { ...deloadRec, action: "Deload week: 165 lb (90%)" },
+      },
+      false,
+    );
+    expect(r.locked).toBe("progression_insights");
+    expect(r.suggestion).toBeNull();
+    expect(r.recommendation).toBeNull();
+  });
+
+  it("history: the per-gym calls note is not shown on Free", () => {
+    const dto = {
+      exerciseId: "x",
+      gymVariable: true,
+      externalLoad: true,
+      hasHistory: true,
+      scopes: [],
+      selectedScope: null,
+      next: { kind: "no_gym" as const },
+      records: null,
+      trend: { e1rm: null, weight: null, reps: null },
+      sessions: { rows: [], total: 0, showingAll: true },
+    };
+    expect(gateHistory(dto, free()).next).toBeNull();
+    expect(gateHistory(dto, pro()).next).toEqual({ kind: "no_gym" });
+  });
+});

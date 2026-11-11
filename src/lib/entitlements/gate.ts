@@ -43,13 +43,19 @@ type CallFields = {
   recommendation: unknown;
 };
 
-/** True when a progression call carries anything Pro would show. */
+/**
+ * True when a progression call carries anything Pro would show. The bare
+ * scheduled-deload line ("Deload week", no load) is planned recovery the
+ * lifter wrote into the mesocycle, not an interpretation; a deload week only
+ * withholds something when it carries the 90% load (`suggestion`).
+ */
 function hasCall(c: CallFields): boolean {
+  const rec = c.recommendation as { kind?: string } | null;
   return (
     c.tag !== null ||
     c.rirEffect !== null ||
     c.suggestion !== null ||
-    c.recommendation !== null
+    (rec !== null && rec.kind !== "scheduled_deload")
   );
 }
 
@@ -58,11 +64,15 @@ export function gatePlanned(
   insights: boolean,
 ): PlannedProgressionDto {
   if (insights) return { ...dto, locked: null };
-  // `hasTrend` marks finished loaded history: a gym-variable lift has a call
-  // waiting once the gym is set, so that history counts as withheld too.
-  const withheld = hasCall(dto) || dto.hasTrend;
+  // A gym-variable lift's call waits for the gym, so its finished history
+  // (`hasTrend`) counts as withheld; a free-weight lift's call is already in
+  // `hasCall`, and its trend alone (not enough history) withholds nothing.
+  const withheld = hasCall(dto) || (dto.gymVariable && dto.hasTrend);
   return {
     ...dto,
+    // On Free no call follows once the gym is set, so the planned list must
+    // not promise one ("once gym is set"); the lift reads like any other.
+    gymVariable: false,
     tag: null,
     rirEffect: null,
     suggestion: null,
@@ -126,6 +136,8 @@ export function gateHistory(
   const withheld = new Set<Capability>();
 
   let next = dto.next;
+  // "Calls for machines are made per gym" describes calls Free never gets.
+  if (!insights && next?.kind === "no_gym") next = null;
   if (!insights && next && next.kind === "call") {
     if (next.tag !== null || next.recommendation !== null) {
       withheld.add("progression_insights");

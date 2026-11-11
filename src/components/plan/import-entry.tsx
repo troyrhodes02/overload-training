@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { Account } from "@/lib/data/account";
 import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import { isPlanImportEnabled } from "@/lib/import/config";
+import { UPGRADE_HREF } from "@/lib/billing/config";
 import { tourAnchor } from "@/lib/tour/steps";
 
 /**
@@ -34,7 +35,7 @@ export async function ImportEntry({ account }: { account: Account }) {
         <p className="flex-1">
           Importing a written plan is part of Pro.{" "}
           <Link
-            href="/settings/billing"
+            href={UPGRADE_HREF}
             className="text-primary underline-offset-4 hover:underline"
           >
             Explore Pro
