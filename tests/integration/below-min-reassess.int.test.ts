@@ -90,7 +90,7 @@ async function setup(
 }
 
 const REASSESS_EVIDENCE =
-  "Last time: 3, 8, 8 of 6–10, below 6. Two sessions running below 6 call for a deload.";
+  "Last time: 3, 8, 8 of 6–10, below 6. A deload follows 2 complete sessions running below 6.";
 
 describe("90 × 3 against 6–10 never says to stay at 90 lb (Pro)", () => {
   let account: Account;
@@ -179,7 +179,7 @@ describe("90 × 3 against 6–10 never says to stay at 90 lb (Pro)", () => {
     expect(page.suggestion).toBeNull();
     expect(page.recommendation?.action).toBe("Reassess the weight next time");
     expect(page.recommendation?.evidence).toBe(
-      "Last time: 3 of 6–10, below 6. Two sessions running below 6 call for a deload.",
+      "Last time: 3 of 6–10, below 6. A deload follows 2 complete sessions running below 6.",
     );
 
     // The exercise history labels the short failed workout with the call it
@@ -240,7 +240,7 @@ describe("90 × 3 against 6–10 never says to stay at 90 lb (Pro)", () => {
     });
     const page = (await getExerciseProgression(account, exId))!;
     expect(page.recommendation?.evidence).toBe(
-      "Last time: 10, 6, 4 of 10, below 10. Two sessions running below 10 call for a deload.",
+      "Last time: 10, 6, 4 of 10, below 10. A deload follows 2 complete sessions running below 10.",
     );
   });
 

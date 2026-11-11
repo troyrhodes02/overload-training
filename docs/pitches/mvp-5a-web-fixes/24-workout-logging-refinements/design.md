@@ -151,8 +151,8 @@ Show today's prescription the way it was planned, and the call for this lift.
 │ 3 × 10                     Downtown Gym │   fixed target
 │ Reassess the weight today               │   reassess (strong)
 │ Last time: 10, 6, 4 of 10 at Downtown   │   evidence (muted)
-│ Gym, below 10. Two sessions running     │
-│ below 10 call for a deload.             │
+│ Gym, below 10. A deload follows 2       │
+│ complete sessions running below 10.     │
 └────────────────────────────────────────┘
 Today:  Barbell Bench Press   3 × 6–8
         Cable Crunch          3 × 10
@@ -167,7 +167,7 @@ Today:  Barbell Bench Press   3 × 6–8
 
 | Case | Action | Evidence |
 | --- | --- | --- |
-| External load, next time | `Reassess the weight next time` | `Last time: 3, 8, 8 of 6–10, below 6. Two sessions running below 6 call for a deload.` |
+| External load, next time | `Reassess the weight next time` | `Last time: 3, 8, 8 of 6–10, below 6. A deload follows 2 complete sessions running below 6.` |
 | External load, during the workout | `Reassess the weight today` | same evidence |
 | Bodyweight | `Reassess the difficulty next time` | same evidence shape |
 | Fixed target 10 | as above | `Last time: 8, 8, 8 of 10, below 10. …` |

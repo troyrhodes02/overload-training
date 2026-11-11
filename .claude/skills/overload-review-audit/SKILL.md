@@ -210,7 +210,7 @@ Rate as:
 - Scheduled deload and reactive deload are separate systems, and the reactive check is suppressed during the scheduled week, including when a past set from that week is edited.
 - A hold has no tag and no color. A "Hold" badge is a defect.
 - First-time exercises get no tag.
-- The planned `Session` is never written to while logging, and swaps stay within the muscle group.
+- The planned `Session` is never written to while logging, and a swap affects only that occurrence (it may cross muscle groups since Workout Logging Refinements).
 - A shift on a missed day affects only the current week, and a skipped day must not re-prompt on every open.
 - Block structurally invalid input, but allow unusual-but-valid input: a weight far from a gym's baseline triggers correction, not rejection.
 - Cardio is type and duration only, with no tag, trend, or chart.

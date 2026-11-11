@@ -137,15 +137,15 @@ function CardFrame({ state }: { state: string }) {
   const cases = {
     reassess: {
       name: "Lat Pulldown", scheme: "3 × 6–10", gym: "Downtown Gym",
-      rec: { action: "Reassess the weight next time", evidence: "Last time: 3, 8, 8 of 6–10 at Downtown Gym, below 6. Two sessions running below 6 call for a deload.", strong: true },
+      rec: { action: "Reassess the weight next time", evidence: "Last time: 3, 8, 8 of 6–10 at Downtown Gym, below 6. A deload follows 2 complete sessions running below 6.", strong: true },
     },
     fixed: {
       name: "Cable Crunch", scheme: "3 × 10", gym: "Downtown Gym",
-      rec: { action: "Reassess the weight today", evidence: "Last time: 10, 6, 4 of 10 at Downtown Gym, below 10. Two sessions running below 10 call for a deload.", strong: true },
+      rec: { action: "Reassess the weight today", evidence: "Last time: 10, 6, 4 of 10 at Downtown Gym, below 10. A deload follows 2 complete sessions running below 10.", strong: true },
     },
     bodyweight: {
       name: "Hanging Leg Raise", scheme: "3 × 12 · bodyweight, reps only", gym: null,
-      rec: { action: "Reassess the difficulty next time", evidence: "Last time: 12, 7, 5 of 12, below 12. Two sessions running below 12 call for a deload.", strong: true },
+      rec: { action: "Reassess the difficulty next time", evidence: "Last time: 12, 7, 5 of 12, below 12. A deload follows 2 complete sessions running below 12.", strong: true },
     },
     "in-range miss": {
       name: "Barbell Bench Press", scheme: "3 × 6–8", gym: null,

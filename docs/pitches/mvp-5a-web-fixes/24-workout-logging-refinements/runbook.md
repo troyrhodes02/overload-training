@@ -7,7 +7,7 @@ Everything the owner does outside the codebase for this pitch. There is **no mig
 The staging URL runs against `overload-dev` (synthetic data only). Sign in with a dev test account that is on its trial or comped, so it is Pro.
 
 1. **Below-minimum (Pro).** Plan an exercise at 3 × 6–10. Log one complete workout at 90 × 8, 8, 8 and finish. Log a second at 90 × 3, 8, 8 and finish.
-   - The day-complete summary and the exercise page should read "Reassess the weight next time" with "Last time: 3, 8, 8 of 6–10, below 6. Two sessions running below 6 call for a deload." There is no tag and no "Stay at 90 lb".
+   - The day-complete summary and the exercise page should read "Reassess the weight next time" with "Last time: 3, 8, 8 of 6–10, below 6. A deload follows 2 complete sessions running below 6." There is no tag and no "Stay at 90 lb".
    - A third complete workout with a set below 6 should give the Deload tag and "Lower the weight next time".
 2. **Fixed target.** In Plan, open an exercise and choose **Fixed**, enter 10, and save. The row reads "3 sets · 10 reps". Today and the logging card read "3 × 10".
 3. **Swap.** Start a workout and tap Swap exercise. The picker opens on the planned muscle. Choose **Core** under Muscle group, then pick Crunches. The card shows "· bodyweight, reps only" and takes reps only.

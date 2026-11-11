@@ -30,22 +30,24 @@ const counted = (x: HistoryRow): boolean =>
 
 /**
  * A session the engine judges (Workout Logging Refinements RD-3): counted, or
- * a finished short one with a set below the minimum after a counted session.
- * Written independently of the engine's helper, so the sweep checks it.
+ * a finished short one that produced the call — a reassess naming it, on the
+ * history up to and including it.
  */
-function judgedIn(rows: HistoryRow[]): (x: HistoryRow) => boolean {
-  return (x) =>
-    counted(x) ||
-    (x.finished &&
-      !x.perf.scheduledDeload &&
-      hasBelowMin(x.perf) &&
-      rows.some(
-        (y) =>
-          counted(y) &&
-          (y.perf.dateIso < x.perf.dateIso ||
-            (y.perf.dateIso === x.perf.dateIso &&
-              y.perf.loggedExerciseId < x.perf.loggedExerciseId)),
-      ));
+function judgedIn(
+  rows: HistoryRow[],
+  opts: { e1rmApplicable: boolean },
+): (x: HistoryRow) => boolean {
+  return (x) => {
+    if (counted(x)) return true;
+    if (!x.finished || x.perf.scheduledDeload || !hasBelowMin(x.perf))
+      return false;
+    const prefix = rows.slice(0, rows.indexOf(x) + 1).map((y) => y.perf);
+    const { evidence } = evaluateReactiveDecision(prefix, opts);
+    return (
+      evidence.kind === "reassess" &&
+      evidence.latest.loggedExerciseId === x.perf.loggedExerciseId
+    );
+  };
 }
 
 /**
@@ -582,7 +584,7 @@ describe("sweep: 2,000 histories", () => {
               ? -1
               : 1,
         );
-      const judged = judgedIn(ordered);
+      const judged = judgedIn(ordered, opts);
       ordered.forEach((row_, idx) => {
         const call = calls.get(row_.perf.loggedExerciseId)!;
         seen.add(call);
@@ -658,5 +660,44 @@ describe("sweep: 2,000 histories", () => {
     ]) {
       expect(seen).toContain(k);
     }
+  });
+});
+
+describe("short failed workouts in the session list (Workout Logging Refinements RD-3)", () => {
+  let n = 0;
+  const mk = (date: string, reps: number[]) =>
+    row({
+      id: `wlr-${++n}`,
+      date,
+      sets: reps.map((r) => [90, r] as [number, number]),
+      planned: 3,
+      range: [6, 10],
+    });
+  const short = mk;
+  const full = mk;
+  const label = (rows: HistoryRow[], id: string) =>
+    callsBySession(rows, { externalLoad: true, noGymScope: false }).get(id);
+
+  it("is labelled with the hold it produced, after enough history", () => {
+    const rows = [
+      full("2026-10-01", [8, 8, 8]),
+      full("2026-10-08", [8, 8, 8]),
+      short("2026-10-15", [3]),
+    ];
+    expect(label(rows, rows[2].perf.loggedExerciseId)).toBe("hold");
+  });
+
+  it("is 'not counted' when too little history decided instead", () => {
+    const rows = [full("2026-10-01", [8, 8, 8]), short("2026-10-08", [3])];
+    expect(label(rows, rows[1].perf.loggedExerciseId)).toBe("not_counted");
+  });
+
+  it("is 'not counted' when the reactive Deload decided instead", () => {
+    const rows = [
+      full("2026-10-01", [5, 8, 8]),
+      full("2026-10-08", [5, 8, 8]),
+      short("2026-10-15", [3]),
+    ];
+    expect(label(rows, rows[2].perf.loggedExerciseId)).toBe("not_counted");
   });
 });

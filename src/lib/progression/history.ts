@@ -18,7 +18,6 @@
 import {
   byDate,
   evaluateReactiveDecision,
-  shortFailureSinceLastCounted,
   type Performance,
   type WorkingSet,
 } from "./engine";
@@ -209,15 +208,21 @@ export function callsBySession(
     if (!r.finished) return calls.set(id, "in_progress");
     if (r.perf.scheduledDeload) return calls.set(id, "deload_week");
     const prefix = ordered.slice(0, i + 1).map((x) => x.perf);
-    // A short workout is not counted — unless the engine judges it: a set
-    // below the minimum after a counted session (Workout Logging
-    // Refinements RD-3). The engine's own helper decides, so the label and
-    // the call can never disagree.
-    if (!r.perf.complete && shortFailureSinceLastCounted(prefix) !== r.perf)
-      return calls.set(id, "not_counted");
-    const { state } = evaluateReactiveDecision(prefix, {
+    const { state, evidence } = evaluateReactiveDecision(prefix, {
       e1rmApplicable: opts.externalLoad,
     });
+    // A short workout is not counted — unless it is the one that produced
+    // the call: a reassess after a set below the minimum (Workout Logging
+    // Refinements RD-3). When too little history or a reactive Deload
+    // decided instead, it counted toward nothing and says so.
+    if (
+      !r.perf.complete &&
+      !(
+        evidence.kind === "reassess" &&
+        evidence.latest.loggedExerciseId === r.perf.loggedExerciseId
+      )
+    )
+      return calls.set(id, "not_counted");
     calls.set(id, state === "insufficient" ? "insufficient" : state);
   });
   return calls;

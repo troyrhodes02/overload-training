@@ -10,8 +10,11 @@ import {
   type MembershipValue,
   type TourState,
 } from "@/lib/admin/types";
-import type { BillingAccount, Entitlement } from "@prisma/client";
-import { computeEntitlement } from "@/lib/entitlements/resolve";
+import {
+  computeEntitlement,
+  type ResolverBilling,
+  type ResolverEntitlement,
+} from "@/lib/entitlements/resolve";
 import { membershipOf } from "@/lib/admin/membership";
 import { adminDb, inAdminTx, type AdminDb } from "./db";
 import { recordAudit } from "./audit";
@@ -84,24 +87,6 @@ function toRow(
   };
 }
 
-/** Only the fields the entitlement resolver reads — no other column. */
-const ENTITLEMENT_FIELDS = {
-  userId: true,
-  source: true,
-  plan: true,
-  startedAt: true,
-  endsAt: true,
-  revokedAt: true,
-} as const;
-
-const BILLING_FIELDS = {
-  userId: true,
-  status: true,
-  interval: true,
-  cancelAtPeriodEnd: true,
-  graceEndsAt: true,
-} as const;
-
 /**
  * Each account's plan label (Workout Logging Refinements RD-11), resolved
  * through the same pure `computeEntitlement` the app enforces with. Reads
@@ -113,19 +98,40 @@ async function memberships(
   userIds?: string[],
   now: Date = new Date(),
 ): Promise<Map<string, MembershipValue>> {
+  // Exactly the columns the resolver reads (its parameter types are those
+  // columns, so a new read is a compile error, not a silent wrong label), plus
+  // the owner. Entitlement and billing records only: account metadata.
   const where = userIds ? { where: { userId: { in: userIds } } } : {};
   const [ents, billing] = await Promise.all([
-    db.entitlement.findMany({ select: ENTITLEMENT_FIELDS, ...where }),
-    db.billingAccount.findMany({ select: BILLING_FIELDS, ...where }),
+    db.entitlement.findMany({
+      select: {
+        userId: true,
+        source: true,
+        revokedAt: true,
+        startedAt: true,
+        endsAt: true,
+      },
+      ...where,
+    }),
+    db.billingAccount.findMany({
+      select: {
+        userId: true,
+        status: true,
+        cancelAtPeriodEnd: true,
+        interval: true,
+        graceEndsAt: true,
+      },
+      ...where,
+    }),
   ]);
-  const entsBy = new Map<string, Entitlement[]>();
+  const entsBy = new Map<string, ResolverEntitlement[]>();
   for (const e of ents) {
     const list = entsBy.get(e.userId) ?? [];
-    list.push(e as unknown as Entitlement);
+    list.push(e);
     entsBy.set(e.userId, list);
   }
-  const billingBy = new Map(
-    billing.map((b) => [b.userId, b as unknown as BillingAccount]),
+  const billingBy = new Map<string, ResolverBilling>(
+    billing.map((b) => [b.userId, b]),
   );
   const out = new Map<string, MembershipValue>();
   for (const id of new Set([...entsBy.keys(), ...billingBy.keys()])) {

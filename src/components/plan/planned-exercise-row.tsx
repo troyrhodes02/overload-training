@@ -2,15 +2,13 @@ import { TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ExerciseThumb } from "@/components/exercises/exercise-thumb";
 import type { PlannedExerciseDto } from "@/lib/plan/queries";
+import { formatRepTarget } from "@/lib/plan/rep-target";
 
 /** "3 sets · 6–8 reps"; a fixed target reads "4 sets · 5 reps". */
 export function prescription(
   e: Pick<PlannedExerciseDto, "plannedSets" | "targetRepMin" | "targetRepMax">,
 ): string {
-  const reps =
-    e.targetRepMin === e.targetRepMax
-      ? `${e.targetRepMin}`
-      : `${e.targetRepMin}–${e.targetRepMax}`;
+  const reps = formatRepTarget(e.targetRepMin, e.targetRepMax);
   return `${e.plannedSets} ${e.plannedSets === 1 ? "set" : "sets"} · ${reps} reps`;
 }
 

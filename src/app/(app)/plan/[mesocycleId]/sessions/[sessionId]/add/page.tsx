@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatRepTarget } from "@/lib/plan/rep-target";
 import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -70,10 +71,7 @@ export default async function PickerPage({ params, searchParams }: PageProps) {
     ? {
         id: slot.id,
         exerciseName: slot.exerciseName,
-        prescription:
-          slot.targetRepMin === slot.targetRepMax
-            ? `${slot.plannedSets} × ${slot.targetRepMin}`
-            : `${slot.plannedSets} × ${slot.targetRepMin}–${slot.targetRepMax}`,
+        prescription: `${slot.plannedSets} × ${formatRepTarget(slot.targetRepMin, slot.targetRepMax)}`,
       }
     : null;
   const extraParams = replace ? { replace: replace.id } : undefined;

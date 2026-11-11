@@ -99,7 +99,7 @@ function evidenceLine(ctx: Context): string {
     case "hold_short":
       return `${capitalise(lastPhrase(ctx, e.latest))}: ${e.reps.join(", ")} of ${formatRepTarget(e.repMin, e.repMax)}${gym}`;
     case "reassess":
-      return `${capitalise(lastPhrase(ctx, e.latest))}: ${e.reps.join(", ")} of ${formatRepTarget(e.repMin, e.repMax)}${gym}, below ${e.repMin}. Two sessions running below ${e.repMin} call for a deload.`;
+      return `${capitalise(lastPhrase(ctx, e.latest))}: ${e.reps.join(", ")} of ${formatRepTarget(e.repMin, e.repMax)}${gym}, below ${e.repMin}. A deload follows ${e.sessions} complete sessions running below ${e.repMin}.`;
     case "deload":
       return e.repMin === null
         ? `A set below the range, ${e.sessions} sessions running${gym}`

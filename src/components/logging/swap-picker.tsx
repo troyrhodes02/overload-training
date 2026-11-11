@@ -40,6 +40,11 @@ export function SwapPicker({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [loading, startLoading] = useTransition();
+  // The group the lifter just chose, shown while the server lists it; once
+  // the navigation settles (or fails) the server's group is the truth.
+  const [pendingMuscle, setPendingMuscle] = useState<string | null>(null);
+  const shownMuscle =
+    loading && pendingMuscle ? pendingMuscle : context.selectedMuscle;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,6 +55,7 @@ export function SwapPicker({
 
   function changeMuscle(muscle: string) {
     setError(null);
+    setPendingMuscle(muscle);
     const href =
       muscle === context.plannedMuscle
         ? pathname
@@ -88,7 +94,11 @@ export function SwapPicker({
         <>
           <div className="space-y-1.5">
             <Label htmlFor="swap-muscle">Muscle group</Label>
-            <Select value={context.selectedMuscle} onValueChange={changeMuscle}>
+            <Select
+              value={shownMuscle}
+              onValueChange={changeMuscle}
+              disabled={pending}
+            >
               <SelectTrigger id="swap-muscle" className="h-11 w-full">
                 <SelectValue />
               </SelectTrigger>

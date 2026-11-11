@@ -178,7 +178,7 @@ Notes:
 The reassess copy is fixed by the builder (design doc Screen 2 table):
 
 - Action: `Reassess the weight {when}` for external load, `Reassess the difficulty {when}` for bodyweight.
-- Evidence: `{Last time|On Mon D}: {reps joined ", "} of {target}{ at Gym}, below {repMin}. Two sessions running below {repMin} call for a deload.`
+- Evidence: `{Last time|On Mon D}: {reps joined ", "} of {target}{ at Gym}, below {repMin}. A deload follows 2 complete sessions running below {repMin}.`
 - `{target}` is `formatRepTarget(repMin, repMax)`.
 
 `hold_short` evidence also uses `formatRepTarget`.

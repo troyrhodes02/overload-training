@@ -170,7 +170,7 @@ Overload-specific test examples:
 - An exercise performed for the first time gets no progress or deload tag.
 - During the scheduled deload week no reactive deload tag appears, and it resumes the following week.
 - Editing a past set changes the computed tag with no stored value to update.
-- A swap to an exercise in a different muscle group returns `validation_error`.
+- A swap to an archived exercise returns `validation_error`; a different muscle group is allowed (Workout Logging Refinements).
 - Choosing shift on a missed day moves only the current week, and the prompt does not return on the next open.
 - A second account cannot read, change, or detect the first account's data by id, by list, or by search.
 - A non-admin cannot reach any admin operation, and admin results contain no training content.
@@ -335,7 +335,7 @@ Watch for:
 - Writing a `LoggedSet` anywhere but its module, or doing the baseline correction in a separate transaction from the set.
 - Treating the first log at a gym as a correction. It establishes the baseline.
 - Creating a baseline for a free-weight exercise. Gym-variable status is decided in one function, `isGymVariable`.
-- Letting a swap write to the planned `Session`, or offering cross-muscle-group alternatives.
+- Letting a swap write to the planned `Session`. (Cross-muscle-group alternatives are allowed since Workout Logging Refinements.)
 - Showing tomorrow's plan once today is complete. The dashboard moves to its alternate state instead.
 - Letting a shift carry past the current week, or failing to persist a skip so the prompt reappears on every open.
 - Building deletion of a logged set. The planning docs do not specify it.
