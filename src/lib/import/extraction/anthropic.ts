@@ -38,10 +38,21 @@ import { logDiagnostic } from "../diagnostics";
  *    to the safe taxonomy categories only.
  */
 
-/** The model id, from env, with a current sensible default (RD-11). */
+/**
+ * The default model: the one every real staging extraction was run and checked
+ * with (claude-sonnet-5-5, recorded on the overload-dev import sessions). A
+ * deploy that doesn't set PLAN_IMPORT_MODEL therefore runs the tested model,
+ * not a different, untested and pricier one. Override per deploy with
+ * PLAN_IMPORT_MODEL (RD-11); the id actually used is persisted on the session.
+ */
+export const DEFAULT_PLAN_IMPORT_MODEL = "claude-sonnet-5-5";
+
+/** The model id, from env, falling back to the tested default (RD-11). */
 export function resolvedModelId(): string {
   const configured = process.env.PLAN_IMPORT_MODEL?.trim();
-  return configured && configured.length > 0 ? configured : "claude-opus-4-8";
+  return configured && configured.length > 0
+    ? configured
+    : DEFAULT_PLAN_IMPORT_MODEL;
 }
 
 /**
