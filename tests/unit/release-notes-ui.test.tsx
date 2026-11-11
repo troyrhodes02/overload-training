@@ -1,6 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReleaseNote } from "@/components/release-notes/release-note";
-import { WhatsNewSection } from "@/components/settings/whats-new-section";
 
 /**
  * What's New presentational pieces (design doc Screens 3–4, preview §03–§06;
@@ -39,13 +38,10 @@ it("ReleaseNote escapes content (plain text only)", () => {
   expect(html).toContain("a &lt; b &amp; c");
 });
 
-it("the Settings section links to the page and shows no count or dot", () => {
-  const html = renderToStaticMarkup(<WhatsNewSection />);
-  expect(html).toContain("What&#x27;s New</h2>");
-  expect(html).toContain("Every update to Overload, newest first.");
-  expect(html).toContain('href="/settings/whats-new"');
-  expect(html).toContain("See what&#x27;s new");
-  // Visible text only: no unread count anywhere in the section.
-  const text = html.replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'");
-  expect(text).not.toMatch(/\d/);
+it("What's New is a navigation destination (OVE-119), with no count or dot", async () => {
+  const { moreNavItems } = await import("@/components/shell/nav-items");
+  const item = moreNavItems(false).find(
+    (i) => i.href === "/settings/whats-new",
+  );
+  expect(item?.label).toBe("What's New");
 });

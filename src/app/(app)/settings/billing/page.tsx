@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { tourAnchor } from "@/lib/tour/steps";
 import { requireAccount } from "@/lib/data/account";
 import { getBillingScreen } from "@/lib/billing/screen";
 import { refreshBillingFromStripe } from "@/lib/billing/sync";
@@ -33,14 +32,10 @@ export default async function BillingPage({
 
   return (
     <section className="space-y-5 pb-20 md:pb-0">
-      <Link
-        href="/settings"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Settings
-      </Link>
-      <h1 className="text-xl font-semibold">Plan &amp; Billing</h1>
+      {/* A navigation destination of its own since OVE-119: no "‹ Settings". */}
+      <h1 className="text-xl font-semibold" {...tourAnchor("page-billing")}>
+        Plan &amp; Billing
+      </h1>
       <PlanBilling screen={screen} status={status} />
     </section>
   );

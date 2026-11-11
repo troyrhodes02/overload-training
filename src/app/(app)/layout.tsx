@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { requireAccount } from "@/lib/data/account";
+import { currentUser } from "@/lib/auth";
+import { getSettingsProfile } from "@/lib/accounts/profile";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { getTourAutoStart } from "@/lib/tour/progress";
 import { getWhatsNewDialog } from "@/lib/release-notes/seen";
@@ -27,12 +29,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // or has ended. One dialog per load: the tour first, then the trial notice
   // (time-bound), then What's New (which keeps until a later load).
   const inAppShell = await isAppShellRequest();
-  const [appearance, tourAutoStart, unseen, notice] = await Promise.all([
-    getAccountAppearance(account),
-    getTourAutoStart(account),
-    getWhatsNewDialog(account),
-    getTrialNotice(account, { inAppShell }),
-  ]);
+  // The navigation's account footer (OVE-119): this account's own name,
+  // username, and email — the same Auth-server check requireAccount made.
+  const [appearance, tourAutoStart, unseen, notice, profile, user] =
+    await Promise.all([
+      getAccountAppearance(account),
+      getTourAutoStart(account),
+      getWhatsNewDialog(account),
+      getTrialNotice(account, { inAppShell }),
+      getSettingsProfile(account),
+      currentUser(),
+    ]);
   const trialNotice = tourAutoStart ? null : notice;
   const whatsNew = tourAutoStart || trialNotice ? null : unseen;
   return (
@@ -44,6 +51,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       // Admin Center & Feedback: only the allowlist decides; the shell gets a
       // boolean, never the allowlist itself.
       isAdmin={isAdminUserId(account.userId)}
+      account={{
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        username: profile.username,
+        email: user.email ?? "",
+      }}
     >
       {children}
     </AppShell>

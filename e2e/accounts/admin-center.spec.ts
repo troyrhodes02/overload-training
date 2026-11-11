@@ -106,11 +106,10 @@ test("a lifter finds no admin area: 404 everywhere, no menu item", async ({
     await expectNotFound(page, url);
   }
   await page.goto("/");
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await expect(
-    page.getByRole("menuitem", { name: "Send feedback" }),
-  ).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: /admin/i })).toHaveCount(0);
+  // OVE-119: the sidebar's Account & app group (no ⋮ menu).
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link", { name: "Send feedback" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: /admin/i })).toHaveCount(0);
   await ctx.close();
 
   // Signed out: like every protected path, the login screen.
@@ -125,8 +124,10 @@ test("the admin sees the Overview, the directory, and the account page", async (
   browser,
 }) => {
   const { ctx, page } = await adminContext(browser);
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("menuitem", { name: "Admin" }).click();
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Admin" })
+    .click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(
