@@ -1,7 +1,7 @@
 import "server-only";
 import type { ImportSession } from "@prisma/client";
 import { IMPORT_EXPIRED_MESSAGE } from "./errors";
-import { DomainError } from "@/lib/actions/result";
+import { DomainError, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import { isEquipment, isMuscleGroup } from "@/lib/exercises/taxonomy";
 import { deriveBlockers } from "./draft/build";
@@ -204,6 +204,49 @@ export async function resolveMatch(
       kind: "matched",
       exerciseId: chosen.exerciseId,
       name: chosen.name,
+    };
+    return next;
+  });
+}
+
+/**
+ * Point an imported exercise at ANY exercise the lifter can see in their library
+ * (the shared library plus their own custom exercises), chosen from the
+ * library search rather than the offered candidates. Works for an ambiguous,
+ * unknown, already-matched, or staged-custom row. The id comes from the client,
+ * so it is resolved through the account-scoped client: another account's custom
+ * exercise, an archived one, or a made-up id is indistinguishable from one that
+ * does not exist (not-found), and nothing changes.
+ */
+export async function pickLibraryExercise(
+  account: Account,
+  input: {
+    sessionId: string;
+    version: number;
+    exerciseKey: string;
+    exerciseId: string;
+  },
+): Promise<ImportDraftDto> {
+  const session = await requireReviewSession(account, input.sessionId);
+  const exercise = isUuid(input.exerciseId)
+    ? await account.db.exercise.findFirst({
+        where: { id: input.exerciseId, deletedAt: null },
+        select: { id: true, name: true },
+      })
+    : null;
+  if (!exercise) {
+    throw new DomainError("not_found", "That exercise isn't in your library.");
+  }
+  return saveMutated(account, session, input.version, (draft) => {
+    const next = structuredClone(draft);
+    const loc = findExercise(next, input.exerciseKey);
+    if (!loc) {
+      throw new DomainError("not_found", "That exercise isn't in this import.");
+    }
+    next.days[loc.dayIndex].exercises[loc.exIndex].match = {
+      kind: "matched",
+      exerciseId: exercise.id,
+      name: exercise.name,
     };
     return next;
   });

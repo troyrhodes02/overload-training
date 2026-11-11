@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronDown,
   ArrowDown,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,12 +51,14 @@ import type {
 } from "@/lib/import/draft/types";
 import { deriveBlockers } from "@/lib/import/draft/build";
 import { retryCostLine, type ImportUsageView } from "./import-guidance";
+import { LibrarySearchDialog } from "./library-search-dialog";
 import {
   getImportStatusAction,
   retryExtractionAction,
   discardImportAction,
   saveDraftEditAction,
   resolveMatchAction,
+  pickLibraryExerciseAction,
   stageCustomExerciseAction,
   confirmImportAction,
 } from "@/app/(app)/plan/import/actions";
@@ -918,24 +921,56 @@ function MatchControl({
 }) {
   const [showCustom, setShowCustom] = React.useState(false);
   const [showChoices, setShowChoices] = React.useState(false);
+  const [searchOpen, setSearchOpen] = React.useState(false);
 
-  if (match.kind === "matched") {
+  const search = (
+    <LibrarySearchDialog
+      open={searchOpen}
+      onOpenChange={setSearchOpen}
+      importedName={"raw" in match ? match.raw : match.name}
+      onPick={(exercise) => {
+        setSearchOpen(false);
+        onApply(() =>
+          pickLibraryExerciseAction({
+            sessionId,
+            version,
+            exerciseKey,
+            exerciseId: exercise.id,
+          }),
+        );
+      }}
+    />
+  );
+  const searchButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={disabled}
+      onClick={() => setSearchOpen(true)}
+    >
+      <Search aria-hidden className="size-4" />
+      Search library
+    </Button>
+  );
+
+  if (match.kind === "matched" || match.kind === "custom_staged") {
     return (
-      <div className="flex items-center gap-2 text-sm">
-        <Check aria-hidden className="size-4 text-muted-foreground" />
-        <span className="font-medium">{match.name}</span>
-        <span className="text-xs text-muted-foreground">matched</span>
-      </div>
-    );
-  }
-  if (match.kind === "custom_staged") {
-    return (
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <Check aria-hidden className="size-4 text-muted-foreground" />
         <span className="font-medium">{match.name}</span>
         <span className="text-xs text-muted-foreground">
-          new custom exercise
+          {match.kind === "matched" ? "matched" : "new custom exercise"}
         </span>
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 text-xs"
+          disabled={disabled}
+          onClick={() => setSearchOpen(true)}
+        >
+          Change
+        </Button>
+        {search}
       </div>
     );
   }
@@ -1017,15 +1052,19 @@ function MatchControl({
         {showCustom ? (
           staged
         ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={() => setShowCustom(true)}
-          >
-            Create custom…
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {searchButton}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={() => setShowCustom(true)}
+            >
+              Create custom…
+            </Button>
+          </div>
         )}
+        {search}
       </div>
     );
   }
@@ -1038,6 +1077,7 @@ function MatchControl({
         <span className="flex items-center gap-1 text-xs text-destructive">
           <TriangleAlert aria-hidden className="size-3" /> not in library
         </span>
+        {searchButton}
         <Button
           variant="outline"
           size="sm"
@@ -1051,6 +1091,7 @@ function MatchControl({
       </div>
       {/* Phones show the form straight away (as before); md+ opens it on demand. */}
       <div className={showCustom ? "" : "md:hidden"}>{staged}</div>
+      {search}
     </div>
   );
 }

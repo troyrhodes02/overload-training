@@ -5,7 +5,7 @@ import { createTestAccount } from "./support/accounts";
 import { beginExtraction, retryExtraction } from "@/lib/import/extract";
 import { confirmImport } from "@/lib/import/confirm";
 import { createImportSession, discardImport } from "@/lib/import/sessions";
-import { stageCustomExercise } from "@/lib/import/review";
+import { pickLibraryExercise, stageCustomExercise } from "@/lib/import/review";
 import {
   __setPlanExtractionPort,
   type PlanExtractionPort,
@@ -521,5 +521,119 @@ describe("a full three-day import (staging regression)", () => {
       include: { sessions: true },
     });
     expect(stillThere?.sessions).toHaveLength(3);
+  });
+});
+
+describe("search library: pick any exercise the lifter can see", () => {
+  async function unknownReview(account: Account) {
+    __setPlanExtractionPort(
+      new MockPlanExtractionPort(
+        planObservation(`Mystery Lift ${randomUUID()}`),
+      ),
+    );
+    const sessionId = await seedUploadedTextSession(
+      account,
+      "Push\nMystery 3x8",
+    );
+    await beginExtraction(account, { sessionId, dayKey: DAY });
+    const draft = await reviewDraft(account, sessionId);
+    expect(draft.days[0].exercises[0].match.kind).toBe("unknown");
+    return { sessionId, draft, exerciseKey: draft.days[0].exercises[0].key };
+  }
+
+  async function seedCustom(userId: string, name: string, archived = false) {
+    return getTestPrisma().exercise.create({
+      data: {
+        name,
+        primaryMuscle: "chest",
+        equipmentType: "barbell",
+        isCustom: true,
+        userId,
+        deletedAt: archived ? new Date() : null,
+      },
+    });
+  }
+
+  it("matches an unknown row to a library exercise, and Change re-points it", async () => {
+    const account = await createTestAccount();
+    const press = await seedLibraryExercise(`Machine Press ${randomUUID()}`);
+    const fly = await seedLibraryExercise(`Cable Fly ${randomUUID()}`);
+    const { sessionId, draft, exerciseKey } = await unknownReview(account);
+
+    const picked = await pickLibraryExercise(account, {
+      sessionId,
+      version: draft.version,
+      exerciseKey,
+      exerciseId: press.id,
+    });
+    expect(picked.days[0].exercises[0].match).toEqual({
+      kind: "matched",
+      exerciseId: press.id,
+      name: press.name,
+    });
+
+    const changed = await pickLibraryExercise(account, {
+      sessionId,
+      version: picked.version,
+      exerciseKey,
+      exerciseId: fly.id,
+    });
+    expect(changed.days[0].exercises[0].match).toMatchObject({
+      kind: "matched",
+      exerciseId: fly.id,
+    });
+  });
+
+  it("accepts the lifter's own custom exercise", async () => {
+    const account = await createTestAccount();
+    const mine = await seedCustom(account.userId, "My Landmine Press");
+    const { sessionId, draft, exerciseKey } = await unknownReview(account);
+    const picked = await pickLibraryExercise(account, {
+      sessionId,
+      version: draft.version,
+      exerciseKey,
+      exerciseId: mine.id,
+    });
+    expect(picked.days[0].exercises[0].match).toMatchObject({
+      kind: "matched",
+      exerciseId: mine.id,
+    });
+  });
+
+  it("refuses another account's custom, an archived exercise, and a junk id, changing nothing", async () => {
+    const account = await createTestAccount();
+    const other = await createTestAccount();
+    const theirs = await seedCustom(other.userId, "Their Secret Lift");
+    const archived = await seedCustom(account.userId, "Old Lift", true);
+    const { sessionId, draft, exerciseKey } = await unknownReview(account);
+
+    for (const exerciseId of [theirs.id, archived.id, "not-a-uuid"]) {
+      await expect(
+        pickLibraryExercise(account, {
+          sessionId,
+          version: draft.version,
+          exerciseKey,
+          exerciseId,
+        }),
+      ).rejects.toMatchObject({ code: "not_found" });
+    }
+    const after = await reviewDraft(account, sessionId);
+    expect(after.version).toBe(draft.version);
+    expect(after.days[0].exercises[0].match.kind).toBe("unknown");
+  });
+
+  it("another account cannot pick into this account's import", async () => {
+    const account = await createTestAccount();
+    const other = await createTestAccount();
+    const lib = await seedLibraryExercise(`Squat ${randomUUID()}`);
+    const { sessionId, draft, exerciseKey } = await unknownReview(account);
+    await expect(
+      pickLibraryExercise(other, {
+        sessionId,
+        version: draft.version,
+        exerciseKey,
+        exerciseId: lib.id,
+      }),
+    ).rejects.toMatchObject({ code: "not_found" });
   });
 });

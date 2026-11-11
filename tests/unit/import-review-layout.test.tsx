@@ -11,6 +11,8 @@ jest.mock("@/app/(app)/plan/import/actions", () => ({
   resolveMatchAction: jest.fn(),
   stageCustomExerciseAction: jest.fn(),
   confirmImportAction: jest.fn(),
+  pickLibraryExerciseAction: jest.fn(),
+  searchImportLibraryAction: jest.fn(),
 }));
 
 import fs from "node:fs";
@@ -238,6 +240,47 @@ describe("Create plan — navigation, duplicate-submit and discard guards", () =
     expect(src).toContain("Nothing has been added to your plans yet.");
     expect(src).toMatch(
       /async function onDiscard\(\) \{\s*if \(created\) return;/,
+    );
+  });
+});
+
+describe("search library", () => {
+  it("offers Search library on an ambiguous and an unknown row", () => {
+    const html = render(draft([ambiguous, unknown]));
+    expect(html.match(/Search library/g)?.length).toBe(2);
+    // Suggestions and Create custom are still there.
+    expect(html).toContain("Overhead Press");
+    expect(html).toContain("Create custom");
+  });
+
+  it("lets a matched row be changed", () => {
+    const html = render(draft([matched]));
+    expect(html).toMatch(/>Change<\/button>/);
+  });
+
+  it("picks through the server-checked action", () => {
+    const flow = fs.readFileSync(
+      path.join(process.cwd(), "src/components/plan/import/import-flow.tsx"),
+      "utf8",
+    );
+    expect(flow).toContain("pickLibraryExerciseAction({");
+  });
+});
+
+describe("Plan page import entry", () => {
+  const page = fs.readFileSync(
+    path.join(process.cwd(), "src/app/(app)/plan/page.tsx"),
+    "utf8",
+  );
+
+  it("sits on its own below the New mesocycle / Clone previous actions", () => {
+    const actions = page.slice(
+      page.lastIndexOf("<StickyActions>"),
+      page.lastIndexOf("</StickyActions>"),
+    );
+    expect(actions).not.toContain("ImportEntry");
+    expect(page.lastIndexOf("<ImportEntry")).toBeGreaterThan(
+      page.lastIndexOf("</StickyActions>"),
     );
   });
 });

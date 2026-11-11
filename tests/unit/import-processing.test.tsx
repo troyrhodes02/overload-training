@@ -11,6 +11,8 @@ jest.mock("@/app/(app)/plan/import/actions", () => ({
   resolveMatchAction: jest.fn(),
   stageCustomExerciseAction: jest.fn(),
   confirmImportAction: jest.fn(),
+  pickLibraryExerciseAction: jest.fn(),
+  searchImportLibraryAction: jest.fn(),
 }));
 
 import fs from "node:fs";
