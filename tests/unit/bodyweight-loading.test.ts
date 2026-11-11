@@ -66,6 +66,7 @@ function pullUps(reps: number[], scheduledDeload = false): Performance {
     scheduledDeload,
     gymId: null,
     complete: true,
+    finished: true,
     repMin: 6,
     repMax: 12,
     workingSets: reps.map((r, i) => ({

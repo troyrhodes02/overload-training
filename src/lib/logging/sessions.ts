@@ -138,9 +138,10 @@ export async function changeGym(
 
 /**
  * Swap the performed exercise for one LoggedExercise occurrence (Decisions
- * 25–27). Allowed only before the first set; candidate must be active and share
- * the PLANNED exercise's primary muscle. Updates exerciseId (performed) only —
- * never plannedExerciseId, Session, or SessionExercise.
+ * 25–27, amended by Workout Logging Refinements RD-6). Allowed only before the
+ * first set; the candidate must be an active exercise this account can see, in
+ * any muscle group. Updates exerciseId (performed) only — never
+ * plannedExerciseId, Session, or SessionExercise.
  */
 export async function swapExercise(
   account: Account,
@@ -155,7 +156,6 @@ export async function swapExercise(
   const le = await tx.loggedExercise.findUnique({
     where: { id: input.loggedExerciseId },
     include: {
-      plannedExercise: { select: { primaryMuscle: true } },
       sets: { select: { id: true }, take: 1 },
     },
   });
@@ -173,18 +173,16 @@ export async function swapExercise(
   if (!isUuid(input.newExerciseId)) {
     throw new DomainError("validation_error", "That exercise isn't available.");
   }
+  // Any active exercise this account can see — the library or its own
+  // custom ones — in any muscle group (Workout Logging Refinements RD-6
+  // superseded the same-muscle rule). Another account's custom exercise is
+  // invisible here, so it reads as unavailable, never as forbidden.
   const candidate = await tx.exercise.findFirst({
     where: { id: input.newExerciseId, deletedAt: null },
-    select: { id: true, primaryMuscle: true },
+    select: { id: true },
   });
   if (!candidate) {
     throw new DomainError("validation_error", "That exercise isn't available.");
-  }
-  if (candidate.primaryMuscle !== le.plannedExercise.primaryMuscle) {
-    throw new DomainError(
-      "validation_error",
-      "Pick an exercise for the same muscle group.",
-    );
   }
   await tx.loggedExercise.update({
     where: { id: le.id },

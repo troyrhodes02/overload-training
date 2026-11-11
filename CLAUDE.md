@@ -143,7 +143,7 @@ During a scheduled deload week the reactive check is **suppressed entirely**. It
 
 ### Planned versus logged, and the word "Session"
 
-`Session` always means a planned workout template inside a `Mesocycle` (for example "Push Day 1"). `LoggedSession` is a record of a day actually trained. Never call the auth session a `Session`; say "auth session". Never write to a `Session` or `SessionExercise` while logging; swapping an exercise mid-workout affects that `LoggedExercise` only, unless the lifter explicitly saves the swap back to the template. Swap candidates are restricted to the same muscle group as the planned exercise.
+`Session` always means a planned workout template inside a `Mesocycle` (for example "Push Day 1"). `LoggedSession` is a record of a day actually trained. Never call the auth session a `Session`; say "auth session". Never write to a `Session` or `SessionExercise` while logging; swapping an exercise mid-workout affects that `LoggedExercise` only, unless the lifter explicitly saves the swap back to the template. The swap picker opens on the planned exercise's muscle group and can be switched to any group (Workout Logging Refinements superseded the same-muscle-only rule).
 
 ### Missed days: three outcomes, shift is scoped to one week
 

@@ -25,6 +25,7 @@ function perf(
     scheduledDeload: opts.scheduledDeload ?? false,
     gymId: opts.gymId ?? null,
     complete: opts.complete ?? true,
+    finished: opts.finished ?? opts.complete ?? true,
     repMin,
     repMax,
     workingSets: reps.map((r, i) => ({

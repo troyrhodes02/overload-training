@@ -7,8 +7,15 @@ import {
   type AdminAccountDto,
   type AdminAccountListDto,
   type AdminAccountRowDto,
+  type MembershipValue,
   type TourState,
 } from "@/lib/admin/types";
+import {
+  computeEntitlement,
+  type ResolverBilling,
+  type ResolverEntitlement,
+} from "@/lib/entitlements/resolve";
+import { membershipOf } from "@/lib/admin/membership";
 import { adminDb, inAdminTx, type AdminDb } from "./db";
 import { recordAudit } from "./audit";
 import { auditLines } from "./audit-read";
@@ -56,6 +63,7 @@ function toRow(
   p: ProfileMeta,
   tour: Map<string, string>,
   emails: Map<string, string> | null,
+  membership: Map<string, MembershipValue>,
 ): AdminAccountRowDto {
   const outcome = tour.get(p.userId);
   const tourState: TourState =
@@ -75,7 +83,66 @@ function toRow(
     signupOn: signupOn(p),
     lastActiveOn: isoDate(p.lastActiveOn),
     tour: tourState,
+    membership: membership.get(p.userId) ?? "free",
   };
+}
+
+/**
+ * Each account's plan label (Workout Logging Refinements RD-11), resolved
+ * through the same pure `computeEntitlement` the app enforces with. Reads
+ * entitlement and billing records only — account metadata, never training
+ * content — through the gated admin client.
+ */
+async function memberships(
+  db: AdminDb,
+  userIds?: string[],
+  now: Date = new Date(),
+): Promise<Map<string, MembershipValue>> {
+  // Exactly the columns the resolver reads (its parameter types are those
+  // columns, so a new read is a compile error, not a silent wrong label), plus
+  // the owner. Entitlement and billing records only: account metadata.
+  const where = userIds ? { where: { userId: { in: userIds } } } : {};
+  const [ents, billing] = await Promise.all([
+    db.entitlement.findMany({
+      select: {
+        userId: true,
+        source: true,
+        revokedAt: true,
+        startedAt: true,
+        endsAt: true,
+      },
+      ...where,
+    }),
+    db.billingAccount.findMany({
+      select: {
+        userId: true,
+        status: true,
+        cancelAtPeriodEnd: true,
+        interval: true,
+        graceEndsAt: true,
+      },
+      ...where,
+    }),
+  ]);
+  const entsBy = new Map<string, ResolverEntitlement[]>();
+  for (const e of ents) {
+    const list = entsBy.get(e.userId) ?? [];
+    list.push(e);
+    entsBy.set(e.userId, list);
+  }
+  const billingBy = new Map<string, ResolverBilling>(
+    billing.map((b) => [b.userId, b]),
+  );
+  const out = new Map<string, MembershipValue>();
+  for (const id of new Set([...entsBy.keys(), ...billingBy.keys()])) {
+    const resolved = computeEntitlement(
+      entsBy.get(id) ?? [],
+      billingBy.get(id) ?? null,
+      now,
+    );
+    out.set(id, membershipOf(resolved.sources));
+  }
+  return out;
 }
 
 async function tourOutcomes(
@@ -132,7 +199,7 @@ export async function listAccounts(
     page: query.page ? String(query.page) : undefined,
   });
   const db = adminDb();
-  const [profiles, tour, emails] = await Promise.all([
+  const [profiles, tour, emails, plans] = await Promise.all([
     db.profile.findMany({
       select: PROFILE_FIELDS,
       ...(status === "all" ? {} : { where: { status } }),
@@ -140,8 +207,9 @@ export async function listAccounts(
     }),
     tourOutcomes(db),
     readEmails(emailSource),
+    memberships(db),
   ]);
-  let rows = profiles.map((p) => toRow(p as ProfileMeta, tour, emails));
+  let rows = profiles.map((p) => toRow(p as ProfileMeta, tour, emails, plans));
   if (q) {
     const needle = q.toLowerCase();
     rows = rows.filter((r) =>
@@ -179,20 +247,22 @@ export async function getAdminAccount(
     select: PROFILE_FIELDS,
   });
   if (!profile) return null;
-  const [tour, emails, feedbackCount, audit, lastSuspend] = await Promise.all([
-    tourOutcomes(db, [id]),
-    readEmails(emailSource),
-    db.feedback.count({ where: { userId: id } }),
-    auditLines(db, { targetUserId: id, take: 10 }, emailSource),
-    // Its own query: the 10 recent lines may no longer include it.
-    db.adminAuditEntry.findMany({
-      select: { createdAt: true },
-      where: { targetUserId: id, kind: "account_suspend" },
-      orderBy: [{ createdAt: "desc" }],
-      take: 1,
-    }),
-  ]);
-  const row = toRow(profile as ProfileMeta, tour, emails);
+  const [tour, emails, feedbackCount, audit, lastSuspend, plans] =
+    await Promise.all([
+      tourOutcomes(db, [id]),
+      readEmails(emailSource),
+      db.feedback.count({ where: { userId: id } }),
+      auditLines(db, { targetUserId: id, take: 10 }, emailSource),
+      // Its own query: the 10 recent lines may no longer include it.
+      db.adminAuditEntry.findMany({
+        select: { createdAt: true },
+        where: { targetUserId: id, kind: "account_suspend" },
+        orderBy: [{ createdAt: "desc" }],
+        take: 1,
+      }),
+      memberships(db, [id]),
+    ]);
+  const row = toRow(profile as ProfileMeta, tour, emails, plans);
   const since =
     row.status === "suspended" ? lastSuspend[0]?.createdAt : undefined;
   return {

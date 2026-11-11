@@ -12,6 +12,8 @@
  *   - a load only for Progress (working weight + the existing increment) and
  *     the scheduled deload week (the existing reduced load);
  *   - a reactive Deload names what to change, never an amount (R7);
+ *   - a set below the planned minimum asks to reassess, never to stay at a
+ *     weight, and prints no weight (Workout Logging Refinements RD-1, RD-5);
  *   - bodyweight points at the plan's own top of range, never a weight (R8);
  *   - RIR appears only when the RIR qualifier changed the call (R16).
  *
@@ -19,6 +21,7 @@
  * recommendation and why" (method note "Recommendation and evidence").
  */
 import { formatMonthDay } from "@/lib/plan/calendar";
+import { formatRepTarget } from "@/lib/plan/rep-target";
 import { PROGRESS_INCREMENT_LBS, SCHEDULED_DELOAD_FACTOR } from "./config";
 import type { DecisionEvidence, RecommendationDto, RirEffect } from "./types";
 
@@ -94,7 +97,9 @@ function evidenceLine(ctx: Context): string {
     case "hold_top_once":
       return `${e.repMax} on every set ${lastPhrase(ctx, e.latest)}; progress needs ${e.sessions} sessions running${gym}`;
     case "hold_short":
-      return `${capitalise(lastPhrase(ctx, e.latest))}: ${e.reps.join(", ")} of ${e.repMin}–${e.repMax}${gym}`;
+      return `${capitalise(lastPhrase(ctx, e.latest))}: ${e.reps.join(", ")} of ${formatRepTarget(e.repMin, e.repMax)}${gym}`;
+    case "reassess":
+      return `${capitalise(lastPhrase(ctx, e.latest))}: ${e.reps.join(", ")} of ${formatRepTarget(e.repMin, e.repMax)}${gym}, below ${e.repMin}. A deload follows ${e.sessions} complete sessions running below ${e.repMin}.`;
     case "deload":
       return e.repMin === null
         ? `A set below the range, ${e.sessions} sessions running${gym}`
@@ -110,7 +115,7 @@ const EVIDENCE_FOR: Record<
   DecisionEvidence["kind"][]
 > = {
   progress: ["progress", "released_stall"],
-  hold: ["hold_top_once", "hold_short", "held_at_limit"],
+  hold: ["hold_top_once", "hold_short", "reassess", "held_at_limit"],
   stalled: ["stalled"],
   deload: ["deload"],
 };
@@ -190,6 +195,20 @@ export function buildRecommendation(
       action: ctx.externalLoad
         ? `Lower the weight ${when}`
         : `Back off ${when}`,
+      evidence,
+    };
+  }
+
+  // A set below the planned minimum (Workout Logging Refinements RD-1, RD-5):
+  // reassess, never "stay at this weight", and never a number the engine
+  // can't stand behind. Still a hold call: no tag.
+  if (ctx.evidence.kind === "reassess") {
+    return {
+      kind: "reassess",
+      tone: "strong",
+      action: ctx.externalLoad
+        ? `Reassess the weight ${when}`
+        : `Reassess the difficulty ${when}`,
       evidence,
     };
   }
