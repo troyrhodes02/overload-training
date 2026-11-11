@@ -86,6 +86,9 @@ function fakeStripe(opts: { delayMs?: number } = {}) {
       state.customers += 1;
       return `cus_fake_${state.customers}`;
     },
+    async getCheckoutSession() {
+      return null;
+    },
     async hasOpenSubscription(customerId) {
       const s = state.subscriptions.get(customerId);
       return s !== undefined && s !== "canceled";
@@ -104,7 +107,7 @@ function fakeStripe(opts: { delayMs?: number } = {}) {
       const id = `cs_${state.created}`;
       state.open.push({ id, params });
       state.inFlight -= 1;
-      return { url: `https://checkout.stripe.test/${id}` };
+      return { url: `https://checkout.stripe.test/${id}`, sessionId: id };
     },
     async createPortalSession() {
       return { url: "https://billing.stripe.test/portal" };
