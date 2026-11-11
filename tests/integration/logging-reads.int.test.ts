@@ -101,7 +101,7 @@ describe("getWorkout", () => {
 });
 
 describe("getSwapContext", () => {
-  it("offers only active same-primary-muscle candidates (favorites first), excluding the performed one", async () => {
+  it("offers active candidates for the selected primary muscle (planned by default; favorites first), excluding the performed one", async () => {
     const meso = await createTestMesocycle();
     const planned = await createTestExercise({
       name: "Chest Press Machine",
@@ -147,6 +147,24 @@ describe("getSwapContext", () => {
       "Incline DB Press",
     ]);
     expect(ctx!.swapLocked).toBe(false);
+    expect(ctx!.plannedMuscle).toBe("chest");
+    expect(ctx!.selectedMuscle).toBe("chest");
+
+    // Workout Logging Refinements RD-6: the filter can reach any group.
+    const back = await getSwapContext(account, le.id, "back");
+    expect(back!.selectedMuscle).toBe("back");
+    expect(back!.selectedMuscleLabel).toBe("Back");
+    expect(back!.primaryMuscleLabel).toBe("Chest");
+    expect(back!.candidates.map((c) => c.name)).toEqual(["Barbell Row"]);
+    // An empty group is an empty list, not an error.
+    expect((await getSwapContext(account, le.id, "neck"))!.candidates).toEqual(
+      [],
+    );
+    // Anything unrecognized falls back to the planned muscle.
+    for (const bad of ["not-a-muscle", "", null]) {
+      const ctx2 = await getSwapContext(account, le.id, bad);
+      expect(ctx2!.selectedMuscle).toBe("chest");
+    }
 
     await logSet(account, {
       loggedExerciseId: le.id,
