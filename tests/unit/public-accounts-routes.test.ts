@@ -50,7 +50,6 @@ describe("public paths (PA3 / R9)", () => {
   const marketing = [
     "/welcome",
     "/pricing",
-    "/blizzy",
     "/changelog",
     "/robots.txt",
     "/sitemap.xml",

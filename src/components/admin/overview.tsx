@@ -68,7 +68,7 @@ export function OverviewTiles({ data }: { data: AdminOverviewDto }) {
       <MetricTile
         label="Signed up via /blizzy"
         value={data.fromBlizzy}
-        caption="first-party, at signup"
+        caption="historical: the page was retired"
       />
     </dl>
   );

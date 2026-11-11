@@ -25,12 +25,7 @@ export const SIGNED_OUT_DOORS = ["/login", "/signup"] as const;
  * alike; a signed-in visitor sees "Open Overload" instead of a signup action.
  * `/welcome` is the landing page that signed-out `/` is rewritten to.
  */
-export const MARKETING_PATHS = [
-  "/welcome",
-  "/pricing",
-  "/blizzy",
-  "/changelog",
-] as const;
+export const MARKETING_PATHS = ["/welcome", "/pricing", "/changelog"] as const;
 
 /** Next's metadata file routes: crawlers and browsers fetch them signed out. */
 const METADATA_ROUTES = [

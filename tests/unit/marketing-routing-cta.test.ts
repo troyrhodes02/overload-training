@@ -73,6 +73,8 @@ describe("public root routing (RD-4)", () => {
     "/admin/accounts",
     "/api/anything",
     "/pricingx",
+    // OVE-118: the /blizzy page was removed; its path is no longer public.
+    "/blizzy",
     "/blizzy-other",
   ])("%s still requires an auth session (signed out → /login)", (path) => {
     expect(isPublicPath(path)).toBe(false);
@@ -276,7 +278,6 @@ describe("robots.txt (RD-15)", () => {
     expect(rules.allow).toEqual([
       "/$",
       "/pricing",
-      "/blizzy",
       "/changelog",
       "/support",
       // Assets public pages need (review finding 1): JS/CSS, social card,
