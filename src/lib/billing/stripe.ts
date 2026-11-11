@@ -35,7 +35,18 @@ export type BillingProvider = {
     email: string;
     accountId: string;
   }): Promise<string>;
-  createCheckoutSession(params: CheckoutParams): Promise<{ url: string }>;
+  createCheckoutSession(
+    params: CheckoutParams,
+  ): Promise<{ url: string; sessionId: string }>;
+  /**
+   * A hosted Checkout session's outcome and owning customer (OVE-112), for
+   * the browser-back case: did the lifter pay, or leave? Null when Stripe
+   * has no such session.
+   */
+  getCheckoutSession(sessionId: string): Promise<{
+    status: "open" | "complete" | "expired";
+    customerId: string | null;
+  } | null>;
   createPortalSession(input: {
     customerId: string;
     returnUrl: string;
@@ -125,7 +136,23 @@ export function stripeProvider(): BillingProvider {
         cancel_url: cancelUrl,
       });
       if (!session.url) throw new Error("Stripe returned no checkout URL.");
-      return { url: session.url };
+      return { url: session.url, sessionId: session.id };
+    },
+    async getCheckoutSession(sessionId) {
+      try {
+        const session = await stripe().checkout.sessions.retrieve(sessionId);
+        const customer = session.customer;
+        return {
+          status: (session.status ?? "open") as "open" | "complete" | "expired",
+          customerId:
+            typeof customer === "string" ? customer : (customer?.id ?? null),
+        };
+      } catch (error) {
+        if ((error as { code?: string }).code === "resource_missing") {
+          return null;
+        }
+        throw error;
+      }
     },
     async createPortalSession({ customerId, returnUrl }) {
       const session = await stripe().billingPortal.sessions.create({
