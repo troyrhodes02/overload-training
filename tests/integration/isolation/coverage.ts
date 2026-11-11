@@ -37,6 +37,9 @@
  * must NOT appear in this registry; public-accounts.int.test.ts instead proves
  * it has deny-all RLS, holds no personal data, and is unreachable from
  * account.db.
+ * Trial notices (OVE-112): Profile.trialEndingNoticeAt / trialEndedNoticeAt
+ * ride the Profile coverage; trial-notices.int.test.ts proves one account's
+ * notice state is never read, moved, or revealed by another.
  */
 export const ISOLATION_COVERAGE: Record<string, string[]> = {
   Mesocycle: ["plan.int.test.ts", "account-deletion.int.test.ts"],
@@ -61,6 +64,7 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
     "profile.int.test.ts",
     "account-deletion.int.test.ts",
     "greeting.int.test.ts",
+    "trial-notices.int.test.ts",
   ],
   TourProgress: ["tour.int.test.ts", "account-deletion.int.test.ts"],
   ReleaseSeen: ["release-notes.int.test.ts", "account-deletion.int.test.ts"],

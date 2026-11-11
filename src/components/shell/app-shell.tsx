@@ -9,6 +9,8 @@ import { TourProvider } from "@/components/tour/tour-provider";
 import { WhatsNewDialog } from "@/components/release-notes/whats-new-dialog";
 import type { Appearance } from "@/lib/appearance/appearance";
 import type { WhatsNewDialogData } from "@/lib/release-notes/seen";
+import { TrialNoticeDialog } from "@/components/billing/trial-notice-dialog";
+import type { TrialNoticeData } from "@/lib/billing/trial-notice";
 
 /**
  * The authenticated application shell: a top app bar, a content region, and the
@@ -31,12 +33,15 @@ export function AppShell({
   appearance,
   tourAutoStart,
   whatsNew,
+  trialNotice = null,
   isAdmin = false,
   children,
 }: {
   appearance: Appearance;
   tourAutoStart: boolean;
   whatsNew: WhatsNewDialogData | null;
+  /** Trial notices (OVE-112): the one-time trial notice due, or null. */
+  trialNotice?: TrialNoticeData | null;
   /** Server-resolved (admin allowlist): show the Admin menu item. */
   isAdmin?: boolean;
   children: ReactNode;
@@ -68,6 +73,7 @@ export function AppShell({
         {/* One toaster for the whole authenticated app (archive/undo, saves). */}
         <Toaster theme={appearance} />
         <WhatsNewDialog data={whatsNew} />
+        <TrialNoticeDialog data={trialNotice} />
       </div>
     </TourProvider>
   );

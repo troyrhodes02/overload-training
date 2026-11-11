@@ -200,13 +200,6 @@ export const PRICING_FAQ = [
   },
 ] as const;
 
-/** The discount question: its tail depends on the billing switch. */
-export const DISCOUNT_FAQ = {
-  q: "Is there a discount code?",
-  a: `${BLIZZY.code} gives 50% off the first three monthly bills for first-time subscribers, while redemptions last.`,
-  offTail: "Subscriptions aren't on sale yet, so it can't be used today.",
-} as const;
-
 /** Phrases the public pages must never use (design doc §6 review check). */
 export const BANNED_PHRASES = [
   "unlock your potential",
@@ -231,21 +224,28 @@ export const BANNED_PHRASES = [
   "plan import",
 ] as const;
 
-/** The BLIZZY page (design doc Screen 3; spec RD-7, RD-13). */
+/**
+ * The BLIZZY page (design doc Screen 3; spec RD-7, RD-13; OVE-112). The only
+ * public place the code appears: it is a creator promotion found through the
+ * creator's videos and links, so the generic pricing, landing, and upgrade
+ * surfaces never name it. Terms mirror the Stripe coupon (25% off the Pro
+ * product for three months, up to the redemption cap): on monthly that is the
+ * first three monthly payments; on annual it is the first annual payment only,
+ * never three discounted annual renewals.
+ */
 export const BLIZZY_PAGE = {
   eyebrow: "The BLIZZY offer",
-  title: "50% off your first three months of Pro.",
+  title: `${BLIZZY.percentOff}% off Overload Pro for three months.`,
   conditions: [
-    `Monthly plan only (${PRICE_DISPLAY.monthly} / month).`,
-    "50% off the first three monthly bills, then the regular price.",
-    "First-time subscribers only.",
+    `Monthly (${PRICE_DISPLAY.monthly} / month): ${BLIZZY.percentOff}% off your first three monthly payments, then the regular price.`,
+    `Annual (${PRICE_DISPLAY.annual} / year): ${BLIZZY.percentOff}% off your first annual payment only. Renewals are at the regular annual price.`,
     `Up to ${BLIZZY.maxRedemptions} redemptions in total, so it can run out.`,
     "Entered at checkout. The total shown there is final.",
   ],
-  availableOn: `Enter ${BLIZZY.code} at checkout on the monthly plan. Checkout shows whether it applies to you.`,
+  availableOn: `Enter ${BLIZZY.code} at checkout. Checkout shows whether it applies to you.`,
   availableOff:
-    "Pro subscriptions aren't on sale yet, so the code can't be used today. When they are, you'll enter it at checkout on the monthly plan.",
-  trialFit: `How it fits the trial: new accounts start with ${TRIAL_DURATION_DAYS} days of Pro, no card. The code is for when you subscribe after that.`,
+    "Pro subscriptions aren't on sale yet, so the code can't be used today. When they are, you'll enter it at checkout.",
+  trialFit: `How it fits the trial: new accounts start with ${TRIAL_DURATION_DAYS} days of Pro, no card. Use the code whenever you subscribe, during the trial or after it.`,
   /**
    * Creator disclosure shown under the offer. States only what is known — that
    * this is a promotion offered through the creator — and asserts no
