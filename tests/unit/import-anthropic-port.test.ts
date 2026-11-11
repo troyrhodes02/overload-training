@@ -2,7 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   AnthropicPlanExtractionPort,
   MAX_OUTPUT_TOKENS,
+  DEFAULT_PLAN_IMPORT_MODEL,
   effortFor,
+  resolvedModelId,
 } from "@/lib/import/extraction/anthropic";
 import type { ExtractionPart } from "@/lib/import/extraction/port";
 import { formatDiagnostic } from "@/lib/import/diagnostics";
@@ -112,6 +114,17 @@ describe("a valid provider answer", () => {
     expect(MAX_OUTPUT_TOKENS).toBeLessThan(21_000);
     expect(body.output_config.effort).toBe("low");
     expect(body.output_config.format.type).toBe("json_schema");
+  });
+
+  it("defaults to the model staging was tested with when PLAN_IMPORT_MODEL is unset", () => {
+    delete process.env.PLAN_IMPORT_MODEL;
+    expect(resolvedModelId()).toBe("claude-sonnet-5-5");
+    expect(DEFAULT_PLAN_IMPORT_MODEL).toBe("claude-sonnet-5-5");
+    expect(effortFor(DEFAULT_PLAN_IMPORT_MODEL)).toBe("low");
+    process.env.PLAN_IMPORT_MODEL = "  ";
+    expect(resolvedModelId()).toBe("claude-sonnet-5-5");
+    process.env.PLAN_IMPORT_MODEL = "claude-haiku-5-5";
+    expect(resolvedModelId()).toBe("claude-haiku-5-5");
   });
 
   it("omits effort for models that reject it", () => {
