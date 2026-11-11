@@ -191,12 +191,15 @@ Rate as:
 - Input limits, per-account limits, and the global spend cap with its kill switch exist. Nothing is saved before the lifter confirms, and the existing plan-creation path does the saving.
 - It never generates a program or invents an exercise, set, or load.
 
-**Cross-platform**
+**Mobile API and app**
 
+- Every mobile endpoint verifies the token on the server, takes the account from the token, goes through the scoped layer, and enforces capabilities. An endpoint that takes an account id from the request, or skips any of these, is blocking.
+- Every endpoint is covered by the cross-account isolation suite. A missing endpoint is a defect.
+- Writes are retry-safe. Changes within an API version are backward compatible, and a breaking change needs a new version. The version gate must still work.
+- The mobile app talks only to the mobile API. Direct database or Supabase table access, a secret in the app bundle, or a second copy of a business rule in the app is blocking.
 - One backend and one training model. A second progression engine or separate mobile training records is blocking.
-- Native capabilities sit behind adapters named by capability, and callers do not branch on the platform.
-- No purchase flow inside an app shell until the store's billing path is decided.
-- A device check that was not run is reported as unverified. Claiming it passed is a defect.
+- No purchase flow in the app until the store billing path is decided.
+- A device or simulator check that was not run is reported as unverified. Claiming it passed is a defect.
 
 **Storage**
 

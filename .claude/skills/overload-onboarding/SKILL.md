@@ -58,7 +58,7 @@ Use the fields and location the What's New spec defines. In general an entry has
 
 Make the change as data in the registry and the release-notes content, through the mechanisms' own files. Do not touch the tour component or the modal to add a step or an entry. If you find you have to, stop: the mechanism is missing something, and that is a finding for the report, not a reason to patch it here.
 
-For a guidance ticket inside a pitch run, keep it to its own small ticket at the end of the pitch.
+For a guidance ticket inside a pitch run, keep it to its own small ticket at the end of the pitch. Once the mobile app has the tour and What's New, the steps and release-note entries live in the shared package and render natively on mobile: add each once, and give each step its anchor on each client.
 
 ## Verifying
 

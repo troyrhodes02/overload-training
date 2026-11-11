@@ -215,7 +215,7 @@ If the repo does not define a command, do not invent success. Report that the co
 
 **Data and security verification:** migrations apply cleanly; the Prisma client is regenerated; every new table has row-level security enabled; logged history is untouched by the change; no tag or e1RM column exists; the Supabase client is not used for application data; no secret appears in a `NEXT_PUBLIC_` variable. For any change touching `LoggedSet` writes, archival, or baseline correction, verify it on staging, against the `overload-dev` Supabase project, with realistic data before it is promoted. Routine development migrations and disposable test data on staging proceed without repeated dry runs.
 
-**Mobile verification:** a check that needs an Xcode or Android Studio build, an emulator, or a real device cannot be run by an unattended run. Report it as unverified, never as passed, and list the manual steps a human should run. Type-checks, adapter unit tests, and the web build still run and must pass. See `overload-cross-platform`.
+**Mobile verification:** a run can type-check, lint, and unit test the mobile app, run the API contract and isolation tests, and publish an over-the-air update to the Expo `staging` channel when a staging-only token is configured. It cannot run a simulator or a device, publish to the `production` channel, or build for TestFlight. Report those checks as unverified, never as passed, and list the manual steps for the owner: which build, which screens, which states, in which appearance. See `overload-cross-platform` and `overload-mobile-ui`.
 
 **Do not proceed until green.** Do not commit, push, open a PR, or move the ticket until verification passes. If a check fails: fix straightforward failures, re-run, and if the failure reveals a scope or spec conflict, stop and report it.
 
@@ -381,30 +381,6 @@ Watch for:
 - Applying the migration to production from a run. That is a human step from a runbook, with a backup taken first.
 - Computing "today" from the server's zone instead of the account's stored timezone.
 
-### Accounts tickets
-
-Likely touches: the signup and login screens, the invite check, the profile record, account settings, the account-deletion module. Password recovery and email are covered under Public Accounts tickets.
-
-Watch for:
-
-- Enabling public signup in production before Public Accounts is verified there.
-- Checking the invite code on the client, or anywhere but the server, or leaving it out of the secrets rules.
-- A signup error that reveals whether an email has an account beyond "already in use".
-- Adding email confirmation, social login, roles, or an admin screen.
-- Account deletion that removes anything outside the signed-in account, or that is reachable without the confirmation.
-- Logging names or emails.
-
-### Personalization & Navigation Polish tickets
-
-Likely touches: the dashboard greeting, the appearance setting, the mobile navigation.
-
-Watch for:
-
-- A greeting that changes while the lifter is looking at it, or that sounds like an assistant: emoji, a chat input, motivational language.
-- Computing the time of day from the server's zone.
-- Putting the appearance control anywhere but Settings.
-- Changing the desktop sidebar when only the phone layout should change.
-
 ### Onboarding Tour, What's New, and guidance tickets
 
 Likely touches: the tour step registry, the tour component, the release-notes content and its modal and page, per-account state.
@@ -469,14 +445,40 @@ Watch for:
 - Missing input limits, per-account limits, or the global cap.
 - Generating a program. It parses a plan the lifter wrote.
 
-### iOS and Android Foundation tickets
+### Monorepo & Shared Package tickets
 
-Likely touches: the Capacitor projects, signing, the platform adapters, deep links, session persistence, build and test steps.
+Likely touches: the workspace layout, the hosting project's root directory, the shared package, CI, and path references.
 
 Watch for:
 
-- Branching on the platform in a caller instead of asking an adapter for a capability.
-- Putting a purchase flow inside a shell. Store rules differ and the billing path is decided later.
-- A second progression engine or separate mobile training records.
+- Changing the web app's behavior. This slice moves and shares code and changes nothing a user sees.
+- Moving server code that touches Prisma into the shared package. The shared package holds only pure code and data, and the mobile app never imports server modules.
+- Breaking the staging deployment or the build, lint, and test commands for either workspace.
+- Forgetting the hosting root-directory change, which is a human step in the runbook.
+
+### Mobile API tickets
+
+Likely touches: the versioned route handlers, token verification, the app-config endpoint, shared validation schemas, and the isolation tests.
+
+Watch for:
+
+- Taking the account from the request instead of the verified token.
+- An endpoint that reaches the database without the scoped layer, or skips the capability check.
+- A write that duplicates data when retried.
+- Changing the shape of an existing version in a breaking way.
+- An endpoint missing from the cross-account isolation suite.
+- Reimplementing a business rule in the handler instead of calling the shared module.
+
+### Mobile app tickets
+
+Likely touches: the Expo app, navigation, screens, the API client, secure storage, and the theme.
+
+Watch for:
+
+- Calling Supabase tables directly, or putting a secret in the app bundle.
+- A second copy of a training rule in the app instead of the shared package.
+- A purchase flow, or any Stripe or store checkout, inside the app.
+- Building a screen from the web layout instead of the Mobile design section and `overload-mobile-ui`.
+- Hover-only or gesture-only actions, and a keyboard that covers the field being edited.
+- Discarding typed numbers when a save fails.
 - Reporting a device check as passed when it was not run.
-- A native-only control rendering in the browser.

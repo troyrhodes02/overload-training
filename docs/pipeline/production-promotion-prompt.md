@@ -43,6 +43,7 @@ Run the applicable:
 - Feature-specific acceptance checks.
 - Client-bundle secret scan.
 - Relevant runbook checks and quality gates.
+- If the release includes the mobile API, backward compatibility with the mobile app versions in the wild, the version gate, and the mobile endpoints in the cross-account isolation suite.
 
 Identify:
 
@@ -76,6 +77,7 @@ Do not:
 - Modify Production Supabase Auth, Storage, or RLS.
 - Enable paid AI providers or billing integrations.
 - Change Production environment variables.
+- Publish to the Expo `production` channel, build for or upload to TestFlight, or submit to a store.
 - Merge or deploy the release PR.
 - Force-push or rewrite protected Git history.
 - Reset databases or delete Production data.
