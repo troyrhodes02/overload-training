@@ -160,3 +160,34 @@ describe("no ⋮ account menu in the app shell (OVE-119)", () => {
     }
   });
 });
+
+describe("the Account & app group animates instead of popping (OVE-119)", () => {
+  it("renders open with a height-and-fade transition, never the hidden attribute", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const React = await import("react");
+    const { NavMoreGroup } = await import("@/components/shell/nav-more-group");
+    const html = renderToStaticMarkup(
+      React.createElement(NavMoreGroup, {
+        containsCurrent: false,
+        children: React.createElement("a", { href: "/settings" }, "Settings"),
+      }),
+    );
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain("grid-rows-[1fr]");
+    expect(html).not.toMatch(/\shidden(=|\s|>)/);
+    expect(html).not.toContain("inert");
+    // The first render never animates (no transition until mounted).
+    expect(html).not.toContain("transition-[grid-template-rows,opacity]");
+  });
+
+  it("uses the grid-rows technique with a reduced-motion opt-out", () => {
+    const src = fs.readFileSync(
+      path.join(process.cwd(), "src/components/shell/nav-more-group.tsx"),
+      "utf8",
+    );
+    expect(src).toContain('"grid-rows-[1fr] opacity-100"');
+    expect(src).toContain('"grid-rows-[0fr] opacity-0"');
+    expect(src).toContain("motion-reduce:transition-none");
+    expect(src).toMatch(/inert=\{!shown\}/);
+  });
+});
