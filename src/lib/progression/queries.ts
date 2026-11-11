@@ -236,6 +236,7 @@ export async function gatherRows(
         scheduledDeload,
         gymId: le.gymId,
         complete: completed,
+        finished: le.loggedSession.status === "complete",
         repMin: le.targetRepMin,
         repMax: le.targetRepMax,
         workingSets,

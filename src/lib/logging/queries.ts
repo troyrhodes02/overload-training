@@ -1,4 +1,5 @@
 import "server-only";
+import { formatRepTarget } from "@/lib/plan/rep-target";
 import { accountToday, type Account } from "@/lib/data/account";
 import type { LoggedSessionStatus } from "@prisma/client";
 import {
@@ -147,7 +148,7 @@ export type WorkoutDto = {
 };
 
 function scheme(sets: number, min: number, max: number): string {
-  return `${sets} × ${min}–${max}`;
+  return `${sets} × ${formatRepTarget(min, max)}`;
 }
 
 /** The active mesocycle and its effective-schedule context, or null if none. */

@@ -31,6 +31,7 @@ function row(id: string, date: string, sets: SetSpec[]): HistoryRow {
       scheduledDeload: false,
       gymId: null,
       complete: true,
+      finished: true,
       repMin: 8,
       repMax: 10,
       workingSets,

@@ -402,6 +402,8 @@ function randomHistory(r: () => number, bodyweight: boolean): Performance[] {
       scheduledDeload: r() < 0.1,
       gymId: null,
       complete: r() < 0.9,
+      // Short-but-finished workouts exercise the below-minimum reassess path.
+      finished: true,
       repMin: topHeavy ? repMin : rMin,
       repMax: topHeavy ? repMax : rMax,
       workingSets: Array.from({ length: sets }, (_, s) => ({
@@ -426,6 +428,8 @@ const ALLOWED_ACTION: Record<string, RegExp> = {
     /^(Try \d+(\.\d+)? lb (today|next time) \(\+5 lb\)|Ready to add weight (today|next time)|(Today|Next time), go past .+ or make it harder)$/,
   hold: /^(Stay at \d+(\.\d+)? lb (today|next time)|Hold steady (today|next time))$/,
   deload: /^(Lower the weight|Back off) (today|next time)$/,
+  // Workout Logging Refinements: a set below the minimum never says "Stay at".
+  reassess: /^Reassess the (weight|difficulty) (today|next time)$/,
 };
 const FORBIDDEN =
   /fatigue|overtrain|injur|optimal|guarantee|perfect|\bshould\b|recover/i;
@@ -462,10 +466,20 @@ describe("correspondence sweep: 2,000 histories", () => {
         continue;
       }
       expect(rec).not.toBeNull();
-      const kind = d.state === "stalled" ? "hold" : d.state;
+      const kind =
+        d.evidence.kind === "reassess"
+          ? "reassess"
+          : d.state === "stalled"
+            ? "hold"
+            : d.state;
       expect(rec!.kind).toBe(kind);
       expect(rec!.action).toMatch(ALLOWED_ACTION[kind]);
       expect(rec!.tone).toBe(kind === "hold" ? "quiet" : "strong");
+      // A reassess is a hold call, and it prints no weight (RD-5).
+      if (kind === "reassess") {
+        expect(d.state).toBe("hold");
+        expect(rec!.action).not.toMatch(/\d|Stay at/);
+      }
 
       // RIR is named iff the RIR qualifier changed the call.
       const namesRir = /RIR|in reserve/.test(rec!.evidence);
@@ -480,7 +494,7 @@ describe("correspondence sweep: 2,000 histories", () => {
       const e = d.evidence;
       if ("repMax" in e && e.repMax !== null) allowed.add(String(e.repMax));
       if ("repMin" in e && e.repMin !== null) allowed.add(String(e.repMin));
-      if (e.kind === "hold_short")
+      if (e.kind === "hold_short" || e.kind === "reassess")
         e.reps.forEach((x) => allowed.add(String(x)));
       if ("sessions" in e) allowed.add(String(e.sessions));
       if (e.kind === "stalled") allowed.add(String(e.window));
@@ -499,6 +513,7 @@ describe("correspondence sweep: 2,000 histories", () => {
       "stalled",
       "hold_top_once",
       "hold_short",
+      "reassess",
       "deload",
       "held_at_limit",
       "released_stall",

@@ -30,6 +30,7 @@ type Opts = {
   rir?: (number | null)[];
   scheduledDeload?: boolean;
   complete?: boolean;
+  finished?: boolean;
   repMin?: number;
   repMax?: number;
 };
@@ -43,6 +44,7 @@ function perf(reps: number[], opts: Opts = {}): Performance {
     scheduledDeload: opts.scheduledDeload ?? false,
     gymId: null,
     complete: opts.complete ?? true,
+    finished: opts.finished ?? opts.complete ?? true,
     repMin: opts.repMin ?? 8,
     repMax: opts.repMax ?? 10,
     workingSets: reps.map((r, i) => ({
@@ -159,7 +161,9 @@ describe("evidence follows the branch that decided the call", () => {
   it("a below-minimum set in only one session is a hold, not a deload", () => {
     const d = evaluateReactiveDecision([perf(TOP), perf([10, 8, 6])]);
     expect(d.state).toBe("hold");
-    expect(d.evidence.kind).toBe("hold_short");
+    // Workout Logging Refinements RD-1: a hold, but a reassess, never the
+    // plain "stay at this weight" hold.
+    expect(d.evidence.kind).toBe("reassess");
   });
 
   it("deload: the minimum and the window", () => {
