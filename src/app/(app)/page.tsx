@@ -82,7 +82,12 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
           ))}
         </ul>
       ) : null}
-      {summary?.locked ? <UpgradeNote surface="day-complete" /> : null}
+      {summary?.locked ? (
+        <UpgradeNote
+          surface="day-complete"
+          message="What to do next time on each lift, and why, is part of Pro."
+        />
+      ) : null}
       {state.loggedSessionId ? (
         <SessionGoalRows loggedSessionId={state.loggedSessionId} />
       ) : null}
@@ -157,13 +162,13 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
                   {e.name}
                 </span>
                 <span className="flex shrink-0 items-center gap-2 text-muted-foreground">
-                  {p.gymVariable ? (
+                  {p.gymVariable && !p.locked ? (
                     <span className="text-xs">once gym is set</span>
                   ) : p.suggestion ? (
                     <SuggestedLoad suggestion={p.suggestion} />
                   ) : null}
                   <ProgressTag state={p.tag} />
-                  {!p.tag && !p.gymVariable ? e.scheme : null}
+                  {!p.tag && (!p.gymVariable || p.locked) ? e.scheme : null}
                 </span>
                 {/* A tagged lift's evidence, on its own line (spec R12). */}
                 {p.tag && p.recommendation ? (
@@ -176,7 +181,10 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
           })}
         </ul>
         {progression.some((p) => p.locked) ? (
-          <UpgradeNote surface="today-plan" />
+          <UpgradeNote
+            surface="today-plan"
+            message="Progress, hold, and deload calls, with the weight to try, are part of Pro."
+          />
         ) : null}
       </div>
       <Button

@@ -178,6 +178,65 @@ describe("subscription mirror (spec §6)", () => {
     expect(r.displayState).toBe("canceling");
   });
 
+  it("cancelAtPeriodEnd lapses at currentPeriodEnd even if the deletion webhook never lands", () => {
+    // Paid through the period: still Pro.
+    expect(
+      computeEntitlement(
+        [],
+        billing({
+          cancelAtPeriodEnd: true,
+          currentPeriodEnd: addDays(NOW, 1),
+        }),
+        NOW,
+      ).plan,
+    ).toBe("pro");
+    // At the instant the period ends (exclusive) and after: Free, with a
+    // stale `active` mirror — no lingering Pro on stale server data.
+    for (const end of [NOW, addDays(NOW, -2)]) {
+      const r = computeEntitlement(
+        [],
+        billing({ cancelAtPeriodEnd: true, currentPeriodEnd: end }),
+        NOW,
+      );
+      expect(r.plan).toBe("free");
+      expect(r.capabilities.size).toBe(0);
+      expect(r.displayState).toBe("free");
+    }
+  });
+
+  it("an unknown period end defers to Stripe's status; a renewing subscription is never cut at its period end", () => {
+    expect(
+      computeEntitlement(
+        [],
+        billing({ cancelAtPeriodEnd: true, currentPeriodEnd: null }),
+        NOW,
+      ).plan,
+    ).toBe("pro");
+    // Not canceling: Stripe renews it; a delayed invoice.paid must not drop
+    // a paying lifter, so the period end is not read here.
+    expect(
+      computeEntitlement(
+        [],
+        billing({
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: addDays(NOW, -1),
+        }),
+        NOW,
+      ).plan,
+    ).toBe("pro");
+  });
+
+  it("a lapsed canceling subscription falls back to a valid comp", () => {
+    const r = computeEntitlement(
+      [ent({ source: "comp", compReason: "tester" })],
+      billing({ cancelAtPeriodEnd: true, currentPeriodEnd: addDays(NOW, -1) }),
+      NOW,
+    );
+    expect(r.plan).toBe("pro");
+    expect(r.sources).toEqual(["comp"]);
+    expect(r.displayState).toBe("comp");
+  });
+
   it("past_due grants Pro within grace, Free after", () => {
     const inGrace = computeEntitlement(
       [],

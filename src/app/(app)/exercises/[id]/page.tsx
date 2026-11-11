@@ -101,6 +101,24 @@ export default async function ExerciseDetailPage({
       )
     : null;
 
+  // "Next time": the call, the not-enough-history line, or the per-gym note.
+  // On Free the call is withheld server-side, leaving nothing to say here;
+  // the section then gives way to the one upgrade invitation below.
+  const next = history.next;
+  const nextTime =
+    next?.kind === "no_gym" ? (
+      <p className="text-sm text-muted-foreground">
+        Calls for machines are made per gym.
+      </p>
+    ) : next?.kind === "call" && next.insufficientNote ? (
+      <p className="text-sm text-muted-foreground">{next.insufficientNote}</p>
+    ) : next?.kind === "call" && (next.tag || next.recommendation) ? (
+      <div>
+        {next.tag ? <ProgressTag state={next.tag} /> : null}
+        <Recommendation recommendation={next.recommendation} />
+      </div>
+    ) : null;
+
   return (
     <section className="space-y-6 pb-8">
       <CreatedToast show={sp.created === "1"} message="Exercise added" />
@@ -184,34 +202,25 @@ export default async function ExerciseDetailPage({
             No sets logged yet. Log it in a workout and its sessions, records,
             and trend show up here.
           </div>
-        ) : (
+        ) : nextTime ? (
           <section aria-labelledby="next-heading" className="space-y-2">
             <h2 id="next-heading" className="text-base font-medium">
               Next time
             </h2>
-            {history.next?.kind === "no_gym" ? (
-              <p className="text-sm text-muted-foreground">
-                Calls for machines are made per gym.
-              </p>
-            ) : history.next?.kind === "call" &&
-              history.next.insufficientNote ? (
-              <p className="text-sm text-muted-foreground">
-                {history.next.insufficientNote}
-              </p>
-            ) : history.next?.kind === "call" ? (
-              <div>
-                {history.next.tag ? (
-                  <ProgressTag state={history.next.tag} />
-                ) : null}
-                <Recommendation recommendation={history.next.recommendation} />
-              </div>
-            ) : null}
+            {nextTime}
           </section>
-        )}
+        ) : null}
+        {/*
+          One invitation for every insight withheld on this page, standing
+          where the call would be (Entitlement Audit). Set by the server only
+          when something was withheld, so no history means no invitation.
+        */}
         {history.locked ? (
           <UpgradeNote
             surface="exercise-page"
-            feature="Progression insights, trends, and PR intelligence"
+            variant="block"
+            title="Strength insights are part of Pro"
+            message="See estimated strength trends, personal-record insights, and smarter progression recommendations based on your training history."
           />
         ) : null}
         {history.records ? (
