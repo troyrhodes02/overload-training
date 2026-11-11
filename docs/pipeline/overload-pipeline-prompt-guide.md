@@ -140,27 +140,27 @@ Decide which case applies before writing the prompt, and say so in the delivery 
 
 ```
 1.  Pull the pitch doc from Linear → <pitch-dir>/pitch.md, where <pitch-dir> is docs/pitches/<milestone>/<slug>/ and <milestone> is the phase the pitch sits under in docs/planning/pitch-roadmap.md. If that file already exists in the repo, use it.
-2.  /overload-design-doc from that pitch → <pitch-dir>/design.md, including the feature's plan placement (Free, or a named Pro capability) and, once the iOS foundation exists, its platform impact
-3.  UI design gate. If the pitch is UI-bearing, run /overload-ui-design in pipeline artifact mode, using the pitch and the completed design doc as inputs. Write the implementation-grade preview to <pitch-dir>/preview.tsx. It must cover the representative screens, states, interactions, and responsive behavior needed to set the visual contract for this pitch, and it must follow the design doc rather than invent product behavior. If the pitch has no UI surface, record "Skipped — no UI surface in this pitch" in the feature PR description and continue.
-4.  /overload-spec from <pitch-dir>/pitch.md, <pitch-dir>/design.md, and (when step 3 ran) <pitch-dir>/preview.tsx → <pitch-dir>/spec.md. For a UI-bearing pitch the spec treats the preview as a binding input for hierarchy, interaction structure, responsive behavior, states, and visual system. It may add technical detail but must not silently redesign the interface. Once the tour and What's New exist, the spec also carries the design doc's User guidance section, and it carries the plan placement and platform impact.
+2.  /overload-design-doc from that pitch → <pitch-dir>/design.md, including the feature's plan placement (Free, or a named Pro capability) and its client scope (web, mobile, or both) with the platform impact, plus a Mobile design section when mobile is in scope
+3.  UI design gate. If the pitch is UI-bearing, run /overload-ui-design in pipeline artifact mode, using the pitch and the completed design doc as inputs. Write the implementation-grade preview to <pitch-dir>/preview.tsx. It must cover the representative screens, states, interactions, and responsive behavior needed to set the visual contract for this pitch, and it must follow the design doc rather than invent product behavior. If the pitch has no UI surface, record "Skipped — no UI surface in this pitch" in the feature PR description and continue. A mobile-only pitch is also recorded as skipped, because its visual contract is the design doc's Mobile design section.
+4.  /overload-spec from <pitch-dir>/pitch.md, <pitch-dir>/design.md, and (when step 3 ran) <pitch-dir>/preview.tsx → <pitch-dir>/spec.md. For a UI-bearing pitch the spec treats the preview as a binding input for hierarchy, interaction structure, responsive behavior, states, and visual system. It may add technical detail but must not silently redesign the interface. Once the tour and What's New exist, the spec also carries the design doc's User guidance section, and it carries the plan placement and platform impact. When mobile is in scope it also carries the mobile API contract and maps each native screen to its endpoints.
 5.  Resolve every remaining open question. Record them as Resolved Decisions alongside those above, in the spec's ## Resolved Decisions section.
-6.  Divide the spec into medium-large PR-sized chunks. Create a milestone for this feature in Overload V1, turn the chunks into Linear issues on that milestone, and chain them with blockedBy in build order. Once the onboarding tour and What's New exist, make the last chunk a guidance ticket for any pitch with a visible change. The Linear milestone and its issues are the run's progress record, so there is no progress file.
+6.  Divide the spec into medium-large PR-sized chunks. Create a milestone for this feature in Overload V1, turn the chunks into Linear issues on that milestone, split by area (shared and API, web, mobile) so each can be reviewed, and chain them with blockedBy in build order. Once the onboarding tour and What's New exist, make the last chunk a guidance ticket for any pitch with a visible change. The Linear milestone and its issues are the run's progress record, so there is no progress file.
 7.  Open a feature PR into staging. Title and body describe the feature as a whole, not the docs.
 8.  /overload-ticket-worker: work every ticket in order. The first branches off the feature branch; each subsequent one branches off the last. Open a PR for each and attach it to its Linear issue. A ticket moves to In Progress when its work starts and to In Review when its PR opens. Do not stop between tickets. For a UI-bearing pitch, read the pitch, design doc, UI preview, spec, and the overload-ui-design skill before implementing any UI. The preview is the visual contract: do not substitute a different layout because it is easier to build. For the guidance ticket, run /overload-onboarding to add or update tour steps and a release-note entry.
 9.  Write the runbook to <pitch-dir>/runbook.md, covering everything needed outside the codebase, with steps — <pitch-specific list>. Put any SQL it needs in <pitch-dir>/sql/.
 10. Squash and merge every ticket PR into the feature branch, in order, and move each ticket to Done in Linear as its PR is merged. A merged ticket must never be left in In Review.
-11. Run the full verification suite on the feature branch — lint, typecheck, format, unit tests, integration tests, build<, plus the standing invariant tests from Appendix D4 that apply>. <Pitch-specific additions.> For a UI-bearing pitch, also verify that the implemented screens materially match the preview's hierarchy, visible controls, states, mobile behavior, and design system. For a pitch with a visible change, once the tour and What's New exist, also verify that its tour steps and release-note entry exist and work. A check that needs an iOS or Android build or a real device cannot be run by a run: report it as unverified and list the manual steps, never as passed. Runs use Stripe test mode only. All green is a precondition for continuing.
+11. Run the full verification suite on the feature branch — lint, typecheck, format, unit tests, integration tests, build<, plus the standing invariant tests from Appendix D4 that apply>. <Pitch-specific additions.> For a UI-bearing pitch, also verify that the implemented screens materially match the preview's hierarchy, visible controls, states, mobile behavior, and design system. For a pitch with a visible change, once the tour and What's New exist, also verify that its tour steps and release-note entry exist and work. A run can type-check, lint, and unit test the mobile app and run the API contract and isolation tests, but it cannot run a simulator or a device: report those checks as unverified and list the manual steps, never as passed. Runs use Stripe test mode only. All green is a precondition for continuing.
 12. /review the feature branch against staging, leaving findings as inline comments on the feature PR you opened in step 7.
 13. /overload-review-audit those comments. Implement what you mark implement. For defer, decide ticket vs. code comment. For discuss, go with your recommendation. Skip what you mark skip.
 14. <Merge into staging — see below.>
-15. Owner notes. Update the feature PR description and print the same as the final message: decisions made on the owner's behalf, required upstream doc amendments (bucket C constants included), anything unverified or undecidable, and, if halted, the stop condition and how to resume. Do not write a run report or a progress file.
+15. Owner notes. Update the feature PR description and print the same as the final message: decisions made on the owner's behalf, required upstream doc amendments (bucket C constants included), anything unverified or undecidable, for a pitch that includes mobile how to review it on the phone (open the development build and load the staging update) with the manual device checks, and, if halted, the stop condition and how to resume. Do not write a run report or a progress file.
 ```
 
 The slug is the pitch's folder name, for example `04-guided-workout-logging`. All of the pitch's documents live in that folder: `pitch.md`, `design.md`, `preview.tsx`, `spec.md`, and `runbook.md`, plus `sql/` or `assets/` when needed.
 
 **Step 14, merge into staging (the default):**
 
-> Commit, push, re-run the full suite. If green, squash and merge the feature branch into `staging`. **Never merge into `main`.** If the suite is not green, halt and report, and never merge past a failing check. Routine development migrations and disposable test data on staging proceed without repeated dry runs.
+> Commit, push, re-run the full suite. If green, squash and merge the feature branch into `staging`, and, if a staging-only Expo token is configured, publish an over-the-air update of the mobile app to the Expo `staging` channel. **Never merge into `main`, and never publish to the Expo `production` channel.** If the suite is not green, halt and report, and never merge past a failing check. Routine development migrations and disposable test data on staging proceed without repeated dry runs.
 
 **Step 14, leave the PR open (only when the owner asks):**
 
@@ -178,7 +178,8 @@ The default is to merge into `staging`, where the owner tests in the browser. Re
 | overload-ticket-worker | Implements one Linear ticket: plan, test, build, verify, commit, PR. For UI work it consumes the design doc and the preview rather than redesigning from scratch. |
 | overload-review-audit | Judges review comments for technical validity and scope, then recommends implement, defer, skip, or discuss. |
 | overload-onboarding | Keeps the onboarding tour and release notes current: decides whether a visible change warrants a tour step, writes the step and the release-note entry, and applies them through the existing mechanisms. Used for the guidance ticket once the tour and What's New exist. |
-| overload-cross-platform | Decides and records how a feature behaves on web, iOS, and Android (shared, native-specific, or web-only), applies the shell-compatibility checklist, and reports device checks honestly. Dormant until the iOS foundation ships. |
+| overload-cross-platform | Decides and records how a feature spans the web app and the React Native iPhone app (client scope, shared logic, API, web UI, mobile UI), applies the checklist, and reports device checks honestly. |
+| overload-mobile-ui | Maps a web design to native iPhone patterns (navigation, sheets, keypads, haptics, states) and defines the Mobile design section of a design doc. Used for any mobile screen. |
 
 ---
 
@@ -232,6 +233,8 @@ The runbook is the only document a run writes for the owner.
 - Chaining forces every decision the second pitch needs to be made up front. Write them as a clearly labelled second part and have the run commit them to `docs/planning/method-note.md`.
 
 Pitches run alone by default. The only reasonable chain is small, same-surface work, such as the Landing Page followed by its changelog.
+
+**Mobile slices.** The slices of Pitch 21 (21a to 21i in `docs/planning/mobile-roadmap.md`) run as ordinary pitches with slugs like `21a-monorepo-shared-package`, under the milestone folder `mvp-5b-mobile-app`. The run prompt names the slice's gate: the owner reviews it on a device before the next slice starts. A mobile-only slice records step 3 as skipped and uses `/overload-mobile-ui`.
 
 **Resume after a context reset.** Appendix B.
 
@@ -365,7 +368,7 @@ Next action: <the first incomplete step>. Work the remaining tickets in order, a
 | Pitch folder | `docs/pitches/<milestone>/<slug>/`, holding `pitch.md`, `design.md`, `preview.tsx` (UI-bearing pitches), `spec.md`, `runbook.md`, and `sql/` or `assets/` when needed. The milestone folder is listed in the roadmap |
 | Run documents | The runbook only. No progress file and no run report |
 | Skills | `overload-design-doc`, `overload-ui-design`, `overload-spec`, `overload-ticket-worker`, `overload-review-audit`, `overload-onboarding`, `overload-cross-platform` |
-| What it is | Strength training tracker for individual lifters, each with a private account, with a Free plan and a paid Pro plan. MVP 1 to 3 are shipped and it is moving from invite-only to a commercial launch. Next.js (App Router), Prisma, Supabase, Tailwind with shadcn/ui, Vercel, with Stripe, a custom SMTP provider, a language-model API, and Capacitor planned |
+| What it is | Strength training tracker for individual lifters, each with a private account, with a Free plan and a paid Pro plan. MVP 1 to 3 are shipped and it is moving from invite-only to a commercial launch. Next.js (App Router), Prisma, Supabase, Tailwind with shadcn/ui, Vercel, with Stripe, a custom SMTP provider, a language-model API, and a React Native (Expo) iPhone app planned |
 | Mutations | Server actions that call the write modules under `lib/`. No REST layer for the app's own UI |
 | Core invariants | Account isolation: every owned row is scoped to the acting account by construction. Logged sets are the only source of truth. Derived values are computed on read and never stored. Gym baselines are written atomically with their set and scoped to one gym. Row-level security is deny-all on every table. The admin area never shows training content. A Free account never receives a Pro result. One backend and one training model across web, iOS, and Android |
 | Stop conditions (in `CLAUDE.md`) | Invariant weakened (account isolation, logged history, baselines, RLS, signup gate, admin boundary, plan enforcement, card data); approved doc contradicted; irreplaceable-data or credential scope, including exposing one account's data to another, live Stripe keys, or any real charge; destructive or irreversible operation not named in the pitch |
@@ -382,7 +385,7 @@ Overload has three stages. Production is `main`, connected to the Production Sup
 
 **Every run merges into `staging` when the suite is green and never merges into `main`.** Staging is built for rapid development, so a run does not stop for approval on routine development migrations, disposable test data, or integration there. It stops at genuine Production boundaries instead.
 
-Five things are never done by any run, whatever the pitch: merging or deploying anything into `main`, applying a migration to production, enabling public signup in production, switching Stripe to live mode or making a real charge, and releasing to a store. All are human steps. Enabling a paid AI provider or changing billing or production environment variables is also owner-approved.
+Six things are never done by any run, whatever the pitch: merging or deploying anything into `main`, applying a migration to production, enabling public signup in production, switching Stripe to live mode or making a real charge, releasing to a store or uploading a build to TestFlight, and publishing to the Expo `production` channel. All are human steps. Enabling a paid AI provider or changing billing or production environment variables is also owner-approved. Mobile slices merge into `staging` like any pitch, and the mobile API reaches Production only through the promotion workflow.
 
 A feature reaches Production only through the promotion workflow in Appendix E, after the owner has tested it on staging.
 
@@ -421,8 +424,10 @@ A feature reaches Production only through the promotion workflow in Appendix E, 
 | Plan import retention | A draft is deleted when confirmed or discarded, and after 24 hours at most | C | Plan Import |
 | Plan import format | The existing plan-seed format is the structured intermediate, once confirmed in the spec | B | Plan Import |
 | Public pages | Routes in the same application under a public route group, first-party attribution only, no third-party analytics unless the pitch decides it | B and C | Public Landing Page & Changelog |
-| Capacitor approach | Not predecided. The feasibility step in iOS Foundation decides and proves it on a device | Owned by the pitch | iOS Foundation |
-| Store billing paths | Decided in the store release pitches. No purchase flow in a shell until then | B | App Store and Google Play releases |
+| Mobile app stack | React Native with Expo in the same repository as the web app, a shared package, and a versioned mobile API over the same business logic. iOS only for now. The workspace layout, navigation, data fetching, styling, and chart choices are made in the Mobile App slices, starting from the audit | A (approved) | Mobile App (Pitch 21) |
+| Mobile review | Over-the-air updates to the Expo `staging` channel for review. The `production` channel and store builds are human-only | A | Mobile App (Pitch 21) |
+| Beta scope | Which slices the friends' beta needs, and whether the plan builder and plan import stay web-only, are decided at the audit | D | Mobile App (Pitch 21) |
+| Store billing paths | Decided in the store release pitches. No purchase flow in the app until then | B | App Store and Google Play releases |
 
 If the pitch recommends a different answer, bucket A wins: adopt the pitch's answer and flag the difference in the owner notes.
 
@@ -433,13 +438,15 @@ Lead with the first one listed for the pitch unless the pitch text points elsewh
 | Pitch | Sensible-sounding boundaries a run will be tempted to cross |
 | --- | --- |
 | Admin Center & Feedback | Showing a lifter's workouts "to help with support". Making admin a database role or a flag an account can be given. Hiding navigation and calling it authorization. Building impersonation. An admin mutation without an audit entry |
-| iOS Foundation | A purchase flow inside the shell. A second code path for mobile data. Branching on the platform in a caller instead of an adapter. Reporting a device check as passed |
+| Monorepo & Shared Package | Changing what a user sees on the web. Putting server code that touches Prisma in the shared package. Skipping the hosting root-directory step |
+| Mobile API & Auth Foundation | Taking the account from the request instead of the verified token. An endpoint that skips the scoped layer or the capability check. A write that duplicates when retried. A breaking change inside an existing version. Reimplementing a business rule in a handler |
+| Mobile app slices | Calling Supabase tables directly from the app. A second copy of a training rule in the app. A purchase flow in the app. Building a screen from the web layout instead of the Mobile design section. Reporting a device check as passed |
 | Public Accounts | Turning public signup on from the run. Using Supabase's built-in email sender. A recovery response that reveals whether an email has an account. Adding social login or email confirmation at signup. An export that includes another account's data |
 | Plans & Billing | Branching on a plan name or enforcing only in the UI. Gating capture, history, or export, or deleting something when access ends. Handling card data. Using live Stripe keys. A webhook that does not verify its signature, is not idempotent, or trusts the payload to pick the account. Making comped access a role. Countdowns or banners in the upgrade note |
 | Public Landing Page & Changelog | Real lifters' data in screenshots. Invented testimonials or fake scarcity. Third-party trackers. A call to action that promises billing before it is live |
 | Plan Import | Calling the model from the browser. Treating pasted text as instructions. Saving before the lifter confirms. Generating a program. Accepting output that is not validated or does not trace to the pasted text. Skipping the usage limits |
 | Launch Readiness & Closed Beta | Calling the checklist done without evidence. Turning on live payments or public signup from the run. Skipping the restore drill |
-| Android Foundation | A separate Android data path. Branching on the platform in callers. A purchase flow in the shell |
+| Android Build & Release Readiness | A separate Android data path. A second copy of a business rule. A purchase flow in the app |
 | Gym Location | Always-on location tracking. Silently assigning a gym when detection is uncertain |
 | Native Notifications | Engagement nudges, streak reminders, or guilt-based wording. Sending when there is nothing actionable |
 | Live Activity and Watch | Full weight and reps entry on the Watch before the simple version is proven. A second workout state separate from the phone's |
@@ -466,10 +473,11 @@ Once a test applies, every later run keeps it green. The cross-account suite is 
 | A recovery request gives the same response for a known and an unknown email, and public mode on and off behave as specified | Recovery and the signup switch | Public Accounts |
 | A Free account never receives a Pro result by any path, replaying a webhook changes nothing, a bad signature is rejected, and a downgrade deletes nothing | Plan enforcement and billing integrity | Plans & Billing |
 | Plan import output is schema-validated, every item traces to the pasted text, nothing is saved before confirmation, and the usage limits and kill switch work | Plan import guardrails | Plan Import |
+| Every mobile endpoint is covered by the cross-account isolation suite, rejects a missing or expired token, returns the update error for an old app version, and tolerates a repeated write | The mobile API boundary | Mobile API & Auth Foundation |
 
 ### D5. UI-bearing classification and the previews folder
 
-Pitches with no screens record step 3 as "Skipped — no UI surface in this pitch": Android Foundation, Launch Readiness, and the store releases, and the iOS Foundation unless it adds a screen. Every other pitch on the roadmap is UI-bearing by the section 5 definition, so step 3 runs for it, including Admin Center & Feedback, Public Accounts, Plans & Billing, the Landing Page, and Plan Import.
+Pitches with no screens record step 3 as "Skipped — no UI surface in this pitch": Monorepo & Shared Package, Mobile API & Auth Foundation, Launch Readiness, and the store releases. Mobile-only slices also record step 3 as skipped, because their visual contract is the design doc's Mobile design section. Every other pitch on the roadmap is UI-bearing by the section 5 definition, so step 3 runs for it, including Admin Center & Feedback, Public Accounts, Plans & Billing, the Landing Page, and Plan Import.
 
 Preview files (`docs/pitches/**/preview.*`) must not break the build. They are excluded from type-checking, linting, format checks, and the production build, because a preview may import shadcn/ui components the application has not built yet. A preview is self-contained: inline mock data, no data-layer imports, no network requests. If a run fails typecheck or lint on a preview, it halts under the contradiction stop condition and does not delete the exclusion.
 

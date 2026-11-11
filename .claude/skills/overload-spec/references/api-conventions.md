@@ -15,7 +15,7 @@ Use these conventions for:
 - Read functions that feed server components, when a spec needs to document their output
 - Any operation needing consistent naming, errors, validation, and result shapes
 
-Do not create public API endpoints, and do not create REST endpoints for the app's own UI to call with `fetch()`. A pitch or spec must explicitly require either.
+The web app does not call REST endpoints for its own UI. The mobile app does, through the versioned mobile API specified in the Mobile API section below. Do not create any other public API.
 
 ## Base configuration
 
@@ -173,6 +173,20 @@ swapExercise({ loggedExerciseId: string, replacementExerciseId: string, saveToTe
 - Never leak raw database errors, Prisma error text, or connection strings.
 - A failed save must leave the user's entered numbers recoverable by the UI.
 
+## Mobile API
+
+The mobile app is the one client that calls HTTP endpoints. Everything else here still applies, and these rules add to it.
+
+- **Base and versioning.** Route handlers under `/api/mobile/v1/`. Changes within a version are backward compatible (new optional fields, new endpoints). A breaking change needs a new version, because old app versions stay installed.
+- **Auth.** A bearer token verified on the server. The acting account comes from the token and never from the path, query, or body. No request or response type contains a `userId` the client controls.
+- **Envelope.** Responses use the same shape as an action result: `{ ok: true, data }` or `{ ok: false, error: { code, message, details? } }`, with the HTTP status from the error code table.
+- **Naming.** Plural nouns and nesting only where ownership is part of the domain, for example `/api/mobile/v1/logged-sessions/:id/sets`.
+- **Retry safety.** A repeated write must not duplicate data. A repeated `logSet` for the same `(loggedExerciseId, setNumber)` returns `conflict` with the existing set, never a second set.
+- **Pagination.** Lists take `limit` and `offset` or a cursor, with a sensible default and cap.
+- **App config.** `GET /api/mobile/v1/app-config` returns `minSupportedVersion`, `latestVersion`, and kill switches. The app sends its version in an `X-App-Version` header, and a request below the minimum gets a version-too-old error the app turns into an update screen.
+- **Capabilities.** The same `plan_required` error as the web, enforced on the server.
+- **Isolation.** Every endpoint is covered by the cross-account isolation suite.
+
 ## Standard error codes
 
 | Code | HTTP status | When to use |
@@ -184,6 +198,7 @@ swapExercise({ loggedExerciseId: string, replacementExerciseId: string, saveToTe
 | `conflict` | 409 | Incompatible change, such as a retried set colliding with an existing one |
 | `unauthorized` | 401 | Missing or invalid session |
 | `plan_required` | 402 | The capability that gates this operation is not part of the account's plan |
+| `version_too_old` | 426 | The mobile app's version is below the minimum supported version |
 | `internal_error` | 500 | Unexpected failure |
 
 `forbidden` is intentionally absent: a record owned by another account returns `not_found`, so its existence is never revealed. Likewise a non-admin who calls an admin operation gets `not_found`. `rate_limited`, `unsupported_media_type`, and `payload_too_large` are absent because the app has no throttled surface of its own and no uploads.

@@ -14,7 +14,7 @@
 
 **Tailwind CSS with shadcn/ui** is the single component and styling system.
 
-**Planned for the commercial launch.** **Stripe Billing** with hosted Checkout and the Customer Portal handles all money and card data, so Overload never touches card numbers and its payment-card compliance burden stays minimal. A **custom SMTP provider** (Resend is the recommended default) carries account email for password recovery. A **language-model API**, called from the server only, powers plan import. **Capacitor** wraps the web app in iOS and Android shells, with native capabilities behind platform-neutral adapters. Each is introduced by its own pitch and is not to be added earlier.
+**Planned for the commercial launch.** **Stripe Billing** with hosted Checkout and the Customer Portal handles all money and card data, so Overload never touches card numbers and its payment-card compliance burden stays minimal. A **custom SMTP provider** (Resend is the recommended default) carries account email for password recovery. A **language-model API**, called from the server only, powers plan import. **Expo with React Native** builds the iPhone app in the same repository as the web app, with EAS for builds and over-the-air updates and a shared package for types, validation, and pure training logic. The mobile app talks only to a versioned mobile API. Each is introduced by its own pitch and is not to be added earlier.
 
 ## Data Model
 
@@ -72,7 +72,7 @@ Billing state is eventually consistent with Stripe. Webhooks can arrive late, tw
 
 Supabase Auth handles identity with email and password. Accounts are created through a signup form collecting first name, last name, email, and password. Signup is invite-only today: a valid invite code, checked on the server, is required, and a server-side setting switches signup to public once Public Accounts is verified. There is no social login and no multi-factor authentication. Password recovery does not exist today: it was deliberately left out to avoid a third-party email dependency, and Supabase's built-in email sender only reaches the project's own team and is capped at two messages an hour, so it is not an option for strangers. Public Accounts builds recovery over a custom SMTP provider, with the same response whether or not an email has an account, adds email verification before a first checkout, and adds abuse protection (rate limits and a bot challenge) on signup and recovery.
 
-All application routes except login, signup, and (once built) recovery are gated behind an authenticated session, managed through Supabase's session-cookie integration for Next.js. The acting account is always taken from that session on the server, never from a request parameter, form field, or any client-supplied value. A suspended account is refused on every authenticated request.
+All application routes except login, signup, and (once built) recovery are gated behind an authenticated session, managed through Supabase's session-cookie integration for Next.js. The acting account is always taken from that session on the server, never from a request parameter, form field, or any client-supplied value. A suspended account is refused on every authenticated request. The mobile app signs in through Supabase Auth, holds its tokens in secure device storage, and sends them to the mobile API, which verifies them on the server and takes the acting account from the token.
 
 Because Prisma connects directly to Postgres, it bypasses row-level security, while Supabase also exposes every table through its public Data API reachable with the anon key. Row-level security is therefore enabled with no policies (deny-all) on every table, so Prisma is the only door into the data and the Data API is closed. Since row-level security is deny-all and not the isolation mechanism, separation between accounts is enforced by the application's account-scoped data access, which is why it has its own test suite.
 
@@ -104,6 +104,7 @@ The spine of the API, organized around the PRD's data objects:
 - **Billing** — create hosted Checkout and Customer Portal sessions, apply a promotion code at checkout, and receive Stripe webhooks through a signature-verifying route handler.
 - **Plan import** — submit pasted text, receive a proposed plan, confirm or discard it.
 - **Feedback** — submit feedback.
+- **Mobile API** — versioned route handlers over the same business logic as the web, for the mobile app only: token-verified, account-scoped, capability-enforced, retry-safe for writes, with an app-config endpoint that carries the minimum supported app version and kill switches. Changes within a version are backward compatible, and breaking changes need a new version.
 - **Tour and release notes** — read and record the account's tour progress and last-seen release.
 
 ## External Integrations
@@ -114,7 +115,7 @@ The spine of the API, organized around the PRD's data objects:
 
 **A language-model API**, called from the server only, powers plan import, with input limits, per-account limits, and a global spend cap.
 
-**Apple and Google store policies** shape billing inside the app shells. On the US App Store a link out to web checkout must open in the external browser, other storefronts require in-app purchase, and Google Play has its own billing policy. Billing is therefore a platform-neutral entitlement system, and no purchase flow lives in an app shell until each store's path is decided.
+**Apple and Google store policies** shape billing inside the mobile apps. On the US App Store a link out to web checkout must open in the external browser, other storefronts require in-app purchase, and Google Play has its own billing policy. Billing is therefore a platform-neutral entitlement system, and no purchase flow lives in a mobile app until each store's path is decided.
 
 **free-exercise-db** (public domain exercise dataset with images) is imported once, at build/seed time, into the application's own database and storage rather than queried live — this removes any runtime dependency on an external service's uptime for a core feature.
 
@@ -128,7 +129,7 @@ There are three stages. Production is the `main` branch, deployed on Vercel and 
 
 A feature reaches Production only through a release branch cut fresh from `main`, containing just the approved feature and its tested fixes, opened as a PR into `main` and never merged automatically. Production schema changes are applied by a human from a runbook with a fresh backup taken immediately before, and risky ones are rehearsed first on a restored copy in the development project. After a release, `main` is synchronized back into `staging`. The full rule is in `docs/pipeline/branching-and-release-workflow.md`.
 
-Going commercial adds requirements. Production must run on hosting and database plans that allow commercial use and include backups (check the providers' current terms), with a tested restore. Stripe runs in test mode everywhere except production, and live mode is switched on only by a human. Mobile builds (Xcode, Android Studio) cannot be verified by an unattended run, so device checks are reported as unverified.
+Going commercial adds requirements. Production must run on hosting and database plans that allow commercial use and include backups (check the providers' current terms), with a tested restore. Stripe runs in test mode everywhere except production, and live mode is switched on only by a human. Mobile builds run on Expo's EAS service. A development build connects to staging and the friends' build connects to Production. Over-the-air updates use a `staging` channel for review and a `production` channel that only a human publishes to. An unattended run cannot verify anything on a device, so device checks are reported as unverified.
 
 ## Non-Functional Requirements
 
@@ -144,7 +145,7 @@ Going commercial adds requirements. Production must run on hosting and database 
 
 There are now three risks. The first is tuning the gym-baseline auto-correction threshold — the logic that decides whether a logged weight at a given gym differs enough from that gym's current baseline to mean the equipment is genuinely different, versus being an off day, a form issue, or ordinary session-to-session noise. Set the threshold too sensitively and a single rough session corrupts a gym's baseline; set it too loosely and it never corrects when the equipment genuinely does differ. This is a judgment call that will likely need real usage data to tune correctly rather than being solvable analytically up front, and it's the one piece of this system without a well-established convention to lean on — unlike the progression engine, which draws on standard strength-training practice.
 
-The second risk is account isolation. The application reaches the database through a connection that bypasses row-level security, so separation between accounts rests on every query being scoped to the acting account. One unscoped query would expose one lifter's data to another with no visible error. It is mitigated by a scoped data-access layer, a static check that nothing else queries owned tables, and a cross-account isolation suite that every pitch keeps green.
+The second risk is account isolation. The application reaches the database through a connection that bypasses row-level security, so separation between accounts rests on every query being scoped to the acting account. One unscoped query would expose one lifter's data to another with no visible error. It is mitigated by a scoped data-access layer, a static check that nothing else queries owned tables, and a cross-account isolation suite that every pitch keeps green. The mobile API extends this surface, so every endpoint takes the account from the token and is covered by the suite. Old app versions in the wild also constrain API changes, so breaking changes need a new API version.
 
 The third risk is billing and entitlement correctness, together with the admin boundary. Webhooks arrive late, twice, and out of order, a Free account must never receive a Pro result, and the owner's admin tools must never expose training content. These are mitigated by idempotent event handling, server-side capability checks, an aggregate-only admin metrics layer, an audit log, and tests for each.
 
@@ -156,7 +157,7 @@ The third risk is billing and entitlement correctness, together with the admin b
 
 **Open for the commercial launch.** Each must be decided in the controlling pitch and recorded as a documented decision, not guessed by an implementing agent.
 
-- iOS: how Capacitor runs a server-rendered Next.js app (loading the hosted site in the shell, or another approach), decided by the feasibility step and proven on a real iPhone. Also the two build configurations (a development build for the owner's phone and a Production build for the friends) and how the external TestFlight beta is distributed.
+- Mobile app: the workspace layout for the repository, the API style and how routes share validation schemas with the shared package, the navigation and data-fetching libraries, the styling approach and chart library, secure token storage and refresh, and how the minimum-version gate works. Decided in the slices of Pitch 21, starting from the mobile audit.
 - Admin: where the allowlist lives and its format, the shape of the metrics layer and the static check that keeps it aggregate-only, and the rule for updating the last-active date (date only, at most once a day).
 - Signup abuse protection (rate limits plus a bot challenge provider) and whether email verification is required before checkout (the default is yes).
 - Email provider and sending domain (Resend recommended), and the sender identities for authentication versus support mail.

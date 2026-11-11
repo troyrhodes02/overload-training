@@ -40,6 +40,10 @@ After the owner approves a feature on staging:
 
 Never open a Production PR directly from the `staging` branch as a shortcut. Never assume that passing staging tests constitutes approval for Production database migrations, provider spending, or external integrations.
 
+## Mobile app releases
+
+The mobile app follows the same stages. Development builds connect to staging, and a run may publish an over-the-air update to the Expo `staging` channel if a staging-only token is configured. Publishing to the Expo `production` channel, building for or uploading to TestFlight, and any store submission are human steps. A release that includes the mobile API also needs a backward-compatibility check against the app versions in the wild, since old versions stay installed.
+
 ## Hazard to watch: migration order
 
 Prisma migrations are ordered. A migration for an approved feature may depend on, or sit after, a migration for an unapproved one. If an approved migration cannot be transferred without an unapproved migration, stop and report instead of transferring both.

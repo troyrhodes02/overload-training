@@ -4,9 +4,16 @@
 
 Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation, is largely built: Admin Center & Feedback, Public Accounts, Plans & Billing, the Public Landing Page, and Workout Plan Import are shipped, and the Launch Readiness gate is deferred to MVP 6. Real friends already have accounts on the web app, and the Discord is ready.
 
-**The priority has changed again: iPhone first.** Overload has not been on an iPhone yet, because the Mac needed for Xcode was too old. With a working web product, existing users, a tested billing flow, and a stable staging-to-production workflow, the next engineering project is the iOS app and a TestFlight beta for the friends who already have accounts. Adding features before the iOS foundation exists would only add things to carry across later, so new features wait, except a confirmed critical bug.
+**Decision: the mobile app is React Native with Expo, iOS first.** Overload's iPhone app will be a native interface rebuilt on top of the existing backend, not a wrapper around the website. The Capacitor approach is dropped. Android is deferred and becomes cheap later because the code is shared. Overload is operated by an individual with no LLC, and the Apple Developer account is individual.
 
-**How the roadmap is organized.** Pitch numbers are permanent IDs, kept so links in tickets, specs, and runbooks do not break. They are not the order of work. The order is the milestone order below. Pitches that have not started were renumbered once so their numbers follow that order.
+**Order of work**
+
+1. **Web fixes first (MVP 5A).** The web app is in production, so the identified fixes and chores land there before mobile work starts: Pitch 24 (Workout Logging Refinements) and two chores (landing page trial wording, admin membership visibility). Doing them first means the mobile rebuild targets the final business logic, not logic that is about to change.
+2. **Mobile codebase audit.** A read-only audit of the web codebase, run once the web fixes are on staging, produces `docs/planning/mobile-audit.md`: every screen, server action, shared rule, and test, with the API surface mobile needs and a rebuild estimate per feature. It exists so the rebuild is planned from facts, not from this roadmap's general shape.
+3. **The mobile app (MVP 5B, Pitch 21).** A parent pitch with its own sub-roadmap, `docs/planning/mobile-roadmap.md`, finalized from the audit. Each existing feature is rebuilt natively one slice at a time, and each slice is reviewed on a device before the next begins. The slices end with a TestFlight beta for the existing friends.
+4. **New features on both clients (MVP 5C).** After the mobile app exists, every new feature is built for web and mobile in one run and left for review on staging and on the phone.
+
+**How the roadmap is organized.** Pitch numbers are permanent IDs, not the order of work. Mobile slices are numbered 21a, 21b, and so on under Pitch 21. Pitches that have not started were renumbered once so their numbers follow the milestone order.
 
 | Milestone | Focus | Pitches | Docs folder |
 | --- | --- | --- | --- |
@@ -14,34 +21,29 @@ Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation,
 | MVP 2 | Multi-user and first impressions | 8 to 13, complete | `mvp-2-multi-user` |
 | MVP 3 | Training intelligence | 14 to 16, complete | `mvp-3-training-intelligence` |
 | MVP 4 | Web commercial foundation | 17 to 20 and 22 complete | `mvp-4-web-commercial` |
-| MVP 5A | iOS Foundation & TestFlight | 21 | `mvp-5a-ios-testflight` |
-| MVP 5B | Friends beta & workout refinements | 24, 25, and two chores | `mvp-5b-friends-beta` |
-| MVP 5C | Native experience & lightweight sharing | 26 to 30 | `mvp-5c-native-and-sharing` |
+| MVP 5A | Web fixes before mobile | 24, two chores, and the audit | `mvp-5a-web-fixes` |
+| MVP 5B | Mobile app (React Native + Expo) | 21 and slices 21a to 21i | `mvp-5b-mobile-app` |
+| MVP 5C | Features on both clients | 25 to 30 | `mvp-5c-native-and-sharing` |
 | MVP 6 | Public mobile distribution & commercial safeguards | 23, 31 | `mvp-6-public-mobile` |
 | MVP 7+ | Expansion | 32 to 39+ | `mvp-7-expansion` |
 
 Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
-**What the friends beta teaches.** After the first TestFlight build, a few weeks of real use should answer whether people log full workouts on their phones, where they stall, whether they understand the recommendations, whether they use plans or want spontaneous workouts, and whether they ask to share workouts or see their history differently. Those answers decide which of Pitches 25, 26, and 27 comes first. They are not decided now.
-
-**Quick check before the friends' build.** If the below-minimum-reps progression issue (Pitch 24) is confirmed as a real bug, its fix is built on staging and included before the friends' production-connected build, since every tester would meet it on day one.
-
 **Decisions locked in**
 
-- Overload is operated by an individual. No LLC is planned, and legal, tax, and payout handling stay as lean as possible. An individual seller still owes tax on income and is bound by Apple's, Stripe's, and privacy and consumer rules, so those are checked at Launch Readiness. None of them requires a company.
-- Apple enrollment is an individual Apple Developer account, so the owner's legal name is the App Store seller.
-- The existing Stripe web billing stays as built. It is not rebuilt, and no purchase flow is added inside the iOS app until the store billing path is decided in Pitch 31.
-- Beta users are the existing friends, using their existing accounts, invite-only through external TestFlight.
-- The first iOS build connects to the development environment on the owner's own phone. A separate build connected to Production goes to the friends after sign-in and workout logging are verified.
-- The iOS shell starts with a Capacitor feasibility check, and there is no native rewrite by default.
-- Android comes after iOS has proven the cross-platform approach.
-- Complex monitoring is deferred. Essential failure visibility is enough for the beta.
-- Workout Plan Import (Pitch 22) is built, and the model provider stays disabled in Production until its remaining Production approvals pass.
-- A built-in social network is future exploration, not a pitch. Limited, user-initiated sharing (Pitches 27 and 28) is planned and changes the earlier "no social features" boundary, which is amended deliberately in the Brief, PRD, and `CLAUDE.md`.
+- The mobile app is React Native with Expo, iOS only for now. It lives in the same repository as the web app, with a shared package, so one run can change both clients. No wrapper, no SwiftUI rewrite, and Android later.
+- Mobile talks to the backend only through a secure, versioned mobile API over the existing business logic. It never reads the database directly. Web stays server-first and unchanged.
+- Parity means equivalent user capability, not identical screens. Native screens should feel native. Web-only for now: admin, billing and checkout, and public pages. The plan builder and plan import may stay web-only during the beta, decided from the audit.
+- The mobile app is online-only. Offline logging is not planned.
+- Existing Stripe web billing stays as built. No purchase flow is added inside the app until Pitch 31 decides the store billing path. Existing account holders see their access read-only.
+- Beta users are the existing friends, using their existing accounts, invite-only through external TestFlight. The development build connects to staging. The friends' build connects to Production deliberately.
+- Overload is operated by an individual. No LLC is planned, and legal, tax, and payout handling stay lean and are checked at Launch Readiness. This roadmap is not legal or tax advice.
+- Workout Plan Import (Pitch 22) is built, and the model provider stays disabled in Production until its Production approvals pass.
+- A built-in social network is future exploration, not a pitch. Limited, user-initiated sharing (Pitches 27 and 28) is planned and deliberately amends the earlier "no social features" boundary.
 
 **Chores.** Small items that need no pitch run as a single Linear ticket through the chore prompt in the pipeline guide, with no design doc, preview, or spec unless the chore touches data, plans, privacy, or account isolation.
 
-**Deliberately not planned**, so no run adds them: dated lifting goals; a rest timer; ads; a React Native or SwiftUI rewrite of the phone app; a Wear OS watch app; AI that generates programs or coaches (plan import only parses a plan the lifter wrote); social login; any admin view of an account's training content; and a feed, following, comments, messaging, or leaderboards.
+**Deliberately not planned**, so no run adds them: dated lifting goals; a rest timer; ads; a Capacitor or other web-view wrapper app; a SwiftUI rewrite of the phone app; a Wear OS watch app; AI that generates programs or coaches (plan import only parses a plan the lifter wrote); social login; any admin view of an account's training content; and a feed, following, comments, messaging, or leaderboards.
 
 ## Pitches
 
@@ -177,42 +179,16 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ---
 
-## MVP 5A — iOS Foundation & TestFlight (next)
-
-### Pitch 21: iOS Foundation & TestFlight
-- **Type:** Foundational
-- **Status:** Planned (next)
-- **Value delivered:** Overload runs as an iPhone app around the existing web product, the existing friends can install it and sign in with their current accounts, and every later pitch knows how to treat iOS.
-- **Includes:**
-  - A feasibility check first. How a Capacitor shell runs a server-rendered Next.js application (for example, loading the hosted site in the shell versus a different approach) is recorded as a decision with its tradeoffs and proven on a real iPhone.
-  - The Capacitor and Xcode project on the owner's new Mac, signing, icon, launch behavior, safe areas, keyboard behavior, backgrounding, navigation, and session persistence per account.
-  - Two build configurations: a development build connected to the development environment for the owner's own phone, and a build connected to Production for the friends.
-  - Deep links.
-  - A platform adapter structure named by capability (haptics, notifications, location, health), with the iOS implementations behind it and graceful browser fallbacks. This pitch builds the haptics adapter and capability foundations only.
-  - Existing account holders sign in and keep the plan, Pro, or comped access they already have. The app shows their access read-only. There is no purchase flow and no in-app purchase.
-  - Build and install steps, and an external TestFlight beta, which Apple reviews once for the first external build.
-  - The `overload-cross-platform` skill, filled in with the architecture this pitch establishes.
-- **Human steps (in the runbook):** enroll in the Apple Developer Program as an individual, set up the new Mac and Xcode, register the iPhone, create the App Store Connect record, and invite the friends.
-- **Defers:** In-app purchase and any store billing path, App Store submission, location, notifications, Live Activity, Watch, and Android.
-- **Depends on:** MVP 1 to 4.
-- **Definition of done:**
-  - The Xcode project builds on the new Mac and installs on the owner's iPhone.
-  - The existing account signs in and stays signed in.
-  - Plans, starting a workout, logging sets, finishing a workout, and history all work on the phone.
-  - Safe areas, keyboard, navigation, backgrounding, and authentication behave naturally on iPhone.
-  - The development build uses the development environment, and the friends' build uses Production deliberately.
-  - A TestFlight build is uploaded and approved for external testers, and an existing friend installs it and signs in with their existing account.
-  - The website behaves exactly as before, and no native-only control renders in the browser.
 
 ---
 
-## MVP 5B — Friends Beta & Workout Refinements
+## MVP 5A — Web Fixes Before Mobile (next)
 
-**Friends beta (an activity, not a pitch).** Invite the existing friends to the TestFlight build, confirm their accounts and workout histories look right, and collect feedback in Discord. What they report decides the order of Pitches 25, 26, and 27.
+**Order inside this milestone.** Pitch 24 and the two chores run first on the web app. The mobile codebase audit runs after they are on staging, using `docs/pipeline/mobile-audit-prompt.md`.
 
 ### Pitch 24: Workout Logging Refinements
 - **Type:** Feature
-- **Status:** Planned
+- **Status:** Planned (next)
 - **Value delivered:** Four small correctness and usability gaps in logging and planning are closed.
 - **Includes:**
   - **Below-minimum reps.** If a logged set falls below the planned minimum (for example 90 lb planned at 6 to 10 reps, logged 3), the app must not recommend staying at that weight. A clearly failed set triggers a reassessment or reduction recommendation under the existing progression rules and history. It does not overwrite a reliable baseline by itself, and not every missed set reduces weight. The spec defines the rule using the existing constants. Verify first whether the current behavior really is a bug.
@@ -228,26 +204,56 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
   - Swap can reach exercises in any muscle group.
   - Abs logging is confirmed or fixed to match the other bodyweight movements.
 
-### Pitch 25: Wing-It Workouts
-- **Type:** Feature
-- **Status:** Planned (order decided by beta feedback)
-- **Value delivered:** A lifter can start a workout without a plan, choose exercises as they go, and have it saved to history.
-- **Includes:** A Start workout action that needs no mesocycle, choosing exercises while training, logging sets with the existing logging card, saving to history, using the existing gym-aware baselines where applicable, and never altering the scheduled plan or the missed-day logic. How progression treats an exercise with no planned rep range is decided in the spec. The default is that it adds to history and the e1RM trend but receives no progress or deload tag.
-- **Plan placement:** Free.
-- **Defers:** Suggesting exercises, and turning a wing-it workout into a planned session.
-- **Depends on:** Pitches 4 and 5. Sequenced after Pitch 21.
-- **Definition of done:**
-  - A workout can be started and finished with no plan, and it appears in history.
-  - The scheduled plan and the dashboard's planned day are unchanged.
-  - Machine and cable exercises still use the chosen gym's baselines.
-
 **Chore: landing page trial wording.** Tiara's feedback is that the "no card" wording confused her and read as if it were talking to friends. State the trial plainly and briefly, for example: "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month." Copy only, one ticket.
 
 **Chore: admin membership visibility.** The admin account list shows each account's plan (Pro, Free, or comped). It shows account metadata only and never any training content. One ticket.
 
+**Mobile codebase audit (an activity, not a pitch).** A read-only audit run once the web fixes are on staging. It writes `docs/planning/mobile-audit.md` and proposes refinements to the mobile roadmap. No application code, schema, or data changes.
+
 ---
 
-## MVP 5C — Native Experience & Lightweight Sharing
+## MVP 5B — Mobile App (React Native + Expo)
+
+### Pitch 21: Mobile App (React Native + Expo)
+- **Type:** Foundational (a parent pitch with a sub-roadmap)
+- **Status:** Planned, after the web fixes and the audit
+- **Value delivered:** Overload is a native iPhone app on the existing backend, rebuilt feature by feature to equivalent capability, reviewed on a device at every step, and delivered to the existing friends through TestFlight.
+- **Includes:**
+  - A React Native app using Expo, in the same repository as the web app with a shared package for types, validation, and the pure training logic that needs no database. The web app's behavior is unchanged.
+  - A secure, versioned mobile API in the existing backend over the same business logic: token authentication, the acting account taken from the token, capability enforcement, retry-safe writes, a minimum-supported-version check with a force-update screen, and the cross-account isolation suite extended to every endpoint.
+  - Native screens designed with `overload-mobile-ui` that give equivalent capability, not identical screens.
+  - The rebuild order, sizing, and gates in `docs/planning/mobile-roadmap.md`, finalized from the audit. Each slice is reviewed on a device before the next begins.
+  - Web-only for now: admin, billing and checkout, and public pages. The plan builder and plan import may stay web-only during the beta, decided from the audit.
+  - Online-only operation. A development build against staging, and a build against Production for the friends. Over-the-air updates through an Expo staging channel for review.
+  - No purchase flow and no in-app purchase. The app shows an account's access read-only.
+- **Human steps (in the runbooks):** set up Expo and EAS accounts and the staging update token, enroll in the Apple Developer Program as an individual, register the iPhone, create the App Store Connect record, review each slice on the device, and invite the friends.
+- **Defers:** Android, notifications, location, Live Activity, Watch, store release, and in-app purchase.
+- **Depends on:** MVP 1 to 4, Pitch 24, and the audit.
+- **Definition of done:**
+  - Every slice in the mobile roadmap that is marked beta scope is built, reviewed on a device, and approved.
+  - The mobile API passes the cross-account isolation suite on every endpoint, and old app versions are handled by the version gate.
+  - A TestFlight build is approved for external testers, and an existing friend installs it and signs in with their existing account.
+  - The website behaves exactly as before.
+
+---
+
+## MVP 5C — Features on Both Clients
+
+From here on, every feature is built for web and mobile in one run and left for review on staging and on the phone.
+
+
+### Pitch 25: Wing-It Workouts
+- **Type:** Feature
+- **Status:** Planned (built for both clients after the mobile app exists)
+- **Value delivered:** A lifter can start a workout without a plan, choose exercises as they go, and have it saved to history.
+- **Includes:** A Start workout action that needs no mesocycle, choosing exercises while training, logging sets with the existing logging card, saving to history, using the existing gym-aware baselines where applicable, and never altering the scheduled plan or the missed-day logic. How progression treats an exercise with no planned rep range is decided in the spec. The default is that it adds to history and the e1RM trend but receives no progress or deload tag.
+- **Plan placement:** Free.
+- **Defers:** Suggesting exercises, and turning a wing-it workout into a planned session.
+- **Depends on:** Pitches 4 and 5. Built for web and mobile in one run once Pitch 21 is complete.
+- **Definition of done:**
+  - A workout can be started and finished with no plan, and it appears in history.
+  - The scheduled plan and the dashboard's planned day are unchanged.
+  - Machine and cable exercises still use the chosen gym's baselines.
 
 ### Pitch 26: History Calendar
 - **Type:** Feature
@@ -311,6 +317,7 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ---
 
+
 ## MVP 6 — Public Mobile Distribution & Commercial Safeguards
 
 ### Pitch 23: Launch Readiness
@@ -345,12 +352,12 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ## MVP 7+ — Expansion
 
-### Pitch 32: Android Foundation
+### Pitch 32: Android Build & Release Readiness
 - **Type:** Foundational
-- **Status:** Planned
-- **Value delivered:** Overload runs as an Android app around the same web product, using the platform-neutral structure Pitch 21 established.
-- **Includes:** A Capacitor Android project and Android Studio build, signing, adaptive icon and splash, back-button and status-bar behavior, session persistence, deep links, the Android implementations of the platform adapters, build and install steps, and an internal testing track on Google Play.
-- **Defers:** Play Store release and any native capability beyond the foundation.
+- **Status:** Planned (not before the iOS app ships)
+- **Value delivered:** The same React Native app runs on Android, because the code is shared.
+- **Includes:** Android build and signing, Android-specific layout and back-button behavior, the Android implementations of native capabilities behind their adapters, device testing, and a Google Play internal testing track.
+- **Defers:** Play Store release and any capability beyond what iOS shipped.
 - **Depends on:** Pitch 21.
 - **Definition of done:**
   - The app installs on a real Android phone and through Play internal testing, signs in, and completes a full workout.
@@ -369,7 +376,7 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 - **Type:** Feature
 - **Status:** Planned
 - **Value delivered:** An active workout is visible on the lock screen, and on the Dynamic Island on iPhones that have one.
-- **Includes:** Workout name, elapsed time, current exercise, current and total sets, and target reps, with a tap that returns to the active workout. It exists only while a workout is active. The Android equivalent is decided in the pitch, most likely an ongoing notification.
+- **Includes:** Workout name, elapsed time, current exercise, current and total sets, and target reps, with a tap that returns to the active workout. It exists only while a workout is active, and is built with Expo's widgets support (`expo-widgets`, which Expo SDK 56 provides for widgets and Live Activities; verify at the time). The Android equivalent is decided in the pitch, most likely an ongoing notification.
 - **Depends on:** Pitch 21.
 - **Definition of done:**
   - The surface starts with a workout and ends with it, and its content matches the active workout state.
@@ -378,7 +385,7 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 - **Type:** Feature
 - **Status:** Planned
 - **Value delivered:** The Watch is useful during a workout without copying the phone app.
-- **Includes:** Starting today's workout from the Watch (the same underlying workout as on the phone), showing elapsed time, current exercise, set number, planned set count, rep range, and next exercise, and controls to advance a set, move between exercises, and end the workout. Phone and Watch share one workout state. iOS only.
+- **Includes:** Starting today's workout from the Watch (the same underlying workout as on the phone), showing elapsed time, current exercise, set number, planned set count, rep range, and next exercise, and controls to advance a set, move between exercises, and end the workout. Phone and Watch share one workout state. iOS only. The Watch app depends on an experimental community plugin for Apple targets in Expo, so the pitch starts by checking that it is still viable and falls back to a native Swift target if not.
 - **Defers:** Full weight and reps entry on the Watch, to be decided after using the simpler version.
 - **Depends on:** Pitches 21 and 34.
 - **Definition of done:**
@@ -421,8 +428,8 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ## Dependency Map
 
-Pitches 1 to 20 and 22 are complete. Pitch 21 depends on them and blocks everything native: 26 to 31 and 32 to 38. Pitch 24 depends on 4, 5, 14, 15, and 16 and is not blocked by 21, but its fix lands before the friends' build if the issue is confirmed. Pitch 25 depends on 4 and 5. Pitch 26 depends on 4. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
+Pitches 1 to 20 and 22 are complete. Pitch 24 and the two chores run next and are not blocked by anything. The mobile audit depends on Pitch 24 being on staging. Pitch 21 (and its slices 21a to 21i, in the order in the mobile roadmap) depends on the audit and blocks everything native: 26 to 31 and 32 to 38. Pitch 25 depends on 4 and 5 and is built for both clients after 21. Pitch 26 depends on 4 and 21. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
 
-Pitch 32 depends on 21. Pitch 33 depends on 19 and 32. Pitch 34 depends on 21. Pitch 35 depends on 21 and 34. Pitches 36 and 37 depend on 21 and begin with discovery. Pitch 38 depends on 21 and 32, and the nutrition pitches depend on 38.
+Pitch 32 depends on 21 and ships after the iOS app. Pitch 33 depends on 19 and 32. Pitch 34 depends on 21. Pitch 35 depends on 21 and 34. Pitches 36 and 37 depend on 21 and begin with discovery. Pitch 38 depends on 21 and 32, and the nutrition pitches depend on 38.
 
-**Rollout gates (not pitches):** the friends' TestFlight build connects to Production only after sign-in and workout logging are verified on the development build. No payment flow is added inside the iOS app until Pitch 31 decides the store billing path. Pitch 22's model provider stays disabled in Production until its approvals pass. A public App Store release waits for Pitches 23 and 31.
+**Rollout gates (not pitches):** the friends' TestFlight build connects to Production only after sign-in and workout logging are verified on the development build against staging. The mobile API reaches Production only through the promotion workflow. No payment flow is added inside the app until Pitch 31 decides the store billing path. Pitch 22's model provider stays disabled in Production until its approvals pass. A public App Store release waits for Pitches 23 and 31.
