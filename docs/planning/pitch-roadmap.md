@@ -8,7 +8,7 @@ Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation,
 
 **Order of work**
 
-1. **Web fixes first (MVP 5A).** The web app is in production, so the identified fixes and chores land there before mobile work starts: Pitch 24 (Workout Logging Refinements) and two chores (landing page trial wording, admin membership visibility). Doing them first means the mobile rebuild targets the final business logic, not logic that is about to change.
+1. **Web fixes first (MVP 5A).** The web app is in production, so the identified fixes and chores land there before mobile work starts: Pitch 24 (Workout Logging Refinements), which also carries the two chores (landing page trial wording, admin membership visibility) as included items. Doing them first means the mobile rebuild targets the final business logic, not logic that is about to change.
 2. **Mobile codebase audit.** A read-only audit of the web codebase, run once the web fixes are on staging, produces `docs/planning/mobile-audit.md`: every screen, server action, shared rule, and test, with the API surface mobile needs and a rebuild estimate per feature. It exists so the rebuild is planned from facts, not from this roadmap's general shape.
 3. **The mobile app (MVP 5B, Pitch 21).** A parent pitch with its own sub-roadmap, `docs/planning/mobile-roadmap.md`, finalized from the audit. Each existing feature is rebuilt natively one slice at a time, and each slice is reviewed on a device before the next begins. The slices end with a TestFlight beta for the existing friends.
 4. **New features on both clients (MVP 5C).** After the mobile app exists, every new feature is built for web and mobile in one run and left for review on staging and on the phone.
@@ -21,7 +21,7 @@ Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation,
 | MVP 2 | Multi-user and first impressions | 8 to 13, complete | `mvp-2-multi-user` |
 | MVP 3 | Training intelligence | 14 to 16, complete | `mvp-3-training-intelligence` |
 | MVP 4 | Web commercial foundation | 17 to 20 and 22 complete | `mvp-4-web-commercial` |
-| MVP 5A | Web fixes before mobile | 24, two chores, and the audit | `mvp-5a-web-fixes` |
+| MVP 5A | Web fixes before mobile | 24 (with its two included chores) and the audit | `mvp-5a-web-fixes` |
 | MVP 5B | Mobile app (React Native + Expo) | 21 and slices 21a to 21i | `mvp-5b-mobile-app` |
 | MVP 5C | Features on both clients | 25 to 30 | `mvp-5c-native-and-sharing` |
 | MVP 6 | Public mobile distribution & commercial safeguards | 23, 31 | `mvp-6-public-mobile` |
@@ -184,7 +184,7 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ## MVP 5A — Web Fixes Before Mobile (next)
 
-**Order inside this milestone.** Pitch 24 and the two chores run first on the web app. The mobile codebase audit runs after they are on staging, using `docs/pipeline/mobile-audit-prompt.md`.
+**Order inside this milestone.** Pitch 24, including its two chores, runs first on the web app. The mobile codebase audit runs after they are on staging, using `docs/pipeline/mobile-audit-prompt.md`.
 
 ### Pitch 24: Workout Logging Refinements
 - **Type:** Feature
@@ -195,6 +195,8 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
   - **Fixed rep targets.** A planned exercise can have a single target (3 × 10) without a range. Internally it can be a range with equal minimum and maximum. The spec confirms how a pass and the progression threshold behave when there is no upper end.
   - **Swap exercise.** The swap picker can change its muscle filter to any group, not only the planned exercise's group.
   - **Abs and bodyweight logging audit.** Verify that abs exercises log like pull-ups and other bodyweight movements (reps only, no fake load, no e1RM from a missing load, no machine baseline). Fix only if it is broken.
+  - **Chore: landing page trial wording** (included item, see below).
+  - **Chore: admin membership visibility** (included item, see below).
 - **Plan placement:** Capture and plan building are Free. Recommendations stay Pro.
 - **Defers:** Any change to progression rules beyond the below-minimum case.
 - **Depends on:** Pitches 4, 5, 14, 15, and 16.
@@ -203,10 +205,13 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
   - A 3 × 10 exercise plans, logs, and progresses correctly.
   - Swap can reach exercises in any muscle group.
   - Abs logging is confirmed or fixed to match the other bodyweight movements.
+  - The two chores below are done.
+- **Delivery (amended by Pitch 24):** the two chores below were first listed as separate chores. They are included items of Pitch 24, not independent shipping units: all six items (the four refinements above and the two chores) ship together in one implementation run and one feature PR. Each keeps its name below. The four refinements remain the Workout Logging Refinements feature in the PRD; the chores are not PRD features.
+- **Supersedes:** the earlier same-muscle-group-only swap rule (Guided Workout Logging). Swap opens on the planned exercise's muscle group and can reach any group.
 
-**Chore: landing page trial wording.** Tiara's feedback is that the "no card" wording confused her and read as if it were talking to friends. State the trial plainly and briefly, for example: "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month." Copy only, one ticket.
+**Chore: landing page trial wording.** Tiara's feedback is that the "no card" wording confused her and read as if it were talking to friends. State the trial plainly and briefly, for example: "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month." Copy only. Included in Pitch 24 (originally a standalone chore).
 
-**Chore: admin membership visibility.** The admin account list shows each account's plan (Pro, Free, or comped). It shows account metadata only and never any training content. One ticket.
+**Chore: admin membership visibility.** The admin account list shows each account's plan (Pro, Free, or comped). It shows account metadata only and never any training content. Included in Pitch 24 (originally a standalone chore).
 
 **Mobile codebase audit (an activity, not a pitch).** A read-only audit run once the web fixes are on staging. It writes `docs/planning/mobile-audit.md` and proposes refinements to the mobile roadmap. No application code, schema, or data changes.
 
@@ -428,7 +433,7 @@ From here on, every feature is built for web and mobile in one run and left for 
 
 ## Dependency Map
 
-Pitches 1 to 20 and 22 are complete. Pitch 24 and the two chores run next and are not blocked by anything. The mobile audit depends on Pitch 24 being on staging. Pitch 21 (and its slices 21a to 21i, in the order in the mobile roadmap) depends on the audit and blocks everything native: 26 to 31 and 32 to 38. Pitch 25 depends on 4 and 5 and is built for both clients after 21. Pitch 26 depends on 4 and 21. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
+Pitches 1 to 20 and 22 are complete. Pitch 24, with its two included chores, runs next and is not blocked by anything. The mobile audit depends on Pitch 24 being on staging. Pitch 21 (and its slices 21a to 21i, in the order in the mobile roadmap) depends on the audit and blocks everything native: 26 to 31 and 32 to 38. Pitch 25 depends on 4 and 5 and is built for both clients after 21. Pitch 26 depends on 4 and 21. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
 
 Pitch 32 depends on 21 and ships after the iOS app. Pitch 33 depends on 19 and 32. Pitch 34 depends on 21. Pitch 35 depends on 21 and 34. Pitches 36 and 37 depend on 21 and begin with discovery. Pitch 38 depends on 21 and 32, and the nutrition pitches depend on 38.
 

@@ -212,3 +212,13 @@ Source: spec §3.2, §10, §12; blueprint §3.2, §9.3; RD-13, RD-14 (recorded t
 - **Path selection (RD-14):** by actual source characteristics, not the `.pdf` extension. `isTextLayerDefensible(pages)` routes to the TEXT model path only when every page has an extractable text layer (`MIN_PAGE_TEXT_CHARS = 16`) and total text clears `MIN_TOTAL_TEXT_CHARS = 64`; otherwise the VISION/PDF path sends the raw bytes (never a signed URL). Text-path PDFs are sent as one text part with `--- PAGE n ---` markers.
 - **Evidence page bounds:** `isPageInBounds` validates every model-returned `page` against the cited part's real page count independently of the quote check; an out-of-bounds or non-existent-part citation emits the info-level `EVIDENCE_PAGE_OUT_OF_BOUNDS` issue (never trusted, never blocking). The observation schema carries single pages, not multi-page ranges.
 - **Scanned-PDF accuracy is owner-gated:** all tests use the mock provider; no real paid call. Real scanned/handwriting accuracy is reported UNVERIFIED, never claimed.
+
+## Below-minimum reassessment and fixed targets (established by Workout Logging Refinements)
+
+No new constant. The rule reuses `hasBelowMin` (a planned working set with `reps < repMin`) and the existing ladder in `src/lib/progression/engine.ts`. Spec: `docs/pitches/mvp-5a-web-fixes/24-workout-logging-refinements/spec.md` §6 and RD-1 to RD-5.
+
+- **Reassess, not reduce.** When the latest **finished** performance in scope (session complete, even if planned sets are missing), outside a scheduled-deload week, has a set below the minimum, and the two-session reactive Deload (`DELOAD_CONSECUTIVE_SESSIONS`) doesn't apply, the call is `hold` with evidence `reassess`. The words are "Reassess the weight {when}" (bodyweight: "Reassess the difficulty {when}"), with evidence "{Last time}: 3, 8, 8 of 6–10, below 6. Two sessions running below 6 call for a deload." No weight is printed and no tag is shown.
+- Short (not `complete`) workouts still never count toward the Deload or Progress windows; they only block a stay-at-weight or Progress line. A workout in progress is never judged (today's advice is unchanged mid-workout).
+- An in-range miss (short of the top, at or above the minimum) is still an ordinary hold: "Stay at {weight}".
+- **Fixed targets** are `targetRepMin === targetRepMax`. Pass is `reps >= repMax`, failure is `reps < repMin`, so 10 passes and 9 is below a target of 10. Print through `formatRepTarget(min, max)` (`src/lib/plan/rep-target.ts`): "10" or "6–10".
+- **Swap** opens on the planned primary muscle and can be filtered to any canonical muscle group. There is no muscle rule in the write.
