@@ -19,7 +19,7 @@ Overload has one backend and one training model. The web app is wrapped in Capac
 
 ## Before you start
 
-1. **Check what exists.** Read the iOS Foundation spec, and the Android Foundation spec if it has shipped (`docs/specs/`, matching the roadmap's numbers and slugs). They record how the shell loads the application, where the platform adapters live, how sessions persist, how deep links work, and how builds and device tests are run. Follow them exactly. Do not guess any of it.
+1. **Check what exists.** Read the iOS Foundation spec, and the Android Foundation spec if it has shipped (`spec.md` in their pitch folders under `docs/pitches/`). They record how the shell loads the application, where the platform adapters live, how sessions persist, how deep links work, and how builds and device tests are run. Follow them exactly. Do not guess any of it.
 2. **If the iOS foundation has not shipped,** classify each feature as web today, note any obvious mobile impact (sessions, redirects, deep links, payments, permissions), and leave it for the foundation to settle. Do not build native stubs or a second code path in anticipation.
 3. **Read `CLAUDE.md`**, especially its cross-platform, plan, and admin rules.
 

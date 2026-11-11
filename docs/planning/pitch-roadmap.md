@@ -2,33 +2,46 @@
 
 ## Sequencing Logic
 
-Pitches 1 to 16 are complete and in production. They delivered the working training product (MVP 1), the multi-user conversion with its first-impression features (MVP 2), and the training-intelligence pitches (MVP 3).
+Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation, is largely built: Admin Center & Feedback, Public Accounts, Plans & Billing, the Public Landing Page, and Workout Plan Import are shipped, and the Launch Readiness gate is deferred to MVP 6. Real friends already have accounts on the web app, and the Discord is ready.
 
-**The direction has changed again.** Overload is moving from an invite-only tracker for friends to a commercial product that strangers can find, pay for, and use. A friend's "Road to 315 lb Bench" video series will feature Overload and offer a promo code. That needs a dedicated phase, MVP 4, and it reverses several earlier boundaries: an admin interface, billing, and public signup were all "not planned" and are now planned. They are amended in the Brief, PRD, Architecture Doc, and CLAUDE.md before any pitch in this phase is written.
+**The priority has changed again: iPhone first.** Overload has not been on an iPhone yet, because the Mac needed for Xcode was too old. With a working web product, existing users, a tested billing flow, and a stable staging-to-production workflow, the next engineering project is the iOS app and a TestFlight beta for the friends who already have accounts. Adding features before the iOS foundation exists would only add things to carry across later, so new features wait, except a confirmed critical bug.
 
-**Order within MVP 4, and why.**
+**How the roadmap is organized.** Pitch numbers are permanent IDs, kept so links in tickets, specs, and runbooks do not break. They are not the order of work. The order is the milestone order below. Pitches that have not started were renumbered once so their numbers follow that order.
 
-1. **Admin Center & Feedback (Pitch 17) first.** The owner needs to operate the product before opening it: see who is using it, manage accounts, read feedback. It also fixes the privacy boundary early. The admin area works on accounts and counts, never on anyone's training content.
-2. **iOS Foundation (Pitch 18) second.** Billing, public signup, and password-reset links are where web and iPhone behave differently (browser redirects, deep links, sessions). Proving the shared architecture on a real iPhone before building them avoids reworking them later. It is time-boxed and starts with a feasibility decision. It is not on the critical path to a web launch.
-3. **Public Accounts (Pitch 19).** Public signup, password recovery and the email delivery it needs (neither exists today), data export, deletion, and support, so strangers can be let in safely.
-4. **Plans, Billing & Promo Codes (Pitch 20).** A Free plan and a paid Pro plan. Stripe handles money and authoritative billing state. Overload decides what each account is entitled to, including accounts the owner grants free access.
-5. **Landing Page & Changelog (Pitch 21).** Somewhere credible for a video viewer to land. It can serve early-access signup before billing is ready.
-6. **Plan Import & Review (Pitch 22).** Removes the biggest adoption barrier: retyping an existing plan from Notes.
-7. **Launch Readiness & Closed Beta (Pitch 23).** The gate for accepting paying strangers. It is its own pitch because a finished feature list is not the same as being ready.
+| Milestone | Focus | Pitches | Docs folder |
+| --- | --- | --- | --- |
+| MVP 1 | Core training product | 1 to 7, complete | `mvp-1-core-training` |
+| MVP 2 | Multi-user and first impressions | 8 to 13, complete | `mvp-2-multi-user` |
+| MVP 3 | Training intelligence | 14 to 16, complete | `mvp-3-training-intelligence` |
+| MVP 4 | Web commercial foundation | 17 to 20 and 22 complete | `mvp-4-web-commercial` |
+| MVP 5A | iOS Foundation & TestFlight | 21 | `mvp-5a-ios-testflight` |
+| MVP 5B | Friends beta & workout refinements | 24, 25, and two chores | `mvp-5b-friends-beta` |
+| MVP 5C | Native experience & lightweight sharing | 26 to 30 | `mvp-5c-native-and-sharing` |
+| MVP 6 | Public mobile distribution & commercial safeguards | 23, 31 | `mvp-6-public-mobile` |
+| MVP 7+ | Expansion | 32 to 39+ | `mvp-7-expansion` |
 
-**Plans in one line.** Capture is free and interpretation is paid. Everything a lifter enters, their full history, and their ability to export it stay free, with no ads, ever. Pro adds the progression insights and plan import. New accounts get 14 days of Pro, then move to Free with nothing lost.
+Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
-**Rollout gates (not pitches).** Public signup stays invite-only until Pitch 19 is verified. No payment is collected until Pitch 23's checklist passes. The first video can point to the landing page and early access before billing is live. Two weeks is likely not enough to finish all seven pitches safely, so the video date should not force a paid launch.
+**What the friends beta teaches.** After the first TestFlight build, a few weeks of real use should answer whether people log full workouts on their phones, where they stall, whether they understand the recommendations, whether they use plans or want spontaneous workouts, and whether they ask to share workouts or see their history differently. Those answers decide which of Pitches 25, 26, and 27 comes first. They are not decided now.
 
-**The iPhone app and the App Store are separate things.** The iOS foundation ships to a small group of trusted testers through TestFlight early. A public App Store release comes later (Pitch 29), for two reasons that Apple's review rules make real. An app that is only a wrapper around a website risks rejection for minimal functionality, so it benefits from the native features in MVP 5 first. And selling subscriptions raises a purchase-flow question: on the US storefront an app may link out to a web checkout, but that must open in the external browser and is not allowed in other storefronts, where in-app purchase is required. That is why billing is built as a platform-neutral entitlement system.
+**Quick check before the friends' build.** If the below-minimum-reps progression issue (Pitch 24) is confirmed as a real bug, its fix is built on staging and included before the friends' production-connected build, since every tester would meet it on day one.
 
-**Android.** The plan covers it deliberately. Pitch 18 builds the iOS shell with every native capability behind a platform-neutral adapter, so Android adds implementations rather than changing callers. After launch, Pitch 24 adds the Android shell first, so location, notifications, and the rest are built once for both platforms. The Apple Watch app and the Live Activity are iOS-only, and Android gets an equivalent for the second if one fits. Google Play has its own billing policy and its own testing requirement for new developer accounts, handled in Pitch 30.
+**Decisions locked in**
 
-**After launch.** MVP 5 is the mobile experience: Android, then location, notifications, Live Activity, and Watch, ending with the App Store and Google Play releases. MVP 6 is health, body, and nutrition.
+- Overload is operated by an individual. No LLC is planned, and legal, tax, and payout handling stay as lean as possible. An individual seller still owes tax on income and is bound by Apple's, Stripe's, and privacy and consumer rules, so those are checked at Launch Readiness. None of them requires a company.
+- Apple enrollment is an individual Apple Developer account, so the owner's legal name is the App Store seller.
+- The existing Stripe web billing stays as built. It is not rebuilt, and no purchase flow is added inside the iOS app until the store billing path is decided in Pitch 31.
+- Beta users are the existing friends, using their existing accounts, invite-only through external TestFlight.
+- The first iOS build connects to the development environment on the owner's own phone. A separate build connected to Production goes to the friends after sign-in and workout logging are verified.
+- The iOS shell starts with a Capacitor feasibility check, and there is no native rewrite by default.
+- Android comes after iOS has proven the cross-platform approach.
+- Complex monitoring is deferred. Essential failure visibility is enough for the beta.
+- Workout Plan Import (Pitch 22) is built, and the model provider stays disabled in Production until its remaining Production approvals pass.
+- A built-in social network is future exploration, not a pitch. Limited, user-initiated sharing (Pitches 27 and 28) is planned and changes the earlier "no social features" boundary, which is amended deliberately in the Brief, PRD, and `CLAUDE.md`.
 
-**Cross-platform from here on.** Once the iOS foundation exists, every pitch decides explicitly what is shared web UI, what needs native work, and what stays web-only (the admin area stays web-only), using the `overload-cross-platform` skill. iOS and Android are not left as a cleanup task.
+**Chores.** Small items that need no pitch run as a single Linear ticket through the chore prompt in the pipeline guide, with no design doc, preview, or spec unless the chore touches data, plans, privacy, or account isolation.
 
-**Deliberately not planned**, so no run adds them: dated lifting goals; a rest timer; a React Native or SwiftUI rewrite of the phone app; a Wear OS watch app; AI that generates programs or coaches (plan import only parses a plan the lifter wrote); cardio progression analysis; social login; and any admin view of another account's training content.
+**Deliberately not planned**, so no run adds them: dated lifting goals; a rest timer; ads; a React Native or SwiftUI rewrite of the phone app; a Wear OS watch app; AI that generates programs or coaches (plan import only parses a plan the lifter wrote); social login; any admin view of an account's training content; and a feed, following, comments, messaging, or leaderboards.
 
 ## Pitches
 
@@ -128,268 +141,288 @@ Pitches 1 to 16 are complete and in production. They delivered the working train
 - **Value delivered:** One place to see how a lift has really been going.
 - **Detail:** see the pitch's spec and run report for what shipped.
 
-
 ---
 
-## MVP 4 — Commercial Launch & Operations
+## MVP 4 — Web Commercial Foundation (largely shipped)
 
 ### Pitch 17: Admin Center & Feedback
 - **Type:** Feature
-- **Status:** Planned (next)
-- **Value delivered:** The owner can operate Overload: see who is using it, manage accounts, and read feedback, without ever seeing anyone's training content.
-- **Includes:**
-  - An owner-only admin area. Admin identity is established on the server from an allowlist in a server-only environment variable. It is not a database role, and nothing in the app can grant it. Every admin operation re-checks it on the server, because hiding navigation is not authorization.
-  - Account lookup and list: name, email, signup date, status, last active (date only), tour completed, and plan and entitlement state once billing exists. Granting free access is added in Pitch 20, when the entitlement model exists.
-  - Account actions: suspend and reactivate (enforced on every authenticated request, so a suspended account cannot act), and delete an account through the existing deletion module with confirmation.
-  - Aggregate operating metrics, counts only: registered accounts, active in the last 7 and 30 days, new this month, accounts that have created a plan, accounts that have logged a workout, and simple signup-cohort return rates. A dedicated admin metrics layer computes them and never returns workout contents.
-  - An in-app feedback form for every lifter, and an inbox for the owner to read, categorize, and mark handled.
-  - An append-only audit log of every admin action: who, what, which account, when.
-  - The privacy boundary: the admin area never shows any account's plan, gyms, logged sets, goals, or cardio.
-- **Defers:** Billing controls (billing state is mirrored read-only from the payment provider and never edited here), impersonation, ticketing beyond the feedback inbox, and any access to training content. If support ever genuinely needs the latter, it is a separate decision with explicit, narrow, audited access.
-- **Depends on:** MVP 3.
-- **Definition of done:**
-  - A non-admin account cannot reach any admin page or operation, by URL or by calling the server action directly.
-  - Suspending an account blocks it on its next request, and reactivating restores it.
-  - The metrics match the underlying data and expose no training content.
-  - A lifter can send feedback, and the owner can read it and mark it handled.
-  - Every admin action appears in the audit log.
+- **Status:** Complete, in production
+- **Value delivered:** The owner can operate Overload: see who is using it, manage accounts, and read feedback, without seeing anyone's training content.
+- **Detail:** see the pitch's spec.
 
-### Pitch 18: iOS Foundation & Cross-Platform Workflow
-- **Type:** Foundational
-- **Status:** Planned
-- **Value delivered:** Overload runs as an iPhone app around the existing web product, the shared architecture is proven on a real device, and every later pitch knows how to treat iOS.
-- **Includes:**
-  - A feasibility decision first. How a Capacitor shell runs a server-rendered Next.js application (for example, loading the hosted site in the shell versus a different approach) is recorded as a decision with its tradeoffs and proven with an authenticated workout flow on a real iPhone.
-  - The Capacitor and Xcode project, signing, icon, launch behavior, safe areas, keyboard behavior, session persistence per account, and development versus production environment handling.
-  - Deep links, so password-reset and checkout returns can land in the app.
-  - A platform adapter structure named by capability, not by platform (haptics, notifications, location, health), with each platform's implementation behind it, so adding Android later means adding implementations, not changing callers. Adapters degrade gracefully in the browser. This pitch builds the iOS implementations, with a haptics adapter and capability foundations for notifications, location, and HealthKit.
-  - Build and install steps and a TestFlight-ready process.
-  - The `overload-cross-platform` skill, filled in with the architecture this pitch establishes.
-- **Defers:** Location, notifications, Live Activity, Watch, HealthKit, in-app purchase, and App Store submission.
-- **Depends on:** Pitches 9 and 10. Sequenced after Pitch 17.
-- **Definition of done:**
-  - The feasibility decision is recorded.
-  - The app installs on a real iPhone and through TestFlight, signs in, and completes a full workout against a production-like environment.
-  - The website behaves exactly as before, and no native-only control renders in the browser.
-  - A test deep link opens the right screen in the app. Password-reset and checkout returns use it when those pitches ship.
-
-### Pitch 19: Public Accounts, Recovery & Support
+### Pitch 18: Public Accounts, Recovery & Support
 - **Type:** Feature
-- **Status:** Planned
-- **Value delivered:** Strangers can sign up safely, recover access without contacting the owner, get help, take their data with them, and leave.
-- **Includes:**
-  - A signup mode switch between invite-only and public, set by server configuration and off by default.
-  - Abuse protection on signup and password reset: rate limits and a bot challenge, chosen in the pitch.
-  - Password recovery, which does not exist today: Pitch 9 shipped without it to avoid a third-party email dependency. Build forgot and reset password over a custom SMTP provider configured in Supabase Auth (Supabase's built-in sender only reaches the project's own team and is rate-limited), with the same response whether or not an email has an account, and an admin action to send a reset email.
-  - Production email on a verified domain with separate authentication and support sender identities, and deliverability checks as runbook steps.
-  - Email verification before first checkout (the default, decided in the pitch).
-  - Export of all of an account's own data as a downloadable file.
-  - Account deletion confirmed end to end, and a support channel that includes the feedback form.
-- **Defers:** Social login and multi-factor authentication.
-- **Depends on:** Pitch 17 (admin account states) and Pitch 18 (deep links for reset).
-- **Definition of done:**
-  - A forgotten password can be recovered end to end, and the reset email reaches an external inbox on a real provider.
-  - With public mode on, a stranger can sign up. With it off, signup still needs the invite code.
-  - The abuse protections are tested.
-  - An export contains everything the account owns and nothing from any other account.
-  - Deleting an account removes all of its data and blocks further sign-in.
+- **Status:** Complete
+- **Value delivered:** Strangers can sign up safely, recover access without the owner, take their data with them, and leave.
+- **Detail:** see the pitch's spec. Public signup stays gated by the signup-mode setting until the owner opens it.
 
-### Pitch 20: Plans, Billing & Promo Codes
+### Pitch 19: Plans, Billing & Promo Codes
 - **Type:** Feature
-- **Status:** Planned
-- **Value delivered:** Overload has a free plan and a paid Pro plan. New lifters try Pro free for 14 days, can subscribe with a code such as BLIZZY, and always have access that matches their plan. The owner can grant full access to chosen accounts without billing them.
-- **Includes:**
-  - **Two plans.** Free, with no ads, ever, and Pro. The principle is that capture is free and interpretation is paid. Anything a lifter enters, every record of their own training, and their ability to export it stay free and are never gated, locked, or deleted.
-  - **Free includes:** plan building (splits, mesocycles, sessions, the scheduled deload week, planned cardio); guided logging with swaps, bodyweight sets, reps-in-reserve entry, and missed-day handling; cardio logging; the exercise library and custom exercises; gyms with their baselines; full history with past-log editing; goals with their progress; data export; and account deletion.
-  - **Pro includes:** the progression recommendations (progress, hold, deload, and suggested increases) and the evidence behind each; e1RM trends and stall detection; reps-in-reserve used in recommendations; Exercise History & PR Intelligence; and workout plan import. Later Pro additions go in Pro by default.
-  - A 14-day Pro trial that starts at signup and requires no card. When it ends, or when a subscription lapses, the account moves to Free. Nothing is deleted and logging never stops.
-  - Proposed Pro pricing, set by the owner: $4.99 a month or $39.99 a year (about $3.33 a month). For scale, in October 2026 listings, logging-focused apps run about $3 to $5 a month and apps with automatic progression or generated programs run about $13 to $16 a month.
-  - Capabilities, not plan names, in code: features check a named capability (for example, progression insights or plan import), and each plan grants a set of them. A future tier then becomes a data change.
-  - Enforcement on the server. A Free account never receives a Pro result, and hiding a button is not enforcement.
-  - A quiet upgrade note where a Pro feature would be, in one place per screen and dismissible, with no countdowns, banners, or other dark patterns.
-  - A platform-neutral entitlement model recording which capabilities an account has and why: trial, subscription, or comp. The trial and comps are Overload's own state, and subscription state comes only from verified, idempotent Stripe webhooks.
-  - **Comped access, managed in the admin center.** The owner can grant any account full Pro access without billing it, with a reason (for example friend, creator, or tester), an optional end date, and an audit entry, and can revoke it. This is an entitlement source, not a role: it grants capabilities and not permissions, it has an expiry and a reason, and it never touches Stripe or the admin allowlist. Existing accounts are comped as founding members through the same mechanism.
-  - Stripe Billing with hosted Checkout and the Customer Portal. No card data touches Overload.
-  - Promo codes through Stripe promotion codes backed by coupons that apply for a fixed number of months, with a redemption limit and a first-time-customer restriction, entered at checkout when the lifter subscribes. BLIZZY is the first campaign: proposed 50% off for 3 months, capped at 200 redemptions to limit support load. The pitch verifies how Stripe counts months against a repeating coupon.
-  - Plain disclosure before checkout of the price, how long any discount lasts, that it renews, and how to cancel. A failed payment gets a grace period before the account moves to Free.
-  - Read-only admin visibility of subscription state, code redemptions, and the subscriptions they produced, alongside the comp controls.
-  - A tax-handling decision recorded, and the full flow tested in Stripe's test mode.
-- **Owner decisions, not derivable from the docs:** the Pro price, which capabilities sit in Pro (the split above is a proposal), whether the trial requires a card, the BLIZZY terms, and the grace-period length.
-- **Defers:** In-app purchase and any native checkout on iOS or Android, a lifetime or six-month plan, extended trials, referral programs, and a higher tier for chat-style AI coaching, which comes much later.
-- **Depends on:** Pitches 17, 18, and 19.
-- **Definition of done:**
-  - A new account has Pro for 14 days and then Free, with all of its data intact and logging uninterrupted.
-  - A Free account cannot obtain any Pro result, including by calling a server action directly.
-  - Granting and revoking comped access works, is audited, ends on its end date, and a comped account is never shown as a paying subscriber.
-  - Webhooks are authenticated and idempotent, and replaying one changes nothing.
-  - A promo applies for exactly its duration, then stops, and stops being accepted at its redemption limit.
-  - The failed-payment path behaves as specified, and no card data is stored.
+- **Status:** Complete
+- **Value delivered:** A Free plan (no ads, ever) and a paid Pro plan with a 14-day trial, hosted checkout, promo codes, and owner-granted comped access. Capture, history, and export stay free.
+- **Detail:** see the pitch's spec. Stripe web billing stays as built.
 
-### Pitch 21: Public Landing Page & Changelog
+### Pitch 20: Public Landing Page & Changelog
 - **Type:** Feature
-- **Status:** Planned
-- **Value delivered:** A credible place for a video viewer to land, understand Overload, and sign up.
-- **Includes:**
-  - Public marketing pages in the same application, separate from the signed-in product: landing, pricing (the Free and Pro plans), a creator page at `/blizzy` that explains the offer and carries the code through to checkout, support and contact links, and the privacy policy and terms (content supplied by the owner).
-  - A public changelog built from the same repository release-note content that What's New uses, so entries are maintained once.
-  - Real screenshots taken from a demo account, never from a real lifter's data.
-  - A call to action that follows the current mode: early-access signup before billing is live, subscribe after.
-  - First-party campaign attribution (which landing page or code led to a signup), with any third-party analytics decided in the pitch.
-- **Defers:** A blog, testimonials, A/B tests.
-- **Depends on:** Pitches 19 and 20 (for the subscribe state).
-- **Definition of done:**
-  - The pages are fast and accessible, and the call to action matches the current signup and billing mode.
-  - `/blizzy` carries the code into checkout.
-  - The changelog and What's New show the same entries from one source.
-  - The privacy policy and terms are published.
+- **Status:** Complete
+- **Value delivered:** A credible place for a visitor to land, understand Overload, and sign up.
+- **Detail:** see the pitch's spec.
 
 ### Pitch 22: Workout Plan Import & Review
 - **Type:** Feature
-- **Status:** Planned
-- **Value delivered:** A lifter can paste the plan they already keep in Notes and get a structured Overload plan after reviewing it. Plan import is a Pro capability, so every new account has it during its 14-day trial, which is when most people bring their plan in.
-- **Includes:**
-  - Pasting plain text of an existing plan. A server-side model call extracts structure, and the result is validated against a strict schema, reusing the existing plan-seed format as the structured intermediate (to be confirmed in the spec).
-  - Every extracted item must trace back to the pasted text.
-  - Exercises are matched to the library, ambiguous matches are shown as choices, and unmatched ones are offered as new custom exercises.
-  - A full review screen where everything can be edited, and nothing is saved until the lifter confirms. The existing plan-creation path then creates it, with no second path.
-  - Guardrails: an input size limit, per-account rate and daily usage limits tied to the account's entitlement, a global spend cap with a kill switch, pasted text treated as data and never as instructions, a recorded decision on how long raw text is kept, and a review of the model provider's data terms.
-  - It parses what the lifter wrote. It never invents exercises, sets, or loads, and it never generates a program.
-- **Defers:** Files, PDFs, photos, and screenshots, and any AI that suggests programs.
-- **Depends on:** Pitches 19 and 20 (accounts and usage limits tied to entitlement).
-- **Definition of done:**
-  - A typical pasted plan becomes a correct proposed plan that the lifter can edit.
-  - Nothing is saved until confirmation, and an abandoned import leaves nothing behind.
-  - Text containing instructions is parsed as data and does not change behavior.
-  - The usage limits stop a runaway account, and the kill switch works.
-
-### Pitch 23: Launch Readiness & Closed Beta
-- **Type:** Foundational
-- **Status:** Planned
-- **Value delivered:** Evidence that Overload is ready to accept paying strangers.
-- **Includes:**
-  - The paid-launch checklist as verifiable tasks: a tested backup and restore drill; a security review covering cross-account isolation, admin authorization, and webhook authentication; rate limiting; error monitoring and alerting (provider chosen in the pitch); production on plans that allow commercial use and include backups (check the current terms of the hosting and database providers); documented procedures for payment failure, cancellation, refund, deletion, and support response; and the full journey from landing page through checkout to a first workout, on web and iPhone.
-  - A closed beta with real people who did not build Overload, completing real workouts.
-  - A launch decision signed off by the owner.
-  - Human-side tasks listed so they are not forgotten: business entity and payout account, sales-tax decisions, disclosure that the creator videos are promotional where there is a commercial relationship, legal review of the terms and privacy policy, domain and email DNS, and Apple Developer Program enrollment.
-- **Defers:** Public App Store release.
-- **Depends on:** Pitches 17 to 22.
-- **Definition of done:**
-  - Each checklist item has recorded evidence.
-  - Beta testers complete real workouts without the owner's help.
-  - The owner signs off before any stranger is charged.
+- **Status:** Complete, with the model provider disabled in Production
+- **Value delivered:** A lifter can paste the plan they already keep in Notes and get a structured Overload plan after reviewing it.
+- **Detail:** see the pitch's spec. The provider stays off in Production until the owner approves activation.
 
 ---
 
-## MVP 5 — Mobile Experience (after launch)
+## MVP 5A — iOS Foundation & TestFlight (next)
 
-### Pitch 24: Android Foundation
+### Pitch 21: iOS Foundation & TestFlight
 - **Type:** Foundational
-- **Status:** Planned
-- **Value delivered:** Overload runs as an Android app around the same web product, using the platform-neutral structure Pitch 18 established, so the features after it are built once for both platforms.
-- **Includes:** A Capacitor Android project and Android Studio build, signing keystore, adaptive icon and splash, back-button and status-bar behavior, session persistence, deep links (App Links), the Android implementations of the platform adapters, build and install steps, and an internal testing track on Google Play. The `overload-cross-platform` skill is extended to Android.
-- **Defers:** Location, notifications, ongoing-workout surface, health data, and Play Store release.
-- **Depends on:** Pitch 18.
+- **Status:** Planned (next)
+- **Value delivered:** Overload runs as an iPhone app around the existing web product, the existing friends can install it and sign in with their current accounts, and every later pitch knows how to treat iOS.
+- **Includes:**
+  - A feasibility check first. How a Capacitor shell runs a server-rendered Next.js application (for example, loading the hosted site in the shell versus a different approach) is recorded as a decision with its tradeoffs and proven on a real iPhone.
+  - The Capacitor and Xcode project on the owner's new Mac, signing, icon, launch behavior, safe areas, keyboard behavior, backgrounding, navigation, and session persistence per account.
+  - Two build configurations: a development build connected to the development environment for the owner's own phone, and a build connected to Production for the friends.
+  - Deep links.
+  - A platform adapter structure named by capability (haptics, notifications, location, health), with the iOS implementations behind it and graceful browser fallbacks. This pitch builds the haptics adapter and capability foundations only.
+  - Existing account holders sign in and keep the plan, Pro, or comped access they already have. The app shows their access read-only. There is no purchase flow and no in-app purchase.
+  - Build and install steps, and an external TestFlight beta, which Apple reviews once for the first external build.
+  - The `overload-cross-platform` skill, filled in with the architecture this pitch establishes.
+- **Human steps (in the runbook):** enroll in the Apple Developer Program as an individual, set up the new Mac and Xcode, register the iPhone, create the App Store Connect record, and invite the friends.
+- **Defers:** In-app purchase and any store billing path, App Store submission, location, notifications, Live Activity, Watch, and Android.
+- **Depends on:** MVP 1 to 4.
 - **Definition of done:**
-  - The app installs on a real Android phone and through the Play internal testing track, signs in, and completes a full workout.
-  - The website and the iOS app behave exactly as before.
-  - No native-only control renders in the browser.
+  - The Xcode project builds on the new Mac and installs on the owner's iPhone.
+  - The existing account signs in and stays signed in.
+  - Plans, starting a workout, logging sets, finishing a workout, and history all work on the phone.
+  - Safe areas, keyboard, navigation, backgrounding, and authentication behave naturally on iPhone.
+  - The development build uses the development environment, and the friends' build uses Production deliberately.
+  - A TestFlight build is uploaded and approved for external testers, and an existing friend installs it and signs in with their existing account.
+  - The website behaves exactly as before, and no native-only control renders in the browser.
 
-### Pitch 25: Gym Location Awareness
+---
+
+## MVP 5B — Friends Beta & Workout Refinements
+
+**Friends beta (an activity, not a pitch).** Invite the existing friends to the TestFlight build, confirm their accounts and workout histories look right, and collect feedback in Discord. What they report decides the order of Pitches 25, 26, and 27.
+
+### Pitch 24: Workout Logging Refinements
+- **Type:** Feature
+- **Status:** Planned
+- **Value delivered:** Four small correctness and usability gaps in logging and planning are closed.
+- **Includes:**
+  - **Below-minimum reps.** If a logged set falls below the planned minimum (for example 90 lb planned at 6 to 10 reps, logged 3), the app must not recommend staying at that weight. A clearly failed set triggers a reassessment or reduction recommendation under the existing progression rules and history. It does not overwrite a reliable baseline by itself, and not every missed set reduces weight. The spec defines the rule using the existing constants. Verify first whether the current behavior really is a bug.
+  - **Fixed rep targets.** A planned exercise can have a single target (3 × 10) without a range. Internally it can be a range with equal minimum and maximum. The spec confirms how a pass and the progression threshold behave when there is no upper end.
+  - **Swap exercise.** The swap picker can change its muscle filter to any group, not only the planned exercise's group.
+  - **Abs and bodyweight logging audit.** Verify that abs exercises log like pull-ups and other bodyweight movements (reps only, no fake load, no e1RM from a missing load, no machine baseline). Fix only if it is broken.
+- **Plan placement:** Capture and plan building are Free. Recommendations stay Pro.
+- **Defers:** Any change to progression rules beyond the below-minimum case.
+- **Depends on:** Pitches 4, 5, 14, 15, and 16.
+- **Definition of done:**
+  - A failed set below the planned minimum never produces a "stay at this weight" recommendation.
+  - A 3 × 10 exercise plans, logs, and progresses correctly.
+  - Swap can reach exercises in any muscle group.
+  - Abs logging is confirmed or fixed to match the other bodyweight movements.
+
+### Pitch 25: Wing-It Workouts
+- **Type:** Feature
+- **Status:** Planned (order decided by beta feedback)
+- **Value delivered:** A lifter can start a workout without a plan, choose exercises as they go, and have it saved to history.
+- **Includes:** A Start workout action that needs no mesocycle, choosing exercises while training, logging sets with the existing logging card, saving to history, using the existing gym-aware baselines where applicable, and never altering the scheduled plan or the missed-day logic. How progression treats an exercise with no planned rep range is decided in the spec. The default is that it adds to history and the e1RM trend but receives no progress or deload tag.
+- **Plan placement:** Free.
+- **Defers:** Suggesting exercises, and turning a wing-it workout into a planned session.
+- **Depends on:** Pitches 4 and 5. Sequenced after Pitch 21.
+- **Definition of done:**
+  - A workout can be started and finished with no plan, and it appears in history.
+  - The scheduled plan and the dashboard's planned day are unchanged.
+  - Machine and cable exercises still use the chosen gym's baselines.
+
+**Chore: landing page trial wording.** Tiara's feedback is that the "no card" wording confused her and read as if it were talking to friends. State the trial plainly and briefly, for example: "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month." Copy only, one ticket.
+
+**Chore: admin membership visibility.** The admin account list shows each account's plan (Pro, Free, or comped). It shows account metadata only and never any training content. One ticket.
+
+---
+
+## MVP 5C — Native Experience & Lightweight Sharing
+
+### Pitch 26: History Calendar
+- **Type:** Feature
+- **Status:** Planned (order decided by beta feedback)
+- **Value delivered:** A visual calendar view of training history, in addition to the week-at-a-glance list.
+- **Includes:** A calendar of logged, planned, skipped, and wing-it days that opens the logged workout for a day, usable one-handed on a phone.
+- **Plan placement:** Free.
+- **Defers:** Anything that changes the underlying history.
+- **Depends on:** Pitch 4.
+- **Definition of done:**
+  - Every logged day appears on the calendar and opens its workout.
+  - The calendar and the list agree.
+
+### Pitch 27: Friends & Workout Sharing
+- **Type:** Feature
+- **Status:** Planned (order decided by beta feedback)
+- **Value delivered:** A lifter can send a workout to a friend, who reviews it and adds their own copy.
+- **Includes:** A short planning step that settles what a friend is and what is shareable. The first scope is sharing a workout template (a session with its exercises and planned sets and rep ranges) by link or code. The recipient reviews and imports a copy into their own plan, so no account ever reads another account's data live. Sharing is user-initiated and revocable, and logged history is never shared this way. This deliberately amends the earlier no-social boundary, and the amendment is recorded in the Brief, PRD, and `CLAUDE.md` before the pitch runs.
+- **Defers:** A feed, following, comments, direct messages, leaderboards, and content creators.
+- **Depends on:** Pitches 3 and 21.
+- **Definition of done:**
+  - A shared template arrives as a copy the recipient confirms, and the sender's account is never readable by the recipient.
+  - Revoking a share stops further imports.
+  - The cross-account isolation suite still passes.
+
+### Pitch 28: Shareable Progress Cards
+- **Type:** Feature
+- **Status:** Planned
+- **Value delivered:** A lifter can share a goal hit or a set from the app, for example to an Instagram Story.
+- **Includes:** A generated card for a goal reached or a logged set, an optional photo background, and the phone's native share sheet, so the lifter can resize and position it in the destination app. The lifter chooses what the card shows. Nothing posts automatically. The web gets a download fallback.
+- **Plan placement:** Free.
+- **Defers:** Video, and posting directly through a social app's API.
+- **Depends on:** Pitches 6 and 21.
+- **Definition of done:**
+  - A card is generated from a goal or set and shared through the iOS share sheet.
+  - The card contains only what the lifter selected.
+
+### Pitch 29: Gym Location Awareness
 - **Type:** Feature
 - **Status:** Planned
 - **Value delivered:** Overload suggests the right gym on arrival so machine baselines are not polluted.
-- **Includes:** Pinned gym coordinates stored on the lifter's own gyms, region-based (geofence) arrival detection on iOS and Android with no continuous tracking, a suggestion that can be overridden, and no silent assignment when detection is uncertain. Coordinates are personal location data, private to the account.
+- **Includes:** Pinned gym coordinates stored on the lifter's own gyms, region-based (geofence) arrival detection with no continuous tracking, a suggestion that can be overridden, and no silent assignment when detection is uncertain. Coordinates are personal location data, private to the account.
 - **Defers:** Always-on location tracking.
-- **Depends on:** Pitches 18 and 24.
+- **Depends on:** Pitch 21.
 - **Definition of done:**
-  - Arriving at a pinned gym produces a suggestion, not a silent assignment, on both platforms.
+  - Arriving at a pinned gym produces a suggestion, not a silent assignment.
   - An uncertain detection never changes the gym without confirmation.
   - No background GPS tracking runs.
 
-### Pitch 26: Native Notifications
+### Pitch 30: Native Notifications
 - **Type:** Feature
 - **Status:** Planned
 - **Value delivered:** A few restrained notifications that offer a useful action.
-- **Includes:** Today's scheduled workout, a planned mesocycle transition, a useful missed-day reminder, and deep links into today's workout, over Apple's and Google's push services. Each asks whether the lifter can act on it right now. Preferences are per account.
+- **Includes:** Today's scheduled workout, a planned mesocycle transition, a useful missed-day reminder, and deep links into today's workout. Each asks whether the lifter can act on it right now. Preferences are per account.
 - **Defers:** Engagement nudges, streaks, and motivational or guilt-based reminders.
-- **Depends on:** Pitches 18 and 24. Uses Pitch 25 for location-aware messages.
+- **Depends on:** Pitch 21. Uses Pitch 29 for location-aware messages.
 - **Definition of done:**
   - Each notification type can be turned off individually.
-  - A tap opens the right place in the app on both platforms.
+  - A tap opens the right place in the app.
   - Nothing fires when there is nothing actionable.
 
-### Pitch 27: Active Workout Live Activity
-- **Type:** Feature
-- **Status:** Planned
-- **Value delivered:** An active workout is visible on the lock screen, and on the Dynamic Island on iPhones that have one.
-- **Includes:** Workout name, elapsed time, current exercise, current and total sets, and target reps, with a tap that returns to the active workout. It exists only while a workout is active. iOS uses a Live Activity. The pitch decides the Android equivalent, most likely an ongoing notification, or states that it is iOS-only.
-- **Defers:** A permanent Home Screen widget.
-- **Depends on:** Pitch 18, and Pitch 24 for the Android part.
-- **Definition of done:**
-  - The surface starts with a workout and ends with it.
-  - Its content matches the active workout state.
+---
 
-### Pitch 28: Apple Watch Companion
-- **Type:** Feature
-- **Status:** Planned
-- **Value delivered:** The Watch is useful during a workout without copying the phone app.
-- **Includes:** Starting today's workout from the Watch (the same underlying workout as on the phone), showing elapsed time, current exercise, set number, planned set count, rep range, and next exercise, and controls to advance a set, move between exercises, and end the workout. Phone and Watch share one workout state. iOS only: a Wear OS app is not planned.
-- **Defers:** Full weight and reps entry on the Watch, to be decided after using the simpler version, and complications and Smart Stack items.
-- **Depends on:** Pitches 18 and 27.
-- **Definition of done:**
-  - Starting on either device never creates a second workout.
-  - The Watch shows the same current exercise and set as the phone.
+## MVP 6 — Public Mobile Distribution & Commercial Safeguards
 
-### Pitch 29: App Store Release
+### Pitch 23: Launch Readiness
+- **Type:** Foundational
+- **Status:** Planned (deferred until the beta proves the experience)
+- **Value delivered:** Evidence that Overload is ready to accept paying strangers, kept lean for a solo individual operator.
+- **Includes:**
+  - A tested backup and restore drill, and essential failure visibility instead of heavy monitoring.
+  - Basic rate limiting, and a check that cross-account isolation, admin authorization, and webhook authentication still hold.
+  - Documented procedures for payment failure, cancellation, refund, deletion, and support.
+  - The full journey from landing page through checkout to a first workout, on web and iPhone.
+  - Owner checks, listed so they are not forgotten and kept minimal: confirm the tax and payout obligations that apply to an individual seller, confirm the hosting and database plans allow commercial use and include backups, and make sure the creator videos disclose any commercial relationship. This roadmap is not legal or tax advice.
+- **Defers:** Anything that needs a company, a lawyer, or heavy tooling.
+- **Depends on:** Pitches 17 to 22 and 21.
+- **Definition of done:**
+  - Each checklist item has recorded evidence.
+  - A small group of real testers completes real workouts without the owner's help.
+  - The owner signs off before any stranger is charged.
+
+### Pitch 31: App Store Release
 - **Type:** Foundational
 - **Status:** Planned
 - **Value delivered:** Overload is available in the App Store.
-- **Includes:** The store listing, privacy details, and review notes; a decision on how paid access works in the app, checked against Apple's guidelines at that time (a link out to the web checkout opened in the external browser on the US storefront, in-app purchase, or sign-in for existing subscribers only); confirmation that the app offers native value beyond a website wrapper; in-app account deletion; and TestFlight feedback addressed. A small group of trusted testers uses TestFlight until release.
+- **Includes:** The store listing, privacy details, and review notes. A decision on how paid access works in the app, checked against Apple's guidelines at that time (a link out to the web checkout opened in the external browser on the US storefront, in-app purchase, or sign-in for existing subscribers only). Confirmation that the app offers native value beyond a website wrapper, which the native features in MVP 5C support. In-app account deletion, and TestFlight feedback addressed.
 - **Defers:** Other storefronts.
-- **Depends on:** Pitches 18 and 20, and at least some of Pitches 25 to 28.
+- **Depends on:** Pitches 19 and 21, and at least some of Pitches 26 to 30.
 - **Definition of done:**
   - The app is approved and released.
   - A paying customer's access works in the app without a purchase path Apple's rules do not allow.
 
-### Pitch 30: Google Play Release
+---
+
+## MVP 7+ — Expansion
+
+### Pitch 32: Android Foundation
+- **Type:** Foundational
+- **Status:** Planned
+- **Value delivered:** Overload runs as an Android app around the same web product, using the platform-neutral structure Pitch 21 established.
+- **Includes:** A Capacitor Android project and Android Studio build, signing, adaptive icon and splash, back-button and status-bar behavior, session persistence, deep links, the Android implementations of the platform adapters, build and install steps, and an internal testing track on Google Play.
+- **Defers:** Play Store release and any native capability beyond the foundation.
+- **Depends on:** Pitch 21.
+- **Definition of done:**
+  - The app installs on a real Android phone and through Play internal testing, signs in, and completes a full workout.
+  - The website and the iOS app behave exactly as before.
+
+### Pitch 33: Google Play Release
 - **Type:** Foundational
 - **Status:** Planned
 - **Value delivered:** Overload is available on Google Play.
-- **Includes:** The store listing, data-safety disclosure, and review notes; the closed-testing requirement Google sets for new personal developer accounts (check the current number of testers and days); a decision on how paid access works in the app, checked against Google's current billing policy (Play Billing, or an alternative the policy allows for the region); and native value beyond a website wrapper.
-- **Defers:** Other storefronts.
-- **Depends on:** Pitches 20 and 24, and at least some of Pitches 25 to 27.
+- **Includes:** The store listing, data-safety disclosure, and review notes; Google's closed-testing requirement for new personal developer accounts (check the current tester count and days); a decision on how paid access works in the app under Google's current billing policy; and native value beyond a website wrapper.
+- **Depends on:** Pitches 19 and 32.
 - **Definition of done:**
-  - The app is approved and released.
-  - A paying customer's access works in the app without a purchase path Google's policy does not allow.
+  - The app is approved and released, with no purchase path Google's policy does not allow.
 
----
+### Pitch 34: Active Workout Live Activity
+- **Type:** Feature
+- **Status:** Planned
+- **Value delivered:** An active workout is visible on the lock screen, and on the Dynamic Island on iPhones that have one.
+- **Includes:** Workout name, elapsed time, current exercise, current and total sets, and target reps, with a tap that returns to the active workout. It exists only while a workout is active. The Android equivalent is decided in the pitch, most likely an ongoing notification.
+- **Depends on:** Pitch 21.
+- **Definition of done:**
+  - The surface starts with a workout and ends with it, and its content matches the active workout state.
 
-## MVP 6 — Health, Body & Nutrition
+### Pitch 35: Apple Watch Companion
+- **Type:** Feature
+- **Status:** Planned
+- **Value delivered:** The Watch is useful during a workout without copying the phone app.
+- **Includes:** Starting today's workout from the Watch (the same underlying workout as on the phone), showing elapsed time, current exercise, set number, planned set count, rep range, and next exercise, and controls to advance a set, move between exercises, and end the workout. Phone and Watch share one workout state. iOS only.
+- **Defers:** Full weight and reps entry on the Watch, to be decided after using the simpler version.
+- **Depends on:** Pitches 21 and 34.
+- **Definition of done:**
+  - Starting on either device never creates a second workout.
 
-### Pitch 31: Body Metrics (HealthKit and Health Connect)
+### Pitch 36: Advanced Cardio Logging
+- **Type:** Feature, discovery first
+- **Status:** Planned
+- **Value delivered:** Richer cardio records, with a decision made on how to get them.
+- **Includes:** A discovery step comparing the options: pulling data from an existing source (the phone's health platform, which can already hold runs recorded by other apps, or the Strava API; Nike Run Club has no public API as far as is known, so verify), or a fully custom system with its own goals and progression, which would be a very different product area from lifting. The discovery recommends one and the first build follows. Any progression for cardio would reverse the current "cardio is a record only" boundary, so that is an explicit decision.
+- **Depends on:** Pitch 21.
+- **Definition of done:** A recommendation is recorded and approved before any build starts.
+
+### Pitch 37: Attach Videos to Sets
+- **Type:** Feature, discovery first
+- **Status:** Planned
+- **Value delivered:** A lifter can keep a video with a logged set.
+- **Includes:** A discovery step on storage, privacy, and cost before any build, because video changes what Overload stores and who could see it.
+- **Depends on:** Pitch 21.
+- **Definition of done:** A recommendation covering storage, cost, retention, and privacy is approved before any build starts.
+
+### Pitch 38: Body Metrics (HealthKit and Health Connect)
 - **Type:** Feature
 - **Status:** Planned
 - **Value delivered:** Body data syncs from the phone's health platform and can be viewed on web and mobile.
-- **Includes:** Body weight, body-fat percentage where available, resting heart rate, and selected workout or cardio information, each with a stated product reason, from HealthKit on iOS and Health Connect on Android. Synced data lives in the backend per account, so the web app can show the history. It is a separate Body domain from training.
+- **Includes:** Body weight, body-fat percentage where available, resting heart rate, and selected workout information, each with a stated product reason, in a Body domain separate from training. Synced data lives in the backend per account.
 - **Defers:** Every other health metric, and any automatic effect on lifting recommendations.
-- **Depends on:** Pitches 18 and 24.
+- **Depends on:** Pitches 21 and 32.
 - **Definition of done:**
-  - Synced metrics appear on web and mobile, scoped to the account that synced them.
-  - Body data does not touch any training recommendation.
+  - Synced metrics appear on web and mobile, scoped to the account that synced them, and never touch a training recommendation.
 
-### Pitch 32+: Nutrition
+### Pitch 39+: Nutrition
 - **Type:** Feature (several pitches)
 - **Status:** Planned, to be split when reached
 - **Value delivered:** Calorie and macro tracking as its own domain.
-- **Includes:** Likely a foundation (targets, entries, daily totals), then food logging (search, reusable foods, saved meals, servings), then trends (average intake, adherence, relation to body weight).
-- **Defers:** Anything that complicates the training workflow.
-- **Depends on:** Pitch 31.
-- **Definition of done:** Set when the nutrition pitches are shaped.
+- **Includes:** Likely a foundation (targets, entries, daily totals), then food logging, then trends.
+- **Depends on:** Pitch 38.
+
+**Future exploration (not a pitch).** A built-in social platform with posts, following, messaging, and content creators. It is a large product and moderation commitment. Some of its basics may arrive through the friends and sharing pitches, and anything beyond that needs its own decision and its own initiative.
 
 ## Dependency Map
 
-Pitches 1 to 16 are complete. Pitch 17 depends on them and blocks 19, 20, and 23. Pitch 18 depends on 9 and 10 and is sequenced after 17. It blocks 19 (deep links), 20, 24, and every pitch from 25 on. Pitch 19 depends on 17 and 18 and blocks 20, 21, 22, and 23. Pitch 20 depends on 17, 18, and 19. Pitches 21 and 22 depend on 19 and 20. Pitch 23 depends on 17 to 22.
+Pitches 1 to 20 and 22 are complete. Pitch 21 depends on them and blocks everything native: 26 to 31 and 32 to 38. Pitch 24 depends on 4, 5, 14, 15, and 16 and is not blocked by 21, but its fix lands before the friends' build if the issue is confirmed. Pitch 25 depends on 4 and 5. Pitch 26 depends on 4. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
 
-Pitch 24 depends on 18. Pitches 25 and 26 depend on 18 and 24, and 26 uses 25 for location-aware messages. Pitch 27 depends on 18, and on 24 for its Android part. Pitch 28 depends on 18 and 27. Pitch 29 depends on 18 and 20 and at least some of 25 to 28. Pitch 30 depends on 20 and 24 and at least some of 25 to 27. Pitch 31 depends on 18 and 24, and the nutrition pitches depend on 31.
+Pitch 32 depends on 21. Pitch 33 depends on 19 and 32. Pitch 34 depends on 21. Pitch 35 depends on 21 and 34. Pitches 36 and 37 depend on 21 and begin with discovery. Pitch 38 depends on 21 and 32, and the nutrition pitches depend on 38.
 
-**Rollout gates (not pitches):** public signup stays invite-only until Pitch 19 is verified. No payment is collected until Pitch 23's checklist passes. Public App Store and Google Play releases wait for Pitches 29 and 30.
+**Rollout gates (not pitches):** the friends' TestFlight build connects to Production only after sign-in and workout logging are verified on the development build. No payment flow is added inside the iOS app until Pitch 31 decides the store billing path. Pitch 22's model provider stays disabled in Production until its approvals pass. A public App Store release waits for Pitches 23 and 31.

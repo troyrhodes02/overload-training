@@ -48,9 +48,9 @@ Product Brief → PRD → Pitch Roadmap → Pitch → Design Doc → Technical S
 - **`docs/planning/prd.md`** — MVP features, acceptance criteria, edge cases, deferred features.
 - **`docs/planning/architecture.md`** — technical ground truth, stack decisions, security model, consistency model, Open Questions.
 - **`docs/planning/pitch-roadmap.md`** — pitch sequence, dependencies, what each pitch includes and defers.
-- **Expanded pitch** at `pitches/NN-pitch-name.md` — slice-specific problem, scope, boundaries, no-gos, definition of done.
+- **Expanded pitch**, `pitch.md` in the pitch folder (`docs/pitches/<milestone>/NN-pitch-name/`) — slice-specific problem, scope, boundaries, no-gos, definition of done.
 - **Design doc** — UI/UX behavior, screen states, component expectations. See `overload-design-doc`.
-- **UI preview** at `docs/previews/NN-pitch-name-preview.tsx` — the visual contract for a UI-bearing pitch. See `overload-ui-design`.
+- **UI preview**, `preview.tsx` in the pitch folder — the visual contract for a UI-bearing pitch. See `overload-ui-design`.
 - **Technical spec** — data shape, server behavior, validation, tests, implementation constraints. See `overload-spec`.
 - **Linear ticket** — the actual unit of work being reviewed.
 

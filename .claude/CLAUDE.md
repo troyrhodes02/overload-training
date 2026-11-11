@@ -2,7 +2,7 @@
 
 Overload is a strength training tracker whose job is to tell each lifter, per lift and per session, whether to progress, hold, or deload, based on logged performance against a plan they built themselves. It is invite-only today and is being opened to the public, with a free plan and a paid Pro plan. Every lifter has their own account, and no account can see, change, or learn anything about another account's data.
 
-**Status.** The first three MVPs are shipped: the training product, the multi-user conversion, and the training-intelligence features. Overload is now moving from an invite-only product for friends to a commercial launch with a Free plan and a Pro plan (MVP 4). Until the launch-readiness checklist passes, signup stays invite-only and no payment is collected.
+**Status.** MVP 1 to 3 (the training product, the multi-user conversion, and the training-intelligence features) are shipped, and MVP 4, the web commercial foundation (admin center, public accounts, plans and billing, the landing page, and plan import), is largely built. The next work is the iOS app and a TestFlight beta for existing friends. Overload is operated by an individual, with a Free plan and a paid Pro plan. Public signup stays gated by the signup-mode setting, and no purchase flow is added inside a mobile app until the store billing path is decided.
 
 This file is persistent context for Claude Code. It encodes the non-obvious rules and invariants specific to this project. For product intent see `docs/planning/product-brief.md`; for features and acceptance criteria see `docs/planning/prd.md`; for technical decisions and rationale see `docs/planning/architecture.md`; for build sequencing see `docs/planning/pitch-roadmap.md`. This file is the "how we write code here" layer on top of those.
 
@@ -20,7 +20,7 @@ This file is persistent context for Claude Code. It encodes the non-obvious rule
 
 Planned for the commercial launch, and not to be added before the pitch that introduces them: **Stripe** (Billing, hosted Checkout, and the Customer Portal; the only place money and card data live), a **custom SMTP provider** for account email (Public Accounts), a **language-model API** called from the server for plan import only (Plan Import), and **Capacitor** iOS and Android shells around the same web app (iOS Foundation, then Android Foundation).
 
-Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no separate staging database or tier (a `staging` Git branch previews against `overload-dev` (see `docs/technical/staging-environment.md`)), no maps or geocoding service (gym location is free text), no health-data integration (HealthKit is unreachable from a website), and no role system for lifters. The owner-only admin area, once built, is separate (see the admin boundary). An agent that does not know these were rejected will add them.
+Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no maps or geocoding service (gym location is free text), no health-data integration (HealthKit is unreachable from a website), and no role system for lifters. The owner-only admin area, once built, is separate (see the admin boundary). An agent that does not know these were rejected will add them.
 
 Do not add libraries or infrastructure not already decided in the Architecture Doc without flagging it first.
 
@@ -141,7 +141,7 @@ Exercise images are public-domain assets from free-exercise-db. They are the onl
 
 ### Secrets
 
-`DATABASE_URL`, `DIRECT_URL`, the Supabase service-role key, the invite code, the SMTP credentials, the Stripe secret and webhook signing keys, and the language-model API key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Local development points at the Supabase CLI local stack; Vercel preview deployments point at the Supabase dev project (`overload-dev`, synthetic data only); neither ever points at production (`ycxvdiklpefyhdclxyau`). A Preview or Development deployment whose database or Supabase variables name the production ref fails its build and refuses to start (`src/lib/env/deployment-guard.ts`). See `docs/technical/environment-isolation.md`.
+`DATABASE_URL`, `DIRECT_URL`, the Supabase service-role key, the invite code, the SMTP credentials, the Stripe secret and webhook signing keys, and the language-model API key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Vercel preview deployments and local development point at the Supabase dev project, never at production.
 
 ### Personal data
 
@@ -168,7 +168,7 @@ Names, emails, and training history are personal data. Never log them, never put
 
 ### Plan import (AI)
 
-- The model call happens only on the server, never in the browser.
+- The model call happens only on the server, never in the browser. In Production the provider stays disabled until the owner approves its activation.
 - Input has a size limit. Each account has rate and daily limits tied to its entitlement, and there is a global spend cap with a kill switch.
 - Pasted text is data, never instructions. Output is validated against a strict schema, and every extracted item must trace back to the pasted text. It never invents an exercise, set, or load.
 - Exercises are matched to the library, and ambiguous or unmatched ones are shown for the lifter to decide. Nothing is saved until the lifter confirms, and the existing plan-creation path does the saving.
@@ -224,7 +224,7 @@ A `CardioLog` stores type and duration, assigned to a split day. No tag, no tren
 Permanent non-goals from the Brief. These are "never" for this product:
 
 - **No program generation.** The lifter designs every split and mesocycle. The app tracks and adjusts load inside the plan; it never authors one.
-- **No social features of any kind.** No sharing, leaderboards, or visibility between accounts. Lifters never see each other.
+- **No social network.** No feed, following, comments, messaging, or leaderboards, and no account ever reads another account's data live. Limited, user-initiated sharing is planned (a workout template shared by copy, and progress cards through the phone's share sheet). Until those pitches ship, none exists. A shared template arrives as a copy the recipient confirms and owns.
 - **Not open to the public yet.** Signup stays invite-only and no payment is collected until the launch-readiness checklist passes. Social login stays out.
 - **No ads, ever.** The Free plan has no ads.
 - **No AI coach.** AI is used only to parse a plan the lifter wrote (plan import). It never generates programs or coaches. A chat-style coach would be a separate, much later tier, and is not planned.
@@ -232,7 +232,7 @@ Permanent non-goals from the Brief. These are "never" for this product:
 - **No progression analysis of cardio.**
 - **No nutrition or body-composition features in this build.** Those are a deliberately separate, later build. Don't model them here, and don't preclude connecting to them later.
 
-Deferred (planned in the roadmap; don't build unless a pitch calls for it, but don't preclude): the commercial launch features (admin center, public accounts and recovery, plans and billing, the landing page, plan import, launch readiness); the iOS and Android shells; gym location, notifications, Live Activity, and the Watch app; the App Store and Google Play releases; body metrics; nutrition. Cardio stays type and duration.
+Deferred (planned in the roadmap; don't build unless a pitch calls for it, but don't preclude): the iOS app and TestFlight beta; workout logging refinements; wing-it workouts; the history calendar; friends and template sharing; shareable progress cards; gym location and notifications; Launch Readiness and the store releases; Android; the Live Activity and Watch app; advanced cardio and video attachments (discovery first); body metrics; nutrition. Cardio stays type and duration until a pitch decides otherwise. A built-in social platform is future exploration, not planned.
 
 ## Testing
 
@@ -249,13 +249,59 @@ Focus tests where correctness matters most. Highest-value targets, in order:
 
 Test the risky logic hard; lean tests or manual verification are fine for low-risk UI and plain CRUD (the exercise library, gym list, cardio log). The exceptions that are never lean are anything that scopes data to an account, anything that enforces a plan, anything behind the admin boundary, and anything that writes or deletes logged history.
 
+## Docs layout
+
+```text
+docs/
+├── planning/   product-brief, prd, architecture, pitch-roadmap, method-note (cross-milestone)
+├── pipeline/   branching workflow, promotion prompt, pipeline guide
+├── marketing/
+└── pitches/
+    └── <milestone>/            e.g. mvp-4-web-commercial
+        └── <NN-pitch-name>/    e.g. 17-admin-center-feedback
+            ├── pitch.md        expanded pitch (supplied by the owner)
+            ├── design.md       design doc
+            ├── preview.tsx     UI preview (UI-bearing pitches)
+            ├── spec.md         technical spec
+            ├── runbook.md      what the owner does outside the codebase
+            ├── sql/            runbook SQL, when needed
+            └── assets/         preview assets, when needed
+```
+
+The milestone folder is the phase the pitch sits under in `docs/planning/pitch-roadmap.md` (its table lists each folder name). Small chores that need a runbook go in `chores/<ticket>-<name>/` inside the milestone folder. Keep everything for one pitch in its own folder.
+
+## Branching and release workflow
+
+Overload uses three stages. This is a permanent rule, and `docs/pipeline/branching-and-release-workflow.md` has the same text.
+
+**Production (`main`).** Connected to the Production Supabase project. Contains only approved, released functionality. Never merge untested features directly into `main`. Production migrations, AI-provider activation, billing changes, and destructive operations require explicit owner approval.
+
+**Permanent staging (`staging`).** Connected exclusively to the `overload-dev` Supabase project, with a stable Vercel Preview URL. It is for rapid development, testing, experimentation, and bug fixing. Routine development migrations and disposable test-data changes proceed using the existing environment identity guards (OVE-111). Staging is persistent: never delete or recreate it as part of normal feature delivery.
+
+**Feature branches.** Branch from the latest `staging`. Open feature PRs targeting `staging`, never `main`. Merge completed implementation into `staging` for browser testing. Keep unfinished features out of Production. A run never merges a feature into `main`.
+
+**Production promotion.** After the owner approves a feature on staging:
+
+1. Create a fresh release branch from the latest `main`.
+2. Transfer only the approved feature changes and their tested fixes, using carefully selected commits, cherry-picks, or an equivalent verified method.
+3. Include required dependencies, database migrations, documentation, and feature flags.
+4. Compare the release diff with the approved staging implementation, and verify no unrelated staging features or development-only behavior are included.
+5. Run the applicable quality, security, and Production-readiness checks.
+6. Open a release PR targeting `main`. Never merge or deploy it automatically.
+7. Report the outstanding Production approvals and the exact owner actions.
+8. After the Production release succeeds, synchronize `main` back into `staging` without overwriting unfinished work.
+
+Never open a Production PR directly from `staging`. Never treat passing staging tests as approval for a Production migration, provider spending, or an external integration. Prisma migrations are ordered: if an approved migration cannot be transferred without an unapproved one, stop and report. The paste-ready promotion prompt is `docs/pipeline/production-promotion-prompt.md`.
+
+**Working style.** Complete safe development tasks autonomously, handle routine development migrations, testing, and staging integration without repeated dry runs and approvals, and stop only at genuine Production safety boundaries. Explanations are concise, with explicit commands, clear checkpoints, and no repetitive infrastructure verification.
+
 ## Workflow
 
-1. Work against the current pitch. Keep changes scoped to that pitch's in-scope list; don't wander into a later pitch. Expanded pitches live at `pitches/NN-pitch-name.md`, numbered and named to match the Pitch Roadmap (for example `pitches/04-guided-workout-logging.md`).
+1. Work against the current pitch. Keep changes scoped to that pitch's in-scope list; don't wander into a later pitch. A pitch's documents live together in its pitch folder (see Docs layout below).
 2. Commit with descriptive messages referencing the Linear issue ID. The team key is `OVE`, for example `OVE-123`.
-3. Push and open a PR via `gh pr create`; use the Vercel preview deployment to verify before merging. Previews run against the Supabase dev project.
+3. Push and open the PR with `gh pr create --base staging`, never against `main`. Merge into `staging` once the suite is green and verify in the browser on the staging URL, which runs against the `overload-dev` Supabase project.
 
-Anything touching `LoggedSet` writes, deletion behavior, or baseline correction gets verified on a preview deployment with real-shaped data before it reaches production, since there is no separate staging database and a bad deploy there corrupts the only copy of a lifter's history. Anything touching ownership, scoping, authentication, or the production migration is also verified on a preview deployment with at least two accounts.
+Anything touching `LoggedSet` writes, deletion behavior, or baseline correction gets verified on staging with real-shaped data before it is promoted, because a bad Production deploy corrupts the only copy of a lifter's history. Anything touching ownership, scoping, authentication, or a production migration is also verified on staging with at least two accounts.
 
 ### UI-bearing pitches
 
@@ -263,9 +309,9 @@ A pitch is UI-bearing if it creates, changes, or materially specifies any screen
 
 `pitch → design doc → UI preview → spec → tickets → implementation`
 
-The UI preview is generated with `overload-ui-design` and saved at `docs/previews/<slug>-preview.tsx`, using the same slug as the pitch, design doc, and spec. Do not write the spec until it exists. The spec must read it and carry its decisions into the implementation contract, and the ticket worker must read it before implementing any UI ticket. It is the approved visual contract for the pitch unless a later recorded Resolved Decision changes it, not throwaway inspiration.
+The UI preview is generated with `overload-ui-design` and saved as `preview.tsx` in the pitch folder, beside the pitch, design doc, and spec. Do not write the spec until it exists. The spec must read it and carry its decisions into the implementation contract, and the ticket worker must read it before implementing any UI ticket. It is the approved visual contract for the pitch unless a later recorded Resolved Decision changes it, not throwaway inspiration.
 
-`docs/previews` is excluded from type-checking, linting, formatting checks, and the production build, because a preview may reference components the application has not built yet. The Foundation pitch adds those exclusions. A preview is self-contained: inline mock data, no data-layer imports, no network requests.
+Preview files (`docs/pitches/**/preview.*`) are excluded from type-checking, linting, formatting checks, and the production build, because a preview may reference components the application has not built yet. A preview is self-contained: inline mock data, no data-layer imports, no network requests.
 
 A pitch with genuinely no UI surface records the UI design step as skipped and continues from the design doc to the spec. Do not renumber the pipeline steps.
 
@@ -273,7 +319,6 @@ A pitch with genuinely no UI surface records the UI design step as skipped and c
 
 Some work is done by the product's owner directly, not as an application feature or a pipeline run: applying a migration to production, and seeding a friend's plan from their written plan. Seeding is run interactively with a Claude Code prompt that uses the seeding example already in the repository. Any operator task that writes production data follows these rules:
 
-- Confirm the target **database** by Supabase project ref before connecting, never by hostname: Production and the dev project share the pooler host. Every operator script runs the target-identity guard (`scripts/operator/target-identity.ts`) first. A hosted target needs `--confirm-ref <ref>`, and a dev target must carry its identity marker. Development tooling refuses production outright; the few runbook-sanctioned production tools need both `--production` and the production ref.
 - Name the target account explicitly, by email, and confirm the resolved account before writing anything. Never infer it.
 - Do a dry run first that shows exactly what would be created and changes nothing.
 - Create only. Never delete, overwrite, or merge into existing data in the account.
@@ -305,11 +350,11 @@ Resolve open questions yourself. Do not present options or end a turn with a que
 
 The interview and checkpoint steps inside the skills do not apply in an unattended run: the clarification step in `overload-design-doc`, the risky-data-model checkpoint in `overload-spec`, and the scope checkpoint in `overload-ticket-worker`. Resolve each by decision and record it.
 
-Every resolved question is recorded in the spec under a `## Resolved Decisions` heading placed immediately before Open Questions, each with a one-line rationale and the authority it rests on. Open Questions then holds only what genuinely could not be decided, and each of those is also listed in the run report.
+Every resolved question is recorded in the spec under a `## Resolved Decisions` heading placed immediately before Open Questions, each with a one-line rationale and the authority it rests on. Open Questions then holds only what genuinely could not be decided, and each of those is also listed in the owner notes.
 
 ### The four things that stop a run
 
-Halt, write the reason to the run report, and stop if any of these arise:
+Halt, state the reason in the final message and the feature PR description, and stop if any of these arise:
 
 1. **An invariant would be weakened.** A `LoggedSet` written outside its module, or destroyed, altered, or detached from its exercise and gym. A hard delete of an `Exercise` or `Gym`, or a cascade on the logged chain. A stored progression tag or e1RM. A baseline correction outside its set's transaction or across gyms. A table without row-level security, or a policy that opens the Data API. Any read or write of owned data that is not scoped to the acting account, an account id taken from client input, or anything that lets one account see or detect another's data. Signup opened to the public before Public Accounts is verified, or any signup path that skips the invite gate while signup is invite-only. A secret in a client bundle. Any admin operation without a server-side admin check, or any admin view of an account's training content. A Pro result delivered to a Free account. Card data stored or logged.
 2. **An approved planning doc would be contradicted.**
@@ -318,7 +363,7 @@ Halt, write the reason to the run report, and stop if any of these arise:
 
 Everything else: decide and continue.
 
-Migrations are applied only to the Supabase dev project during a run. Applying anything to production, including a migration, any plan seeding, enabling public signup, switching Stripe to live mode, and any store release, is a step for a human.
+Migrations are applied only to the Supabase dev project during a run. Applying anything to production, including a migration, any plan seeding, enabling public signup, switching Stripe to live mode, any store release, and merging or deploying a release PR into `main`, is a step for a human. Migrations during a run go to the `overload-dev` project and proceed without repeated dry runs.
 
 ### Verification honesty
 
@@ -326,19 +371,23 @@ Never report a check you did not run. A check that needs an iOS or Android build
 
 ### Survive context exhaustion
 
-Maintain `docs/runs/<slug>-progress.md`, updated at every ticket boundary and step transition: current step, tickets with real identifiers, branch and PR for each, every Resolved Decision so far, anything deferred. Write it so a fresh session can resume from it.
+There is no progress file. The state of a run is recoverable from its artifacts: which of `design.md`, `preview.tsx`, and `spec.md` exist in the pitch folder, the Linear milestone and its issues with their statuses, the feature branch, and the ticket PRs already merged into it. The Resolved Decisions in the spec are binding. A fresh session reads those, finds the first incomplete step, and continues.
 
-### The run report
+### Owner notes, not a run report
 
-On completion or halt, write `docs/runs/<slug>-report.md`: what shipped, decisions made on the user's behalf, review findings and dispositions, deferrals, anything undecidable, verification results, near-misses, required upstream amendments, and, if halted, the stop condition and how to resume. Do not edit `docs/planning/` during a run, with one exception: `docs/planning/method-note.md`, which a run may create and extend to record constants a later pitch consumes.
+Do not write a run report. On completion or halt, update the feature PR description and print the same as the final message: decisions made on the owner's behalf, required upstream doc amendments, anything unverified or undecidable, and, if halted, the stop condition and how to resume. The only run document is the runbook (`runbook.md` in the pitch folder), covering what the owner must do outside the codebase. Do not edit `docs/planning/` during a run, with one exception: `docs/planning/method-note.md`, which a run may create and extend to record constants a later pitch consumes.
+
+### Linear status
+
+Keep Linear current without being asked. A ticket moves to In Progress when its work starts, to In Review when its PR opens, and to Done when its PR is merged into the feature branch. The Linear milestone and its issues are the run's progress record.
 
 ### Merge behavior
 
-The run prompt states it. If it is silent, stop before merge.
+Feature PRs target `staging` and merge into `staging` once the suite is green. A run never merges into `main`. A run prompt may ask a run to leave its PR open instead.
 
 ### Ticket identifiers
 
-Never reference a ticket number that has not been created. Capture assigned identifiers into the progress file and work from that list.
+Never reference a ticket number that has not been created. Use the identifiers Linear assigned to the milestone's issues.
 
 ## Consistency with the planning docs
 

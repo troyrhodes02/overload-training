@@ -51,7 +51,7 @@ Do not introduce libraries, background jobs, realtime sync, offline support, or 
 - GitHub access via MCP, connector, or `gh`
 - Repo-local engineering instructions: `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `README.md`
 - Planning docs at `docs/planning/` — brief, PRD, architecture, pitch roadmap
-- The controlling expanded pitch (`pitches/NN-pitch-name.md`), design doc (`docs/design/NN-pitch-name-design-doc.md`), UI preview for UI-bearing pitches (`docs/previews/NN-pitch-name-preview.tsx`), and technical spec (`docs/specs/NN-pitch-name-spec.md`) for this ticket
+- The controlling pitch folder (`docs/pitches/<milestone>/NN-pitch-name/`), which holds the expanded pitch (`pitch.md`), design doc (`design.md`), UI preview for UI-bearing pitches (`preview.tsx`), and technical spec (`spec.md`) for this ticket
 - Package scripts for test, lint, type-check, build, format
 
 If a tool is unavailable, continue as far as possible and provide the exact manual command the user needs to run. Do not pretend a PR was opened or a ticket was moved if the tool did not do it.
@@ -74,7 +74,7 @@ If no ticket ID can be found, ask before making scope decisions.
 
 Read: ID, title, description, acceptance criteria, status, priority, parent, blocking and blocked-by, linked PRs and docs, comments that clarify scope, project.
 
-If Linear access is unavailable, use pasted text and ask for any missing acceptance criteria before implementing.
+If Linear access is unavailable, use pasted text and ask for any missing acceptance criteria before implementing. Otherwise move the ticket to In Progress now.
 
 ### 3. Find the controlling docs
 
@@ -88,7 +88,7 @@ Search the ticket for referenced paths. Preferred source order:
 6. `docs/planning/architecture.md`
 7. `docs/planning/product-brief.md`
 
-If a required spec is not referenced, search `docs/specs/` and `pitches/`, fuzzy-match the ticket title, and search for the ticket ID. If still ambiguous, ask which spec controls the work. Do not guess.
+If a required spec is not referenced, search `docs/pitches/`, fuzzy-match the ticket title, and search for the ticket ID. If still ambiguous, ask which spec controls the work. Do not guess.
 
 ### 4. Read repo instructions
 
@@ -108,16 +108,16 @@ For a UI-bearing pitch, the UI preview is the visual contract. Read it before im
 
 ### 6. Determine the base branch
 
-Default base is `main`. Before branching, check whether this ticket depends on another in-progress ticket via Linear parent or blocked-by, related comments, or open PRs.
+Default base is `staging`, the permanent staging branch. Never base a feature on `main` and never open a PR into `main`: production promotion is a separate release workflow. Before branching, check whether this ticket depends on another in-progress ticket via Linear parent or blocked-by, related comments, or open PRs.
 
 ```bash
 git fetch --all --prune
 git branch -r | grep ove-120
 ```
 
-- No parent or blocker → `main`.
+- No parent or blocker → `staging`.
 - Depends on a ticket with an open branch → base on that branch.
-- Depends on a ticket with no branch → `main` only if this ticket can be developed independently.
+- Depends on a ticket with no branch → `staging` only if this ticket can be developed independently.
 - Multiple candidates → present the options and ask.
 
 ```bash
@@ -213,7 +213,7 @@ If the repo does not define a command, do not invent success. Report that the co
 
 **Frontend visual verification:** compare against the design doc and the UI preview, checking hierarchy, visible controls, states, and mobile behavior; check a phone-width viewport first, then desktop; check loading, empty, error, and success states; check keyboard navigation and focus behavior in dialogs; check light and dark themes; confirm no competing styling system was introduced.
 
-**Data and security verification:** migrations apply cleanly; the Prisma client is regenerated; every new table has row-level security enabled; logged history is untouched by the change; no tag or e1RM column exists; the Supabase client is not used for application data; no secret appears in a `NEXT_PUBLIC_` variable. For any change touching `LoggedSet` writes, archival, or baseline correction, verify it on a Vercel preview deployment against the Supabase dev project with realistic data before merging, because there is no staging tier.
+**Data and security verification:** migrations apply cleanly; the Prisma client is regenerated; every new table has row-level security enabled; logged history is untouched by the change; no tag or e1RM column exists; the Supabase client is not used for application data; no secret appears in a `NEXT_PUBLIC_` variable. For any change touching `LoggedSet` writes, archival, or baseline correction, verify it on staging, against the `overload-dev` Supabase project, with realistic data before it is promoted. Routine development migrations and disposable test data on staging proceed without repeated dry runs.
 
 **Mobile verification:** a check that needs an Xcode or Android Studio build, an emulator, or a real device cannot be run by an unattended run. Report it as unverified, never as passed, and list the manual steps a human should run. Type-checks, adapter unit tests, and the web build still run and must pass. See `overload-cross-platform`.
 
@@ -262,11 +262,13 @@ Out of scope:
 ## Notes for Reviewer
 ```
 
-Use the actual commands that were run. Mention the Vercel preview URL when the change touched logged history.
+Use the actual commands that were run. Mention the staging URL when the change touched logged history.
 
 ## Phase 7: Move the ticket to In Review
 
 Move the ticket only after the PR exists, verification passed or its limitations are documented, and the PR link is ready to attach. If Linear access is unavailable, tell the user to move it manually and provide the PR link.
+
+**Done.** In a pipeline run, the ticket moves to Done when its PR is merged into the feature branch, and the run does this as it merges each ticket PR. A standalone ticket moves to Done when its PR is merged into `staging`. Never leave a merged ticket in In Review.
 
 That is the end of the workflow. There is no reviewer handoff step beyond this.
 
@@ -274,7 +276,7 @@ That is the end of the workflow. There is no reviewer handoff step beyond this.
 
 For each case, output the specific text rather than a vague apology.
 
-**Spec not found** — list every location checked (`docs/specs/`, `pitches/`, the ticket text) and ask for the controlling spec path.
+**Spec not found** — list every location checked (`docs/pitches/`, the ticket text) and ask for the controlling spec path.
 
 **Design source not found for frontend work** — offer to continue from the ticket and spec, noting that visual fidelity may be weaker. If the ticket requires pixel-perfect implementation from a preview, stop and ask for it.
 
@@ -295,7 +297,7 @@ For each case, output the specific text rather than a vague apology.
 
 - **PR:** URL
 - **Branch:** `feat/ove-123-short-description`
-- **Base:** `main` or stacked branch
+- **Base:** `staging` or stacked branch
 - **Linear:** URL
 - **Status:** Moved to In Review / manual action needed
 

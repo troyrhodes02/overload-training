@@ -2,7 +2,7 @@
 
 ## Overview
 
-Overload is a strength training tracker for individual lifters, each with a private account, offered as a free plan and a paid Pro plan. It began invite-only for a small group of friends and is being opened to the public. Its core job is to tell the lifter, per lift and per session, whether to progress, hold, or deload — based on logged performance against their own self-built plan — so they never have to eyeball their own numbers to make that call. It layers a rule-based progression engine and gym-specific weight tracking on top of a conventional split/session logging structure, and defers everything outside training (nutrition, body composition, social features, auto-generated programming) to later or never.
+Overload is a strength training tracker for individual lifters, each with a private account, offered as a free plan and a paid Pro plan. It began invite-only for a small group of friends and is being opened to the public. Its core job is to tell the lifter, per lift and per session, whether to progress, hold, or deload — based on logged performance against their own self-built plan — so they never have to eyeball their own numbers to make that call. It layers a rule-based progression engine and gym-specific weight tracking on top of a conventional split/session logging structure, and defers everything outside training (nutrition, body composition, a social network, auto-generated programming) to later or never.
 
 ## Core User Journeys
 
@@ -263,7 +263,9 @@ A lifter can download everything their account holds, on either plan, at any tim
 
 Faster logging (previous-performance context, safe prefill, fewer taps per set), reps-in-reserve logging used by the progression engine, smarter and explainable progression (specific recommendations with the evidence behind them), and exercise history with PR intelligence. Each pitch's spec records what shipped.
 
-### Commercial Launch Features (planned)
+### Commercial Launch Features
+
+The admin center, public accounts, plans and billing, the landing page, and plan import are shipped (plan import's model provider stays disabled in Production until the owner approves it). Mobile Apps is the work in progress.
 
 #### Admin Center & Feedback
 - **What it does:** An owner-only admin area for account lookup and management (suspend, reactivate, delete), aggregate operating metrics, an audit log, and an inbox for in-app feedback.
@@ -321,19 +323,60 @@ Faster logging (previous-performance context, safe prefill, fewer taps per set),
   - It never invents an exercise, set, or load.
 
 #### Mobile Apps (iOS and Android)
-- **What it does:** iPhone and Android apps built around the same web product, with native capabilities (haptics, then location, notifications, and more) behind platform-neutral adapters.
+- **What it does:** An iPhone app built around the same web product, installed first through an invite-only TestFlight beta by the existing friends with their existing accounts. A development build for the owner's own phone connects to the development environment, and the friends' build connects to Production. Android follows later. Native capabilities (haptics, then location, notifications, and more) sit behind platform-neutral adapters. No purchase flow is added inside an app until the store billing path is decided.
 - **Why:** Lifters use a phone in the gym, and the apps open the store listings and later native features.
 - **Acceptance criteria:**
-  - The app installs on a real device, signs in, and completes a full workout.
+  - The app installs on a real device, signs in with an existing account, and completes a full workout.
   - The website behaves exactly as before, and no native-only control renders in the browser.
+  - An account's Pro or comped access shows in the app without a purchase path.
 - **Edge cases / failure states:**
   - A check that needs a device build is reported as unverified when it cannot be run.
 
+### Mobile Beta and Next Features (planned)
+
+#### Workout Logging Refinements
+- **What it does:** A set logged below the planned minimum no longer produces a "stay at this weight" recommendation. An exercise can have a single rep target instead of a range. The swap picker can change its muscle filter to any group. Abs logging is verified to behave like other bodyweight movements.
+- **Why:** Each is a small correctness or usability gap that real use exposed.
+- **Acceptance criteria:**
+  - 90 lb planned at 6 to 10 and logged at 3 never recommends staying at 90 lb, and does not overwrite a reliable baseline by itself.
+  - A 3 × 10 exercise plans, logs, and progresses correctly.
+  - Swap can reach exercises in any muscle group.
+- **Edge cases / failure states:**
+  - Not every missed set reduces weight. The rule uses the existing progression constants and history.
+
+#### Wing-It Workouts
+- **What it does:** Start a workout with no plan, choose exercises as you go, log sets, and save it to history.
+- **Why:** Not every session is planned, and a lifter should not need a mesocycle to log one.
+- **Acceptance criteria:**
+  - A workout can be started and finished with no plan, and it appears in history.
+  - The scheduled plan and the planned day on the dashboard are unchanged.
+- **Edge cases / failure states:**
+  - An exercise with no planned rep range adds to history and the e1RM trend and receives no progress or deload tag (the default, confirmed in the spec).
+
+#### History Calendar
+- **What it does:** A calendar view of logged, planned, skipped, and wing-it days that opens the day's workout.
+- **Acceptance criteria:**
+  - Every logged day appears and opens its workout, and the calendar and the list agree.
+
+#### Friends & Workout Sharing
+- **What it does:** Send a workout template to a friend by link or code. The recipient reviews it and adds their own copy.
+- **Why:** Lifters swap plans with each other, and this does it without any account reading another's data.
+- **Acceptance criteria:**
+  - A shared template arrives as a copy the recipient confirms, and the sender's account is never readable by the recipient.
+  - Sharing is user-initiated and revocable, and logged history is never shared this way.
+- **Edge cases / failure states:**
+  - What a friend is, and the share mechanism, are settled in the pitch's planning step.
+
+#### Shareable Progress Cards
+- **What it does:** A generated card for a goal reached or a logged set, shared through the phone's share sheet so it can be resized and positioned in the destination app.
+- **Acceptance criteria:**
+  - The card contains only what the lifter selected, and nothing posts automatically.
+
 ### Planned Next, and Not Planned
 
-Planned after the commercial launch: Android and the rest of the mobile experience (gym location, notifications, Live Activity, the Apple Watch app, and the App Store and Google Play releases), then body metrics from the phone's health platform, then nutrition. See the Pitch Roadmap.
+Planned next, in order (see the Pitch Roadmap): the iOS app and the friends' TestFlight beta, then workout logging refinements, wing-it workouts, the history calendar, friends and workout sharing, progress cards, gym location and notifications, then Launch Readiness and the store releases. After that: Android, the Live Activity and the Apple Watch app, advanced cardio and video attachments (each starting with discovery), body metrics, and nutrition. The order of the early items is decided by what the friends' beta shows.
 
-Deliberately not planned, so no one adds them: dated goals (a strength deadline can pressure someone to lift past what their readiness supports), a rest timer, ads, AI that generates programs or coaches, cardio progression analysis, a React Native or SwiftUI rewrite of the phone apps, a Wear OS watch app, social login, and any view of another account's training content, including by the owner.
+Deliberately not planned, so no one adds them: dated goals (a strength deadline can pressure someone to lift past what their readiness supports), a rest timer, ads, AI that generates programs or coaches, a React Native or SwiftUI rewrite of the phone apps, a Wear OS watch app, social login, a feed, following, comments, messaging, or leaderboards, and any view of another account's training content, including by the owner. A built-in social platform is future exploration only.
 
 ## Data Objects (Product Level)
 
@@ -371,7 +414,7 @@ Every object below belongs to exactly one account, except library exercises, whi
 
 ## Permissions & Ownership
 
-An account can read and change only what it owns, and the shared exercise library is read-only to everyone. There are no roles for lifters. One owner-only admin area exists, and admin identity comes from a server-side allowlist, not from anything an account can be given. The admin area works on account metadata and counts and never shows an account's training content. A plan (Free or Pro) grants capabilities, not permissions: it decides which features an account can use, never what it can see of anyone else. Anything an operator does on someone's behalf, such as creating a friend's plan from a written document, is done by the product's owner directly against the data, naming the target account explicitly, and is not a feature of the application.
+An account can read and change only what it owns, and the shared exercise library is read-only to everyone. There are no roles for lifters. One owner-only admin area exists, and admin identity comes from a server-side allowlist, not from anything an account can be given. The admin area works on account metadata and counts and never shows an account's training content. Sharing, when it ships, works by copy and never by live access. A plan (Free or Pro) grants capabilities, not permissions: it decides which features an account can use, never what it can see of anyone else. Anything an operator does on someone's behalf, such as creating a friend's plan from a written document, is done by the product's owner directly against the data, naming the target account explicitly, and is not a feature of the application.
 
 ## Feature Dependencies
 
