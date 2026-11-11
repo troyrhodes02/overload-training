@@ -1,5 +1,6 @@
 import {
   evaluateReactiveDecision,
+  hasBelowMin,
   type Performance,
   type WorkingSet,
 } from "@/lib/progression/engine";
@@ -22,6 +23,30 @@ import {
   type LoadedRecordSet,
 } from "@/lib/progression/history";
 import { bestPerformance } from "@/lib/goals/progress";
+
+/** Counted: finished, every planned set, outside a scheduled-deload week. */
+const counted = (x: HistoryRow): boolean =>
+  x.finished && !x.perf.scheduledDeload && x.perf.complete;
+
+/**
+ * A session the engine judges (Workout Logging Refinements RD-3): counted, or
+ * a finished short one with a set below the minimum after a counted session.
+ * Written independently of the engine's helper, so the sweep checks it.
+ */
+function judgedIn(rows: HistoryRow[]): (x: HistoryRow) => boolean {
+  return (x) =>
+    counted(x) ||
+    (x.finished &&
+      !x.perf.scheduledDeload &&
+      hasBelowMin(x.perf) &&
+      rows.some(
+        (y) =>
+          counted(y) &&
+          (y.perf.dateIso < x.perf.dateIso ||
+            (y.perf.dateIso === x.perf.dateIso &&
+              y.perf.loggedExerciseId < x.perf.loggedExerciseId)),
+      ));
+}
 
 /**
  * Exercise History & PR Intelligence — the pure projections (spec §4, §6,
@@ -57,6 +82,7 @@ function row(o: RowOpts): HistoryRow {
       scheduledDeload: o.deload ?? false,
       gymId: null,
       complete: finished && workingSets.length >= planned,
+      finished,
       repMin: (o.range ?? [8, 10])[0],
       repMax: (o.range ?? [8, 10])[1],
       workingSets,
@@ -510,6 +536,7 @@ function randomRows(r: () => number, bodyweight: boolean): HistoryRow[] {
       scheduledDeload: r() < 0.1,
       gymId: null,
       complete: finished && logged >= planned,
+      finished,
       repMin: 8,
       repMax: 10,
       workingSets: sets,
@@ -555,19 +582,20 @@ describe("sweep: 2,000 histories", () => {
               ? -1
               : 1,
         );
+      const judged = judgedIn(ordered);
       ordered.forEach((row_, idx) => {
         const call = calls.get(row_.perf.loggedExerciseId)!;
         seen.add(call);
-        if (row_.finished && !row_.perf.scheduledDeload && row_.perf.complete) {
+        // Judged: counted sessions, and short ones that logged a set below
+        // the minimum (Workout Logging Refinements RD-3).
+        if (judged(row_)) {
           const prefix = ordered.slice(0, idx + 1).map((x) => x.perf);
           expect(call).toBe(evaluateReactiveDecision(prefix, opts).state);
         }
       });
-      const counted = ordered.filter(
-        (x) => x.finished && !x.perf.scheduledDeload && x.perf.complete,
-      );
-      if (counted.length > 0) {
-        expect(calls.get(counted.at(-1)!.perf.loggedExerciseId)).toBe(
+      const judgedRows = ordered.filter(judged);
+      if (ordered.some(counted)) {
+        expect(calls.get(judgedRows.at(-1)!.perf.loggedExerciseId)).toBe(
           evaluateReactiveDecision(
             rows.map((x) => x.perf),
             opts,

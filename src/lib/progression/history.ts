@@ -18,6 +18,7 @@
 import {
   byDate,
   evaluateReactiveDecision,
+  shortFailureSinceLastCounted,
   type Performance,
   type WorkingSet,
 } from "./engine";
@@ -190,7 +191,10 @@ export function computeRecords(
  * week is never evaluated (suppression). With `noGymScope` (machine rows with
  * no gym) there are no calls at all: machine calls are made per gym (R6).
  *
- * The newest counted session's call is, by construction, the engine's call on
+ * A short workout with a set below the minimum is judged too (Workout Logging
+ * Refinements RD-3): the engine reads it until the next counted session.
+ *
+ * The newest judged session's call is, by construction, the engine's call on
  * the whole scope — the current call.
  */
 export function callsBySession(
@@ -204,11 +208,16 @@ export function callsBySession(
     if (opts.noGymScope) return calls.set(id, "none");
     if (!r.finished) return calls.set(id, "in_progress");
     if (r.perf.scheduledDeload) return calls.set(id, "deload_week");
-    if (!r.perf.complete) return calls.set(id, "not_counted");
-    const { state } = evaluateReactiveDecision(
-      ordered.slice(0, i + 1).map((x) => x.perf),
-      { e1rmApplicable: opts.externalLoad },
-    );
+    const prefix = ordered.slice(0, i + 1).map((x) => x.perf);
+    // A short workout is not counted — unless the engine judges it: a set
+    // below the minimum after a counted session (Workout Logging
+    // Refinements RD-3). The engine's own helper decides, so the label and
+    // the call can never disagree.
+    if (!r.perf.complete && shortFailureSinceLastCounted(prefix) !== r.perf)
+      return calls.set(id, "not_counted");
+    const { state } = evaluateReactiveDecision(prefix, {
+      e1rmApplicable: opts.externalLoad,
+    });
     calls.set(id, state === "insufficient" ? "insufficient" : state);
   });
   return calls;

@@ -48,6 +48,19 @@ export type DecisionEvidence =
       repMax: number;
       latest: PerformanceRef;
     }
+  | {
+      /**
+       * Workout Logging Refinements (RD-1): a hold after a set below the
+       * planned minimum, short of the two-session reactive Deload. `sessions`
+       * is DELOAD_CONSECUTIVE_SESSIONS, the rule the evidence line names.
+       */
+      kind: "reassess";
+      reps: number[];
+      repMin: number;
+      repMax: number;
+      sessions: number;
+      latest: PerformanceRef;
+    }
   | { kind: "held_at_limit"; rirAtLimit: number; latest: PerformanceRef }
   | { kind: "released_stall"; rirToSpare: number; latest: PerformanceRef };
 
@@ -56,8 +69,11 @@ export type DecisionEvidence =
  * Built by `buildRecommendation` on every read; never stored.
  */
 export type RecommendationDto = {
-  kind: "progress" | "hold" | "deload" | "scheduled_deload";
-  /** strong = Progress / Deload (foreground); quiet = holds and the deload week. */
+  kind: "progress" | "hold" | "reassess" | "deload" | "scheduled_deload";
+  /**
+   * strong = Progress / Deload / Reassess (foreground); quiet = holds and the
+   * deload week. A reassess is still a hold call: it never carries a tag.
+   */
   tone: "strong" | "quiet";
   action: string;
   evidence: string;

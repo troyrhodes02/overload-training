@@ -1,5 +1,6 @@
 "use client";
 
+import { formatRepTarget } from "@/lib/plan/rep-target";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -357,8 +358,11 @@ export function ExerciseCard({
             {exercise.performedExerciseName}
           </h2>
           <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-            {exercise.plannedSets} × {exercise.plannedRepRange.min}–
-            {exercise.plannedRepRange.max}
+            {exercise.plannedSets} ×{" "}
+            {formatRepTarget(
+              exercise.plannedRepRange.min,
+              exercise.plannedRepRange.max,
+            )}
             {!needsWeight ? " · bodyweight, reps only" : ""}
           </p>
         </div>
