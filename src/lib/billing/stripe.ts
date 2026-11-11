@@ -1,6 +1,10 @@
 import "server-only";
 import Stripe from "stripe";
-import type { MirrorSnapshot } from "@/lib/data/billing-webhook";
+import type {
+  EnforceDeps,
+  MirrorSnapshot,
+  OpenSubscription,
+} from "@/lib/data/billing-webhook";
 
 /**
  * Plans, Billing & Promo Codes — the Stripe adapter (spec §11, RD-8/RD-12).
@@ -148,6 +152,81 @@ export function stripeProvider(): BillingProvider {
         await stripe().checkout.sessions.expire(session.id);
       }
       return open.data.length;
+    },
+  };
+}
+
+/**
+ * The Stripe side of the single-subscription guard (OVE-112): list the
+ * customer's open subscriptions, refund a duplicate's paid invoice, cancel it,
+ * and expire leftover Checkout sessions. Only ever called by the webhook route
+ * through enforceSingleSubscription.
+ */
+export function stripeEnforceDeps(): EnforceDeps {
+  return {
+    async listOpenSubscriptions(customerId) {
+      const subs = await stripe().subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 20,
+      });
+      return subs.data
+        .filter((s) => OPEN_SUBSCRIPTION_STATUSES.has(s.status))
+        .map((s): OpenSubscription => ({
+          id: s.id,
+          status: s.status as OpenSubscription["status"],
+          latestInvoiceId:
+            typeof s.latest_invoice === "string"
+              ? s.latest_invoice
+              : (s.latest_invoice?.id ?? null),
+        }));
+    },
+    async refundInvoice(invoiceId) {
+      // API 2026-10-28: an invoice's payments are InvoicePayment objects.
+      const payments = await stripe().invoicePayments.list({
+        invoice: invoiceId,
+        status: "paid",
+        limit: 10,
+      });
+      let refunded = 0;
+      for (const p of payments.data) {
+        const pi =
+          typeof p.payment.payment_intent === "string"
+            ? p.payment.payment_intent
+            : p.payment.payment_intent?.id;
+        const charge =
+          typeof p.payment.charge === "string"
+            ? p.payment.charge
+            : p.payment.charge?.id;
+        const target = pi ? { payment_intent: pi } : charge ? { charge } : null;
+        if (!target) continue;
+        try {
+          await stripe().refunds.create(
+            {
+              ...target,
+              reason: "duplicate",
+              metadata: { overload: "duplicate_subscription" },
+            },
+            { idempotencyKey: `overload-dup-refund-${pi ?? charge}` },
+          );
+          refunded += 1;
+        } catch (error) {
+          // Already refunded (an earlier delivery got this far): done.
+          const code = (error as { code?: string }).code;
+          if (code === "charge_already_refunded") continue;
+          throw error;
+        }
+      }
+      return refunded;
+    },
+    async cancelSubscription(subscriptionId) {
+      await stripe().subscriptions.cancel(subscriptionId, {
+        prorate: false,
+        invoice_now: false,
+      });
+    },
+    async expireOpenCheckoutSessions(customerId) {
+      return stripeProvider().expireOpenCheckoutSessions(customerId);
     },
   };
 }

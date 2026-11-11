@@ -12,10 +12,15 @@ const listSubs = jest.fn();
 const createSession = jest.fn();
 const listSessions = jest.fn();
 const expireSession = jest.fn();
+const cancelSub = jest.fn();
+const listInvoicePayments = jest.fn();
+const createRefund = jest.fn();
 jest.mock("stripe", () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
-    subscriptions: { retrieve, list: listSubs },
+    subscriptions: { retrieve, list: listSubs, cancel: cancelSub },
+    invoicePayments: { list: listInvoicePayments },
+    refunds: { create: createRefund },
     checkout: {
       sessions: {
         create: createSession,
@@ -32,6 +37,7 @@ process.env.STRIPE_PRICE_ID_ANNUAL = "price_annual";
 
 import {
   fetchSubscriptionSnapshot,
+  stripeEnforceDeps,
   stripeProvider,
 } from "@/lib/billing/stripe";
 
@@ -209,5 +215,88 @@ describe("duplicate-subscription guards (OVE-112)", () => {
       expect.objectContaining({ customer: "cus_x", status: "open" }),
     );
     expect(expireSession.mock.calls.map((c) => c[0])).toEqual(["cs_1", "cs_2"]);
+  });
+});
+
+describe("single-subscription enforcement deps (OVE-112)", () => {
+  beforeEach(() => {
+    listSubs.mockReset();
+    cancelSub.mockReset();
+    listInvoicePayments.mockReset();
+    createRefund.mockReset();
+  });
+
+  it("lists only open subscriptions, with their latest invoice id", async () => {
+    listSubs.mockResolvedValue({
+      data: [
+        { id: "sub_keep", status: "active", latest_invoice: "in_1" },
+        { id: "sub_dup", status: "active", latest_invoice: { id: "in_2" } },
+        { id: "sub_old", status: "canceled", latest_invoice: "in_0" },
+        { id: "sub_new", status: "incomplete", latest_invoice: null },
+      ],
+    });
+    await expect(
+      stripeEnforceDeps().listOpenSubscriptions("cus_x"),
+    ).resolves.toEqual([
+      { id: "sub_keep", status: "active", latestInvoiceId: "in_1" },
+      { id: "sub_dup", status: "active", latestInvoiceId: "in_2" },
+      { id: "sub_new", status: "incomplete", latestInvoiceId: null },
+    ]);
+  });
+
+  it("refunds each PAID invoice payment in full, as a duplicate, idempotently", async () => {
+    listInvoicePayments.mockResolvedValue({
+      data: [{ payment: { type: "payment_intent", payment_intent: "pi_1" } }],
+    });
+    createRefund.mockResolvedValue({ id: "re_1" });
+    await expect(stripeEnforceDeps().refundInvoice("in_2")).resolves.toBe(1);
+    expect(listInvoicePayments).toHaveBeenCalledWith(
+      expect.objectContaining({ invoice: "in_2", status: "paid" }),
+    );
+    const [params, opts] = createRefund.mock.calls[0];
+    expect(params).toMatchObject({
+      payment_intent: "pi_1",
+      reason: "duplicate",
+    });
+    expect(params.amount).toBeUndefined(); // full refund
+    expect(opts).toEqual({ idempotencyKey: "overload-dup-refund-pi_1" });
+  });
+
+  it("falls back to the charge when a payment has no payment intent", async () => {
+    listInvoicePayments.mockResolvedValue({
+      data: [{ payment: { type: "charge", charge: "ch_1" } }],
+    });
+    createRefund.mockResolvedValue({ id: "re_1" });
+    await stripeEnforceDeps().refundInvoice("in_2");
+    expect(createRefund.mock.calls[0][0]).toMatchObject({ charge: "ch_1" });
+  });
+
+  it("treats an already-refunded payment as done", async () => {
+    listInvoicePayments.mockResolvedValue({
+      data: [{ payment: { type: "payment_intent", payment_intent: "pi_1" } }],
+    });
+    createRefund.mockRejectedValue(
+      Object.assign(new Error("already"), { code: "charge_already_refunded" }),
+    );
+    await expect(stripeEnforceDeps().refundInvoice("in_2")).resolves.toBe(0);
+  });
+
+  it("rethrows any other refund failure (so the webhook retries)", async () => {
+    listInvoicePayments.mockResolvedValue({
+      data: [{ payment: { type: "payment_intent", payment_intent: "pi_1" } }],
+    });
+    createRefund.mockRejectedValue(new Error("network"));
+    await expect(stripeEnforceDeps().refundInvoice("in_2")).rejects.toThrow(
+      "network",
+    );
+  });
+
+  it("cancels immediately with no proration and no final invoice", async () => {
+    cancelSub.mockResolvedValue({});
+    await stripeEnforceDeps().cancelSubscription("sub_dup");
+    expect(cancelSub).toHaveBeenCalledWith("sub_dup", {
+      prorate: false,
+      invoice_now: false,
+    });
   });
 });

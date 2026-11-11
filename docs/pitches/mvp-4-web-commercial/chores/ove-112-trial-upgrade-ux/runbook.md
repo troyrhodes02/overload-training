@@ -18,10 +18,13 @@ Nothing here is needed for staging beyond the dev migration, which the pipeline 
 
 Deploy order: migration first, then the code. The generated client selects these columns on any full-row `Profile` read (for example the data export), so code deployed before the migration would fail those reads.
 
-## 2. Stripe (Production, owner-only, no code involved)
+## 2. Stripe (Production, owner-only settings, plus the automatic duplicate refund)
 
 - The code now offers the promotion-code field on **annual** Checkout too. That matches the owner-stated live coupon: 25% off the Overload Pro product, three-month duration, 200 redemptions. Before promoting, confirm in the Stripe dashboard that the coupon applies to both Pro prices and is `duration: repeating, duration_in_months: 3`. On an annual price, Stripe then discounts only the first annual invoice, which is what `/blizzy` now says.
 - Supersedes the Pitch 19 runbook note to "restrict the coupon to the monthly price".
+- Recommended (defence in depth, both test and live): Dashboard → Settings → Checkout and Payment Links → Subscriptions → **Limit customers to one subscription**, redirecting to the Customer Portal. This needs the portal's login link to stay enabled.
+- Duplicate subscriptions are refunded and cancelled automatically by the webhook (D-16). The webhook endpoint must receive `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed` (unchanged from Pitch 19). The restricted key used in Production, if any, now also needs **write access to Refunds**, and read access to Invoice Payments.
+- Refunds in Production are real money movement triggered by code. This needs your explicit approval at promotion.
 - No coupon, promotion code, price, product, or webhook destination is created or changed by code.
 
 ## 3. Production environment
