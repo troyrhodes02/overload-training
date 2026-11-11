@@ -129,13 +129,9 @@ describe("landing (design Screen 1)", () => {
 describe("pricing (design Screen 2)", () => {
   it("lists Free first, then Pro at the display prices", async () => {
     const t = text(await page("pricing", off()));
-    expect(t.indexOf("Free")).toBeLessThan(t.indexOf("Pro"));
+    expect(t.indexOf("$0")).toBeLessThan(t.indexOf("$4.99 / month"));
     expect(t).toContain("$4.99 / month");
     expect(t).toContain("$39.99 / year");
-    // Workout Logging Refinements RD-10: the approved trial sentence.
-    expect(t).toContain(
-      "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month.",
-    );
     expect(t).not.toMatch(/no card\b/i);
   });
 
@@ -191,7 +187,6 @@ describe("marketing truth (P21-AC8)", () => {
     "src/components/marketing/availability.tsx",
     "src/components/marketing/screenshot-frame.tsx",
     "src/components/marketing/copy-code.tsx",
-    "src/app/(marketing)/blizzy/page.tsx",
   ];
 
   it("uses none of the banned phrases", async () => {
@@ -304,58 +299,74 @@ describe("creator promotion placement (OVE-112)", () => {
     const html = await page("welcome", off({ billingEnabled: true }));
     expect(html).not.toMatch(/blizzy/i);
   });
-
-  async function blizzy(ctx: MarketingContext) {
-    mockContext.mockResolvedValue(ctx);
-    const { default: Page } = await import("@/app/(marketing)/blizzy/page");
-    return text(await renderHtml(<Page />));
-  }
-
-  it("/blizzy states the current offer: 25% off for three months, up to 200 redemptions", async () => {
-    const t = await blizzy(off({ billingEnabled: true }));
-    expect(t).toContain("BLIZZY");
-    expect(t).toContain("25% off Overload Pro for three months.");
-    expect(t).toContain("Up to 200 redemptions");
-    expect(t).not.toMatch(/50%/);
-  });
-
-  it("/blizzy is not monthly-only and never promises discounted annual renewals", async () => {
-    const t = await blizzy(off({ billingEnabled: true }));
-    expect(t).not.toMatch(/monthly plan only/i);
-    expect(t).toContain("25% off your first three monthly payments");
-    expect(t).toContain("25% off your first annual payment only");
-    expect(t).toContain("Renewals are at the regular annual price");
-  });
-
-  it("/blizzy says the code can't be used yet only while billing is off", async () => {
-    expect(await blizzy(off({ billingEnabled: false }))).toContain(
-      "aren't on sale yet",
-    );
-    expect(await blizzy(off({ billingEnabled: true }))).not.toContain(
-      "aren't on sale yet",
-    );
-  });
 });
 
-describe("trial wording (Workout Logging Refinements, RD-10)", () => {
-  it("every public trial string is plain and consistent, with no 'no card'", async () => {
-    const { TRIAL_SENTENCE, PRICING, BLIZZY_PAGE } =
-      await import("@/lib/marketing/copy");
-    const { TRIAL_NOTE } = await import("@/lib/marketing/cta");
-    expect(TRIAL_SENTENCE).toBe(
-      "Try Pro free for 14 days. No credit card needed. After that, keep using Overload on the free plan or upgrade for $4.99 a month.",
+describe("the trial, explained once on /pricing (OVE-118)", () => {
+  const sentence = (html: string, needle: string) =>
+    text(html).split(needle).length - 1;
+
+  it("explains it above the plans: automatic, upgrade any time, Free or Pro at the end", async () => {
+    const t = text(await page("pricing", off({ billingEnabled: true })));
+    const explainer = t.indexOf(
+      "Every new account starts with 14 days of Pro, free",
     );
-    expect(PRICING.trial).toBe(TRIAL_SENTENCE);
-    expect(TRIAL_NOTE).toBe(TRIAL_SENTENCE);
-    expect(BLIZZY_PAGE.trialFit).toBe(
-      "How it fits the trial: try Pro free for 14 days, no credit card needed. Use the code whenever you subscribe, during the trial or after it.",
+    expect(explainer).toBeGreaterThan(-1);
+    expect(explainer).toBeLessThan(t.indexOf("$0"));
+    expect(t).toContain("It starts on its own when you sign up.");
+    expect(t).toContain(
+      "Subscribe to Pro during the trial, for $4.99 a month or $39.99 a year.",
     );
-    for (const s of [
-      TRIAL_SENTENCE,
-      PRICING.trial,
-      TRIAL_NOTE,
-      BLIZZY_PAGE.trialFit,
+    expect(t).toContain(
+      "Subscribe to keep Pro, or do nothing and your account moves to Free on its own.",
+    );
+    expect(t).toContain("Free for your first 14 days.");
+    expect(t).toContain(
+      "Your account moves here when the trial ends, unless you've subscribed.",
+    );
+  });
+
+  it("answers the trial questions, including that upgrading early starts billing that day", async () => {
+    const t = text(await page("pricing", off({ billingEnabled: true })));
+    for (const q of [
+      "How does the free trial work?",
+      "Can I upgrade before the trial ends?",
+      "What happens when the trial ends?",
     ])
-      expect(s).not.toMatch(/no card\b/i);
+      expect(t).toContain(q);
+    expect(t).toContain(
+      "Paid billing starts that day, and the rest of the free trial isn't added on.",
+    );
+  });
+
+  it("never offers a way to pay while billing is off", async () => {
+    const t = text(await page("pricing", off({ billingEnabled: false })));
+    expect(t).toContain(
+      "Pro subscriptions aren't on sale yet. When they are, you can subscribe during the trial or after it.",
+    );
+    expect(t).toContain("Not yet: Pro subscriptions aren't on sale.");
+    expect(t).not.toContain("Subscribe to Pro during the trial");
+    expect(t).not.toContain("Subscribe to keep Pro");
+    expect(t).not.toContain("Paid billing starts that day");
+    expect(t).toContain(
+      "Free forever. Your account moves here when the trial ends.",
+    );
+    expect(t).not.toContain("unless you've subscribed");
+  });
+
+  it("is said once, not under every card (public signup mode)", async () => {
+    const html = await page(
+      "pricing",
+      off({ signupMode: "public", billingEnabled: true }),
+    );
+    expect(sentence(html, "No credit card")).toBe(0);
+    expect(sentence(html, "no credit card to enter")).toBe(1);
+  });
+
+  it("the landing note is short and plain, with no 'no card'", async () => {
+    const { TRIAL_NOTE } = await import("@/lib/marketing/cta");
+    expect(TRIAL_NOTE).toBe(
+      "Every new account gets 14 days of Pro, free. No credit card needed.",
+    );
+    expect(TRIAL_NOTE).not.toMatch(/no card\b/i);
   });
 });

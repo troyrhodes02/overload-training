@@ -2,7 +2,6 @@ import "server-only";
 import type { Account } from "@/lib/data/account";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
 import { BLIZZY, PRICE_DISPLAY, isCheckoutEnabled } from "@/lib/billing/config";
-import type { Campaign } from "@/lib/marketing/campaign";
 import type { DisplayState } from "@/lib/entitlements/types";
 
 /**
@@ -41,8 +40,9 @@ export type BillingScreenDto = {
    * Public Landing Page & Changelog (RD-7): the promo code to remind this
    * lifter of beside Subscribe, or null. Display only — Stripe's own
    * promotion-code field applies or refuses it. Set only when Subscribe is
-   * offered and the account signed up from the campaign or this browser
-   * visited its page within the campaign window.
+   * offered and the account was recorded as signing up from the campaign
+   * (historical: the /blizzy page and its attribution were removed in
+   * OVE-118, so no new account is recorded).
    */
   promoReminder: typeof BLIZZY.code | null;
 };
@@ -136,7 +136,7 @@ export function formatEndsOn(instant: Date | null): string | null {
 
 export async function getBillingScreen(
   account: Account,
-  opts: { campaignHint?: Campaign | null; inAppShell?: boolean } = {},
+  opts: { inAppShell?: boolean } = {},
 ): Promise<BillingScreenDto> {
   const inAppShell = opts.inAppShell ?? false;
   const [resolved, profile, billing] = await Promise.all([
@@ -186,9 +186,6 @@ export async function getBillingScreen(
     cancelAtPeriodEnd: billing?.cancelAtPeriodEnd ?? false,
     endsOn,
     promoReminder:
-      canSubscribe &&
-      (profile?.signupCampaign === "blizzy" || opts.campaignHint === "blizzy")
-        ? BLIZZY.code
-        : null,
+      canSubscribe && profile?.signupCampaign === "blizzy" ? BLIZZY.code : null,
   };
 }

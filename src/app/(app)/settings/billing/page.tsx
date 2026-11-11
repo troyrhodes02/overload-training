@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { ChevronLeft } from "lucide-react";
 import { requireAccount } from "@/lib/data/account";
 import { getBillingScreen } from "@/lib/billing/screen";
 import { refreshBillingFromStripe } from "@/lib/billing/sync";
 import { PlanBilling } from "@/components/billing/plan-billing";
-import { CAMPAIGN_COOKIE, parseCampaign } from "@/lib/marketing/campaign";
 import { isAppShellRequest } from "@/lib/platform/request";
 
 export const metadata = { title: "Plan & Billing · Overload" };
@@ -26,14 +24,7 @@ export default async function BillingPage({
   // webhook can't leave this screen asserting a stale state (e.g. "renews"
   // after a scheduled cancellation). Best-effort — never breaks the page.
   await refreshBillingFromStripe(account);
-  // A campaign visit in this browser (first-party cookie, validated) can
-  // remind the lifter of the code; it never applies a discount (RD-7).
-  const campaignHint = parseCampaign(
-    (await cookies()).get(CAMPAIGN_COOKIE)?.value,
-    new Date(),
-  );
   const screen = await getBillingScreen(account, {
-    campaignHint,
     inAppShell: await isAppShellRequest(),
   });
   const raw = (await searchParams).status;

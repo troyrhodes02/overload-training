@@ -6,8 +6,8 @@ jest.mock("next/navigation", () => ({
 }));
 // The action derives a coarse rate-limit fingerprint from request headers
 // (PA2); none are present in this unit harness, so the UA/lang fallback applies.
-// Public Landing Page & Changelog: the campaign comes only from this cookie
-// jar (first-party, server-read); by default it holds no campaign.
+// OVE-118: campaign attribution was removed. A leftover cookie from the old
+// /blizzy page may still be in a browser; the action must ignore it.
 const jar = { value: undefined as string | undefined, delete: jest.fn() };
 jest.mock("next/headers", () => ({
   headers: jest.fn(async () => new Headers()),
@@ -71,55 +71,21 @@ describe("signUpAction", () => {
       // the server-derived fingerprint — NEVER a client-supplied account id.
       challengeToken: null,
       throttleKey: expect.any(String),
-      // No campaign cookie: nothing to attribute.
-      signupCampaign: null,
     });
     const call = (signUp as jest.Mock).mock.calls[0][0];
     expect(call.throttleKey).not.toContain("a0000000");
   });
 
-  describe("campaign attribution (Public Landing Page, RD-9)", () => {
-    afterEach(() => {
-      jar.value = undefined;
-    });
-
-    it("passes a valid cookie's campaign and spends the cookie on success", async () => {
-      jar.value = `blizzy.${Math.floor(Date.now() / 1000)}`;
-      (signUp as jest.Mock).mockResolvedValue({ kind: "created" });
-      await expect(signUpAction(initial, form(filled))).rejects.toThrow(
-        "NEXT_REDIRECT:/",
-      );
-      expect((signUp as jest.Mock).mock.calls[0][0].signupCampaign).toBe(
-        "blizzy",
-      );
-      expect(jar.delete).toHaveBeenCalledWith("ovl_campaign");
-    });
-
-    it("ignores a form field claiming a campaign", async () => {
-      (signUp as jest.Mock).mockResolvedValue({ kind: "created" });
-      await expect(
-        signUpAction(initial, form({ ...filled, signupCampaign: "blizzy" })),
-      ).rejects.toThrow("NEXT_REDIRECT:/");
-      expect((signUp as jest.Mock).mock.calls[0][0].signupCampaign).toBeNull();
-    });
-
-    it("an expired or tampered cookie attributes nothing", async () => {
-      (signUp as jest.Mock).mockResolvedValue({ kind: "created" });
-      for (const v of ["blizzy.1", "BLIZZY.123", "other.123"]) {
-        jar.value = v;
-        await expect(signUpAction(initial, form(filled))).rejects.toThrow();
-      }
-      for (const [call] of (signUp as jest.Mock).mock.calls) {
-        expect(call.signupCampaign).toBeNull();
-      }
-    });
-
-    it("keeps the cookie when signup fails (the visit can still count)", async () => {
-      jar.value = `blizzy.${Math.floor(Date.now() / 1000)}`;
-      (signUp as jest.Mock).mockResolvedValue({ kind: "email_taken" });
-      await signUpAction(initial, form(filled));
-      expect(jar.delete).not.toHaveBeenCalled();
-    });
+  it("records no campaign: a leftover cookie or a form field is ignored (OVE-118)", async () => {
+    jar.value = `blizzy.${Math.floor(Date.now() / 1000)}`;
+    (signUp as jest.Mock).mockResolvedValue({ kind: "created" });
+    await expect(
+      signUpAction(initial, form({ ...filled, signupCampaign: "blizzy" })),
+    ).rejects.toThrow("NEXT_REDIRECT:/");
+    expect((signUp as jest.Mock).mock.calls[0][0]).not.toHaveProperty(
+      "signupCampaign",
+    );
+    jar.value = undefined;
   });
 
   it("surfaces rate-limit and challenge-failed outcomes as form messages", async () => {

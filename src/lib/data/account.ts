@@ -10,7 +10,6 @@ import {
 import { isValidTimeZone, toIsoDate, todayIso } from "@/lib/plan/calendar";
 import { initialReleaseSeen } from "@/lib/release-notes/seen";
 import { addDays, TRIAL_DURATION_DAYS } from "@/lib/billing/config";
-import type { Campaign } from "@/lib/marketing/campaign";
 import {
   createAccountClient,
   type AccountClient,
@@ -164,12 +163,6 @@ export async function establishProfile(
     lastName: string;
     username: string;
     timeZone: string;
-    /**
-     * Public Landing Page & Changelog (RD-9): the validated campaign the
-     * signup came from, or null. Written here — at the account's creation —
-     * and by no other path, ever.
-     */
-    signupCampaign?: Campaign | null;
   },
 ): Promise<void> {
   const db = createAccountClient(user.id);
@@ -181,9 +174,6 @@ export async function establishProfile(
     lastName: input.lastName,
     username: input.username,
     timeZone,
-    // Only a real campaign is written, so a lazily created profile that raced
-    // in first is completed with it but never has one cleared.
-    ...(input.signupCampaign ? { signupCampaign: input.signupCampaign } : {}),
   };
   let created = false;
   try {
