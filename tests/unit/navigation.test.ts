@@ -167,10 +167,13 @@ describe("the Account & app group animates instead of popping (OVE-119)", () => 
     const React = await import("react");
     const { NavMoreGroup } = await import("@/components/shell/nav-more-group");
     const html = renderToStaticMarkup(
-      React.createElement(NavMoreGroup, {
-        containsCurrent: false,
-        children: React.createElement("a", { href: "/settings" }, "Settings"),
-      }),
+      React.createElement(
+        NavMoreGroup,
+        // Children go as the third argument (react/no-children-prop); the
+        // cast satisfies the props type, which declares children required.
+        { containsCurrent: false } as Parameters<typeof NavMoreGroup>[0],
+        React.createElement("a", { href: "/settings" }, "Settings"),
+      ),
     );
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain("grid-rows-[1fr]");
