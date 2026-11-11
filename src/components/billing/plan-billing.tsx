@@ -3,16 +3,33 @@
 import * as React from "react";
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Loader2, CreditCard, ExternalLink, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyCode } from "@/components/marketing/copy-code";
 import {
+  checkoutOutcomeAction,
   createCheckoutSessionAction,
   createPortalSessionAction,
 } from "@/app/(app)/settings/billing/actions";
 import { sendVerificationEmailAction } from "@/app/(app)/settings/actions";
 import type { BillingScreenDto } from "@/lib/billing/screen";
 import { isConfirmingCheckout } from "@/lib/billing/pending";
+import {
+  CHECKOUT_CANCELLED_MESSAGE,
+  checkoutReturn,
+  notePendingCheckout,
+  takePendingCheckout,
+} from "@/lib/billing/checkout-return";
+
+/** This tab's sessionStorage, or null where it can't be used. */
+function tabStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Plans, Billing & Promo Codes — the Plan & Billing screen (design Screen 1/2/5).
@@ -37,7 +54,31 @@ const PRO = [
   "Exercise history & PR intelligence",
 ];
 
-type Busy = "monthly" | "annual" | "manage" | "verify" | null;
+type Busy = "checkout" | "manage" | "verify" | null;
+type Pick = "month" | "year";
+
+/**
+ * The plain-words disclosure shown before leaving for Stripe (OVE-112). A
+ * trial account is told plainly that subscribing now starts paid billing
+ * today rather than at the end of the trial. Exported for tests.
+ */
+export function checkoutDisclosure(
+  pick: Pick,
+  prices: { monthly: string; annual: string },
+  trial: boolean,
+): { summary: string; detail: string; leave: string } {
+  const price = pick === "year" ? prices.annual : prices.monthly;
+  const per = pick === "year" ? "year" : "month";
+  return {
+    summary: `Pro ${pick === "year" ? "Annual" : "Monthly"} — ${price}/${per}.`,
+    detail: trial
+      ? `Subscribing now starts paid billing today: ${price} is charged when you complete checkout, then every ${per}. The rest of your free trial isn't added on.`
+      : `${price} is charged when you complete checkout, then every ${per}. Cancel anytime.`,
+    leave: trial
+      ? "Checkout is on Stripe. Leaving it without paying changes nothing, and your trial continues."
+      : "Checkout is on Stripe. Leaving it without paying changes nothing.",
+  };
+}
 
 export function PlanBilling({
   screen,
@@ -49,6 +90,7 @@ export function PlanBilling({
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [verifySent, setVerifySent] = useState(false);
+  const [pick, setPick] = useState<Pick | null>(null);
   const router = useRouter();
 
   // The "finishing up" indicator shows only while a checkout-success return is
@@ -70,10 +112,67 @@ export function PlanBilling({
     return () => clearInterval(id);
   }, [confirming, router]);
 
+  // Coming back from Stripe without its redirect (OVE-112): the browser's
+  // back button restores this page from the back/forward cache exactly as it
+  // was left ("Starting checkout…", buttons disabled), and a reload loses
+  // track of the session. Either way, reset the controls and settle the
+  // return once: Stripe took the payment → the existing "finishing up" state;
+  // otherwise a quiet toast that nothing changed. Stripe's own cancel redirect
+  // (?status=cancelled) gets the same toast.
+  const settling = React.useRef(false);
+  const settleReturn = React.useCallback(async () => {
+    if (settling.current) return;
+    const sessionId = takePendingCheckout(tabStorage());
+    if (!sessionId) return;
+    settling.current = true;
+    try {
+      const result = await checkoutOutcomeAction(sessionId).catch(() => null);
+      const next = checkoutReturn(result?.ok ? result.data.outcome : null);
+      if (next.kind === "confirming") {
+        router.replace("/settings/billing?status=success", { scroll: false });
+      } else {
+        toast(next.message);
+      }
+    } finally {
+      settling.current = false;
+    }
+  }, [router]);
+
+  const handledStatus = React.useRef(false);
+  React.useEffect(() => {
+    if (handledStatus.current) return;
+    handledStatus.current = true;
+    if (status === "success") {
+      takePendingCheckout(tabStorage()); // Stripe's redirect settled it.
+      return;
+    }
+    if (status === "cancelled") {
+      takePendingCheckout(tabStorage());
+      toast(CHECKOUT_CANCELLED_MESSAGE);
+      // Drop ?status so a reload doesn't repeat the toast.
+      router.replace("/settings/billing", { scroll: false });
+      return;
+    }
+    void settleReturn();
+  }, [status, router, settleReturn]);
+
+  React.useEffect(() => {
+    function onPageShow(event: PageTransitionEvent) {
+      if (!event.persisted) return; // a fresh load runs the mount effect
+      // Restored from the back/forward cache (from Checkout or the billing
+      // portal): unstick the controls and re-read the plan from the server.
+      setBusy(null);
+      router.refresh();
+      void settleReturn();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [router, settleReturn]);
+
   async function go(
     key: Busy,
     run: () => Promise<
-      | { ok: true; data: { url: string } }
+      | { ok: true; data: { url: string; sessionId?: string } }
       | { ok: false; error: { message: string } }
     >,
   ) {
@@ -81,6 +180,9 @@ export function PlanBilling({
     setError(null);
     const result = await run();
     if (result.ok) {
+      if (result.data.sessionId) {
+        notePendingCheckout(tabStorage(), result.data.sessionId);
+      }
       window.location.href = result.data.url;
     } else {
       setError(result.error.message);
@@ -93,8 +195,10 @@ export function PlanBilling({
   // plan that could otherwise subscribe: show a plain note instead of buttons.
   const showUnavailable =
     !screen.billingEnabled &&
+    !screen.inAppShell &&
     !confirming &&
     (screen.displayState === "free" || screen.displayState === "trial");
+  const trial = screen.displayState === "trial";
 
   return (
     <div className="space-y-5">
@@ -127,11 +231,6 @@ export function PlanBilling({
               your plan as soon as payment is confirmed.
             </div>
           ) : null}
-          {status === "cancelled" ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Checkout cancelled. Your plan hasn&apos;t changed.
-            </p>
-          ) : null}
           {error ? (
             <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -151,43 +250,48 @@ export function PlanBilling({
               <p>
                 Have the {screen.promoReminder} code? Enter{" "}
                 <span className="font-mono">{screen.promoReminder}</span> at
-                checkout on the monthly plan.
+                checkout. Stripe shows whether it applies.
               </p>
               <CopyCode code={screen.promoReminder} size="xs" />
             </div>
           ) : null}
 
           {showSubscribe && screen.emailVerified ? (
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <Button
-                className="flex-1"
-                disabled={busy !== null}
-                onClick={() =>
-                  go("monthly", () => createCheckoutSessionAction("month"))
-                }
-              >
-                {busy === "monthly" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                {busy === "monthly"
-                  ? "Starting checkout…"
-                  : `Monthly — ${screen.prices.monthly}/mo`}
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                disabled={busy !== null}
-                onClick={() =>
-                  go("annual", () => createCheckoutSessionAction("year"))
-                }
-              >
-                {busy === "annual" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                {busy === "annual"
-                  ? "Starting checkout…"
-                  : `Annual — ${screen.prices.annual}/yr`}
-              </Button>
+            <div
+              id="subscribe"
+              className="mt-4 space-y-2 border-t border-border pt-4"
+            >
+              <p className="text-sm font-medium">Subscribe to Pro</p>
+              {pick === null ? (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    className="h-11 flex-1 sm:h-9"
+                    onClick={() => setPick("month")}
+                  >
+                    Monthly — {screen.prices.monthly}/mo
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-11 flex-1 sm:h-9"
+                    onClick={() => setPick("year")}
+                  >
+                    Annual — {screen.prices.annual}/yr
+                  </Button>
+                </div>
+              ) : (
+                <CheckoutConfirm
+                  disclosure={checkoutDisclosure(pick, screen.prices, trial)}
+                  busy={busy === "checkout"}
+                  disabled={busy !== null}
+                  onBack={() => {
+                    setPick(null);
+                    setError(null);
+                  }}
+                  onContinue={() =>
+                    go("checkout", () => createCheckoutSessionAction(pick))
+                  }
+                />
+              )}
             </div>
           ) : null}
 
@@ -255,6 +359,13 @@ export function PlanBilling({
             </div>
           ) : null}
 
+          {screen.inAppShell ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Your plan is shown here. Plan changes aren&apos;t available in the
+              app.
+            </p>
+          ) : null}
+
           {screen.displayState === "comp" ? (
             <p className="mt-3 text-xs text-muted-foreground">
               Complimentary access is managed by Overload — there&apos;s nothing
@@ -289,6 +400,48 @@ export function PlanBilling({
           billing.
         </p>
       </section>
+    </div>
+  );
+}
+
+function CheckoutConfirm({
+  disclosure,
+  busy,
+  disabled,
+  onBack,
+  onContinue,
+}: {
+  disclosure: { summary: string; detail: string; leave: string };
+  busy: boolean;
+  disabled: boolean;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+      <p className="text-sm">
+        <span className="font-medium tabular-nums">{disclosure.summary}</span>{" "}
+        {disclosure.detail}
+      </p>
+      <p className="text-xs text-muted-foreground">{disclosure.leave}</p>
+      <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-start">
+        <Button
+          className="h-11 sm:h-9"
+          disabled={disabled}
+          onClick={onContinue}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {busy ? "Starting checkout…" : "Continue to checkout"}
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-11 sm:h-9"
+          disabled={disabled}
+          onClick={onBack}
+        >
+          Back
+        </Button>
+      </div>
     </div>
   );
 }

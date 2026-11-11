@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 import { ModeCta } from "@/components/marketing/mode-cta";
@@ -8,7 +7,6 @@ import {
 } from "@/components/marketing/availability";
 import { publicPageMetadata } from "@/lib/marketing/site";
 import {
-  DISCOUNT_FAQ,
   FREE_FEATURES,
   PRICING,
   PRICING_FAQ,
@@ -138,31 +136,7 @@ export default function PricingPage() {
           Questions
         </h2>
         <dl className="grid gap-6 md:grid-cols-2">
-          {PRICING_FAQ.slice(0, 2).map(({ q, a }) => (
-            <div key={q}>
-              <dt className="font-medium">{q}</dt>
-              <dd className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                {a}
-              </dd>
-            </div>
-          ))}
-          <div>
-            <dt className="font-medium">{DISCOUNT_FAQ.q}</dt>
-            <dd className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-              {DISCOUNT_FAQ.a}{" "}
-              {/* No prefetch: a prefetch must never look like a /blizzy
-                  visit to the campaign cookie (the proxy also skips them). */}
-              <Link
-                href="/blizzy"
-                prefetch={false}
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                BLIZZY offer details
-              </Link>
-              . <WhenBilling skeleton="none" off={DISCOUNT_FAQ.offTail} />
-            </dd>
-          </div>
-          {PRICING_FAQ.slice(2).map(({ q, a }) => (
+          {PRICING_FAQ.map(({ q, a }) => (
             <div key={q}>
               <dt className="font-medium">{q}</dt>
               <dd className="mt-1.5 text-sm leading-relaxed text-muted-foreground">

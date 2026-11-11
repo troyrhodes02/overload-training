@@ -1,6 +1,10 @@
 import "server-only";
 import Stripe from "stripe";
-import type { MirrorSnapshot } from "@/lib/data/billing-webhook";
+import type {
+  EnforceDeps,
+  MirrorSnapshot,
+  OpenSubscription,
+} from "@/lib/data/billing-webhook";
 
 /**
  * Plans, Billing & Promo Codes — the Stripe adapter (spec §11, RD-8/RD-12).
@@ -31,12 +35,46 @@ export type BillingProvider = {
     email: string;
     accountId: string;
   }): Promise<string>;
-  createCheckoutSession(params: CheckoutParams): Promise<{ url: string }>;
+  createCheckoutSession(
+    params: CheckoutParams,
+  ): Promise<{ url: string; sessionId: string }>;
+  /**
+   * A hosted Checkout session's outcome and owning customer (OVE-112), for
+   * the browser-back case: did the lifter pay, or leave? Null when Stripe
+   * has no such session.
+   */
+  getCheckoutSession(sessionId: string): Promise<{
+    status: "open" | "complete" | "expired";
+    customerId: string | null;
+  } | null>;
   createPortalSession(input: {
     customerId: string;
     returnUrl: string;
   }): Promise<{ url: string }>;
+  /**
+   * Whether the customer already has a subscription in Stripe that is not over
+   * (active, trialing, past_due, unpaid, incomplete, paused). Read from Stripe,
+   * not the mirror, so a just-paid subscription whose webhook has not landed
+   * yet still blocks a second checkout (OVE-112).
+   */
+  hasOpenSubscription(customerId: string): Promise<boolean>;
+  /**
+   * Expire every still-open hosted Checkout session for the customer, so at
+   * most one can ever be completed (a refresh or a second click starts a new
+   * one and retires the old). Returns how many were expired.
+   */
+  expireOpenCheckoutSessions(customerId: string): Promise<number>;
 };
+
+/** Stripe statuses that mean a subscription is not over (OVE-112). */
+const OPEN_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "incomplete",
+  "paused",
+]);
 
 let client: Stripe | null = null;
 
@@ -86,13 +124,11 @@ export function stripeProvider(): BillingProvider {
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId(interval), quantity: 1 }],
-        // Promotions are monthly-only (RD-7: BLIZZY = 50% off 3 monthly periods).
-        // The promo-code field only appears on MONTHLY checkout, so a code can
-        // never be applied to an annual subscription here — server-side
-        // enforcement that does not depend on the Stripe coupon being correctly
-        // price-scoped. (Still restrict the coupon to the monthly price in
-        // Stripe as defence in depth; see the runbook.)
-        allow_promotion_codes: interval === "month",
+        // The promotion-code field is offered on both intervals (OVE-112). The
+        // live coupon applies to the Pro product (monthly and annual prices)
+        // for three months; Stripe alone decides whether a code applies, and
+        // on annual it discounts only the first annual payment.
+        allow_promotion_codes: true,
         client_reference_id: accountId,
         subscription_data: { metadata: { accountId } },
         automatic_tax: { enabled: taxEnabled() },
@@ -100,7 +136,23 @@ export function stripeProvider(): BillingProvider {
         cancel_url: cancelUrl,
       });
       if (!session.url) throw new Error("Stripe returned no checkout URL.");
-      return { url: session.url };
+      return { url: session.url, sessionId: session.id };
+    },
+    async getCheckoutSession(sessionId) {
+      try {
+        const session = await stripe().checkout.sessions.retrieve(sessionId);
+        const customer = session.customer;
+        return {
+          status: (session.status ?? "open") as "open" | "complete" | "expired",
+          customerId:
+            typeof customer === "string" ? customer : (customer?.id ?? null),
+        };
+      } catch (error) {
+        if ((error as { code?: string }).code === "resource_missing") {
+          return null;
+        }
+        throw error;
+      }
     },
     async createPortalSession({ customerId, returnUrl }) {
       const session = await stripe().billingPortal.sessions.create({
@@ -108,6 +160,100 @@ export function stripeProvider(): BillingProvider {
         return_url: returnUrl,
       });
       return { url: session.url };
+    },
+    async hasOpenSubscription(customerId) {
+      const subs = await stripe().subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 20,
+      });
+      return subs.data.some((s) => OPEN_SUBSCRIPTION_STATUSES.has(s.status));
+    },
+    async expireOpenCheckoutSessions(customerId) {
+      const open = await stripe().checkout.sessions.list({
+        customer: customerId,
+        status: "open",
+        limit: 20,
+      });
+      for (const session of open.data) {
+        await stripe().checkout.sessions.expire(session.id);
+      }
+      return open.data.length;
+    },
+  };
+}
+
+/**
+ * The Stripe side of the single-subscription guard (OVE-112): list the
+ * customer's open subscriptions, refund a duplicate's paid invoice, cancel it,
+ * and expire leftover Checkout sessions. Only ever called by the webhook route
+ * through enforceSingleSubscription.
+ */
+export function stripeEnforceDeps(): EnforceDeps {
+  return {
+    async listOpenSubscriptions(customerId) {
+      const subs = await stripe().subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 20,
+      });
+      return subs.data
+        .filter((s) => OPEN_SUBSCRIPTION_STATUSES.has(s.status))
+        .map((s): OpenSubscription => ({
+          id: s.id,
+          status: s.status as OpenSubscription["status"],
+          latestInvoiceId:
+            typeof s.latest_invoice === "string"
+              ? s.latest_invoice
+              : (s.latest_invoice?.id ?? null),
+        }));
+    },
+    async refundInvoice(invoiceId) {
+      // API 2026-10-28: an invoice's payments are InvoicePayment objects.
+      const payments = await stripe().invoicePayments.list({
+        invoice: invoiceId,
+        status: "paid",
+        limit: 10,
+      });
+      let refunded = 0;
+      for (const p of payments.data) {
+        const pi =
+          typeof p.payment.payment_intent === "string"
+            ? p.payment.payment_intent
+            : p.payment.payment_intent?.id;
+        const charge =
+          typeof p.payment.charge === "string"
+            ? p.payment.charge
+            : p.payment.charge?.id;
+        const target = pi ? { payment_intent: pi } : charge ? { charge } : null;
+        if (!target) continue;
+        try {
+          await stripe().refunds.create(
+            {
+              ...target,
+              reason: "duplicate",
+              metadata: { overload: "duplicate_subscription" },
+            },
+            { idempotencyKey: `overload-dup-refund-${pi ?? charge}` },
+          );
+          refunded += 1;
+        } catch (error) {
+          // Already refunded (an earlier delivery got this far): done.
+          const code = (error as { code?: string }).code;
+          if (code === "charge_already_refunded") continue;
+          throw error;
+        }
+      }
+      return refunded;
+    },
+    async cancelSubscription(subscriptionId) {
+      await stripe().subscriptions.cancel(subscriptionId, {
+        prorate: false,
+        invoice_now: false,
+      });
+    },
+    async expireOpenCheckoutSessions(customerId) {
+      return stripeProvider().expireOpenCheckoutSessions(customerId);
     },
   };
 }
