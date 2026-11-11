@@ -25,6 +25,8 @@ import {
   type CardioDayDto,
 } from "@/components/plan/cardio-controls";
 import { formatPlanDate } from "@/lib/plan/calendar";
+import { NamedWeekdays } from "@/components/plan/named-weekdays";
+import { weekdaysFromNames } from "@/lib/plan/weekday-names";
 import {
   getMesocycleWeek,
   occupancyOf,
@@ -67,6 +69,16 @@ export default async function MesocyclePage({
     sessionName: s?.name ?? null,
     cardioId: m.cardio[i]?.id ?? null,
   }));
+  // A draft whose sessions are named for weekdays and not yet scheduled (an
+  // imported plan): offer those days. Offer only; the lifter accepts.
+  const nameById = new Map(m.unscheduled.map((u) => [u.id, u.name]));
+  const namedDays =
+    m.status === "draft"
+      ? weekdaysFromNames(m.unscheduled).map((x) => ({
+          ...x,
+          name: nameById.get(x.sessionId) ?? "",
+        }))
+      : [];
   const dates =
     m.startDate && m.endDate
       ? archived
@@ -122,6 +134,8 @@ export default async function MesocyclePage({
         status={m.status}
         issues={m.readiness.issues}
       />
+
+      <NamedWeekdays namedDays={namedDays} />
 
       <div>
         <SectionHeading>Week</SectionHeading>

@@ -15,6 +15,7 @@ import {
   type MesocycleSummaryDto,
 } from "@/lib/plan/queries";
 import { requireAccount } from "@/lib/data/account";
+import { ImportEntry } from "@/components/plan/import-entry";
 
 export const metadata = { title: "Plan · Overload" };
 
@@ -79,6 +80,9 @@ export default async function PlanHomePage() {
             </Button>
           }
         />
+        <div className="pt-4">
+          <ImportEntry account={account} />
+        </div>
       </section>
     );
   }
@@ -175,6 +179,12 @@ export default async function PlanHomePage() {
           )}
         </div>
       </StickyActions>
+
+      {/* Its own section, below the plan and its actions: importing is a
+          separate path from building or cloning a mesocycle. */}
+      <div className="pt-6 md:pt-10">
+        <ImportEntry account={account} />
+      </div>
     </section>
   );
 }

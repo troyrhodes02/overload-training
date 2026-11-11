@@ -57,7 +57,10 @@ export function AppShell({
             </div>
           </header>
 
-          <main className="mx-auto w-full max-w-screen-sm flex-1 px-4 py-6">
+          {/* A page that needs room (the plan-import review) renders an element with
+              data-wide-page; :has() widens the region for that page only. Every
+              other page keeps the phone-width column. */}
+          <main className="mx-auto w-full max-w-screen-sm flex-1 px-4 py-6 has-[[data-wide-page]]:max-w-screen-2xl">
             {children}
           </main>
         </div>

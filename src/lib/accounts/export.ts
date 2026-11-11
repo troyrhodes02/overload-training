@@ -86,6 +86,16 @@ export type AccountExport = {
   entitlements: unknown[];
   billingAccount: unknown | null;
   promoRedemptions: unknown[];
+  /**
+   * Workout Plan Import & Review: the account's own import sessions (metadata +
+   * the staged draft JSON — the lifter's own reviewed structure) and their
+   * source parts (metadata ONLY: object path, type, size, sha, page count — the
+   * stored file bytes are NEVER inlined, like exercise and feedback images), plus
+   * the per-account daily usage counters. No secret and no raw bytes.
+   */
+  importSessions: unknown[];
+  importSourceParts: unknown[];
+  importUsageDays: unknown[];
 };
 
 /**
@@ -123,6 +133,9 @@ export async function buildAccountExport(
     entitlements,
     billingAccount,
     promoRedemptions,
+    importSessions,
+    importSourceParts,
+    importUsageDays,
   ] = await Promise.all([
     db.profile.findUnique({ where: { userId: account.userId } }),
     db.mesocycle.findMany(),
@@ -154,6 +167,26 @@ export async function buildAccountExport(
     db.entitlement.findMany(),
     db.billingAccount.findUnique({ where: { userId: account.userId } }),
     db.promoRedemption.findMany(),
+    // Plan Import: session metadata + the staged draft JSON (the lifter's own
+    // reviewed structure), SELECTED to exclude internal machinery — the lease
+    // token, model id/prompt version, token counts, attempt count, and error
+    // category are the pipeline's own accounting, not the lifter's content, and
+    // are left out (also keeping the opaque "token" field names out of the file).
+    db.importSession.findMany({
+      omit: {
+        leaseToken: true,
+        leaseExpiresAt: true,
+        modelId: true,
+        promptVersion: true,
+        inputTokens: true,
+        outputTokens: true,
+        attemptCount: true,
+        errorCode: true,
+      },
+    }),
+    // Source-part metadata only (no bytes — the stored file is never inlined).
+    db.importSourcePart.findMany(),
+    db.importUsageDay.findMany(),
   ]);
 
   return {
@@ -183,6 +216,9 @@ export async function buildAccountExport(
     entitlements,
     billingAccount,
     promoRedemptions,
+    importSessions,
+    importSourceParts,
+    importUsageDays,
   };
 }
 

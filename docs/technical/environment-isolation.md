@@ -12,7 +12,7 @@ It describes where each environment points, the rules that keep Preview and oper
 | **Preview** | Vercel Preview deployments (every PR branch) | The **development** project `overload-dev`, ref **`vdxrmfadikwzodjljbdi`** | Synthetic only: test accounts and the demo fixture |
 | **Production** | Vercel Production | `overload-prod`, ref **`ycxvdiklpefyhdclxyau`** | Real lifters' data. The only copy. |
 
-There is still **no staging tier**. `overload-dev` is a sandbox for Preview, not a staging copy of Production. Nothing is promoted from it, and no Production data is ever copied into it.
+There is no separate staging database or tier. `overload-dev` serves every Preview, including the permanent `staging` branch (`docs/technical/staging-environment.md`), and is a sandbox, not a staging copy of Production. Nothing is promoted from it, and no Production data is ever copied into it.
 
 ## Rules
 
@@ -52,10 +52,10 @@ There is still **no staging tier**. `overload-dev` is a sandbox for Preview, not
 | Real-plan import | `npm run import:plan` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
 | Founding-member grant | `npm run founding-members:grant` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
 | Ownership backfill | `npm run ownership:backfill` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
+| Plan-import cleanup | `npm run plan-import:cleanup` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
+| Dev test-account provisioning | `npx tsx scripts/operator/provision-dev-test-user/cli.ts` | refused | `--confirm-ref vdxrmfadikwzodjljbdi` + marker + dev service-role key; `--execute` to write | **refused, no override** |
 
 The production opt-in exists only where an approved runbook already sanctions a deliberate, human production run. It is stricter than the host confirmation it replaces. Every production step still requires a fresh backup immediately before. In PowerShell, npm drops options after `--`, so run the CLIs with `npx tsx …` directly.
-
-**Pending:** the plan-import cleanup CLI (`scripts/operator/plan-import-cleanup`) exists only on the Pitch 22 branch (PR #130). When #130 merges, it must call `assertOperatorTarget` with `production: "refuse"` and `verifyTargetMarker` before connecting. The structural test above will fail until it does.
 
 ## Initializing `overload-dev` (safe procedure)
 

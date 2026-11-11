@@ -28,7 +28,8 @@ Authentication → Add user), then sign in at `/login`.
 **Environment model:** local development runs against the **Supabase CLI local
 stack** (`npx supabase start`). Vercel **Preview** deployments run against the
 **`overload-dev`** Supabase project (synthetic data only), and Vercel
-**Production** runs against **`overload-prod`**. There is no staging tier. A
+**Production** runs against **`overload-prod`**. There is no separate staging database: the permanent `staging` branch is just a
+Preview (see `docs/technical/staging-environment.md`). A
 Preview build or server whose database or Supabase variables name the
 Production project refuses to run. Operator scripts identify their target by
 Supabase project ref and need `--confirm-ref` for any hosted project. See

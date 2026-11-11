@@ -59,6 +59,8 @@ describe("every operator connection is identity-guarded", () => {
         "scripts/operator/account-ownership/cli.ts",
         "scripts/operator/founding-members/cli.ts",
         "scripts/operator/migrate-dev/cli.ts",
+        "scripts/operator/plan-import-cleanup/cli.ts",
+        "scripts/operator/provision-dev-test-user/cli.ts",
       ].sort(),
     );
   });
@@ -92,10 +94,13 @@ describe("production policy per tool (no implicit production fallback)", () => {
   const POLICY: Record<string, "refuse" | "explicit-opt-in"> = {
     "scripts/operator/migrate-dev/cli.ts": "refuse",
     "scripts/demo/guard.ts": "refuse",
+    "scripts/operator/provision-dev-test-user/cli.ts": "refuse",
     "prisma/seed/target-guard.ts": "explicit-opt-in",
     "scripts/import/real-plan/cli.ts": "explicit-opt-in",
     "scripts/operator/founding-members/cli.ts": "explicit-opt-in",
     "scripts/operator/account-ownership/cli.ts": "explicit-opt-in",
+    // Runbook-sanctioned on-demand retention purge (G3); same opt-in as the rest.
+    "scripts/operator/plan-import-cleanup/cli.ts": "explicit-opt-in",
   };
 
   it.each(Object.entries(POLICY))("%s uses policy %s", (file, policy) => {

@@ -1,0 +1,1391 @@
+"use client";
+
+import { extractionFailureCopy } from "@/lib/import/failure-copy";
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Loader2,
+  TriangleAlert,
+  Info,
+  Check,
+  CircleHelp,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronDown,
+  ArrowDown,
+  Search,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  MUSCLE_GROUPS,
+  MUSCLE_GROUP_LABELS,
+  EQUIPMENT_TYPES,
+  EQUIPMENT_LABELS,
+} from "@/lib/exercises/taxonomy";
+import type {
+  DraftExercise,
+  DraftField,
+  DraftMatch,
+  FieldStatus,
+  ImportDraftDto,
+  ImportStatusDto,
+} from "@/lib/import/draft/types";
+import { deriveBlockers } from "@/lib/import/draft/build";
+import { retryCostLine, type ImportUsageView } from "./import-guidance";
+import { LibrarySearchDialog } from "./library-search-dialog";
+import {
+  getImportStatusAction,
+  retryExtractionAction,
+  discardImportAction,
+  saveDraftEditAction,
+  resolveMatchAction,
+  pickLibraryExerciseAction,
+  stageCustomExerciseAction,
+  confirmImportAction,
+} from "@/app/(app)/plan/import/actions";
+
+/**
+ * Workout Plan Import & Review (Pitch 22, OVE-106) — the Processing / Review /
+ * Done flow (binding preview Screens 3/4/5). An interactive island: it polls the
+ * import status, renders the source beside the editable draft, resolves matches,
+ * and calls the confirm action. It NEVER touches the data layer, holds no
+ * credentials, and never carries the acting user id — it calls server actions
+ * only. All source/model/edit content is React-escaped (untrusted).
+ *
+ * "Create plan" is disabled until the SERVER-revalidated blockers are clear: the
+ * same `deriveBlockers` the confirm adapter runs is used here on the current
+ * draft so the button mirrors the server's authority (but the server re-derives
+ * and is the real gate — a client flag never waives a blocker).
+ */
+
+type SourcePart = {
+  position: number;
+  text: string | null;
+  url: string | null;
+  contentType: string | null;
+  pageCount: number | null;
+};
+
+type ApplyResult =
+  | { ok: true; data: ImportDraftDto }
+  | { ok: false; error: { message: string } };
+
+type ApplyFn = (run: () => Promise<ApplyResult>) => void;
+
+export function ImportFlow({
+  sessionId,
+  initialStatus,
+  initialDraft,
+  source,
+  mesocycleId,
+  usage = null,
+}: {
+  sessionId: string;
+  initialStatus: ImportStatusDto;
+  initialDraft: ImportDraftDto | null;
+  source: SourcePart[];
+  mesocycleId: string | null;
+  usage?: ImportUsageView | null;
+}) {
+  const router = useRouter();
+  const [status, setStatus] = React.useState(initialStatus);
+
+  // Poll while processing. Stops the moment the server reaches a terminal step.
+  React.useEffect(() => {
+    if (status.step !== "processing" || status.status !== "extracting") return;
+    let active = true;
+    const id = setInterval(async () => {
+      const res = await getImportStatusAction({ sessionId });
+      if (!active) return;
+      if (res.ok) {
+        setStatus(res.data);
+        if (res.data.step !== "processing") {
+          clearInterval(id);
+          router.refresh();
+        }
+      }
+    }, 1500);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [sessionId, status.step, status.status, router]);
+
+  if (status.step === "done") {
+    return <DoneStep draft={initialDraft} mesocycleId={mesocycleId} />;
+  }
+  if (status.step === "review" && initialDraft) {
+    return (
+      <ReviewStep sessionId={sessionId} draft={initialDraft} source={source} />
+    );
+  }
+  return (
+    <ProcessingStep
+      sessionId={sessionId}
+      status={status}
+      usage={usage}
+      onStatus={(next) => {
+        setStatus(next);
+        // The server owns the draft: once it says "review" or "done", re-render
+        // the page so the new props (draft, source, plan id) arrive.
+        if (next.step === "review" || next.step === "done") router.refresh();
+      }}
+    />
+  );
+}
+
+/* ----------------------------- Processing ------------------------------ */
+
+function ProcessingStep({
+  sessionId,
+  status,
+  usage,
+  onStatus,
+}: {
+  sessionId: string;
+  status: ImportStatusDto;
+  usage: ImportUsageView | null;
+  onStatus: (next: ImportStatusDto) => void;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState(false);
+  const [retrying, setRetrying] = React.useState(false);
+  const [retryError, setRetryError] = React.useState<string | null>(null);
+
+  async function onCancel() {
+    setBusy(true);
+    await discardImportAction({ sessionId });
+    router.push("/plan");
+    router.refresh();
+  }
+  async function onRetry() {
+    if (retrying) return;
+    setBusy(true);
+    setRetrying(true);
+    setRetryError(null);
+    // The retry runs the whole extraction inside this call, so keep showing the
+    // working state while it does, and apply the status it RETURNS. (Before, the
+    // card stayed as it was: the new status only arrived through props that this
+    // component's own state ignored, so "Try again" looked stuck until a reload.)
+    try {
+      const res = await retryExtractionAction({ sessionId });
+      if (res.ok) onStatus(res.data);
+      else setRetryError(res.error.message);
+    } catch {
+      setRetryError("Couldn't retry. Please try again.");
+    } finally {
+      setRetrying(false);
+      setBusy(false);
+    }
+  }
+
+  if (status.status === "extracting" || retrying || status.step === "review") {
+    return <ReadingState busy={busy} onCancel={onCancel} />;
+  }
+
+  const retryCopy = extractionFailureCopy(status.errorCode, true);
+  const finalCopy = extractionFailureCopy(status.errorCode, false);
+
+  if (status.status === "failed_retryable") {
+    return (
+      <OutcomeCard
+        tone="destructive"
+        title={retryCopy.title}
+        body={retryError ? `${retryCopy.body} ${retryError}` : retryCopy.body}
+        footnote={retryCostLine(usage)}
+        actions={
+          <>
+            <Button disabled={busy} onClick={onRetry}>
+              Try again
+            </Button>
+            <Button variant="ghost" disabled={busy} onClick={onCancel}>
+              Cancel
+            </Button>
+          </>
+        }
+      />
+    );
+  }
+
+  if (status.status === "not_a_plan") {
+    return (
+      <OutcomeCard
+        tone="muted"
+        title="That doesn't look like a workout plan"
+        body="We couldn't find a plan in what you shared, so no plan was created. You can start over with different text or files."
+        actions={
+          <Button variant="outline" disabled={busy} onClick={onCancel}>
+            Start over
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (status.errorCode === "rate_limited") {
+    return (
+      <OutcomeCard
+        tone="muted"
+        title="You've reached today's import limit"
+        body="Imports are limited per day. Try again tomorrow."
+        actions={
+          <Button variant="outline" asChild>
+            <Link href="/plan">Back to Plan</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  // failed_final / unavailable / anything else terminal.
+  return (
+    <OutcomeCard
+      tone="muted"
+      title={finalCopy.title}
+      body={finalCopy.body}
+      actions={
+        <Button variant="outline" disabled={busy} onClick={onCancel}>
+          Back to Plan
+        </Button>
+      }
+    />
+  );
+}
+
+/**
+ * The working state: a calm skeleton of the review that is coming, an elapsed
+ * timer, and an honest expectation (longer plans take longer). Motion stops for
+ * people who ask for reduced motion.
+ */
+function ReadingState({
+  busy,
+  onCancel,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+}) {
+  const [seconds, setSeconds] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setSeconds((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <Centered>
+      <div role="status" aria-live="polite" className="space-y-4">
+        <Loader2
+          aria-hidden
+          className="mx-auto size-7 animate-spin text-muted-foreground motion-reduce:animate-none"
+        />
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Reading your plan…</p>
+          <p className="text-sm text-muted-foreground">
+            Longer plans can take a few minutes. You can leave this page and
+            come back.
+          </p>
+        </div>
+        <div aria-hidden className="mx-auto max-w-xs space-y-2">
+          {[3 / 4, 1, 2 / 3].map((w, i) => (
+            <div
+              key={i}
+              style={{ width: `${w * 100}%` }}
+              className="h-3 rounded bg-muted motion-safe:animate-pulse"
+            />
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground tabular-nums">{seconds}s</p>
+      </div>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
+        Cancel
+      </Button>
+    </Centered>
+  );
+}
+
+/* ------------------------------- Review -------------------------------- */
+
+function ReviewStep({
+  sessionId,
+  draft: initial,
+  source,
+}: {
+  sessionId: string;
+  draft: ImportDraftDto;
+  source: SourcePart[];
+}) {
+  const router = useRouter();
+  const [draft, setDraft] = React.useState(initial);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const blockers = React.useMemo(() => deriveBlockers(draft), [draft]);
+  const blocked = blockers.length > 0;
+
+  async function apply(
+    run: () => Promise<
+      | { ok: true; data: ImportDraftDto }
+      | { ok: false; error: { message: string } }
+    >,
+  ) {
+    setBusy(true);
+    setError(null);
+    const res = await run();
+    setBusy(false);
+    if (res.ok) setDraft(res.data);
+    else setError(res.error.message);
+  }
+
+  // Set once a plan has been created. From then on nothing on this screen can
+  // submit again or discard: the import is finished, so the only way on is to
+  // open the plan.
+  const [created, setCreated] = React.useState(false);
+  const submitting = React.useRef(false);
+  const [discardOpen, setDiscardOpen] = React.useState(false);
+
+  async function onConfirm() {
+    // A ref, not state: two clicks in the same tick must not both submit.
+    if (submitting.current || created) return;
+    submitting.current = true;
+    setBusy(true);
+    setError(null);
+    const res = await confirmImportAction({
+      sessionId,
+      version: draft.version,
+    });
+    if (res.ok) {
+      setCreated(true);
+      // Go straight to the plan that was just saved, by its real id. (The old
+      // push back to this page re-rendered the server tree, but this client
+      // component kept its own "review" state, so the review stayed open.)
+      router.push(`/plan/${res.data.mesocycleId}?created=1`);
+      return;
+    }
+    submitting.current = false;
+    setBusy(false);
+    setError(res.error.message);
+  }
+  async function onDiscard() {
+    if (created) return;
+    setBusy(true);
+    const res = await discardImportAction({ sessionId });
+    if (!res.ok) {
+      setBusy(false);
+      setError(res.error.message);
+      return;
+    }
+    router.push("/plan");
+    router.refresh();
+  }
+
+  const sourcePane = <SourcePane source={source} />;
+
+  const exerciseCount = draft.days.reduce((n, d) => n + d.exercises.length, 0);
+  const unresolved = React.useMemo(
+    () =>
+      draft.days.flatMap((d) =>
+        d.exercises.filter(isUnresolved).map((e) => e.key),
+      ),
+    [draft],
+  );
+  const cursor = React.useRef(0);
+
+  /** Scroll to the next exercise that still needs a decision and focus its control. */
+  function goToNextUnresolved() {
+    if (unresolved.length === 0) return;
+    const key = unresolved[cursor.current % unresolved.length];
+    cursor.current += 1;
+    const row = document.getElementById(exerciseRowId(key));
+    if (!row) return;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    row.scrollIntoView({
+      block: "center",
+      behavior: reduce ? "auto" : "smooth",
+    });
+    // The first control that is actually visible (the md+ disclosure button, or
+    // the phone layout's first radio / name field).
+    const target = Array.from(
+      row.querySelectorAll<HTMLElement>("[data-match-focus]"),
+    ).find((el) => el.offsetParent !== null);
+    target?.focus({ preventScroll: true });
+  }
+
+  return (
+    <div data-wide-page className="relative flex min-h-full min-w-0 flex-col">
+      <header className="flex h-14 items-center justify-between gap-2 border-b border-border px-1 xl:px-0">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            disabled={busy || created}
+            onClick={() => setDiscardOpen(true)}
+          >
+            <ChevronLeft aria-hidden className="size-4" /> Discard
+          </Button>
+          <span className="whitespace-nowrap text-sm font-medium">
+            Review your plan
+          </span>
+          <span className="ml-2 hidden whitespace-nowrap text-sm text-muted-foreground tabular-nums xl:inline">
+            {draft.days.length} day{draft.days.length === 1 ? "" : "s"} ·{" "}
+            {exerciseCount} exercise{exerciseCount === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="xl:hidden"
+            onClick={() => setSheetOpen(true)}
+          >
+            View source
+          </Button>
+        </div>
+      </header>
+
+      {error && (
+        <div
+          role="alert"
+          className="m-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive"
+        >
+          {error}
+        </div>
+      )}
+
+      <div className="grid flex-1 gap-4 p-2 xl:grid-cols-[minmax(320px,2fr)_3fr] xl:items-start xl:gap-6 xl:p-4 xl:pl-0">
+        {/* Source: a reference panel beside the plan at lg+, pinned and scrolling
+            on its own. Below lg it opens from "View source" instead. */}
+        <aside
+          aria-label="Your source"
+          className="hidden xl:sticky xl:top-4 xl:block xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto"
+        >
+          {sourcePane}
+        </aside>
+        <section className="min-w-0 space-y-4">
+          <OneTimeNote />
+          <div className="md:max-w-md">
+            <TextSaveField
+              key={`title-${draft.version}-${draft.title.value ?? ""}`}
+              label="Plan name"
+              defaultValue={draft.title.value ?? ""}
+              status={draft.title.status}
+              disabled={busy}
+              placeholder="Plan name"
+              onSave={(value) =>
+                apply(() =>
+                  saveDraftEditAction({
+                    sessionId,
+                    version: draft.version,
+                    patch: { kind: "title", value },
+                  }),
+                )
+              }
+            />
+          </div>
+          {draft.days.map((day) => (
+            <DayCard
+              key={day.key}
+              sessionId={sessionId}
+              version={draft.version}
+              dayKey={day.key}
+              label={day.label}
+              exercises={day.exercises}
+              disabled={busy}
+              onApply={apply}
+            />
+          ))}
+
+          {blocked && (
+            <div className="rounded-md border border-border bg-card p-3">
+              <p className="text-sm font-medium">
+                Before you can create the plan:
+              </p>
+              <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+                {blockerMessages(blockers).map((b, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span aria-hidden className="text-destructive">
+                      •
+                    </span>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Phones: the action sits at the end of the content, as before.
+              md+: it pins to the bottom of the viewport so Create plan is
+              always reachable. */}
+          <div className="flex items-center justify-between gap-3 md:sticky md:bottom-0 md:z-10 md:-mx-2 md:border-t md:border-border md:bg-background/95 md:px-2 md:py-3 md:backdrop-blur xl:mx-0 xl:px-0">
+            {blocked ? (
+              <span className="flex items-center gap-2 text-sm text-destructive">
+                <TriangleAlert aria-hidden className="size-4" />
+                {blockers.length} item{blockers.length === 1 ? "" : "s"} need
+                attention
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                Looks ready.
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              {unresolved.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hidden md:inline-flex"
+                  onClick={goToNextUnresolved}
+                >
+                  <ArrowDown aria-hidden className="size-4" />
+                  Next unresolved ({unresolved.length})
+                </Button>
+              )}
+              <Button disabled={busy || blocked || created} onClick={onConfirm}>
+                Create plan
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this import?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Nothing has been added to your plans yet. Discarding throws away
+              this unfinished import and your edits to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
+            <AlertDialogAction onClick={onDiscard}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[85%]">
+          <SheetHeader>
+            <SheetTitle>Source</SheetTitle>
+          </SheetHeader>
+          <div className="overflow-y-auto p-2">{sourcePane}</div>
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+/** An exercise still needs the lifter: an unresolved match or a needed field. */
+export function isUnresolved(ex: DraftExercise): boolean {
+  return (
+    ex.match.kind === "ambiguous" ||
+    ex.match.kind === "unknown" ||
+    ex.sets.status === "needed" ||
+    ex.repMin.status === "needed" ||
+    ex.repMax.status === "needed"
+  );
+}
+
+export function exerciseRowId(key: string): string {
+  return `import-ex-${key}`;
+}
+
+function OneTimeNote() {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+      <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      <span>
+        We read your plan&rsquo;s days, exercises, sets, and reps. Loads, rest,
+        and percentages are shown for reference but aren&rsquo;t part of the
+        plan.
+      </span>
+    </div>
+  );
+}
+
+function SourcePane({ source }: { source: SourcePart[] }) {
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+      <p className="text-xs font-medium text-muted-foreground">Your source</p>
+      {source.length === 0 && (
+        <p className="text-sm text-muted-foreground">No source to show.</p>
+      )}
+      {source.map((part) => (
+        <SourcePartView key={part.position} part={part} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Render one source part in the review pane. Text is shown verbatim; an image is
+ * shown inline; a PDF is embedded through its short-lived signed URL with an
+ * honest "PDF · N pages" label and an open-in-new-tab link (the browser's own
+ * PDF viewer renders it). A part whose signed URL could not be minted shows a
+ * plain "unavailable" line, never an error that breaks the page.
+ */
+function SourcePartView({ part }: { part: SourcePart }) {
+  if (part.text != null) {
+    return (
+      <pre className="whitespace-pre-wrap break-words text-sm text-foreground">
+        {part.text}
+      </pre>
+    );
+  }
+  const isPdf = part.contentType === "application/pdf";
+  if (isPdf) {
+    if (!part.url) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Source part {part.position + 1} (PDF) is unavailable.
+        </p>
+      );
+    }
+    const pages =
+      part.pageCount != null
+        ? `${part.pageCount} page${part.pageCount === 1 ? "" : "s"}`
+        : "PDF";
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">
+            PDF · {pages}
+          </span>
+          <a
+            href={part.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted-foreground underline underline-offset-2"
+          >
+            Open
+          </a>
+        </div>
+        <object
+          data={part.url}
+          type="application/pdf"
+          aria-label={`Source part ${part.position + 1} (PDF)`}
+          className="h-96 w-full rounded border border-border xl:h-[70dvh]"
+        >
+          <a
+            href={part.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm underline"
+          >
+            Open the PDF
+          </a>
+        </object>
+      </div>
+    );
+  }
+  if (part.url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={part.url}
+        alt={`Source part ${part.position + 1}`}
+        className="max-w-full rounded border border-border"
+      />
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      Source part {part.position + 1} is unavailable.
+    </p>
+  );
+}
+
+/**
+ * Uncontrolled text input that saves on blur. It is keyed on the server value by
+ * the caller, so when the stored draft changes (after a save) the field remounts
+ * with the new default — no setState-in-effect needed.
+ */
+function TextSaveField({
+  label,
+  defaultValue,
+  status,
+  disabled,
+  placeholder,
+  onSave,
+}: {
+  label: string;
+  defaultValue: string;
+  status: FieldStatus;
+  disabled: boolean;
+  placeholder: string;
+  onSave: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-medium text-muted-foreground">
+          {label}
+        </label>
+        <FieldStatusChip status={status} />
+      </div>
+      <Input
+        defaultValue={defaultValue}
+        disabled={disabled}
+        onBlur={(e) => {
+          const v = e.target.value;
+          if (v !== defaultValue) onSave(v);
+        }}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+function DayCard({
+  sessionId,
+  version,
+  dayKey,
+  label,
+  exercises,
+  disabled,
+  onApply,
+}: {
+  sessionId: string;
+  version: number;
+  dayKey: string;
+  label: DraftField<string>;
+  exercises: DraftExercise[];
+  disabled: boolean;
+  onApply: ApplyFn;
+}) {
+  const open = exercises.filter(isUnresolved).length;
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-card p-3 md:p-4">
+      <div className="md:flex md:items-end md:justify-between md:gap-4 min-w-0">
+        <div className="md:w-full md:max-w-xs">
+          <TextSaveField
+            key={`day-${version}-${dayKey}-${label.value ?? ""}`}
+            label="Day"
+            defaultValue={label.value ?? ""}
+            status={label.status}
+            disabled={disabled}
+            placeholder="Day name"
+            onSave={(value) =>
+              onApply(() =>
+                saveDraftEditAction({
+                  sessionId,
+                  version,
+                  patch: { kind: "dayLabel", dayKey, value },
+                }),
+              )
+            }
+          />
+        </div>
+        <p className="hidden whitespace-nowrap pb-2 text-sm text-muted-foreground tabular-nums md:block">
+          {exercises.length} exercise{exercises.length === 1 ? "" : "s"}
+          {open > 0 && (
+            <span className="text-destructive"> · {open} to resolve</span>
+          )}
+        </p>
+      </div>
+      <div className="space-y-3 md:space-y-2">
+        {exercises.map((ex) => (
+          <ExerciseRow
+            key={ex.key}
+            sessionId={sessionId}
+            version={version}
+            ex={ex}
+            disabled={disabled}
+            onApply={onApply}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExerciseRow({
+  sessionId,
+  version,
+  ex,
+  disabled,
+  onApply,
+}: {
+  sessionId: string;
+  version: number;
+  ex: DraftExercise;
+  disabled: boolean;
+  onApply: ApplyFn;
+}) {
+  function save(patch: {
+    sets?: number | null;
+    repMin?: number | null;
+    repMax?: number | null;
+  }) {
+    onApply(() =>
+      saveDraftEditAction({
+        sessionId,
+        version,
+        patch: { kind: "exercise", exerciseKey: ex.key, ...patch },
+      }),
+    );
+  }
+  const unresolved = isUnresolved(ex);
+  // Phones: the original stacked card (match, fields, chips). md+: one compact
+  // row — the match on the left, sets / rep min / rep max on the right — by
+  // placing the same three blocks on a grid (DOM order is unchanged).
+  return (
+    <div
+      id={exerciseRowId(ex.key)}
+      data-unresolved={unresolved ? "true" : undefined}
+      className={
+        "scroll-mt-24 space-y-2 rounded-md border p-2 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-x-6 md:gap-y-1 md:space-y-0 md:p-3 " +
+        (unresolved
+          ? "border-destructive/40 bg-destructive/5"
+          : "border-border/60")
+      }
+    >
+      <div className="md:col-start-1 md:row-start-1">
+        <MatchControl
+          sessionId={sessionId}
+          version={version}
+          exerciseKey={ex.key}
+          match={ex.match}
+          disabled={disabled}
+          onApply={onApply}
+        />
+      </div>
+      <div className="flex flex-wrap items-end gap-3 md:col-start-2 md:row-span-2 md:row-start-1 md:flex-nowrap">
+        <NumField
+          label="Sets"
+          field={ex.sets}
+          disabled={disabled}
+          onSave={(v) => save({ sets: v })}
+        />
+        <NumField
+          label="Rep min"
+          field={ex.repMin}
+          disabled={disabled}
+          onSave={(v) => save({ repMin: v })}
+        />
+        <NumField
+          label="Rep max"
+          field={ex.repMax}
+          disabled={disabled}
+          onSave={(v) => save({ repMax: v })}
+        />
+      </div>
+      {ex.context.length > 0 && (
+        <div className="flex flex-wrap gap-1 md:col-start-1 md:row-start-2">
+          {ex.context.map((c, i) => (
+            <ContextChip key={i}>
+              {c.label}: {c.value}
+            </ContextChip>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MatchControl({
+  sessionId,
+  version,
+  exerciseKey,
+  match,
+  disabled,
+  onApply,
+}: {
+  sessionId: string;
+  version: number;
+  exerciseKey: string;
+  match: DraftMatch;
+  disabled: boolean;
+  onApply: ApplyFn;
+}) {
+  const [showCustom, setShowCustom] = React.useState(false);
+  const [showChoices, setShowChoices] = React.useState(false);
+  const [searchOpen, setSearchOpen] = React.useState(false);
+
+  const search = (
+    <LibrarySearchDialog
+      open={searchOpen}
+      onOpenChange={setSearchOpen}
+      importedName={"raw" in match ? match.raw : match.name}
+      onPick={(exercise) => {
+        setSearchOpen(false);
+        onApply(() =>
+          pickLibraryExerciseAction({
+            sessionId,
+            version,
+            exerciseKey,
+            exerciseId: exercise.id,
+          }),
+        );
+      }}
+    />
+  );
+  const searchButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={disabled}
+      onClick={() => setSearchOpen(true)}
+    >
+      <Search aria-hidden className="size-4" />
+      Search library
+    </Button>
+  );
+
+  if (match.kind === "matched" || match.kind === "custom_staged") {
+    return (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <Check aria-hidden className="size-4 text-muted-foreground" />
+        <span className="font-medium">{match.name}</span>
+        <span className="text-xs text-muted-foreground">
+          {match.kind === "matched" ? "matched" : "new custom exercise"}
+        </span>
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 text-xs"
+          disabled={disabled}
+          onClick={() => setSearchOpen(true)}
+        >
+          Change
+        </Button>
+        {search}
+      </div>
+    );
+  }
+
+  const staged = (
+    <CustomExerciseForm
+      sessionId={sessionId}
+      version={version}
+      exerciseKey={exerciseKey}
+      defaultName={match.raw}
+      disabled={disabled}
+      onApply={onApply}
+      onCancel={() => setShowCustom(false)}
+    />
+  );
+
+  if (match.kind === "ambiguous") {
+    const panelId = `match-panel-${exerciseKey}`;
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">
+            &ldquo;{match.raw}&rdquo;
+          </span>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <CircleHelp aria-hidden className="size-3" /> choose a match
+          </span>
+          {/* md+: suggestions stay closed until asked for; phones list them. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden md:inline-flex"
+            data-match-focus
+            aria-expanded={showChoices}
+            aria-controls={panelId}
+            onClick={() => setShowChoices((v) => !v)}
+          >
+            Choose match ({match.candidates.length})
+            <ChevronDown
+              aria-hidden
+              className={
+                "size-4 transition-transform " +
+                (showChoices ? "rotate-180" : "")
+              }
+            />
+          </Button>
+        </div>
+        <div
+          id={panelId}
+          role="radiogroup"
+          aria-label={`Matches for ${match.raw}`}
+          className={"space-y-1 " + (showChoices ? "" : "md:hidden")}
+        >
+          {match.candidates.map((c, i) => (
+            <label
+              key={c.exerciseId}
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
+              <input
+                type="radio"
+                name={`match-${exerciseKey}`}
+                disabled={disabled}
+                data-match-focus={i === 0 ? true : undefined}
+                onChange={() =>
+                  onApply(() =>
+                    resolveMatchAction({
+                      sessionId,
+                      version,
+                      exerciseKey,
+                      exerciseId: c.exerciseId,
+                    }),
+                  )
+                }
+              />
+              {c.name}
+            </label>
+          ))}
+        </div>
+        {showCustom ? (
+          staged
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {searchButton}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={() => setShowCustom(true)}
+            >
+              Create custom…
+            </Button>
+          </div>
+        )}
+        {search}
+      </div>
+    );
+  }
+
+  // unknown
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-muted-foreground">&ldquo;{match.raw}&rdquo;</span>
+        <span className="flex items-center gap-1 text-xs text-destructive">
+          <TriangleAlert aria-hidden className="size-3" /> not in library
+        </span>
+        {searchButton}
+        <Button
+          variant="outline"
+          size="sm"
+          className="hidden md:inline-flex"
+          data-match-focus
+          aria-expanded={showCustom}
+          onClick={() => setShowCustom((v) => !v)}
+        >
+          Create custom exercise…
+        </Button>
+      </div>
+      {/* Phones show the form straight away (as before); md+ opens it on demand. */}
+      <div className={showCustom ? "" : "md:hidden"}>{staged}</div>
+      {search}
+    </div>
+  );
+}
+
+function CustomExerciseForm({
+  sessionId,
+  version,
+  exerciseKey,
+  defaultName,
+  disabled,
+  onApply,
+  onCancel,
+}: {
+  sessionId: string;
+  version: number;
+  exerciseKey: string;
+  defaultName: string;
+  disabled: boolean;
+  onApply: ApplyFn;
+  onCancel: () => void;
+}) {
+  const [name, setName] = React.useState(defaultName);
+  const [muscle, setMuscle] = React.useState<string>(MUSCLE_GROUPS[0]);
+  const [equipment, setEquipment] = React.useState<string>(EQUIPMENT_TYPES[0]);
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
+      <Input
+        value={name}
+        disabled={disabled}
+        data-match-focus
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Exercise name"
+      />
+      <div className="flex gap-2">
+        <NativeSelect
+          value={muscle}
+          disabled={disabled}
+          onChange={(e) => setMuscle(e.target.value)}
+          aria-label="Primary muscle"
+        >
+          {MUSCLE_GROUPS.map((m) => (
+            <option key={m} value={m}>
+              {MUSCLE_GROUP_LABELS[m]}
+            </option>
+          ))}
+        </NativeSelect>
+        <NativeSelect
+          value={equipment}
+          disabled={disabled}
+          onChange={(e) => setEquipment(e.target.value)}
+          aria-label="Equipment"
+        >
+          {EQUIPMENT_TYPES.map((eq) => (
+            <option key={eq} value={eq}>
+              {EQUIPMENT_LABELS[eq]}
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={disabled}
+          onClick={() =>
+            onApply(() =>
+              stageCustomExerciseAction({
+                sessionId,
+                version,
+                exerciseKey,
+                name,
+                primaryMuscle: muscle,
+                equipmentType: equipment,
+              }),
+            )
+          }
+        >
+          Create custom exercise
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function NumField({
+  label,
+  field,
+  disabled,
+  onSave,
+}: {
+  label: string;
+  field: DraftField<number>;
+  disabled: boolean;
+  onSave: (value: number | null) => void;
+}) {
+  const current = field.value?.toString() ?? "";
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1">
+        <label className="text-xs font-medium text-muted-foreground">
+          {label}
+        </label>
+        <FieldStatusChip status={field.status} />
+      </div>
+      <Input
+        key={`num-${current}-${field.status}`}
+        inputMode="numeric"
+        className="h-11 w-16 tabular-nums md:h-9"
+        defaultValue={current}
+        disabled={disabled}
+        onBlur={(e) => {
+          const raw = e.target.value.replace(/[^0-9]/g, "");
+          if (raw !== current) {
+            onSave(raw === "" ? null : Number(raw));
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+/* ------------------------------- Done ---------------------------------- */
+
+function DoneStep({
+  draft,
+  mesocycleId,
+}: {
+  draft: ImportDraftDto | null;
+  mesocycleId: string | null;
+}) {
+  const title = draft?.title.value ?? "Your plan";
+  return (
+    <Centered>
+      <CheckCircle2
+        aria-hidden
+        className="mx-auto size-8 text-muted-foreground"
+      />
+      <div className="space-y-1">
+        <h1 className="text-lg font-semibold">Plan created</h1>
+        <p className="text-sm text-muted-foreground">
+          &ldquo;{title}&rdquo; is in your plans as a draft. Review the days and
+          activate it when you&rsquo;re ready.
+        </p>
+      </div>
+      <div className="flex justify-center gap-2">
+        {mesocycleId && (
+          <Button asChild>
+            <Link href={`/plan/${mesocycleId}`}>Open plan</Link>
+          </Button>
+        )}
+        <Button variant="ghost" asChild>
+          <Link href="/plan">Done</Link>
+        </Button>
+      </div>
+    </Centered>
+  );
+}
+
+/* ------------------------------ Shared --------------------------------- */
+
+function Centered({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mx-auto max-w-md py-12">
+      <div className="space-y-4 rounded-lg border border-border bg-card p-6 text-center">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function OutcomeCard({
+  tone,
+  title,
+  body,
+  actions,
+  footnote = null,
+}: {
+  tone: "destructive" | "muted";
+  title: string;
+  body: string;
+  actions: React.ReactNode;
+  footnote?: string | null;
+}) {
+  return (
+    <div className="mx-auto max-w-md py-12">
+      <div
+        className={
+          "space-y-4 rounded-lg border p-6 " +
+          (tone === "destructive"
+            ? "border-destructive/40 bg-destructive/5"
+            : "border-border bg-card")
+        }
+      >
+        {tone === "destructive" ? (
+          <TriangleAlert
+            aria-hidden
+            className="mx-auto size-7 text-destructive"
+          />
+        ) : (
+          <Info aria-hidden className="mx-auto size-7 text-muted-foreground" />
+        )}
+        <p className="text-center font-medium">{title}</p>
+        <p className="text-center text-sm text-muted-foreground">{body}</p>
+        <div className="flex flex-wrap justify-center gap-2">{actions}</div>
+        {footnote && (
+          <p className="text-center text-xs text-muted-foreground">
+            {footnote}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FieldStatusChip({ status }: { status: FieldStatus }) {
+  if (status === "explicit") return null;
+  const map: Record<
+    Exclude<FieldStatus, "explicit">,
+    { label: string; cls: string; dot: string }
+  > = {
+    derived: {
+      label: "derived",
+      cls: "text-muted-foreground border-border",
+      dot: "bg-muted-foreground/60",
+    },
+    missing: {
+      label: "not in source",
+      cls: "text-muted-foreground border-border",
+      dot: "bg-muted-foreground/40",
+    },
+    ambiguous: {
+      label: "unclear",
+      cls: "text-muted-foreground border-border",
+      dot: "bg-muted-foreground/60",
+    },
+    needed: {
+      label: "needed to continue",
+      cls: "text-destructive border-destructive/40",
+      dot: "bg-destructive",
+    },
+    user_edited: {
+      label: "edited",
+      cls: "text-muted-foreground border-border",
+      dot: "bg-muted-foreground/60",
+    },
+  };
+  const s = map[status];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] ${s.cls}`}
+    >
+      <span aria-hidden className={`size-1.5 rounded-full ${s.dot}`} />
+      {s.label}
+    </span>
+  );
+}
+
+function ContextChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground tabular-nums">
+      {children}
+    </span>
+  );
+}
+
+/* --------------------------- Blocker copy ------------------------------ */
+
+function blockerMessages(
+  blockers: ReturnType<typeof deriveBlockers>,
+): string[] {
+  const out = new Set<string>();
+  for (const b of blockers) {
+    if (b.code === "DUPLICATE_EXERCISE_IN_DAY")
+      out.add(
+        "A day lists the same exercise twice. Remove or change one so each day has it once.",
+      );
+    else if (b.fieldPath.endsWith("/match"))
+      out.add("Resolve every exercise match.");
+    else if (b.fieldPath.endsWith("/label")) out.add("Name every day.");
+    else if (b.fieldPath.endsWith("/sets"))
+      out.add("Set the number of sets for each exercise.");
+    else if (b.fieldPath.endsWith("/repMin") || b.fieldPath.endsWith("/repMax"))
+      out.add("Set a rep range for each exercise.");
+    else if (b.fieldPath.endsWith("/repRange"))
+      out.add("Rep min can't be more than rep max.");
+    else if (b.fieldPath === "/days") out.add("Add at least one day.");
+    else out.add("Fix the highlighted fields.");
+  }
+  return [...out];
+}

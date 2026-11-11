@@ -24,11 +24,12 @@ const avail =
     names.includes(a);
 
 describe("layout", () => {
-  it("desktop is offered 9 steps (no menu step); a phone 10", () => {
+  it("desktop is offered 10 steps (no menu step); a phone 11", () => {
     expect(stepsForLayout(TOUR_STEPS, "desktop").map((s) => s.id)).toEqual([
       "today",
       "logging",
       "plan",
+      "plan-import",
       "history",
       "goals",
       "exercises",
@@ -36,7 +37,7 @@ describe("layout", () => {
       "plan-billing",
       "settings",
     ]);
-    expect(stepsForLayout(TOUR_STEPS, "phone")).toHaveLength(10);
+    expect(stepsForLayout(TOUR_STEPS, "phone")).toHaveLength(11);
   });
 
   it("after crossing md, the current step stays, or a phone-only step moves on", () => {
@@ -91,23 +92,27 @@ describe("start, walk, and counter", () => {
   });
 
   it("walks past skipped steps in both directions", () => {
-    const skipped = new Set(["navigation", "history"]);
+    // Phone order: today, logging, navigation, plan, plan-import, history,
+    // goals, exercises, gyms, plan-billing, settings.
+    const skipped = new Set(["navigation", "plan-import", "history"]);
     expect(steps[nextIndex(steps, skipped, 1, 1)].id).toBe("plan");
     expect(steps[nextIndex(steps, skipped, 3, 1)].id).toBe("goals");
-    expect(steps[nextIndex(steps, skipped, 5, -1)].id).toBe("plan");
+    expect(steps[nextIndex(steps, skipped, 6, -1)].id).toBe("plan");
     expect(nextIndex(steps, skipped, 0, -1)).toBe(-1);
-    expect(nextIndex(steps, skipped, 8, 1)).toBe(9);
+    expect(nextIndex(steps, skipped, 10, 1)).toBe(11);
   });
 
   it("a skipped step drops out of position and total; positions stay contiguous", () => {
-    expect(counter(steps, new Set(), 0)).toEqual({ position: 1, total: 10 });
+    expect(counter(steps, new Set(), 0)).toEqual({ position: 1, total: 11 });
     const skipped = new Set(["navigation"]);
     const shown = steps
       .map((s, i) => [s, i] as const)
       .filter(([s]) => !skipped.has(s.id))
       .map(([, i]) => counter(steps, skipped, i));
-    expect(shown.map((c) => c.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    expect(new Set(shown.map((c) => c.total))).toEqual(new Set([9]));
+    expect(shown.map((c) => c.position)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
+    expect(new Set(shown.map((c) => c.total))).toEqual(new Set([10]));
   });
 });
 

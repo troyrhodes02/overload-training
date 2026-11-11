@@ -34,6 +34,17 @@ import type { ReleaseNoteEntry } from "./types";
  * — do not reclassify these development milestones.
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
+  // Workout Plan Import & Review (Pitch 22): its entry is HELD, not published.
+  // The code ships to Production with PLAN_IMPORT_ENABLED off, and a
+  // significant entry would open What's New for every account to announce a
+  // feature none of them can use. Add it back, dated the day import is turned
+  // on in Production (the contract forbids backdating), with this text:
+  //   id: "<enable-date>-import-a-plan-you-already-wrote"
+  //   title: "Import a plan you already wrote"
+  //   body: "Bring an existing program into Overload — paste the text or upload
+  //     a PDF, screenshots, or photos. Review what we read next to your source,
+  //     fix anything, and create the plan. Part of Pro."
+  //   significant: true, audience: "internal" (or "public" after launch)
   {
     // Public Landing Page & Changelog (Pitch 21 / slug 20; OVE-103,
     // overload-onboarding). Changes nothing about how a lifter trains, so NOT

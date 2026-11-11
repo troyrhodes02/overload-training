@@ -1,0 +1,425 @@
+import "server-only";
+import type {
+  ImportSession,
+  ImportSourceKind,
+  ImportStatus,
+} from "@prisma/client";
+import { DomainError } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
+import { accountToday } from "@/lib/data/account";
+import {
+  MAX_PARTS,
+  MAX_TEXT_CHARS,
+  MAX_TOTAL_BYTES,
+  RETENTION_HOURS,
+} from "./constants";
+import {
+  normalizeForStorage,
+  removeSourceObjects,
+  sourceObjectPath,
+  SourceValidationError,
+  uploadSourceObject,
+} from "./storage";
+import { inspectPdf, PdfValidationError } from "./pdf";
+import { IMPORT_EXPIRED_MESSAGE } from "./errors";
+import { MAX_PDF_PAGES } from "./constants";
+import { ESTIMATED_ATTEMPT_MICROS, releaseReservation } from "./spend";
+
+/**
+ * Workout Plan Import & Review (Pitch 22) — the ImportSession write module.
+ * Every read and write goes through the account-scoped client (`account.db`),
+ * which intersects each query with `userId = acting`; this module never names
+ * another account's id and never takes a userId from its caller. It owns the
+ * state machine's transitions (compare-and-set), source-part staging, and the
+ * stored-object cleanup that rides discard. The extraction trigger, the model
+ * call, and confirm live in later slices (OVE-106/107); this slice stops at
+ * `uploaded`.
+ */
+
+const MS_PER_HOUR = 60 * 60 * 1000;
+
+/** When an unconfirmed import expires: at most RETENTION_HOURS from creation. */
+function expiresAt(now: Date): Date {
+  return new Date(now.getTime() + RETENTION_HOURS * MS_PER_HOUR);
+}
+
+/**
+ * Create a new import session in `created`, with its retention clock set. The
+ * source kind is fixed at creation from the chosen mode (text vs files); a
+ * `files` session's kind is refined to `pdf` or `image` when the first part is
+ * committed is NOT done here (kept simple: `image` is the generic file kind,
+ * `pdf` set on commit of a PDF). The scoped create stamps the acting userId.
+ */
+export async function createImportSession(
+  account: Account,
+  input: { mode: "text" | "files" },
+): Promise<{ sessionId: string }> {
+  const now = new Date();
+  const sourceKind: ImportSourceKind = input.mode === "text" ? "text" : "image";
+  const session = await account.db.importSession.create({
+    data: {
+      userId: account.userId,
+      status: "created",
+      sourceKind,
+      expiresAt: expiresAt(now),
+    },
+    select: { id: true },
+  });
+  return { sessionId: session.id };
+}
+
+/** Load the acting account's session, or not-found (never another account's). */
+async function requireOwnSession(
+  account: Account,
+  sessionId: string,
+): Promise<ImportSession> {
+  const session = await account.db.importSession.findUnique({
+    where: { id: sessionId },
+  });
+  if (!session) {
+    throw new DomainError("not_found", "That import could not be found.");
+  }
+  assertNotExpired(session);
+  return session;
+}
+
+/** Expired/purged imports have had their sources removed; say so plainly. */
+function assertNotExpired(session: ImportSession): void {
+  if (session.status === "expired" || session.status === "purged") {
+    throw new DomainError("invalid_state_transition", IMPORT_EXPIRED_MESSAGE);
+  }
+}
+
+/** A session is still assembling its source while in `created` or `uploaded`. */
+function assertStillAssembling(session: ImportSession): void {
+  if (session.status !== "created" && session.status !== "uploaded") {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This import has already started and can't be changed.",
+    );
+  }
+}
+
+/**
+ * Add (or replace) the pasted/typed text part of a text-mode session, trimmed
+ * and length-capped, moving the session to `uploaded`. A text source is a
+ * single part at position 0. Re-adding replaces it (idempotent Start).
+ */
+export async function addText(
+  account: Account,
+  input: { sessionId: string; text: string },
+): Promise<{ sessionId: string }> {
+  const trimmed = input.text.trim();
+  if (trimmed.length === 0) {
+    throw new DomainError("validation_error", "Paste your plan to continue.");
+  }
+  if (trimmed.length > MAX_TEXT_CHARS) {
+    throw new DomainError(
+      "validation_error",
+      `That's over the ${MAX_TEXT_CHARS.toLocaleString()}-character limit. Trim it to import.`,
+    );
+  }
+  const session = await requireOwnSession(account, input.sessionId);
+  assertStillAssembling(session);
+
+  await account.db.$transaction(async (tx) => {
+    await tx.importSourcePart.deleteMany({ where: { sessionId: session.id } });
+    await tx.importSourcePart.create({
+      data: {
+        userId: account.userId,
+        sessionId: session.id,
+        position: 0,
+        text: trimmed,
+      },
+    });
+    await tx.importSession.updateMany({
+      where: { id: session.id, status: { in: ["created", "uploaded"] } },
+      data: { status: "uploaded", sourceKind: "text" },
+    });
+  });
+  return { sessionId: session.id };
+}
+
+/**
+ * Validate and stage one uploaded file as the next source part: sniff its real
+ * type from magic bytes, re-verify size, enforce the per-bundle count and total
+ * caps, store it under an owner-prefixed key, and record the part. Returns the
+ * stored object path and resolved (post-conversion) content type.
+ *
+ * This is the "reserve + commit" of the foundation slice folded into one
+ * server-validated call: the client hands over the bytes, the server decides
+ * everything (type, size, path). The bytes never bypass this validation.
+ */
+export async function addFilePart(
+  account: Account,
+  input: { sessionId: string; bytes: Uint8Array; sizeBytes: number },
+): Promise<{
+  objectPath: string;
+  contentType: string;
+  position: number;
+  pageCount: number | null;
+}> {
+  const session = await requireOwnSession(account, input.sessionId);
+  assertStillAssembling(session);
+
+  const existing = await account.db.importSourcePart.findMany({
+    where: { sessionId: session.id },
+    select: { position: true, sizeBytes: true, text: true },
+    orderBy: { position: "asc" },
+  });
+  if (existing.some((p) => p.text !== null)) {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This import is a pasted plan. Start a new import to upload files.",
+    );
+  }
+  if (existing.length >= MAX_PARTS) {
+    throw new DomainError(
+      "validation_error",
+      `You can add at most ${MAX_PARTS} files.`,
+    );
+  }
+  // `existing` sizeBytes are the STORED (normalized) sizes of prior parts, so the
+  // running bundle total is measured on what is actually in storage.
+  const usedBytes = existing.reduce((n, p) => n + (p.sizeBytes ?? 0), 0);
+  // Pre-check against the ORIGINAL size as a cheap early gate (re-encoding only
+  // ever shrinks or holds; it never doubles a file). The authoritative cap check
+  // runs again below against the NORMALIZED size, so the stored footprint — not
+  // the upload size — is what the 25 MiB bundle cap actually bounds.
+  if (usedBytes + input.sizeBytes > MAX_TOTAL_BYTES) {
+    throw new DomainError(
+      "validation_error",
+      "These files are too large together. Remove one or choose smaller files.",
+    );
+  }
+
+  let normalized;
+  try {
+    normalized = await normalizeForStorage({
+      bytes: input.bytes,
+      sizeBytes: input.sizeBytes,
+    });
+  } catch (error) {
+    if (error instanceof SourceValidationError) {
+      throw new DomainError("validation_error", error.message);
+    }
+    throw error;
+  }
+
+  // The STORED byte length is the normalized blob's, not the upload's. Record it
+  // (and re-check the bundle cap against it) so both the 25 MiB bundle cap and
+  // the per-file DB CHECK describe the object that is actually in storage.
+  const storedBytes = normalized.bytes.byteLength;
+  if (usedBytes + storedBytes > MAX_TOTAL_BYTES) {
+    throw new DomainError(
+      "validation_error",
+      "These files are too large together. Remove one or choose smaller files.",
+    );
+  }
+
+  // PDF parts are inspected HERE, at intake, before anything is stored and long
+  // before any provider call: count pages (≤ MAX_PDF_PAGES), and refuse an
+  // encrypted / password-protected / malformed / polyglot PDF cleanly. A rejected
+  // file never reaches storage and never costs a model call. The page count is
+  // persisted so the extraction and evidence paths can bound model-returned pages.
+  let pageCount: number | null = null;
+  if (normalized.contentType === "application/pdf") {
+    try {
+      const inspection = await inspectPdf(normalized.bytes);
+      pageCount = inspection.pageCount;
+    } catch (error) {
+      if (error instanceof PdfValidationError) {
+        throw new DomainError("validation_error", pdfRejectionMessage(error));
+      }
+      throw error;
+    }
+  }
+
+  const position =
+    existing.length === 0 ? 0 : existing[existing.length - 1].position + 1;
+  const objectPath = sourceObjectPath(
+    account.userId,
+    session.id,
+    position,
+    normalized.contentType,
+  );
+
+  // Store the bytes first; if the row write then fails, the object is swept so
+  // nothing is orphaned. The upload module already removes the object on its own
+  // failure.
+  await uploadSourceObject(objectPath, normalized);
+  try {
+    await account.db.$transaction(async (tx) => {
+      await tx.importSourcePart.create({
+        data: {
+          userId: account.userId,
+          sessionId: session.id,
+          position,
+          objectPath,
+          contentType: normalized.contentType,
+          sizeBytes: storedBytes,
+          pageCount,
+        },
+      });
+      await tx.importSession.updateMany({
+        where: { id: session.id, status: { in: ["created", "uploaded"] } },
+        data: {
+          status: "uploaded",
+          sourceKind:
+            normalized.contentType === "application/pdf" ? "pdf" : "image",
+        },
+      });
+    });
+  } catch (error) {
+    await removeSourceObjects([objectPath]);
+    throw error;
+  }
+  return {
+    objectPath,
+    contentType: normalized.contentType,
+    position,
+    pageCount,
+  };
+}
+
+/** An honest, filename-free message for a refused PDF (never leaks content). */
+function pdfRejectionMessage(error: PdfValidationError): string {
+  switch (error.reason) {
+    case "encrypted":
+      return "This PDF is password-protected. Remove the password and try again.";
+    case "too_many_pages":
+      return `That PDF has too many pages. Import a PDF of at most ${MAX_PDF_PAGES} pages.`;
+    case "malformed":
+    default:
+      return "We couldn't read this PDF. Try exporting it again.";
+  }
+}
+
+/** Remove one source part by object path, deleting its stored object too. */
+export async function removePart(
+  account: Account,
+  input: { sessionId: string; objectPath: string },
+): Promise<{ sessionId: string }> {
+  const session = await requireOwnSession(account, input.sessionId);
+  assertStillAssembling(session);
+  const part = await account.db.importSourcePart.findFirst({
+    where: { sessionId: session.id, objectPath: input.objectPath },
+    select: { id: true, objectPath: true },
+  });
+  if (!part) {
+    throw new DomainError("not_found", "That file could not be found.");
+  }
+  await account.db.importSourcePart.deleteMany({ where: { id: part.id } });
+  if (part.objectPath) await removeSourceObjects([part.objectPath]);
+  return { sessionId: session.id };
+}
+
+/**
+ * Reorder a session's parts to the given object-path order (parts are referenced
+ * by their stored object path or, for a text part, its position token). Positions
+ * are rewritten 0..n-1 in two passes to avoid a transient unique collision.
+ */
+export async function reorderParts(
+  account: Account,
+  input: { sessionId: string; order: string[] },
+): Promise<{ sessionId: string }> {
+  const session = await requireOwnSession(account, input.sessionId);
+  assertStillAssembling(session);
+  const parts = await account.db.importSourcePart.findMany({
+    where: { sessionId: session.id },
+    select: { id: true, objectPath: true },
+  });
+  const byPath = new Map(
+    parts
+      .filter((p) => p.objectPath)
+      .map((p) => [p.objectPath as string, p.id]),
+  );
+  const ids = input.order
+    .map((path) => byPath.get(path))
+    .filter((id): id is string => id !== undefined);
+  if (ids.length !== parts.length) {
+    throw new DomainError(
+      "validation_error",
+      "That order didn't match this import's files.",
+    );
+  }
+  await account.db.$transaction(async (tx) => {
+    // Pass 1: move everything out of the 0..n-1 range to avoid colliding on the
+    // (session_id, position) unique while reshuffling.
+    for (let i = 0; i < ids.length; i++) {
+      await tx.importSourcePart.updateMany({
+        where: { id: ids[i] },
+        data: { position: parts.length + i },
+      });
+    }
+    // Pass 2: settle to the final contiguous order.
+    for (let i = 0; i < ids.length; i++) {
+      await tx.importSourcePart.updateMany({
+        where: { id: ids[i] },
+        data: { position: i },
+      });
+    }
+  });
+  return { sessionId: session.id };
+}
+
+/**
+ * Discard an import: delete its session and every source part, and sweep the
+ * stored objects. Scoped to the acting account; another account's id is
+ * not-found. Only an unconfirmed session may be discarded (a confirmed one owns
+ * a real plan and is terminal).
+ */
+export async function discardImport(
+  account: Account,
+  input: { sessionId: string },
+): Promise<{ sessionId: string }> {
+  const session = await requireOwnSession(account, input.sessionId);
+  if (session.status === "confirmed") {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This import already created a plan and can't be discarded.",
+    );
+  }
+  const parts = await account.db.importSourcePart.findMany({
+    where: { sessionId: session.id },
+    select: { objectPath: true },
+  });
+  const objectPaths = parts
+    .map((p) => p.objectPath)
+    .filter((p): p is string => p !== null);
+
+  // Discarding a session mid-`extracting` holds an up-front spend reservation
+  // ($0.50) that the running attempt normally releases on completion
+  // (`completeSession`'s reconcile / `failSession`'s release, both un-scoped to
+  // the session row — they release by amount against the global month ledger).
+  // The orphan case the row-delete creates is a STALE (dead) lease: the owning
+  // request was torn down before it could release, and once this discard deletes
+  // the row no stale-lease reclaim can ever run to release it — the $0.50 would
+  // stay reserved against the monthly cap forever. So we release here ONLY when
+  // the lease is dead; a still-LIVE attempt will release its own reservation, and
+  // releasing again would wrongly free another $0.50 of real headroom.
+  const leaseLive =
+    session.leaseExpiresAt != null &&
+    session.leaseExpiresAt.getTime() > Date.now();
+  const releasesReservation =
+    (session.status === "extracting" || session.status === "confirming") &&
+    !leaseLive;
+
+  await account.db.$transaction(async (tx) => {
+    await tx.importSourcePart.deleteMany({ where: { sessionId: session.id } });
+    await tx.importSession.deleteMany({ where: { id: session.id } });
+  });
+  if (releasesReservation) {
+    await releaseReservation(ESTIMATED_ATTEMPT_MICROS).catch(() => {});
+  }
+  await removeSourceObjects(objectPaths);
+  return { sessionId: session.id };
+}
+
+/** The account-local day key for the daily quota (account timezone). */
+export function importDayKey(account: Account): string {
+  return accountToday(account);
+}
+
+/** Expose the status enum values other modules compare against. */
+export type { ImportStatus };
