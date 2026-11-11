@@ -31,6 +31,11 @@ import {
   removePartAction,
   beginExtractionAction,
 } from "@/app/(app)/plan/import/actions";
+import {
+  ImportGuide,
+  UsageMeter,
+  type ImportUsageView,
+} from "./import-guidance";
 
 /**
  * Workout Plan Import & Review (Pitch 22) — the Source intake step (preview
@@ -55,7 +60,12 @@ function mb(bytes: number): string {
   return `${Math.round(bytes / 100_000) / 10} MB`;
 }
 
-export function SourceIntake() {
+export function SourceIntake({
+  usage = null,
+}: {
+  /** Today's import usage, or null when it couldn't be read (meter hidden). */
+  usage?: ImportUsageView | null;
+} = {}) {
   const router = useRouter();
   const [mode, setMode] = React.useState<"paste" | "upload">("paste");
   const [text, setText] = React.useState("");
@@ -67,8 +77,10 @@ export function SourceIntake() {
 
   const overcap = text.length > MAX_TEXT_CHARS;
   const usedBytes = parts.reduce((n, p) => n + p.sizeBytes, 0);
+  const outOfImports = usage != null && usage.used >= usage.limit;
   const canStart =
     !busy &&
+    !outOfImports &&
     ((mode === "paste" && text.trim().length > 0 && !overcap) ||
       (mode === "upload" && parts.length > 0));
 
@@ -199,6 +211,8 @@ export function SourceIntake() {
             photos of it.
           </p>
         </div>
+
+        <ImportGuide />
 
         <Tabs
           value={mode}
@@ -364,10 +378,11 @@ export function SourceIntake() {
       </main>
 
       <div className="sticky bottom-0 border-t border-border bg-background/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
+        <div className="mx-auto flex max-w-2xl flex-col gap-3 md:flex-row md:items-center md:gap-6">
+          {usage && <UsageMeter usage={usage} className="md:flex-1" />}
           <Button
             size="lg"
-            className="ml-auto w-full md:w-auto"
+            className="w-full md:ml-auto md:w-auto"
             disabled={!canStart}
             onClick={onStart}
           >

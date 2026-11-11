@@ -49,7 +49,7 @@ import { inspectPdf, isTextLayerDefensible } from "./pdf";
  * of output tokens, which a 60 s cap aborted mid-answer; this stays under the
  * page's maxDuration (plan/import/page.tsx) with room for the surrounding work.
  */
-const EXTRACTION_TIMEOUT_MS = 100_000;
+const EXTRACTION_TIMEOUT_MS = 240_000;
 /**
  * How long a lease is honoured before it may be reclaimed as stale (ms). It must
  * OUTLAST the call: if it expired mid-call, a second request could reclaim the

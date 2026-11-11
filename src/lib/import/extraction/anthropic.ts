@@ -5,6 +5,7 @@ import {
   ExtractedPlanObservationSchema,
   type ExtractedPlanObservation,
 } from "./schema";
+import { WireObservationSchema, wireToObservation } from "./wire";
 import type {
   ExtractionErrorCode,
   ExtractionPart,
@@ -44,12 +45,13 @@ export function resolvedModelId(): string {
 }
 
 /**
- * Output budget. Each exercise is reported field by field with evidence, which
- * costs roughly 450 output tokens per exercise (measured on a real run: 4.2k
- * tokens for 9 exercises), so a cap of 8000 truncated any plan past ~15
- * exercises mid-JSON. Truncation is detected explicitly (stop_reason) below.
+ * Output budget. The model writes the compact wire format (wire.ts), about
+ * 60–80 output tokens per exercise, so this cap covers well over the largest
+ * plan the review accepts (MAX_DAYS x MAX_EXERCISES_PER_DAY). It stays under
+ * the SDK's non-streaming ceiling (~21k tokens). Truncation is still detected
+ * explicitly (stop_reason) below.
  */
-export const MAX_OUTPUT_TOKENS = 12_000;
+export const MAX_OUTPUT_TOKENS = 20_000;
 
 /**
  * Transcription needs no deep reasoning, and reasoning tokens count against
@@ -208,7 +210,7 @@ export class AnthropicPlanExtractionPort implements PlanExtractionPort {
       // create() + our own parse (not messages.parse): parse() throws a generic
       // error for BOTH a truncated answer and an invalid one, which collapsed
       // them into "malformed_output". Here stop_reason is read first.
-      const format = zodOutputFormat(ExtractedPlanObservationSchema);
+      const format = zodOutputFormat(WireObservationSchema);
       const message = await this.client.messages.create(
         {
           model: modelId,
@@ -238,8 +240,12 @@ export class AnthropicPlanExtractionPort implements PlanExtractionPort {
       let observation: ExtractedPlanObservation;
       try {
         // Defence in depth: the strict schema, so the model can never smuggle
-        // an extra field past us.
-        observation = ExtractedPlanObservationSchema.parse(JSON.parse(text));
+        // an extra field past us. The compact answer is then expanded into the
+        // internal observation shape and re-checked against that schema too.
+        const wire = WireObservationSchema.parse(JSON.parse(text));
+        observation = ExtractedPlanObservationSchema.parse(
+          wireToObservation(wire),
+        );
       } catch {
         return fail("malformed_output", false);
       }

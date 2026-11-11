@@ -3,7 +3,11 @@ import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 import { beginExtraction, getImportStatus } from "@/lib/import/extract";
 import { discardImport } from "@/lib/import/sessions";
-import { bumpImportUsage, refundImportUsage } from "@/lib/import/usage";
+import {
+  bumpImportUsage,
+  readImportUsage,
+  refundImportUsage,
+} from "@/lib/import/usage";
 import { ESTIMATED_ATTEMPT_MICROS } from "@/lib/import/spend";
 import { __setPlanExtractionPort } from "@/lib/import/extraction";
 import {
@@ -168,6 +172,32 @@ describe("quota refund keeps one real attempt = one slot (P22-07 review fix)", (
       where: { userId_dayKey: { userId: account.userId, dayKey: DAY3 } },
     });
     expect(Number(row?.count)).toBe(0);
+  });
+});
+
+describe("the usage meter reads only the acting account's own count", () => {
+  it("reports used/limit, starts at zero, and ignores another account", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    const DAY = "2026-11-14";
+    expect(await readImportUsage(a.userId, DAY)).toEqual({
+      used: 0,
+      limit: MAX_IMPORTS_PER_DAY,
+    });
+    await bumpImportUsage(a.userId, DAY);
+    await bumpImportUsage(a.userId, DAY);
+    await bumpImportUsage(b.userId, DAY);
+    expect(await readImportUsage(a.userId, DAY)).toEqual({
+      used: 2,
+      limit: MAX_IMPORTS_PER_DAY,
+    });
+    // Over-cap attempts (refused) never show more than the limit.
+    for (let i = 0; i < MAX_IMPORTS_PER_DAY + 2; i++) {
+      await bumpImportUsage(b.userId, DAY);
+    }
+    expect((await readImportUsage(b.userId, DAY))?.used).toBe(
+      MAX_IMPORTS_PER_DAY,
+    );
   });
 });
 
