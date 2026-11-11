@@ -171,6 +171,21 @@ describe("the one-day-remaining notice", () => {
     ).toBeNull();
   });
 
+  it("is due once a comp has been revoked during the trial", () => {
+    expect(
+      phase({
+        ents: [
+          trial(END),
+          comp({
+            startedAt: new Date("2026-11-10T00:00:00Z"),
+            revokedAt: new Date("2026-11-11T00:00:00Z"),
+          }),
+        ],
+        now: new Date("2026-11-19T08:00:00Z"),
+      }),
+    ).toEqual({ phase: "ending", endsToday: false });
+  });
+
   it("never for a comped account", () => {
     expect(
       phase({
@@ -278,6 +293,38 @@ describe("the trial-ended notice", () => {
     expect(
       phase({
         ents: [trial(END), comp({ endsAt: new Date(END.getTime() + 1000) })],
+        now,
+      }),
+    ).toBeNull();
+  });
+
+  it("is due when a comp was revoked BEFORE the trial ended (a regular trial user again)", () => {
+    const now = new Date(END.getTime() + DAY);
+    expect(
+      phase({
+        ents: [
+          trial(END),
+          comp({
+            startedAt: new Date(END.getTime() - 10 * DAY),
+            revokedAt: new Date(END.getTime() - 5 * DAY),
+          }),
+        ],
+        now,
+      }),
+    ).toEqual({ phase: "ended" });
+  });
+
+  it("not when a comp was revoked AFTER the trial ended (comp covered the end)", () => {
+    const now = new Date(END.getTime() + 2 * DAY);
+    expect(
+      phase({
+        ents: [
+          trial(END),
+          comp({
+            startedAt: new Date(END.getTime() - 10 * DAY),
+            revokedAt: new Date(END.getTime() + DAY),
+          }),
+        ],
         now,
       }),
     ).toBeNull();
