@@ -47,7 +47,6 @@ export const MECHANISM = [
   "src/app/(app)/release-notes-actions.ts",
   "src/components/release-notes/release-note.tsx",
   "src/components/release-notes/whats-new-dialog.tsx",
-  "src/components/settings/whats-new-section.tsx",
   "src/app/(app)/settings/whats-new/page.tsx",
   "src/app/(app)/layout.tsx",
   "src/components/shell/app-shell.tsx",

@@ -2,9 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   NAV_ITEMS,
-  SECONDARY_NAV_ITEMS,
   isActive,
+  isInMoreGroup,
+  moreNavItems,
 } from "@/components/shell/nav-items";
+import { initialsOf } from "@/components/shell/account-footer";
 
 /**
  * Phone navigation (Personalization & Navigation Polish, spec §14.6–14.7):
@@ -24,14 +26,20 @@ describe("navigation destinations", () => {
     ]);
   });
 
-  it("adds only Settings and Send feedback, as sheet-only secondary entries (never Admin)", () => {
-    expect(SECONDARY_NAV_ITEMS.map((i) => [i.href, i.label])).toEqual([
+  it("the Account & app group: Settings, Plan & Billing, What's New, Send feedback; Admin only for admins (OVE-119)", () => {
+    expect(moreNavItems(false).map((i) => [i.href, i.label])).toEqual([
       ["/settings", "Settings"],
+      ["/settings/billing", "Plan & Billing"],
+      ["/settings/whats-new", "What's New"],
       ["/feedback", "Send feedback"],
     ]);
-    // Admin Center & Feedback: the admin area is never a navigation entry.
-    const hrefs = [...NAV_ITEMS, ...SECONDARY_NAV_ITEMS].map((i) => i.href);
-    expect(hrefs.some((h) => h.startsWith("/admin"))).toBe(false);
+    expect(moreNavItems(true).map((i) => i.href)).toEqual([
+      "/settings",
+      "/settings/billing",
+      "/settings/whats-new",
+      "/feedback",
+      "/admin",
+    ]);
   });
 });
 
@@ -45,17 +53,53 @@ describe("isActive", () => {
     ["/history/123", "/history", true],
     ["/settings/delete-account", "/settings", true],
     ["/settings", "/gyms", false],
+    // The more specific destination wins (OVE-119).
+    ["/settings/billing", "/settings", false],
+    ["/settings/billing", "/settings/billing", true],
+    ["/settings/whats-new", "/settings/whats-new", true],
+    ["/admin/accounts", "/admin", true],
   ])("%s with %s → %s", (pathname, href, expected) => {
     expect(isActive(pathname, href)).toBe(expected);
   });
 
-  it("marks at most one destination active on any path", () => {
-    for (const p of ["/", "/plan/x", "/goals/new", "/gyms", "/settings"]) {
-      const all = [...NAV_ITEMS, ...SECONDARY_NAV_ITEMS];
-      expect(all.filter((i) => isActive(p, i.href)).length).toBeLessThanOrEqual(
+  it("marks exactly one destination active on every app path", () => {
+    const all = [...NAV_ITEMS, ...moreNavItems(true)];
+    for (const p of [
+      "/",
+      "/plan/x",
+      "/goals/new",
+      "/gyms",
+      "/settings",
+      "/settings/billing",
+      "/settings/whats-new",
+      "/settings/delete-account",
+      "/feedback",
+    ]) {
+      expect([p, all.filter((i) => isActive(p, i.href)).length]).toEqual([
+        p,
         1,
-      );
+      ]);
     }
+  });
+
+  it("the group knows when it holds the current page", () => {
+    expect(isInMoreGroup("/settings/billing", false)).toBe(true);
+    expect(isInMoreGroup("/plan", false)).toBe(false);
+    expect(isInMoreGroup("/admin", false)).toBe(false);
+    expect(isInMoreGroup("/admin", true)).toBe(true);
+  });
+});
+
+describe("account footer initials", () => {
+  const a = { firstName: "", lastName: "", username: "", email: "" };
+  it.each([
+    [{ ...a, firstName: "Jamie", lastName: "Smith" }, "JS"],
+    [{ ...a, firstName: "jamie" }, "J"],
+    [{ ...a, username: "lifter9" }, "L"],
+    [{ ...a, email: "x@example.com" }, "X"],
+    [a, "?"],
+  ])("%j → %s", (acct, expected) => {
+    expect(initialsOf(acct)).toBe(expected);
   });
 });
 
@@ -75,12 +119,12 @@ describe("phone layout guards", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the rail stays hidden below md and keeps its md+ classes", () => {
+  it("the sidebar stays hidden below md and keeps its md+ classes", () => {
     const nav = fs.readFileSync(
       path.join(SRC, "components/shell/app-nav.tsx"),
       "utf8",
     );
-    expect(nav).toContain('"hidden md:block"');
+    expect(nav).toContain('"hidden md:flex md:flex-col"');
     expect(nav).toContain(
       '"md:sticky md:top-0 md:h-dvh md:w-56 md:shrink-0 md:border-r md:border-t-0 md:bg-transparent"',
     );
@@ -93,5 +137,26 @@ describe("phone layout guards", () => {
     );
     expect(mobile).toMatch(/aria-label="Open navigation"/);
     expect(mobile).toMatch(/md:hidden/);
+  });
+});
+
+describe("no ⋮ account menu in the app shell (OVE-119)", () => {
+  const SRC = path.join(process.cwd(), "src");
+  it("the shell renders no account menu; sign out lives in the account footer", () => {
+    const shell = fs.readFileSync(
+      path.join(SRC, "components/shell/app-shell.tsx"),
+      "utf8",
+    );
+    expect(shell).not.toMatch(/AccountMenu/);
+    const footer = fs.readFileSync(
+      path.join(SRC, "components/shell/account-footer.tsx"),
+      "utf8",
+    );
+    expect(footer).toMatch(/signOutAction/);
+    for (const f of ["app-nav.tsx", "mobile-nav.tsx"]) {
+      expect(
+        fs.readFileSync(path.join(SRC, "components/shell", f), "utf8"),
+      ).toMatch(/<AccountFooter account=\{account\} \/>/);
+    }
   });
 });

@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils";
  * behind button-sized skeletons so nothing shifts while the server decides.
  */
 
-export type CtaPlacement = "hero" | "header" | "free-card" | "pro-card";
+export type CtaPlacement =
+  "hero" | "header" | "sheet" | "free-card" | "pro-card";
 
 async function resolved(): Promise<ResolvedCta> {
   return resolveCta(await getMarketingContext());
@@ -35,6 +36,26 @@ async function ModeCtaInner({ placement }: { placement: CtaPlacement }) {
           <Link href={cta.primary.href}>{cta.primary.label}</Link>
         </Button>
       </>
+    );
+  }
+
+  if (placement === "sheet") {
+    // The public phone menu (OVE-119): the actions stacked, full width, with
+    // the state's note (invite, closed, or the short trial note) beneath.
+    return (
+      <div className="space-y-2">
+        <Button asChild className="h-11 w-full">
+          <Link href={cta.primary.href}>{cta.primary.label}</Link>
+        </Button>
+        {cta.secondary ? (
+          <Button asChild variant="outline" className="h-11 w-full">
+            <Link href={cta.secondary.href}>{cta.secondary.label}</Link>
+          </Button>
+        ) : null}
+        {cta.note ? (
+          <p className="pt-1 text-xs text-muted-foreground">{cta.note}</p>
+        ) : null}
+      </div>
     );
   }
 
@@ -83,6 +104,7 @@ async function ModeCtaInner({ placement }: { placement: CtaPlacement }) {
 
 function CtaSkeleton({ placement }: { placement: CtaPlacement }) {
   if (placement === "header") return <Skeleton className="h-9 w-28" />;
+  if (placement === "sheet") return <Skeleton className="h-11 w-full" />;
   if (placement === "pro-card")
     return <Skeleton className="h-11 w-full sm:w-56" />;
   return (

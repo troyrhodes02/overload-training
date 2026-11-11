@@ -174,26 +174,26 @@ for (const [label, viewport] of [
   ["375", PHONE],
   ["1280", DESKTOP],
 ] as const) {
-  test(`at ${label}: Settings → What's New → the page → back`, async ({
+  test(`at ${label}: the navigation → What's New → the page`, async ({
     browser,
   }) => {
     const p = await newPage(browser, viewport);
     await signIn(p);
     await expect(whatsNewDialog(p)).toHaveCount(0);
-    await p.goto("/settings");
-    const headings = await p.locator("main h2").allInnerTexts();
-    const tour = headings.indexOf("Tour");
-    const whatsNew = headings.indexOf("What's New");
-    const deletion = headings.indexOf("Delete account");
-    expect(tour).toBeGreaterThan(-1);
-    expect(whatsNew).toBe(tour + 1);
-    expect(deletion).toBeGreaterThan(whatsNew);
-
-    const link = p.getByRole("link", { name: "See what's new" });
-    await expect(link).toBeVisible();
-    const box = await link.boundingBox();
-    expect(box?.height).toBe(label === "375" ? 44 : 36);
-    await link.click();
+    // OVE-119: What's New is a navigation destination (Account & app),
+    // in the sidebar on desktop and the menu sheet on a phone.
+    if (label === "375") {
+      await p.getByRole("button", { name: "Open navigation" }).click();
+      await p
+        .getByRole("dialog")
+        .getByRole("link", { name: "What's New" })
+        .click();
+    } else {
+      await p
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("link", { name: "What's New" })
+        .click();
+    }
     await expect(p).toHaveURL(/\/settings\/whats-new$/);
     await expect(p).toHaveTitle("What's New · Overload");
     await expect(
@@ -222,11 +222,6 @@ for (const [label, viewport] of [
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
-    await p
-      .getByRole("link", { name: "Settings", exact: true })
-      .first()
-      .click();
-    await expect(p).toHaveURL(/\/settings$/);
     await p.context().close();
   });
 }

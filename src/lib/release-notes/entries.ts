@@ -46,6 +46,17 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   //     fix anything, and create the plan. Part of Pro."
   //   significant: true, audience: "internal" (or "public" after launch)
   {
+    // Navigation regrouping (OVE-119, overload-onboarding). Not significant:
+    // the new layout is visible the moment it ships and changes no behavior;
+    // list only. The Settings tour step was updated in the same change.
+    id: "2026-11-11-navigation-regrouped",
+    date: "2026-11-11",
+    title: "Everything is in the sidebar now",
+    body: "Settings, Plan & Billing, What's New, and Send feedback moved out of the ⋮ menu and into the sidebar (on a phone, the menu), under Account & app. Your account and Sign out are at the bottom.",
+    significant: false,
+    audience: "internal",
+  },
+  {
     // Workout Logging Refinements (Pitch 24; OVE-117, overload-onboarding).
     // SIGNIFICANT (opens the dialog): it fixes advice that was wrong after a
     // failed set (a correctness fix to recommendations), and changes how a

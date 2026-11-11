@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { getAuthUser, requireUser } from "@/lib/auth";
+import { currentUser, getAuthUser } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/actions/result";
 import {
   asUsernameConflict,
@@ -251,7 +251,7 @@ export async function establishProfile(
  * request (React cache), so a page and its children share one resolution.
  */
 export const requireAccount = cache(async (): Promise<Account> => {
-  const user = await requireUser();
+  const user = await currentUser();
   const { account, status, lastActiveOn } = await resolveAccountState(user.id);
   // Suspension (Admin Center & Feedback, spec section 7): checked on EVERY
   // authenticated request — every page renders under a layout that calls

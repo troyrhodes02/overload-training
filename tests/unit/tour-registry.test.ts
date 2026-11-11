@@ -76,6 +76,7 @@ describe("registry validity", () => {
       "/goals",
       "/exercises",
       "/gyms",
+      "/settings/billing",
       "/settings",
     ]) {
       expect(routes).toContain(r);
@@ -142,7 +143,25 @@ describe("copy is the design doc's, verbatim (R32)", () => {
       const end = rest.search(/\n#{2,3} /);
       return tableRows(end < 0 ? rest : rest.slice(0, end));
     });
-  const rows = [...initial, ...added];
+  // A later change to an existing step's copy is recorded under "### Tour
+  // steps changed" (OVE-119); its rows replace that step's earlier rows.
+  const changed = fs
+    .readdirSync(designDir, { recursive: true, encoding: "utf8" })
+    .filter((f) => path.basename(f) === "design.md")
+    .sort()
+    .flatMap((f) => {
+      const text = fs.readFileSync(path.join(designDir, f), "utf8");
+      const at = text.indexOf("### Tour steps changed");
+      if (at < 0) return [];
+      const rest = text.slice(at + 1);
+      const end = rest.search(/\n#{2,3} /);
+      return tableRows(end < 0 ? rest : rest.slice(0, end));
+    });
+  const changedIds = new Set(changed.map((r) => r.id));
+  const rows = [
+    ...[...initial, ...added].filter((r) => !changedIds.has(r.id)),
+    ...changed,
+  ];
 
   it("the design doc tables were found", () => {
     expect(initial.length).toBe(9); // eight steps + the logging step's (b) body
@@ -151,6 +170,7 @@ describe("copy is the design doc's, verbatim (R32)", () => {
       "plan-billing",
       "plan-import",
     ]);
+    expect(changed.map((r) => r.id)).toEqual(["settings"]);
   });
 
   it.each(TOUR_STEPS.map((s) => [s.id, s]))(

@@ -15,10 +15,13 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { tourAnchor } from "@/lib/tour/steps";
+import { AccountFooter, type ShellAccount } from "./account-footer";
+import { NavMoreGroup } from "./nav-more-group";
 import {
   NAV_ITEMS,
-  SECONDARY_NAV_ITEMS,
   isActive,
+  isInMoreGroup,
+  moreNavItems,
   type NavItem,
 } from "./nav-items";
 
@@ -27,13 +30,24 @@ const DESKTOP_QUERY = "(min-width: 768px)";
 
 /**
  * Phone navigation (Personalization & Navigation Polish, design doc Screens
- * 3–4): a menu button in the header opens a left sheet with the same
- * destinations as the rail, then Settings. It never stays open after a
- * navigation — a tap on a destination, a route change, or the viewport
- * reaching md closes it — and ×, the scrim, and Escape close it too (Radix).
+ * 3–4; regrouped by OVE-119): a menu button in the header opens a left sheet
+ * with the same lists as the desktop sidebar — the training destinations, a
+ * divider, the collapsible "Account & app" group, and the account with Sign
+ * out at the bottom. There is no ⋮ menu: everything is here. It never stays
+ * open after a navigation — a tap on a destination, a route change, or the
+ * viewport reaching md closes it — and ×, the scrim, and Escape close it too
+ * (Radix).
  */
-export function MobileNav() {
+export function MobileNav({
+  account,
+  isAdmin,
+}: {
+  account: ShellAccount;
+  isAdmin: boolean;
+}) {
   const pathname = usePathname();
+  const more = moreNavItems(isAdmin);
+  const all = [...NAV_ITEMS, ...more];
   const [open, setOpen] = useState(false);
   const activeRef = useRef<HTMLAnchorElement>(null);
 
@@ -57,7 +71,7 @@ export function MobileNav() {
 
   const item = (navItem: NavItem) => {
     const Icon = navItem.icon;
-    const active = isActive(pathname, navItem.href);
+    const active = isActive(pathname, navItem.href, all);
     return (
       <li key={navItem.href}>
         <Link
@@ -97,7 +111,7 @@ export function MobileNav() {
       <SheetContent
         side="left"
         closeLabel="Close navigation"
-        className="w-72 max-w-[85vw] gap-0 p-0 sm:max-w-[85vw]"
+        className="flex w-72 max-w-[85vw] flex-col gap-0 p-0 sm:max-w-[85vw]"
         onOpenAutoFocus={(event) => {
           // Start on the current screen's item rather than the close button.
           if (activeRef.current) {
@@ -112,11 +126,14 @@ export function MobileNav() {
             Go to a screen
           </SheetDescription>
         </SheetHeader>
-        <nav aria-label="Primary" className="overflow-y-auto p-2">
+        <nav aria-label="Primary" className="flex-1 overflow-y-auto p-2">
           <ul className="space-y-1">{NAV_ITEMS.map(item)}</ul>
           <div className="mx-3 my-2 border-t border-border" />
-          <ul className="space-y-1">{SECONDARY_NAV_ITEMS.map(item)}</ul>
+          <NavMoreGroup containsCurrent={isInMoreGroup(pathname, isAdmin)}>
+            <ul className="mt-1 space-y-1">{more.map(item)}</ul>
+          </NavMoreGroup>
         </nav>
+        <AccountFooter account={account} />
       </SheetContent>
     </Sheet>
   );
