@@ -231,11 +231,15 @@ export function PlannedExerciseDialog({
 
           <div className="flex items-end gap-6">
             <div className="space-y-2">
-              <Label htmlFor="pe-plannedSets">Sets</Label>
+              {/* Same height as the Reps row (label + Range/Fixed control),
+                  so the two labels and the inputs line up. */}
+              <div className="flex h-8 items-center">
+                <Label htmlFor="pe-plannedSets">Sets</Label>
+              </div>
               {input("plannedSets", "Sets")}
             </div>
             <div className="space-y-2">
-              <div className="flex items-center gap-3">
+              <div className="flex h-8 items-center gap-3">
                 <span className="text-sm leading-none font-medium">Reps</span>
                 <Tabs
                   value={repMode}
