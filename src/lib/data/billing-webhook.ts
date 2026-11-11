@@ -52,6 +52,25 @@ export type WebhookDeps = {
   now?: () => Date;
 };
 
+/**
+ * Statuses where a subscription has been paid for (or is being collected on)
+ * and grants or held Pro. The account's mirrored subscription is kept while it
+ * is in one of these; any other open subscription for the same customer is a
+ * duplicate (OVE-112). `incomplete` (first payment never confirmed) is not
+ * established: a paid subscription may replace it.
+ */
+const ESTABLISHED = new Set<SubscriptionStatus>([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "paused",
+]);
+
+export function isEstablished(status: SubscriptionStatus | null | undefined) {
+  return status != null && ESTABLISHED.has(status);
+}
+
 export type WebhookOutcome =
   | { status: "duplicate" }
   | { status: "ignored"; reason: string }
@@ -136,13 +155,20 @@ export async function reconcileStripeEvent(
       return { status: "ignored" as const, reason: "no_customer" };
     }
 
+    // Serialize every event for this customer (OVE-112): two subscriptions'
+    // first events can't interleave and both claim the mirror.
+    await tx.$queryRaw`
+      SELECT "user_id" FROM "billing_accounts"
+      WHERE "stripe_customer_id" = ${customerId}
+      FOR UPDATE`;
+
     // Resolve the account from the stored customer id. The one time we accept
     // client_reference_id is to establish the FIRST link, and only when it names
     // a real account; a customer already linked to another account is never
     // reassigned from the payload.
     const existing = await tx.billingAccount.findUnique({
       where: { stripeCustomerId: customerId },
-      select: { userId: true },
+      select: { userId: true, subscriptionId: true, status: true },
     });
     let userId = existing?.userId ?? null;
     if (!userId && clientReferenceId) {
@@ -174,9 +200,122 @@ export async function reconcileStripeEvent(
       return { status: "processed" as const, userId };
     }
 
+    // One subscription per account (OVE-112). While the mirror holds an
+    // established subscription, another subscription's events never replace
+    // it: that subscription is a duplicate (two Checkout tabs both paid), and
+    // enforceSingleSubscription refunds and cancels it. The mirrored one is
+    // re-read from Stripe first, so a stale "active" never blocks a genuine
+    // resubscription after the old one ended.
+    if (
+      existing?.subscriptionId &&
+      existing.subscriptionId !== snap.subscriptionId &&
+      isEstablished(existing.status)
+    ) {
+      const current = await deps.getSubscription(existing.subscriptionId);
+      if (current && isEstablished(current.status)) {
+        return { status: "ignored" as const, reason: "duplicate_subscription" };
+      }
+    }
+
     await applyMirrorSnapshot(tx, userId, snap, now);
     return { status: "processed" as const, userId };
   });
+}
+
+/** One open Stripe subscription, as the duplicate guard needs it. */
+export type OpenSubscription = {
+  id: string;
+  status: SubscriptionStatus;
+  latestInvoiceId: string | null;
+};
+
+export type EnforceDeps = {
+  /** The customer's subscriptions in Stripe that are not over. */
+  listOpenSubscriptions: (customerId: string) => Promise<OpenSubscription[]>;
+  /** Refund every paid payment on an invoice (idempotent). Returns the count. */
+  refundInvoice: (invoiceId: string) => Promise<number>;
+  /** Cancel a subscription now, without proration or a final invoice. */
+  cancelSubscription: (subscriptionId: string) => Promise<void>;
+  /** Expire the customer's still-open hosted Checkout sessions. */
+  expireOpenCheckoutSessions: (customerId: string) => Promise<number>;
+};
+
+export type EnforceOutcome = {
+  status: "skipped" | "enforced";
+  refunded: string[];
+  canceled: string[];
+  expiredSessions: number;
+};
+
+/** Event types after which the single-subscription rule is enforced. */
+const ENFORCE_ON = new Set([
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "invoice.paid",
+]);
+
+/**
+ * Enforce one subscription per account (OVE-112) after a webhook event.
+ *
+ * Checkout prevention (the per-account lock, the open-subscription check,
+ * expiring older sessions) leaves one gap: a lifter pays in one tab while
+ * another tab already holds a newer session. This closes it on Stripe's side:
+ *
+ *   1. Once the account's mirrored subscription is established, every other
+ *      open Checkout session for the customer is expired, so a lingering tab
+ *      can no longer be paid.
+ *   2. Any OTHER open subscription for the customer is a duplicate: its paid
+ *      invoice is refunded in full, then it is canceled immediately (no
+ *      proration, no final invoice). Refund first, so a failure between the
+ *      two steps is retried (Stripe redelivers) rather than leaving a canceled
+ *      but charged duplicate. Refunds use idempotency keys.
+ *
+ * Runs OUTSIDE the reconcile transaction (Stripe network calls) and after it,
+ * for every relevant delivery including a deduped replay, so a retry after a
+ * failure here still finishes the job. Idempotent: an already-canceled
+ * duplicate is no longer open and is not touched again. Entitlement and
+ * billing records only; the account is resolved from the stored customer id.
+ */
+export async function enforceSingleSubscription(
+  event: StripeEventInput,
+  deps: EnforceDeps,
+): Promise<EnforceOutcome> {
+  const none: EnforceOutcome = {
+    status: "skipped",
+    refunded: [],
+    canceled: [],
+    expiredSessions: 0,
+  };
+  if (!ENFORCE_ON.has(event.type)) return none;
+  const { customerId } = identify(event);
+  if (!customerId) return none;
+
+  const mirror = await prisma.billingAccount.findUnique({
+    where: { stripeCustomerId: customerId },
+    select: { subscriptionId: true, status: true },
+  });
+  if (!mirror?.subscriptionId || !isEstablished(mirror.status)) return none;
+  const keep = mirror.subscriptionId;
+
+  const expiredSessions = await deps.expireOpenCheckoutSessions(customerId);
+
+  const refunded: string[] = [];
+  const canceled: string[] = [];
+  for (const sub of await deps.listOpenSubscriptions(customerId)) {
+    if (sub.id === keep) continue;
+    if (sub.latestInvoiceId) {
+      const n = await deps.refundInvoice(sub.latestInvoiceId);
+      if (n > 0) refunded.push(sub.id);
+    }
+    await deps.cancelSubscription(sub.id);
+    canceled.push(sub.id);
+    console.warn("billing: canceled a duplicate subscription", {
+      kept: keep,
+      canceled: sub.id,
+    });
+  }
+  return { status: "enforced", refunded, canceled, expiredSessions };
 }
 
 /**

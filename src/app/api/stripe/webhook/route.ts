@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import {
   constructWebhookEvent,
   fetchSubscriptionSnapshot,
+  stripeEnforceDeps,
 } from "@/lib/billing/stripe";
-import { reconcileStripeEvent } from "@/lib/data/billing-webhook";
+import {
+  enforceSingleSubscription,
+  reconcileStripeEvent,
+} from "@/lib/data/billing-webhook";
 
 /**
  * Plans, Billing & Promo Codes — the ONE Stripe webhook endpoint (spec §11,
@@ -32,15 +36,20 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
   }
 
+  const input = {
+    id: event.id,
+    type: event.type,
+    object: event.data.object as unknown as Record<string, unknown>,
+  };
   try {
-    await reconcileStripeEvent(
-      {
-        id: event.id,
-        type: event.type,
-        object: event.data.object as unknown as Record<string, unknown>,
-      },
-      { getSubscription: fetchSubscriptionSnapshot },
-    );
+    await reconcileStripeEvent(input, {
+      getSubscription: fetchSubscriptionSnapshot,
+    });
+    // One subscription per account (OVE-112): after the mirror is settled,
+    // refund and cancel any duplicate and expire leftover Checkout sessions.
+    // Runs on a deduped replay too, so a retry after a failure here finishes
+    // the job; it is idempotent.
+    await enforceSingleSubscription(input, stripeEnforceDeps());
   } catch (error) {
     // A transient failure: let Stripe retry (it will, and the dedupe ledger
     // makes the retry safe). Never leak internals.

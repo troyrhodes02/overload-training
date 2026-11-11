@@ -8,15 +8,20 @@
  */
 const constructWebhookEvent = jest.fn();
 const fetchSubscriptionSnapshot = jest.fn();
+const ENFORCE_DEPS = { fake: "enforce-deps" };
 jest.mock("@/lib/billing/stripe", () => ({
   constructWebhookEvent: (...args: unknown[]) => constructWebhookEvent(...args),
   fetchSubscriptionSnapshot: (...args: unknown[]) =>
     fetchSubscriptionSnapshot(...args),
+  stripeEnforceDeps: () => ENFORCE_DEPS,
 }));
 
 const reconcileStripeEvent = jest.fn();
+const enforceSingleSubscription = jest.fn();
 jest.mock("@/lib/data/billing-webhook", () => ({
   reconcileStripeEvent: (...args: unknown[]) => reconcileStripeEvent(...args),
+  enforceSingleSubscription: (...args: unknown[]) =>
+    enforceSingleSubscription(...args),
 }));
 
 import { POST } from "@/app/api/stripe/webhook/route";
@@ -42,6 +47,8 @@ beforeEach(() => {
   constructWebhookEvent.mockReset();
   reconcileStripeEvent.mockReset();
   fetchSubscriptionSnapshot.mockReset();
+  enforceSingleSubscription.mockReset();
+  enforceSingleSubscription.mockResolvedValue({ status: "skipped" });
 });
 
 it("rejects a request with no stripe-signature header (400), verifying nothing", async () => {
@@ -95,4 +102,50 @@ it("returns 500 (so Stripe retries) when reconciling throws, leaking no internal
   expect(res.status).toBe(500);
   const body = await res.json();
   expect(JSON.stringify(body)).not.toContain("db down");
+});
+
+describe("single-subscription guard (OVE-112)", () => {
+  it("enforces after reconciling, with the same event", async () => {
+    constructWebhookEvent.mockReturnValue(EVENT);
+    const order: string[] = [];
+    reconcileStripeEvent.mockImplementation(async () => {
+      order.push("reconcile");
+      return { status: "processed", userId: "u1" };
+    });
+    enforceSingleSubscription.mockImplementation(async () => {
+      order.push("enforce");
+      return { status: "enforced" };
+    });
+    const res = await POST(post({ signature: "good" }));
+    expect(res.status).toBe(200);
+    expect(order).toEqual(["reconcile", "enforce"]);
+    expect(enforceSingleSubscription).toHaveBeenCalledWith(
+      { id: EVENT.id, type: EVENT.type, object: EVENT.data.object },
+      ENFORCE_DEPS,
+    );
+  });
+
+  it("still enforces on a deduped replay, so a retry finishes the job", async () => {
+    constructWebhookEvent.mockReturnValue(EVENT);
+    reconcileStripeEvent.mockResolvedValue({ status: "duplicate" });
+    await POST(post({ signature: "good" }));
+    expect(enforceSingleSubscription).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 500 (so Stripe retries) when enforcement fails", async () => {
+    constructWebhookEvent.mockReturnValue(EVENT);
+    reconcileStripeEvent.mockResolvedValue({ status: "processed" });
+    enforceSingleSubscription.mockRejectedValue(new Error("stripe down"));
+    const res = await POST(post({ signature: "good" }));
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("stripe down");
+  });
+
+  it("never enforces for an unverified request", async () => {
+    constructWebhookEvent.mockImplementation(() => {
+      throw new Error("bad sig");
+    });
+    await POST(post({ signature: "bad" }));
+    expect(enforceSingleSubscription).not.toHaveBeenCalled();
+  });
 });
