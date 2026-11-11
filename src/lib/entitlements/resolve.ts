@@ -34,7 +34,11 @@ export type ResolverEntitlement = Pick<
 >;
 export type ResolverBilling = Pick<
   BillingAccount,
-  "status" | "cancelAtPeriodEnd" | "interval" | "graceEndsAt"
+  | "status"
+  | "cancelAtPeriodEnd"
+  | "interval"
+  | "graceEndsAt"
+  | "currentPeriodEnd"
 >;
 
 function trialActive(e: ResolverEntitlement, now: Date): boolean {
@@ -65,6 +69,14 @@ type SubResolution = {
  * Pro-validity from the Stripe mirror (spec section 6). active/trialing grant
  * Pro (canceling if set to cancel at period end); past_due grants Pro only
  * within the grace window; everything else grants nothing.
+ *
+ * A subscription set to cancel at period end is Pro only UNTIL
+ * `currentPeriodEnd` (spec section 6). Stripe's `deleted` event normally flips
+ * the mirror to `canceled` at that instant, but a late or lost webhook must not
+ * leave the account Pro on a paid-through date that has already passed, so the
+ * date is checked here on read. An unknown end (null) defers to Stripe's
+ * status. A renewing subscription is never cut off on its period end: Stripe
+ * renews it, and a delayed `invoice.paid` must not drop a paying lifter.
  */
 export function subscriptionResolution(
   billing: ResolverBilling | null,
@@ -74,7 +86,15 @@ export function subscriptionResolution(
   switch (billing.status) {
     case "active":
     case "trialing":
-      if (billing.cancelAtPeriodEnd) return { pro: true, display: "canceling" };
+      if (billing.cancelAtPeriodEnd) {
+        if (
+          billing.currentPeriodEnd !== null &&
+          now.getTime() >= billing.currentPeriodEnd.getTime()
+        ) {
+          return { pro: false, display: null };
+        }
+        return { pro: true, display: "canceling" };
+      }
       return {
         pro: true,
         display: billing.interval === "year" ? "paid_annual" : "paid_monthly",

@@ -198,6 +198,17 @@ export async function getAccountBilling(
   };
 }
 
+/** An active row still grants Pro: renewing, or canceling within its period. */
+function stillPaid(now: Date) {
+  return {
+    OR: [
+      { cancelAtPeriodEnd: false },
+      { currentPeriodEnd: null },
+      { currentPeriodEnd: { gt: now } },
+    ],
+  };
+}
+
 export async function getBillingOverview(
   actor: AdminActor,
   now: Date = new Date(),
@@ -212,7 +223,10 @@ export async function getBillingOverview(
     paymentProblems,
     redemptions,
   ] = await Promise.all([
-    db.billingAccount.count({ where: { status: "active" } }),
+    // Paying Pro only, matching subscriptionResolution in resolve.ts: a
+    // canceling subscription whose paid period has ended no longer counts,
+    // even before Stripe's deletion webhook flips the mirror.
+    db.billingAccount.count({ where: { status: "active", ...stillPaid(now) } }),
     db.entitlement.count({
       where: { source: "trial", revokedAt: null, endsAt: { gt: now } },
     }),
@@ -226,7 +240,11 @@ export async function getBillingOverview(
       },
     }),
     db.billingAccount.count({
-      where: { status: "active", cancelAtPeriodEnd: true },
+      where: {
+        status: "active",
+        cancelAtPeriodEnd: true,
+        OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: now } }],
+      },
     }),
     db.billingAccount.count({ where: { status: "past_due" } }),
     db.promoRedemption.findMany({

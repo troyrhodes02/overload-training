@@ -82,7 +82,12 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
           ))}
         </ul>
       ) : null}
-      {summary?.locked ? <UpgradeNote surface="day-complete" /> : null}
+      {summary?.locked ? (
+        <UpgradeNote
+          surface="day-complete"
+          message="What to do next time on each lift, and why, is part of Pro."
+        />
+      ) : null}
       {state.loggedSessionId ? (
         <SessionGoalRows loggedSessionId={state.loggedSessionId} />
       ) : null}
@@ -176,7 +181,10 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
           })}
         </ul>
         {progression.some((p) => p.locked) ? (
-          <UpgradeNote surface="today-plan" />
+          <UpgradeNote
+            surface="today-plan"
+            message="Progress, hold, and deload calls, with the weight to try, are part of Pro."
+          />
         ) : null}
       </div>
       <Button

@@ -120,6 +120,7 @@ async function memberships(
         cancelAtPeriodEnd: true,
         interval: true,
         graceEndsAt: true,
+        currentPeriodEnd: true,
       },
       ...where,
     }),

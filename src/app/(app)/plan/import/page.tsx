@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { requireAccount } from "@/lib/data/account";
 import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import { isPlanImportEnabled } from "@/lib/import/config";
+import { UPGRADE_HREF } from "@/lib/billing/config";
 import { SourceIntake } from "@/components/plan/import/source-intake";
 import { ImportFlow } from "@/components/plan/import/import-flow";
 import {
@@ -41,6 +42,9 @@ export default async function PlanImportPage({
   const { session: sessionId } = await searchParams;
 
   if (!can(resolved, "plan_import")) {
+    // A switched-off feature is never sold: a Free account sees the same
+    // operational card a Pro account does (Entitlement Audit).
+    if (!isPlanImportEnabled()) return <ImportUnavailable />;
     return (
       <GateCard
         icon="lock"
@@ -48,7 +52,7 @@ export default async function PlanImportPage({
         body="You can still build and edit plans by hand, log, see history, and export — all on Free."
         action={
           <Button asChild variant="outline">
-            <Link href="/settings/billing">See Pro</Link>
+            <Link href={UPGRADE_HREF}>Explore Pro</Link>
           </Button>
         }
       />
@@ -64,20 +68,7 @@ export default async function PlanImportPage({
   // (architecture non-goal; see retention.ts and the run report).
   await runImportRetention(account);
 
-  if (!isPlanImportEnabled()) {
-    return (
-      <GateCard
-        icon="info"
-        title="Plan import is temporarily unavailable"
-        body="This feature is turned off right now. Nothing was processed and nothing was charged."
-        action={
-          <Button asChild variant="ghost">
-            <Link href="/plan">Back to Plan</Link>
-          </Button>
-        }
-      />
-    );
-  }
+  if (!isPlanImportEnabled()) return <ImportUnavailable />;
 
   // Today's usage for the meter (read-only; the server cap stays the authority).
   const usage = await readImportUsage(account.userId, importDayKey(account));
@@ -155,5 +146,21 @@ function GateCard({
         {action}
       </div>
     </div>
+  );
+}
+
+/** The operational kill-switch card, shared by both plans. */
+function ImportUnavailable() {
+  return (
+    <GateCard
+      icon="info"
+      title="Plan import is temporarily unavailable"
+      body="This feature is turned off right now. Nothing was processed and nothing was charged."
+      action={
+        <Button asChild variant="ghost">
+          <Link href="/plan">Back to Plan</Link>
+        </Button>
+      }
+    />
   );
 }

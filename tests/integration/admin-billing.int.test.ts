@@ -168,4 +168,33 @@ describe("billing overview never counts a comp as paying (AC-3)", () => {
     expect(dto?.source).toBe("comp");
     expect(dto?.stripe).toBeNull();
   });
+
+  it("a canceling subscription whose paid period has ended is not counted as paying (OVE-120)", async () => {
+    const p = getTestPrisma();
+    const mk = async (cancel: boolean, end: Date | null) => {
+      const a = await createTestAccount("UTC", undefined, {
+        entitlement: "none",
+      });
+      await p.billingAccount.create({
+        data: {
+          userId: a.userId,
+          stripeCustomerId: `cus_${a.userId}`,
+          subscriptionId: `sub_${a.userId}`,
+          status: "active",
+          interval: "month",
+          cancelAtPeriodEnd: cancel,
+          currentPeriodEnd: end,
+        },
+      });
+    };
+    const now = new Date("2026-11-11T12:00:00Z");
+    const later = new Date("2026-11-20T00:00:00Z");
+    const earlier = new Date("2026-11-01T00:00:00Z");
+    await mk(false, earlier); // renewing; renewal webhook late: still paying
+    await mk(true, later); // canceling within its period: paying, canceling
+    await mk(true, earlier); // canceling, period over, deletion webhook late
+    const o = await getBillingOverview(admin(), now);
+    expect(o.activeSubscriptions).toBe(2);
+    expect(o.cancelingAtPeriodEnd).toBe(1);
+  });
 });
