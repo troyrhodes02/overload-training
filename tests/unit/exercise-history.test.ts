@@ -85,7 +85,7 @@ const s3 = (
   ] as [number, number, number | null][];
 
 /**
- * The preview's Barbell Bench Press (docs/previews/16-…, §01, §04): the
+ * The preview's Barbell Bench Press (docs/pitches/mvp-3-training-intelligence/16-exercise-history-pr-intelligence/preview.html, §01, §04): the
  * fixture mirrors it set for set, so the calls the preview prints are the
  * calls the engine makes.
  */

@@ -8,7 +8,7 @@
 <!--
   OVERLOAD UI PREVIEW SCAFFOLD
   ============================
-  Copy this file to docs/previews/NN-pitch-slug-preview.html and replace the
+  Copy this file to docs/pitches/<milestone>/NN-pitch-slug/preview.html and replace the
   example frames with the real screens. Everything above the "EXAMPLE FRAMES"
   comment is fixed scaffolding: do not restyle it per feature.
 
@@ -28,9 +28,9 @@
   product surfaces flip together while the chrome follows separately.
 
   Opens offline. The font is the vendored Inter file in
-  docs/previews/assets/fonts/; icons are inline Lucide SVG produced by
+  docs/pitches/_shared-assets/fonts/; icons are inline Lucide SVG produced by
   `node scripts/lucide-svg.mjs <icon-name>`. No CDN, no network request.
-  Paths are relative to docs/previews/.
+  Paths are relative to the pitch folder.
 -->
 
 <style>
@@ -38,7 +38,7 @@
    FONT — Inter (variable 100-900), the same latin file next/font
    serves the app. Vendored for offline previews.
    ============================================================ */
-@font-face{font-family:'Inter';src:url('assets/fonts/inter-latin-variable.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:'Inter';src:url('../../_shared-assets/fonts/inter-latin-variable.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
 
 /* ============================================================
    PREVIEW CHROME — achromatic studio scaffolding.

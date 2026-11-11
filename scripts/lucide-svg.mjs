@@ -2,7 +2,7 @@
 /**
  * Prints Lucide icons as inline SVG markup, using the exact path data of the
  * lucide-react version the app ships. Used to author UI previews
- * (docs/previews/*.html), which must open offline with no icon CDN.
+ * (docs/pitches/<milestone>/<pitch>/preview.html), which must open offline with no icon CDN.
  *
  *   node scripts/lucide-svg.mjs chevron-right triangle-alert plus
  *

@@ -176,7 +176,7 @@ export async function requestPasswordReset(
   // (same response for a known and an unknown email) is unaffected. A future
   // hardening could add a constant-time response floor (a fixed minimum
   // duration on both paths); deferred as low-risk and out of this pitch's
-  // scope. See docs/runs/18-public-accounts-recovery-support-report.md.
+  // scope. See docs/runs/18-public-accounts-recovery-support-report.md (removed in the docs reorganization; see git history).
   if (allowed) {
     // Trigger the Supabase recovery email. Its template links to /auth/confirm,
     // which exchanges the one-time token for the recovery session and continues
