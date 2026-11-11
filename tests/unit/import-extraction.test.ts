@@ -1,8 +1,9 @@
+import { ExtractedPlanObservationSchema } from "@/lib/import/extraction/schema";
 import {
-  ExtractedPlanObservationSchema,
-  OBSERVED_EXERCISE_FIELDS,
-  OBSERVED_TOP_FIELDS,
-} from "@/lib/import/extraction/schema";
+  WIRE_DAY_FIELDS,
+  WIRE_EXERCISE_FIELDS,
+  WIRE_TOP_FIELDS,
+} from "@/lib/import/extraction/wire";
 import { SYSTEM_PROMPT } from "@/lib/import/extraction/prompt";
 import {
   MockPlanExtractionPort,
@@ -86,13 +87,13 @@ describe("ExtractedPlanObservation strict schema", () => {
 });
 
 describe("prompt / schema parity", () => {
-  it("the prompt names exactly the observed exercise fields", () => {
-    for (const f of OBSERVED_EXERCISE_FIELDS) {
+  it("the prompt names exactly the wire exercise and day fields", () => {
+    for (const f of [...WIRE_EXERCISE_FIELDS, ...WIRE_DAY_FIELDS]) {
       expect(SYSTEM_PROMPT).toContain(f);
     }
   });
   it("the prompt names exactly the top-level fields", () => {
-    for (const f of OBSERVED_TOP_FIELDS) {
+    for (const f of WIRE_TOP_FIELDS) {
       expect(SYSTEM_PROMPT).toContain(f);
     }
   });

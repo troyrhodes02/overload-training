@@ -16,32 +16,31 @@ import { extractionFailureCopy } from "@/lib/import/failure-copy";
  * reported as an unreadable one.
  */
 
-const f = (raw: string | null) => ({ raw, legible: true, evidence: null });
+// The compact wire format the model writes (src/lib/import/extraction/wire.ts).
 const planJson = {
   isWorkoutPlan: true,
-  title: f("Plan"),
+  title: "Plan",
   days: [
     {
-      order: 0,
-      label: f("Monday"),
-      notes: f(null),
+      label: "Monday",
+      part: 0,
+      page: null,
       exercises: [
         {
-          order: 0,
-          groupLabel: f(null),
-          name: f("Barbell Bench Press"),
-          sets: f("3"),
-          reps: f("8"),
-          load: f(null),
-          rest: f(null),
-          tempo: f(null),
-          notes: f(null),
-          alternativeReadings: [],
+          name: "Barbell Bench Press",
+          part: 0,
+          page: null,
+          sets: "3",
+          reps: "8",
+          load: null,
+          rest: null,
+          tempo: null,
+          notes: null,
+          group: null,
         },
       ],
     },
   ],
-  generalNotes: f(null),
   unreadable: [],
   contradictions: [],
 };
@@ -90,10 +89,16 @@ describe("a valid provider answer", () => {
       modelId: "claude-sonnet-5-5",
       usage: { inputTokens: 2672, outputTokens: 4222 },
     });
-    if (res.ok)
-      expect(res.observation.days[0].exercises[0].name.raw).toBe(
-        "Barbell Bench Press",
-      );
+    if (res.ok) {
+      const ex = res.observation.days[0].exercises[0];
+      expect(ex.name.raw).toBe("Barbell Bench Press");
+      // The name is its own evidence quote, located in the cited part.
+      expect(ex.name.evidence).toMatchObject({
+        partIndex: 0,
+        quote: "Barbell Bench Press",
+      });
+      expect(ex.sets.raw).toBe("3");
+    }
   });
 
   it("requests low effort and the enlarged output budget", async () => {
@@ -101,7 +106,10 @@ describe("a valid provider answer", () => {
     await port(create).extract(request(TEXT));
     const body = create.mock.calls[0][0];
     expect(body.max_tokens).toBe(MAX_OUTPUT_TOKENS);
-    expect(MAX_OUTPUT_TOKENS).toBeGreaterThan(8000);
+    // Room for the largest plan review accepts, under the SDK's non-streaming
+    // ceiling (~21k tokens).
+    expect(MAX_OUTPUT_TOKENS).toBeGreaterThanOrEqual(16_000);
+    expect(MAX_OUTPUT_TOKENS).toBeLessThan(21_000);
     expect(body.output_config.effort).toBe("low");
     expect(body.output_config.format.type).toBe("json_schema");
   });

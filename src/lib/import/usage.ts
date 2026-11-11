@@ -69,3 +69,28 @@ export async function refundImportUsage(
     SET "count" = GREATEST(0, "count" - 1), "updated_at" = now()
     WHERE "user_id" = ${userId}::uuid AND "day_key" = ${dayKey}`;
 }
+
+/** Today's import usage for display: attempts started and the daily limit. */
+export type ImportUsage = { used: number; limit: number };
+
+/**
+ * Read (never write) how many imports `(userId, dayKey)` has started today, for
+ * the usage meter on the import page. Scoped to the account's own row like the
+ * writers above. Returns null if the count can't be read, so the page simply
+ * hides the meter; the server-side cap in {@link bumpImportUsage} stays the
+ * authority either way.
+ */
+export async function readImportUsage(
+  userId: string,
+  dayKey: string,
+): Promise<ImportUsage | null> {
+  try {
+    const rows = await prisma.$queryRaw<{ count: number }[]>`
+      SELECT "count" FROM "import_usage_days"
+      WHERE "user_id" = ${userId}::uuid AND "day_key" = ${dayKey}`;
+    const used = Math.min(Number(rows[0]?.count ?? 0), MAX_IMPORTS_PER_DAY);
+    return { used, limit: MAX_IMPORTS_PER_DAY };
+  } catch {
+    return null;
+  }
+}

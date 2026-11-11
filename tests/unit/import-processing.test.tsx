@@ -41,7 +41,7 @@ describe("processing screens", () => {
     const html = render("extracting", null);
     expect(html).toContain('role="status"');
     expect(html).toContain("Reading your plan…");
-    expect(html).toContain("Longer plans can take a minute or two");
+    expect(html).toContain("Longer plans can take a few minutes");
     // reduced-motion respected
     expect(html).toContain("motion-reduce:animate-none");
     expect(html).toContain("motion-safe:animate-pulse");
@@ -113,6 +113,15 @@ describe("the Try again button no longer looks stuck", () => {
   });
 
   it("lets the route run as long as an extraction may", () => {
-    expect(page).toMatch(/export const maxDuration = 120;/);
+    expect(page).toMatch(/export const maxDuration = 300;/);
+    const extract = fs.readFileSync(
+      path.join(process.cwd(), "src/lib/import/extract.ts"),
+      "utf8",
+    );
+    // The provider call is bounded well inside the route's limit.
+    const ms = Number(
+      /EXTRACTION_TIMEOUT_MS = ([\d_]+);/.exec(extract)![1].replace(/_/g, ""),
+    );
+    expect(ms).toBeLessThanOrEqual(300_000 - 45_000);
   });
 });

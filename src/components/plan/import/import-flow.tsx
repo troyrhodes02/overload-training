@@ -49,6 +49,7 @@ import type {
   ImportStatusDto,
 } from "@/lib/import/draft/types";
 import { deriveBlockers } from "@/lib/import/draft/build";
+import { retryCostLine, type ImportUsageView } from "./import-guidance";
 import {
   getImportStatusAction,
   retryExtractionAction,
@@ -93,12 +94,14 @@ export function ImportFlow({
   initialDraft,
   source,
   mesocycleId,
+  usage = null,
 }: {
   sessionId: string;
   initialStatus: ImportStatusDto;
   initialDraft: ImportDraftDto | null;
   source: SourcePart[];
   mesocycleId: string | null;
+  usage?: ImportUsageView | null;
 }) {
   const router = useRouter();
   const [status, setStatus] = React.useState(initialStatus);
@@ -136,6 +139,7 @@ export function ImportFlow({
     <ProcessingStep
       sessionId={sessionId}
       status={status}
+      usage={usage}
       onStatus={(next) => {
         setStatus(next);
         // The server owns the draft: once it says "review" or "done", re-render
@@ -151,10 +155,12 @@ export function ImportFlow({
 function ProcessingStep({
   sessionId,
   status,
+  usage,
   onStatus,
 }: {
   sessionId: string;
   status: ImportStatusDto;
+  usage: ImportUsageView | null;
   onStatus: (next: ImportStatusDto) => void;
 }) {
   const router = useRouter();
@@ -202,6 +208,7 @@ function ProcessingStep({
         tone="destructive"
         title={retryCopy.title}
         body={retryError ? `${retryCopy.body} ${retryError}` : retryCopy.body}
+        footnote={retryCostLine(usage)}
         actions={
           <>
             <Button disabled={busy} onClick={onRetry}>
@@ -288,7 +295,7 @@ function ReadingState({
         <div className="space-y-1">
           <p className="text-sm font-medium">Reading your plan…</p>
           <p className="text-sm text-muted-foreground">
-            Longer plans can take a minute or two. You can leave this page and
+            Longer plans can take a few minutes. You can leave this page and
             come back.
           </p>
         </div>
@@ -1226,11 +1233,13 @@ function OutcomeCard({
   title,
   body,
   actions,
+  footnote = null,
 }: {
   tone: "destructive" | "muted";
   title: string;
   body: string;
   actions: React.ReactNode;
+  footnote?: string | null;
 }) {
   return (
     <div className="mx-auto max-w-md py-12">
@@ -1253,6 +1262,11 @@ function OutcomeCard({
         <p className="text-center font-medium">{title}</p>
         <p className="text-center text-sm text-muted-foreground">{body}</p>
         <div className="flex flex-wrap justify-center gap-2">{actions}</div>
+        {footnote && (
+          <p className="text-center text-xs text-muted-foreground">
+            {footnote}
+          </p>
+        )}
       </div>
     </div>
   );

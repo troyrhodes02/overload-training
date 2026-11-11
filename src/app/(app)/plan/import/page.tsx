@@ -12,14 +12,16 @@ import {
   type SourceReadPart,
 } from "@/lib/import/extract";
 import { runImportRetention } from "@/lib/import/retention";
+import { readImportUsage } from "@/lib/import/usage";
+import { importDayKey } from "@/lib/import/sessions";
 import type { ImportDraftDto } from "@/lib/import/draft/types";
 
 export const metadata = { title: "Import plan · Overload" };
 
 // Extraction runs inside the server action that starts or retries it, bounded
-// at 100 s (src/lib/import/extract.ts). The route must be allowed to run longer
+// at 240 s (src/lib/import/extract.ts) so a long plan has time to finish. The route must be allowed to run longer
 // than that, or the platform ends the request mid-call.
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
  * Workout Plan Import & Review (Pitch 22) — the full-page import flow at
@@ -77,6 +79,9 @@ export default async function PlanImportPage({
     );
   }
 
+  // Today's usage for the meter (read-only; the server cap stays the authority).
+  const usage = await readImportUsage(account.userId, importDayKey(account));
+
   // A session id in the URL means the flow is past intake. Render the correct
   // step from SERVER status, so a revisit resumes where the import actually is
   // (interruption-safe; spec §6). An unknown/other-account id falls back to
@@ -86,7 +91,7 @@ export default async function PlanImportPage({
     try {
       status = await getImportStatus(account, sessionId);
     } catch {
-      return <SourceIntake />;
+      return <SourceIntake usage={usage} />;
     }
 
     let draft: ImportDraftDto | null = null;
@@ -119,11 +124,12 @@ export default async function PlanImportPage({
         initialDraft={draft}
         source={source}
         mesocycleId={mesocycleId}
+        usage={usage}
       />
     );
   }
 
-  return <SourceIntake />;
+  return <SourceIntake usage={usage} />;
 }
 
 function GateCard({
