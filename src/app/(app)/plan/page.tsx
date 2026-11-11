@@ -80,7 +80,9 @@ export default async function PlanHomePage() {
             </Button>
           }
         />
-        <ImportEntry account={account} />
+        <div className="pt-4">
+          <ImportEntry account={account} />
+        </div>
       </section>
     );
   }
@@ -176,8 +178,13 @@ export default async function PlanHomePage() {
             </Button>
           )}
         </div>
-        <ImportEntry account={account} />
       </StickyActions>
+
+      {/* Its own section, below the plan and its actions: importing is a
+          separate path from building or cloning a mesocycle. */}
+      <div className="pt-6 md:pt-10">
+        <ImportEntry account={account} />
+      </div>
     </section>
   );
 }

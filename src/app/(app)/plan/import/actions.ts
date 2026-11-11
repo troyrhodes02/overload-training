@@ -28,12 +28,18 @@ import {
   retryExtraction,
 } from "@/lib/import/extract";
 import {
+  pickLibraryExercise,
   resolveMatch,
   saveDraftEdit,
   stageCustomExercise,
   type DraftEditPatch,
 } from "@/lib/import/review";
 import { confirmImport } from "@/lib/import/confirm";
+import {
+  listExercises,
+  type ExerciseListItemDto,
+} from "@/lib/exercises/queries";
+import { isMuscleGroup } from "@/lib/exercises/taxonomy";
 import type { ImportDraftDto, ImportStatusDto } from "@/lib/import/draft/types";
 
 /**
@@ -307,6 +313,60 @@ export async function resolveMatchAction(input: {
       return resolveMatch(account, input);
     },
     "Couldn't set that match. Nothing was changed.",
+  );
+}
+
+/** Library search page size for the review's "Search library" picker. */
+const LIBRARY_SEARCH_PAGE = 50;
+const LIBRARY_SEARCH_MAX = 1000;
+
+/**
+ * Search the acting account's library (shared + own customs, active only) for
+ * the review's library picker. Read-only; scoped by the account's client.
+ */
+export async function searchImportLibraryAction(input: {
+  search: string;
+  muscle: string | null;
+  limit: number;
+}): Promise<
+  ActionResult<{ items: ExerciseListItemDto[]; total: number; limit: number }>
+> {
+  return importResult(
+    "searchImportLibraryAction",
+    async () => {
+      const account = await guardImport();
+      const limit = Math.min(
+        Math.max(
+          Number.isFinite(input.limit) ? Math.trunc(input.limit) : 0,
+          LIBRARY_SEARCH_PAGE,
+        ),
+        LIBRARY_SEARCH_MAX,
+      );
+      const list = await listExercises(account, {
+        view: "all",
+        search: String(input.search ?? "").slice(0, 100),
+        muscle: isMuscleGroup(input.muscle) ? input.muscle : null,
+        limit,
+      });
+      return { items: list.items, total: list.total, limit };
+    },
+    "Couldn't search the library. Try again.",
+  );
+}
+
+export async function pickLibraryExerciseAction(input: {
+  sessionId: string;
+  version: number;
+  exerciseKey: string;
+  exerciseId: string;
+}): Promise<ActionResult<ImportDraftDto>> {
+  return importResult(
+    "pickLibraryExerciseAction",
+    async () => {
+      const account = await guardImport();
+      return pickLibraryExercise(account, input);
+    },
+    "Couldn't use that exercise. Nothing was changed.",
   );
 }
 
