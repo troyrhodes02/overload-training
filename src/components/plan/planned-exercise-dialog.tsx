@@ -28,6 +28,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  repModeFor,
+  submittedReps,
+  switchRepMode,
+  type RepMode,
+} from "@/lib/plan/rep-target";
 import { parsePlannedExercise } from "@/lib/plan/validation";
 
 export type ExerciseLabel = {
@@ -53,10 +60,12 @@ const FIELDS = ["plannedSets", "targetRepMin", "targetRepMax"] as const;
 type Field = (typeof FIELDS)[number];
 
 /**
- * Sets and a target rep range for one exercise in a session. Adding starts
- * EMPTY: Overload never suggests a prescription (spec D50). A range typed
- * backwards is an error, never silently swapped (spec D22). Editing also
- * offers Replace (the repair path for an archived exercise) and Remove.
+ * Sets and a target rep range — or one fixed target (Workout Logging
+ * Refinements RD-7), saved as a range with equal ends — for one exercise in a
+ * session. Adding starts EMPTY: Overload never suggests a prescription (spec
+ * D50). A range typed backwards is an error, never silently swapped (spec
+ * D22). Editing also offers Replace (the repair path for an archived
+ * exercise) and Remove.
  */
 export function PlannedExerciseDialog({
   open,
@@ -77,7 +86,12 @@ export function PlannedExerciseDialog({
           targetRepMax: String(mode.targetRepMax),
         }
       : { plannedSets: "", targetRepMin: "", targetRepMax: "" };
+  const initialMode: RepMode =
+    mode.kind === "edit"
+      ? repModeFor(mode.targetRepMin, mode.targetRepMax)
+      : "range";
   const [values, setValues] = useState(initial);
+  const [repMode, setRepMode] = useState<RepMode>(initialMode);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -91,17 +105,27 @@ export function PlannedExerciseDialog({
     onOpenChange(next);
     if (next) {
       setValues(initial);
+      setRepMode(initialMode);
       setErrors({});
       setFailure(null);
     }
   }
 
+  // What would be saved: in Fixed mode the target is both ends.
+  const submitted = submittedReps(values, repMode);
   const changed =
-    mode.kind === "add" || FIELDS.some((f) => values[f] !== initial[f]);
+    mode.kind === "add" || FIELDS.some((f) => submitted[f] !== initial[f]);
+
+  function changeRepMode(next: RepMode) {
+    if (next === repMode) return;
+    setValues((v) => switchRepMode(v, next));
+    setRepMode(next);
+    setErrors({});
+  }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const parsed = parsePlannedExercise(values);
+    const parsed = parsePlannedExercise(submitted);
     if (!parsed.ok) {
       setErrors(parsed.details);
       const first = FIELDS.find((f) => parsed.details[f]);
@@ -116,11 +140,11 @@ export function PlannedExerciseDialog({
           ? await addSessionExerciseAction({
               sessionId: mode.sessionId,
               exerciseId: mode.exerciseId,
-              ...values,
+              ...submitted,
             })
           : await updateSessionExerciseAction({
               sessionExerciseId: mode.sessionExerciseId,
-              ...values,
+              ...submitted,
             });
       if (!result.ok) {
         const details = result.error.details ?? {};
@@ -153,9 +177,10 @@ export function PlannedExerciseDialog({
     });
   }
 
-  // Enter moves Sets → min → max; Enter on max submits.
+  // Enter moves Sets → min → max; Enter on max (or the fixed target) submits.
   function onKeyDown(field: Field, event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter" || field === "targetRepMax") return;
+    if (repMode === "fixed" && field === "targetRepMin") return;
     event.preventDefault();
     refs.current[FIELDS[FIELDS.indexOf(field) + 1]]?.focus();
   }
@@ -210,14 +235,33 @@ export function PlannedExerciseDialog({
               {input("plannedSets", "Sets")}
             </div>
             <div className="space-y-2">
-              <span className="text-sm leading-none font-medium">Reps</span>
-              <div className="flex items-center gap-2">
-                {input("targetRepMin", "Minimum reps")}
-                <span aria-hidden className="text-muted-foreground">
-                  –
-                </span>
-                {input("targetRepMax", "Maximum reps")}
+              <div className="flex items-center gap-3">
+                <span className="text-sm leading-none font-medium">Reps</span>
+                <Tabs
+                  value={repMode}
+                  onValueChange={(v) => changeRepMode(v as RepMode)}
+                >
+                  <TabsList aria-label="Rep target type" className="h-8">
+                    <TabsTrigger value="range" className="h-6 px-2 text-xs">
+                      Range
+                    </TabsTrigger>
+                    <TabsTrigger value="fixed" className="h-6 px-2 text-xs">
+                      Fixed
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
+              {repMode === "range" ? (
+                <div className="flex items-center gap-2">
+                  {input("targetRepMin", "Minimum reps")}
+                  <span aria-hidden className="text-muted-foreground">
+                    –
+                  </span>
+                  {input("targetRepMax", "Maximum reps")}
+                </div>
+              ) : (
+                input("targetRepMin", "Target reps")
+              )}
             </div>
           </div>
           {errorText && (
