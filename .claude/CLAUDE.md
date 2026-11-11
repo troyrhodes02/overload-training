@@ -2,7 +2,7 @@
 
 Overload is a strength training tracker whose job is to tell each lifter, per lift and per session, whether to progress, hold, or deload, based on logged performance against a plan they built themselves. It is invite-only today and is being opened to the public, with a free plan and a paid Pro plan. Every lifter has their own account, and no account can see, change, or learn anything about another account's data.
 
-**Status.** MVP 1 to 3 (the training product, the multi-user conversion, and the training-intelligence features) are shipped, and MVP 4, the web commercial foundation (admin center, public accounts, plans and billing, the landing page, and plan import), is largely built. The next work is the iOS app and a TestFlight beta for existing friends. Overload is operated by an individual, with a Free plan and a paid Pro plan. Public signup stays gated by the signup-mode setting, and no purchase flow is added inside a mobile app until the store billing path is decided.
+**Status.** MVP 1 to 3 (the training product, the multi-user conversion, and the training-intelligence features) are shipped, and MVP 4, the web commercial foundation (admin center, public accounts, plans and billing, the landing page, and plan import), is largely built. The next work is a small set of web fixes (workout logging refinements and two chores), then a read-only codebase audit, then a React Native (Expo) iPhone app built on the existing backend and rebuilt feature by feature. Overload is operated by an individual, with a Free plan and a paid Pro plan. Public signup stays gated by the signup-mode setting, and no purchase flow is added inside a mobile app until the store billing path is decided.
 
 This file is persistent context for Claude Code. It encodes the non-obvious rules and invariants specific to this project. For product intent see `docs/planning/product-brief.md`; for features and acceptance criteria see `docs/planning/prd.md`; for technical decisions and rationale see `docs/planning/architecture.md`; for build sequencing see `docs/planning/pitch-roadmap.md`. This file is the "how we write code here" layer on top of those.
 
@@ -18,7 +18,7 @@ This file is persistent context for Claude Code. It encodes the non-obvious rule
 
 - **Tailwind CSS with shadcn/ui** — the single component and styling system, with `lucide-react` icons. It owns layout, theming, and every UI primitive. It is **not** a license to mix in a second library: no Material UI, styled-components, CSS modules, or other component kit. Design rules for how it looks live in the `overload-ui-design` skill, not here.
 
-Planned for the commercial launch, and not to be added before the pitch that introduces them: **Stripe** (Billing, hosted Checkout, and the Customer Portal; the only place money and card data live), a **custom SMTP provider** for account email (Public Accounts), a **language-model API** called from the server for plan import only (Plan Import), and **Capacitor** iOS and Android shells around the same web app (iOS Foundation, then Android Foundation).
+Planned for the commercial launch, and not to be added before the pitch that introduces them: **Stripe** (Billing, hosted Checkout, and the Customer Portal; the only place money and card data live), a **custom SMTP provider** for account email (Public Accounts), a **language-model API** called from the server for plan import only (Plan Import), and **Expo with React Native** for the iPhone app, in the same repository as the web app (Pitch 21 and its slices; Android later).
 
 Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no maps or geocoding service (gym location is free text), no health-data integration (HealthKit is unreachable from a website), and no role system for lifters. The owner-only admin area, once built, is separate (see the admin boundary). An agent that does not know these were rejected will add them.
 
@@ -118,7 +118,7 @@ async function logSetInTx(
 
 ## Data access
 
-**Application data is read and written through Prisma in server-side code. Never fetch application data with client-side `fetch()` or query the database from the browser.**
+**Application data is read and written through Prisma in server-side code. Never fetch application data with client-side `fetch()` or query the database from the browser.** This is the web app's rule, and the web stays server-first. The mobile app is a separate client that calls the versioned mobile API and nothing else (see the mobile app rules).
 
 - Server components read through the account-scoped data-access layer, with the acting `userId` resolved from the Supabase session cookie. The auth check runs on every request, and the Prisma client in `lib/db.ts` is imported only by that layer and the other modules the first invariant names.
 - Mutations run through server actions that call the write modules (`lib/logging/logged-sets.ts` and its siblings), not raw client fetches and not ad hoc `prisma` calls inside components.
@@ -174,13 +174,16 @@ Names, emails, and training history are personal data. Never log them, never put
 - Exercises are matched to the library, and ambiguous or unmatched ones are shown for the lifter to decide. Nothing is saved until the lifter confirms, and the existing plan-creation path does the saving.
 - It parses a plan the lifter wrote. It never generates a program or coaches.
 
-### Cross-platform
+### Mobile app (React Native + Expo)
 
-- There is one backend and one training model. Never build a second progression engine or separate mobile training records.
-- Native capabilities sit behind adapters named by capability (haptics, notifications, location, health), with each platform's implementation behind them. The browser degrades gracefully and never renders a native-only control.
-- Share UI by default. Use native code only for an actual platform requirement.
-- Do not put a purchase flow inside an app shell until the billing path for that store is decided, because store rules differ.
-- A check that needs an iOS or Android build or a real device, which an unattended run cannot do, is reported as unverified, never as passed.
+- **One repository.** The web app, the mobile app, and a shared package live together so one run can change both clients. The shared package holds types, validation schemas, the pure training functions that need no database (for example e1RM and progression rules), constants, and the tour and release-note data. Server modules that touch Prisma stay on the server and are never imported by the mobile app. The exact layout is set in the Monorepo & Shared Package slice.
+- **One backend and one training model.** Never build a second progression engine or separate mobile training records. The mobile app calls the mobile API, which wraps the same business logic the web uses.
+- **The mobile API.** Versioned route handlers. Every handler verifies the bearer token on the server, takes the acting `userId` from the token and never from the request, calls account-scoped functions, enforces capabilities, returns a stable error shape, and makes writes safe to retry. An app-config endpoint returns the minimum supported app version and kill switches so the server can force an update. Changes within a version are backward compatible, because old app versions stay installed. Breaking changes need a new version. Every endpoint is covered by the cross-account isolation suite.
+- **The mobile app talks only to that API.** Never to Supabase tables. The Supabase client is for the auth session only, tokens are held in secure device storage, and no secret ships in the app bundle.
+- **Parity means equivalent capability, not identical screens.** Native screens use native patterns, designed with `overload-mobile-ui`. Web-only for now: the admin area, billing and checkout, and public pages. The plan builder and plan import may stay web-only during the beta, per the mobile roadmap (`docs/planning/mobile-roadmap.md`).
+- **Online-only.** No offline logging.
+- **No purchase flow in the app** until the billing path for that store is decided, because store rules differ.
+- **Review loop.** Development builds connect to staging, and the friends' build connects to Production. A run may publish an over-the-air update to the Expo `staging` channel if a staging-only token is configured. Publishing to the `production` channel, building for or submitting to TestFlight or a store, and anything that needs a real device are human steps. A check that needs a simulator or a real device is reported as unverified, never as passed.
 
 ## Business logic
 
@@ -232,7 +235,7 @@ Permanent non-goals from the Brief. These are "never" for this product:
 - **No progression analysis of cardio.**
 - **No nutrition or body-composition features in this build.** Those are a deliberately separate, later build. Don't model them here, and don't preclude connecting to them later.
 
-Deferred (planned in the roadmap; don't build unless a pitch calls for it, but don't preclude): the iOS app and TestFlight beta; workout logging refinements; wing-it workouts; the history calendar; friends and template sharing; shareable progress cards; gym location and notifications; Launch Readiness and the store releases; Android; the Live Activity and Watch app; advanced cardio and video attachments (discovery first); body metrics; nutrition. Cardio stays type and duration until a pitch decides otherwise. A built-in social platform is future exploration, not planned.
+Deferred (planned in the roadmap; don't build unless a pitch calls for it, but don't preclude): the React Native iPhone app (Pitch 21 and its slices) and its TestFlight beta; workout logging refinements; wing-it workouts; the history calendar; friends and template sharing; shareable progress cards; gym location and notifications; Launch Readiness and the store releases; Android; the Live Activity and Watch app; advanced cardio and video attachments (discovery first); body metrics; nutrition. Cardio stays type and duration until a pitch decides otherwise. A built-in social platform is future exploration, not planned.
 
 ## Testing
 
@@ -291,7 +294,7 @@ Overload uses three stages. This is a permanent rule, and `docs/pipeline/branchi
 7. Report the outstanding Production approvals and the exact owner actions.
 8. After the Production release succeeds, synchronize `main` back into `staging` without overwriting unfinished work.
 
-Never open a Production PR directly from `staging`. Never treat passing staging tests as approval for a Production migration, provider spending, or an external integration. Prisma migrations are ordered: if an approved migration cannot be transferred without an unapproved one, stop and report. The paste-ready promotion prompt is `docs/pipeline/production-promotion-prompt.md`.
+Never open a Production PR directly from `staging`. Never treat passing staging tests as approval for a Production migration, provider spending, or an external integration. Prisma migrations are ordered: if an approved migration cannot be transferred without an unapproved one, stop and report. The paste-ready promotion prompt is `docs/pipeline/production-promotion-prompt.md`. A release that includes the mobile API also needs a backward-compatibility check against the app versions in the wild, and the Expo production channel and store builds are human steps.
 
 **Working style.** Complete safe development tasks autonomously, handle routine development migrations, testing, and staging integration without repeated dry runs and approvals, and stop only at genuine Production safety boundaries. Explanations are concise, with explicit commands, clear checkpoints, and no repetitive infrastructure verification.
 
@@ -333,7 +336,7 @@ Once the onboarding tour and What's New exist, every pitch that ships a visible 
 
 ### Platform impact and plan placement
 
-Once the iOS foundation exists, every UI-bearing pitch records its platform impact with the `overload-cross-platform` skill: shared web UI, native-specific work, or web-only (the admin area is web-only). Every pitch that adds a user-facing feature also states the capability that gates it: Free, or a named Pro capability.
+Every pitch that touches the UI states its client scope: web, mobile, or both. Once the mobile app exists, a pitch for both clients builds both in one run, using `overload-cross-platform` and `overload-mobile-ui`, and leaves both for review (staging for the web, the Expo staging channel for the phone). The admin area is web-only. Every pitch that adds a user-facing feature also states the capability that gates it: Free, or a named Pro capability.
 
 ## Autonomous Pipeline Policy
 
@@ -363,7 +366,7 @@ Halt, state the reason in the final message and the feature PR description, and 
 
 Everything else: decide and continue.
 
-Migrations are applied only to the Supabase dev project during a run. Applying anything to production, including a migration, any plan seeding, enabling public signup, switching Stripe to live mode, any store release, and merging or deploying a release PR into `main`, is a step for a human. Migrations during a run go to the `overload-dev` project and proceed without repeated dry runs.
+Migrations are applied only to the Supabase dev project during a run. Applying anything to production, including a migration, any plan seeding, enabling public signup, switching Stripe to live mode, any store release, publishing to the Expo production channel, uploading a build to TestFlight, and merging or deploying a release PR into `main`, is a step for a human. Migrations during a run go to the `overload-dev` project and proceed without repeated dry runs.
 
 ### Verification honesty
 

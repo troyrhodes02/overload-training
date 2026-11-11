@@ -144,6 +144,39 @@ THEN:
 ```
 
 ```text
+TEST: mobile_endpoint_cross_account_denied
+GIVEN: Account A's data and Account B's valid mobile token
+WHEN: B calls each mobile endpoint with A's ids
+THEN:
+  - Every response is not_found or empty, identical to a missing record
+  - A's data is unchanged
+```
+
+```text
+TEST: mobile_endpoint_requires_valid_token
+GIVEN: No token, an expired token, and a malformed token
+WHEN: Each mobile endpoint is called
+THEN:
+  - Every response is unauthorized and returns no data
+```
+
+```text
+TEST: mobile_old_version_gets_update_error
+GIVEN: A request with an X-App-Version below the minimum supported version
+WHEN: Any mobile endpoint is called
+THEN:
+  - error: version_too_old, and nothing is changed
+```
+
+```text
+TEST: mobile_write_is_retry_safe
+GIVEN: A set already logged at (loggedExerciseId, setNumber 1)
+WHEN: The same logSet request is sent again
+THEN:
+  - error: conflict with the existing set, and exactly one set exists
+```
+
+```text
 TEST: non_admin_cannot_reach_admin
 GIVEN: A signed-in account that is not on the admin allowlist
 WHEN: It requests any admin page, and calls each admin server action directly

@@ -15,7 +15,7 @@ description: >
 
 # Overload UI Design
 
-Design guidance for Overload's interface. Overload is a strength training tracker for individual lifters, each with a private account, standing in a gym with a phone in one hand. This skill governs how every Overload screen should look and feel.
+Design guidance for Overload's interface. Overload is a strength training tracker for individual lifters, each with a private account, standing in a gym with a phone in one hand. This skill governs how every Overload web screen should look and feel. The native iPhone app is designed with `overload-mobile-ui`, which shares this skill's brand, palette, and typography.
 
 ## Design direction: a quiet, precise instrument
 

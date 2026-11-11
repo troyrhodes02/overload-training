@@ -322,15 +322,17 @@ The admin center, public accounts, plans and billing, the landing page, and plan
   - Usage limits stop a runaway account, and a kill switch stops all imports.
   - It never invents an exercise, set, or load.
 
-#### Mobile Apps (iOS and Android)
-- **What it does:** An iPhone app built around the same web product, installed first through an invite-only TestFlight beta by the existing friends with their existing accounts. A development build for the owner's own phone connects to the development environment, and the friends' build connects to Production. Android follows later. Native capabilities (haptics, then location, notifications, and more) sit behind platform-neutral adapters. No purchase flow is added inside an app until the store billing path is decided.
-- **Why:** Lifters use a phone in the gym, and the apps open the store listings and later native features.
+#### Mobile App (iPhone, React Native)
+- **What it does:** A native iPhone app built with React Native and Expo on the existing backend, rebuilt feature by feature to equivalent capability, with native navigation, keyboards, sheets, and haptics. It signs in with existing accounts and calls a secure, versioned mobile API. It is installed first through an invite-only TestFlight beta by the existing friends. A development build connects to staging, and the friends' build connects to Production. The admin area, billing and checkout, and public pages stay web-only, and the plan builder and plan import may stay web-only during the beta. The app is online-only, and no purchase flow is added inside it until the store billing path is decided. Android follows later.
+- **Why:** Lifters use a phone in the gym, and a native app feels better and opens the native features planned later.
 - **Acceptance criteria:**
-  - The app installs on a real device, signs in with an existing account, and completes a full workout.
-  - The website behaves exactly as before, and no native-only control renders in the browser.
+  - The app installs on a real iPhone, signs in with an existing account, and completes a full workout.
+  - Every mobile endpoint takes the account from the token, and a second account cannot reach the first account's data.
   - An account's Pro or comped access shows in the app without a purchase path.
+  - The website behaves exactly as before.
 - **Edge cases / failure states:**
-  - A check that needs a device build is reported as unverified when it cannot be run.
+  - An old app version gets a clear update prompt instead of broken behavior.
+  - A check that needs a device is reported as unverified when it cannot be run.
 
 ### Mobile Beta and Next Features (planned)
 
@@ -374,9 +376,9 @@ The admin center, public accounts, plans and billing, the landing page, and plan
 
 ### Planned Next, and Not Planned
 
-Planned next, in order (see the Pitch Roadmap): the iOS app and the friends' TestFlight beta, then workout logging refinements, wing-it workouts, the history calendar, friends and workout sharing, progress cards, gym location and notifications, then Launch Readiness and the store releases. After that: Android, the Live Activity and the Apple Watch app, advanced cardio and video attachments (each starting with discovery), body metrics, and nutrition. The order of the early items is decided by what the friends' beta shows.
+Planned next, in order (see the Pitch Roadmap): a few web fixes (workout logging refinements and two chores), a read-only codebase audit, then the React Native iPhone app, rebuilt feature by feature and reviewed on a device at each step, ending with a TestFlight beta for the existing friends. After that, features built for web and mobile together: wing-it workouts, the history calendar, friends and workout sharing, progress cards, gym location and notifications, then Launch Readiness and the store releases. Later: Android, the Live Activity and the Apple Watch app, advanced cardio and video attachments (each starting with discovery), body metrics, and nutrition.
 
-Deliberately not planned, so no one adds them: dated goals (a strength deadline can pressure someone to lift past what their readiness supports), a rest timer, ads, AI that generates programs or coaches, a React Native or SwiftUI rewrite of the phone apps, a Wear OS watch app, social login, a feed, following, comments, messaging, or leaderboards, and any view of another account's training content, including by the owner. A built-in social platform is future exploration only.
+Deliberately not planned, so no one adds them: dated goals (a strength deadline can pressure someone to lift past what their readiness supports), a rest timer, ads, AI that generates programs or coaches, a Capacitor or other web-view wrapper app, a SwiftUI rewrite of the phone app, a Wear OS watch app, social login, a feed, following, comments, messaging, or leaderboards, and any view of another account's training content, including by the owner. A built-in social platform is future exploration only.
 
 ## Data Objects (Product Level)
 
@@ -422,4 +424,4 @@ Split & Mesocycle Setup is foundational — Workout Logging, the Progressive Ove
 
 The multi-user features build on each other. Account Ownership & Isolation must exist before Accounts, because signup must never open while data is unscoped, and public signup stays disabled in production until isolation is verified there. Personalization needs the name from Accounts. The Onboarding Tour needs the final navigation from Personalization & Navigation Polish. What's New needs per-account state from Account Ownership & Isolation and Accounts.
 
-The commercial features build on each other. The admin center comes first so the owner can operate the product before opening it, and the iPhone shell follows so the web and mobile architecture is proven before billing and public signup, where they differ most. Public Accounts must exist before Plans, Billing & Promo Codes, which must exist before the Landing Page can offer a subscribe action and before Plan Import can be tied to an entitlement. Public signup stays invite-only until Public Accounts is verified, and no payment is collected until launch readiness passes.
+The commercial features build on each other. The admin center comes first so the owner can operate the product before opening it, and the React Native app follows the web fixes and the audit. Public Accounts must exist before Plans, Billing & Promo Codes, which must exist before the Landing Page can offer a subscribe action and before Plan Import can be tied to an entitlement. Public signup stays invite-only until Public Accounts is verified, and no payment is collected until launch readiness passes.

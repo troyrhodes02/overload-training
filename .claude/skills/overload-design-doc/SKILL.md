@@ -363,14 +363,26 @@ When the onboarding tour and What's New exist, every design doc for a feature wi
 
 See `overload-onboarding` for how these are written and applied. Before the tour exists, omit this section.
 
-### 14. Plan placement and platform impact
+### 14. Plan placement and client scope
 
 Every design doc for a feature the lifter can see states two things:
 
 - **Plan placement.** Which capability gates the feature: Free, or a named Pro capability. Capture, history, and export are always Free. New insight features default to Pro. Describe the locked state a Free lifter sees (one quiet, dismissible note, never a banner or countdown) and what the Pro lifter sees.
-- **Platform impact** (once the iOS foundation exists). A table of surface, web, iOS, Android, and the reason, using the shared, native-specific, or web-only decision from `overload-cross-platform`. The admin area is web-only.
+- **Client scope and platform impact.** Web only, mobile only, or both, and a table of surface, shared logic, API, web UI, mobile UI, and the reason, following `overload-cross-platform`. The admin area is web-only.
 
-Before the iOS foundation exists, record the platform impact as pending and note anything that obviously differs on mobile.
+Before the mobile app exists, record the mobile impact as pending and note anything that obviously needs an API endpoint or shared logic.
+
+### 15. Mobile design (when the client scope includes mobile)
+
+There is no standalone mobile preview file, so this section is the mobile visual contract. Use `overload-mobile-ui`. For each mobile screen, give:
+
+- its place in the navigation (which tab, what it pushes to)
+- an ASCII layout
+- the native components and patterns used (bottom sheet, picker, keypad, haptic) and why
+- the states: loading, empty, error, unreachable, and locked
+- how it differs from the web screen and why
+
+Keep it to design: no endpoint contracts or library choices, which belong to the spec and the Mobile App slice specs.
 
 ## Style guidelines
 
@@ -476,5 +488,5 @@ Before finalizing a design doc, verify:
 - The primary actions are reachable one-handed on a phone at the base breakpoint.
 - Every list or block has empty, loading, and error states.
 - Once the tour and What's New exist, a User guidance section is present for a feature with a visible change.
-- Plan placement is stated, and once the iOS foundation exists, platform impact is stated.
+- Plan placement and client scope are stated, and when mobile is in scope there is a Mobile design section.
 - The design doc stops at UI/UX and does not drift into schema, server actions, or ticket-level implementation.

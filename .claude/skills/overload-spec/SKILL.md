@@ -171,7 +171,7 @@ For a UI-bearing pitch the preview is a binding input: carry its hierarchy, inte
 
 **User guidance** — once the onboarding tour and What's New exist, list the exact tour steps and the release-note entry this feature adds, as the design doc proposed and `overload-onboarding` decides. They are built in a final guidance ticket.
 
-**Platform impact** — once the iOS foundation exists, state which behavior is shared and which is platform-specific, following the `overload-cross-platform` skill, and name any adapter contract. Admin features are web-only.
+**Client scope and platform impact** — state whether the feature is for web, mobile, or both, and which behavior is shared logic, API, web UI, and mobile UI, following `overload-cross-platform`. For mobile, map each native screen to the endpoints it uses. Admin features are web-only.
 
 **shadcn/ui integration** — document only where it matters: component choice, required variants, disabled and loading states, dialog behavior, accessibility expectations, theme token usage, responsive behavior. Do not restate the visual design; that is the design doc's job. Client components are interactive islands only (the logging card, swap picker, missed-day prompt, library search, charts); they call server actions and never hold data access.
 
@@ -271,6 +271,8 @@ The planning docs do not decide whether the bucket is public or private. The Lib
 ### 11. Server actions and API surface
 
 Overload's posture: reads happen in server components via Prisma, and mutations are server actions that call the write modules. Add a route handler only where a server action cannot work (for example, an auth callback or the Stripe webhook). There is no public API.
+
+When the client scope includes mobile, also specify the **mobile API contract**: for each endpoint, the method and path under the versioned base, the capability that gates it, request and response types shared with the web through the shared package, how a repeated write behaves (retry safety), pagination, error codes, and the backward-compatibility note. Every endpoint takes the account from the token.
 
 For each operation document: input type, output type, side effects.
 
