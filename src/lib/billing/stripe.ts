@@ -36,7 +36,30 @@ export type BillingProvider = {
     customerId: string;
     returnUrl: string;
   }): Promise<{ url: string }>;
+  /**
+   * Whether the customer already has a subscription in Stripe that is not over
+   * (active, trialing, past_due, unpaid, incomplete, paused). Read from Stripe,
+   * not the mirror, so a just-paid subscription whose webhook has not landed
+   * yet still blocks a second checkout (OVE-112).
+   */
+  hasOpenSubscription(customerId: string): Promise<boolean>;
+  /**
+   * Expire every still-open hosted Checkout session for the customer, so at
+   * most one can ever be completed (a refresh or a second click starts a new
+   * one and retires the old). Returns how many were expired.
+   */
+  expireOpenCheckoutSessions(customerId: string): Promise<number>;
 };
+
+/** Stripe statuses that mean a subscription is not over (OVE-112). */
+const OPEN_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "incomplete",
+  "paused",
+]);
 
 let client: Stripe | null = null;
 
@@ -86,13 +109,11 @@ export function stripeProvider(): BillingProvider {
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId(interval), quantity: 1 }],
-        // Promotions are monthly-only (RD-7: BLIZZY = 50% off 3 monthly periods).
-        // The promo-code field only appears on MONTHLY checkout, so a code can
-        // never be applied to an annual subscription here — server-side
-        // enforcement that does not depend on the Stripe coupon being correctly
-        // price-scoped. (Still restrict the coupon to the monthly price in
-        // Stripe as defence in depth; see the runbook.)
-        allow_promotion_codes: interval === "month",
+        // The promotion-code field is offered on both intervals (OVE-112). The
+        // live coupon applies to the Pro product (monthly and annual prices)
+        // for three months; Stripe alone decides whether a code applies, and
+        // on annual it discounts only the first annual payment.
+        allow_promotion_codes: true,
         client_reference_id: accountId,
         subscription_data: { metadata: { accountId } },
         automatic_tax: { enabled: taxEnabled() },
@@ -108,6 +129,25 @@ export function stripeProvider(): BillingProvider {
         return_url: returnUrl,
       });
       return { url: session.url };
+    },
+    async hasOpenSubscription(customerId) {
+      const subs = await stripe().subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 20,
+      });
+      return subs.data.some((s) => OPEN_SUBSCRIPTION_STATUSES.has(s.status));
+    },
+    async expireOpenCheckoutSessions(customerId) {
+      const open = await stripe().checkout.sessions.list({
+        customer: customerId,
+        status: "open",
+        limit: 20,
+      });
+      for (const session of open.data) {
+        await stripe().checkout.sessions.expire(session.id);
+      }
+      return open.data.length;
     },
   };
 }

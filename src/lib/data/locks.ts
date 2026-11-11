@@ -32,3 +32,23 @@ export async function lockMesocycleForUpdate(
     FOR UPDATE`;
   return rows[0] ?? null;
 }
+
+/**
+ * A transaction-scoped advisory lock that serializes starting a hosted
+ * Checkout for ONE account (OVE-112). Two concurrent subscribe clicks, two
+ * tabs, or a retry queue up behind each other, so the open-session and
+ * open-subscription checks that follow can't interleave and each start a
+ * payable session. It keys only on the acting account and blocks no row, so
+ * the webhook and every other write proceed normally. Released at commit or
+ * rollback.
+ */
+export async function lockCheckoutForAccount(
+  account: Account,
+  tx: AccountTx,
+): Promise<void> {
+  const key = `overload:checkout:${account.userId}`;
+  await tx.$queryRaw`
+    SELECT 1 AS "locked" FROM (
+      SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))
+    ) AS l`;
+}
