@@ -1,6 +1,6 @@
 /**
  * Multi-User Foundation — Stage 2 operator CLI (see ./backfill.ts and the
- * production runbook docs/runs/08-multi-user-foundation-runbook.md).
+ * production runbook docs/pitches/mvp-2-multi-user/08-multi-user-foundation/runbook.md).
  *
  *   npx tsx --conditions=react-server scripts/operator/account-ownership/cli.ts \
  *     --email <account email> --time-zone <IANA zone>            # DRY RUN (default)

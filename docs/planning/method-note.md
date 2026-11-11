@@ -6,7 +6,7 @@ Durable method decisions that later pitches depend on. Each entry names the pitc
 
 ## Exercise classification vocabulary (established by Library & Gyms Setup)
 
-Source: `docs/specs/02-library-gyms-setup-spec.md` (D6, D8, D20–D23). Code: `src/lib/exercises/taxonomy.ts` (labels, order) and the Prisma enums `MuscleGroup` / `Equipment`; source mapping in `prisma/seed/free-exercise-db/normalize.ts`.
+Source: `docs/pitches/mvp-1-core-training/02-library-gyms-setup/spec.md` (D6, D8, D20–D23). Code: `src/lib/exercises/taxonomy.ts` (labels, order) and the Prisma enums `MuscleGroup` / `Equipment`; source mapping in `prisma/seed/free-exercise-db/normalize.ts`.
 
 There is **one** muscle vocabulary and **one** equipment vocabulary, used by imported exercises, custom exercises, the library filter, and every later feature (Exercise Swap, gym-variable rules). Do not create a parallel taxonomy.
 
@@ -75,7 +75,7 @@ Pinned source: `yuhonas/free-exercise-db` commit `f00c92c7dcf1216a928a52c3706c7c
 
 ## Gym-variable classification and baselines (established by Guided Workout Logging)
 
-Source: `docs/specs/04-guided-workout-logging-spec.md` (Resolved Decisions 40–48). Code: `src/lib/exercises/gym-variable.ts` (`isGymVariable`), `src/lib/gyms/baselines.ts` (median + threshold + establish/correct).
+Source: `docs/pitches/mvp-1-core-training/04-guided-workout-logging/spec.md` (Resolved Decisions 40–48). Code: `src/lib/exercises/gym-variable.ts` (`isGymVariable`), `src/lib/gyms/baselines.ts` (median + threshold + establish/correct).
 
 - **`isGymVariable(exercise)`** is the single authority. It returns `true` **iff** `equipmentType ∈ { machine, cable }`, decided from `equipmentType` alone — never by name. Both values are verified canonical members of the `Equipment` enum / `EQUIPMENT_TYPES`.
 - `plate_loaded` is **gym-consistent** (not gym-variable): a plate-loaded machine's resistance is the plates, so it does not vary by gym. Only custom exercises carry `plate_loaded`; imported `machine` records that are physically plate-loaded cannot be told apart from the source and are treated as gym-variable (a known, accepted imprecision the lifter can avoid by creating `plate_loaded` custom exercises).
@@ -87,7 +87,7 @@ Source: `docs/specs/04-guided-workout-logging-spec.md` (Resolved Decisions 40–
 
 ## New data objects (established by Guided Workout Logging)
 
-Source: `docs/specs/04-guided-workout-logging-spec.md` §8. These extend the Architecture Data Model (which predates them); recorded here per the run's amendment 9/10.
+Source: `docs/pitches/mvp-1-core-training/04-guided-workout-logging/spec.md` §8. These extend the Architecture Data Model (which predates them); recorded here per the run's amendment 9/10.
 
 - **`LoggedSessionStatus { in_progress, complete }`** — explicit completion state on `LoggedSession`; never inferred. `completedAt` is its timestamp.
 - **`LoggedSession.scheduledFor` (DATE)** — the authored calendar date of the planned occurrence; the idempotency key `(sessionId, scheduledFor)` so opening/resuming never duplicates a session.
@@ -96,7 +96,7 @@ Source: `docs/specs/04-guided-workout-logging-spec.md` §8. These extend the Arc
 
 ## Release-note content contract (established by What's New)
 
-Source: `docs/specs/12-whats-new-spec.md` §8 "Release-note content contract" (Resolved Decisions R5–R12). Code: `src/lib/release-notes/entries.ts` (the only place entries live), `types.ts` (`ReleaseNoteEntry`), `catalog.ts` (validation, order, formatting, selection), `seen.ts` (per-account `ReleaseSeen`, server-only). Consumed by `overload-onboarding` from Faster Logging UX (Pitch 13) onward.
+Source: `docs/pitches/mvp-2-multi-user/12-whats-new/spec.md` §8 "Release-note content contract" (Resolved Decisions R5–R12). Code: `src/lib/release-notes/entries.ts` (the only place entries live), `types.ts` (`ReleaseNoteEntry`), `catalog.ts` (validation, order, formatting, selection), `seen.ts` (per-account `ReleaseSeen`, server-only). Consumed by `overload-onboarding` from Faster Logging UX (Pitch 13) onward.
 
 - **Entry fields:** `id` (permanent kebab-case slug that starts with its own date, `YYYY-MM-DD-short-name`, ≤ 64, unique, never reused or changed), `date` (shipping date `YYYY-MM-DD`, never planned or backdated), `title` (1–80 chars, one line), `body` (1–400 chars, one to three plain sentences, no HTML or Markdown links), `significant` (boolean: may open the What's New dialog).
 - **Adding one:** put a new object at the **top** of `RELEASE_NOTES`, dated the day it reaches production. Nothing else changes (no component, page, action, migration, or test edit). CI validates the file.
@@ -107,7 +107,7 @@ Source: `docs/specs/12-whats-new-spec.md` §8 "Release-note content contract" (R
 
 ## Set entry and tap-count method (established by Faster Logging UX)
 
-Source: `docs/specs/13-faster-logging-ux-spec.md` (§5, §7, §11, §14.4; Resolved Decisions R4–R13, R21–R22, R26). Code: `src/lib/logging/set-entry.ts` (active set, offer, context line), `src/components/logging/exercise-card.tsx`, `src/lib/logging/queries.ts` (`previousPerformance`, gym-scoped working weight). Consumed by RIR Logging & Autoregulation ("logging speed is not meaningfully slower") and any later change to the logging card.
+Source: `docs/pitches/mvp-2-multi-user/13-faster-logging-ux/spec.md` (§5, §7, §11, §14.4; Resolved Decisions R4–R13, R21–R22, R26). Code: `src/lib/logging/set-entry.ts` (active set, offer, context line), `src/components/logging/exercise-card.tsx`, `src/lib/logging/queries.ts` (`previousPerformance`, gym-scoped working weight). Consumed by RIR Logging & Autoregulation ("logging speed is not meaningfully slower") and any later change to the logging card.
 
 ### Set-entry rules
 
@@ -127,7 +127,7 @@ Source: `docs/specs/13-faster-logging-ux-spec.md` (§5, §7, §11, §14.4; Resol
 
 ## RIR scale and progression qualifiers (established by RIR Logging & Autoregulation)
 
-Source: `docs/specs/14-rir-logging-autoregulation-spec.md` (§5, §6, §11; Resolved Decisions R3–R16, R25, R30). Code: `src/lib/logging/rir.ts` (scale, formatters), `src/lib/logging/logged-sets.ts` (the only writer), `src/lib/progression/config.ts` (`RIR_AT_LIMIT`, `RIR_TO_SPARE_MIN`), `src/lib/progression/engine.ts` (`evaluateReactiveDecision`), `src/lib/progression/rir-copy.ts` (reason lines). Consumed by Smarter & Explainable Progression (evidence lines) and Exercise History & PR Intelligence.
+Source: `docs/pitches/mvp-3-training-intelligence/14-rir-logging-autoregulation/spec.md` (§5, §6, §11; Resolved Decisions R3–R16, R25, R30). Code: `src/lib/logging/rir.ts` (scale, formatters), `src/lib/logging/logged-sets.ts` (the only writer), `src/lib/progression/config.ts` (`RIR_AT_LIMIT`, `RIR_TO_SPARE_MIN`), `src/lib/progression/engine.ts` (`evaluateReactiveDecision`), `src/lib/progression/rir-copy.ts` (reason lines). Consumed by Smarter & Explainable Progression (evidence lines) and Exercise History & PR Intelligence.
 
 ### The stored fact
 
@@ -156,7 +156,7 @@ The Progressive Overload Engine ladder runs first and unchanged. RIR is then rea
 
 ## Recommendation and evidence (established by Smarter & Explainable Progression)
 
-Source: `docs/specs/15-smarter-explainable-progression-spec.md` (§6, §11; Resolved Decisions R3–R9, R13–R22, R26). Code: `src/lib/progression/engine.ts` (`DecisionEvidence` on `ReactiveDecision`), `src/lib/progression/recommendation.ts` (`buildRecommendation`, `insufficientNote` — the only copy source), `src/lib/progression/queries.ts` (`recommendation` on every progression DTO). Consumed by Exercise History & PR Intelligence ("the current recommendation and why").
+Source: `docs/pitches/mvp-3-training-intelligence/15-smarter-explainable-progression/spec.md` (§6, §11; Resolved Decisions R3–R9, R13–R22, R26). Code: `src/lib/progression/engine.ts` (`DecisionEvidence` on `ReactiveDecision`), `src/lib/progression/recommendation.ts` (`buildRecommendation`, `insufficientNote` — the only copy source), `src/lib/progression/queries.ts` (`recommendation` on every progression DTO). Consumed by Exercise History & PR Intelligence ("the current recommendation and why").
 
 ### Evidence comes from the deciding branch
 
@@ -175,7 +175,7 @@ The engine attaches one `evidence` value at each existing return; rules, thresho
 
 ## Exercise records and per-session calls (established by Exercise History & PR Intelligence)
 
-Source: `docs/specs/16-exercise-history-pr-intelligence-spec.md` (§4, §6; Resolved Decisions R5–R16, R21, R22, R29). Code: `src/lib/progression/history.ts` (records, frontier, calls, points — pure), `src/lib/progression/history-queries.ts` (`getExerciseHistory`), `src/lib/progression/history-format.ts`. Consumed by any later surface that names a record or a past call (for example the iOS shell or a Live Activity).
+Source: `docs/pitches/mvp-3-training-intelligence/16-exercise-history-pr-intelligence/spec.md` (§4, §6; Resolved Decisions R5–R16, R21, R22, R29). Code: `src/lib/progression/history.ts` (records, frontier, calls, points — pure), `src/lib/progression/history-queries.ts` (`getExerciseHistory`), `src/lib/progression/history-format.ts`. Consumed by any later surface that names a record or a past call (for example the iOS shell or a Live Activity).
 
 - **Scope.** Gym-consistent exercises: one global scope. Machine/cable (`isGymVariable`): one scope per gym with history, plus "No gym recorded" for legacy rows with no gym (no calls there). Nothing is ever computed across two scopes.
 - **Record population** = the planned working sets of **finished** workouts outside scheduled-deload weeks — the same population Goals measures, so a page's best and a goal's best are always the same set. Extra sets and unfinished workouts never hold a record.
@@ -186,7 +186,7 @@ Source: `docs/specs/16-exercise-history-pr-intelligence-spec.md` (§4, §6; Reso
 
 ## Plan import caps and gate (established by Workout Plan Import & Review, OVE-105)
 
-Source: `docs/specs/22-workout-plan-import-review-spec.md` (§8, §12; RD-6, RD-8, RD-9, RD-12). Code: `src/lib/import/constants.ts` (caps, pure, client-safe), `src/lib/import/config.ts` (`isPlanImportEnabled()` kill switch), `src/lib/import/storage.ts` (private bucket, magic-byte validation), `src/lib/import/usage.ts` (atomic daily quota, raw-allowed), `src/lib/import/sessions.ts` (session state machine). DB caps are backed by CHECK constraints in `prisma/migrations/9l_plan_import`.
+Source: `docs/pitches/mvp-4-web-commercial/22-workout-plan-import-review/spec.md` (§8, §12; RD-6, RD-8, RD-9, RD-12). Code: `src/lib/import/constants.ts` (caps, pure, client-safe), `src/lib/import/config.ts` (`isPlanImportEnabled()` kill switch), `src/lib/import/storage.ts` (private bucket, magic-byte validation), `src/lib/import/usage.ts` (atomic daily quota, raw-allowed), `src/lib/import/sessions.ts` (session state machine). DB caps are backed by CHECK constraints in `prisma/migrations/9l_plan_import`.
 
 - **Durable caps** (named constants, mirrored by the migration's CHECKs and the intake UI; Bucket C — flagged for owner review): `MAX_TEXT_CHARS = 20000`, `MAX_IMPORTS_PER_DAY = 5`, `MAX_PARTS = 5`, `MAX_FILE_BYTES = 10 MiB`, `MAX_TOTAL_BYTES = 25 MiB`, `MAX_PDF_PAGES = 20`, image resize `2000–2400px`, `RETENTION_HOURS = 24`; parsed-output caps `MAX_DAYS = 14`, `MAX_EXERCISES_PER_DAY = 20`, `MAX_SETS_PER_EXERCISE = 15`.
 - **Accepted source types** (post magic-byte sniff): PDF, JPEG, PNG, WebP. HEIC/HEIF is offered at the picker but converted-or-refused before a part is committed; conversion + EXIF strip are a declared seam completed in OVE-108 (foundation refuses HEIC cleanly rather than storing an unreadable source).

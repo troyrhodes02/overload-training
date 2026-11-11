@@ -160,7 +160,7 @@ export async function deleteAccount(
   if (identityRemoved) {
     // Best effort: by now the data and the identity are gone, so a failure
     // here must not be reported as "nothing was deleted". A leftover profile
-    // owns no rows; docs/runs/09-sql/orphans.sql finds it.
+    // owns no rows; docs/pitches/mvp-2-multi-user/09-accounts-signup-login-password-reset/sql/orphans.sql finds it.
     try {
       await account.db.profile.deleteMany({});
     } catch (error) {

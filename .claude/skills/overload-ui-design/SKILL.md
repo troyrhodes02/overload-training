@@ -10,7 +10,7 @@ description: >
   quiet-and-precise SaaS UI in Overload's brand system. Trigger whenever building,
   restyling, or mocking up an Overload screen, even for a small component. Also the
   mandatory UI design stage of the Overload pitch pipeline for every UI-bearing
-  pitch, where it writes the preview to docs/previews/<slug>-preview.tsx.
+  pitch, where it writes `preview.tsx` into the pitch folder.
 ---
 
 # Overload UI Design
@@ -39,10 +39,10 @@ These rules apply when answering in chat. When invoked as the pipeline's UI desi
 
 When invoked as the UI design stage of the Overload pitch pipeline (step 3), this skill produces a file, not a chat reply.
 
-1. Read the completed pitch and `docs/design/<slug>-design-doc.md` first.
+1. Read `pitch.md` and `design.md` in the pitch folder first.
 2. Treat the design doc as the authority on product behavior and interaction. Do not invent features, flows, or states it does not contain.
 3. Produce an implementation-grade, interactive preview covering the representative screens and states the pitch needs. Scale it to the pitch: a pitch with a thin UI gets a small preview of exactly those surfaces and states, not a tour of the app.
-4. Write it to `docs/previews/<slug>-preview.tsx`, using the same slug as the pitch and design doc. The file default-exports one React component.
+4. Write it to `preview.tsx` in the pitch folder (`docs/pitches/<milestone>/NN-pitch-name/`), beside the pitch and design doc. The file default-exports one React component.
 5. The preview is a downstream contract. `overload-spec` and `overload-ticket-worker` consume it, so it must establish:
    - visual hierarchy and layout
    - component treatment (which shadcn/ui components, which variants)
@@ -53,7 +53,7 @@ When invoked as the UI design stage of the Overload pitch pipeline (step 3), thi
 6. Keep it self-contained. Realistic mock data lives inline in the file, in lbs, using the mock vocabulary below. Import only shadcn/ui components, `lucide-react`, Recharts, and React. Never import the Prisma client, the Supabase client, a server action, or application data modules, and never make a network request.
 7. A small control that switches between screens, states, and light or dark is allowed as preview chrome. It sits outside the product frame and is not part of the product UI. The rule that appearance selection lives only in Settings applies to the product, not to this chrome.
 8. Do not change product scope to make the preview more interesting. If the design doc leaves a purely visual choice open, resolve it with this skill's design system. If the design doc and this skill conflict on product behavior, the design doc wins. If they conflict only on visual styling, this skill governs.
-9. `docs/previews` is excluded from type-checking, linting, and the production build (see `CLAUDE.md`), so the preview may reference components the application has not built yet.
+9. Preview files (`docs/pitches/**/preview.*`) are excluded from type-checking, linting, and the production build (see `CLAUDE.md`), so the preview may reference components the application has not built yet.
 
 ## Aesthetic direction
 

@@ -3,8 +3,9 @@ version: 1.0.0
 status: draft
 author: [Your Name]
 last_updated: YYYY-MM-DD
-pitch_reference: [Link or filename to the expanded pitch, e.g. pitches/04-guided-workout-logging.md]
-design_reference: [Link or filename to the design doc, e.g. docs/design/04-guided-workout-logging-design-doc.md]
+pitch_reference: [Link or filename to the expanded pitch, e.g. docs/pitches/mvp-1-core-training/04-guided-workout-logging/pitch.md]
+design_reference: [Link or filename to the design doc, e.g. docs/pitches/mvp-1-core-training/04-guided-workout-logging/design.md]
+preview_reference: [Link or filename to the UI preview, e.g. docs/pitches/mvp-1-core-training/04-guided-workout-logging/preview.tsx. Omit if the UI design step was skipped.]
 prd_reference: docs/planning/prd.md
 architecture_reference: docs/planning/architecture.md
 linear_issue: [Issue ID, omit if none yet]
@@ -70,7 +71,7 @@ downstream work, which PRD journey it supports, which pitch it unlocks or depend
 
 ## UI Integration
 
-> Reference the design doc for detailed UI/UX specifications.
+> Reference the design doc for detailed UI/UX specifications and the UI preview for the visual contract. The preview is binding for a UI-bearing pitch.
 
 ### Screens
 
@@ -83,6 +84,10 @@ downstream work, which PRD journey it supports, which pitch it unlocks or depend
 | Component | Data Contract | Notes |
 | --------- | ------------- | ----- |
 | `[Component]` | [contract] | [note] |
+
+### User Guidance
+
+[Once the onboarding tour and What's New exist: the tour steps and the release-note entry this feature adds. Omit before then.]
 
 ### Forms and Validation
 
@@ -135,8 +140,8 @@ downstream work, which PRD journey it supports, which pitch it unlocks or depend
 
 ## Authorization and Access Control
 
-[How the two layers apply to the resources in this spec: authenticated server code,
-and row-level security deny-all in the database.]
+[How the three layers apply to the resources in this spec: authentication, account
+scoping in the data-access layer, and row-level security deny-all in the database.]
 
 ```ts
 // [server action guard example]

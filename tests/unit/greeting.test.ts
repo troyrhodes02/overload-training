@@ -88,7 +88,7 @@ const base = (over: Partial<GreetingInput> = {}): GreetingInput => ({
   ...over,
 });
 
-// --- the design doc's library (docs/design/…-design-doc.md, Screen 1) -------
+// --- the design doc's library (docs/pitches/mvp-2-multi-user/10-personalization-navigation-polish/design.md, Screen 1) -------
 describe("wording library", () => {
   it("equals the design doc's library, verbatim", () => {
     expect(CLAUSES).toEqual({
@@ -139,7 +139,7 @@ describe("wording library", () => {
     const doc = fs.readFileSync(
       path.join(
         process.cwd(),
-        "docs/design/10-personalization-navigation-polish-design-doc.md",
+        "docs/pitches/mvp-2-multi-user/10-personalization-navigation-polish/design.md",
       ),
       "utf8",
     );
