@@ -52,7 +52,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     // UI previews are hand-authored static design-handoff artifacts
-    // (overload-ui-design skill); they are never imported into the app.
+    // (overload-ui-design skill); they are never imported into the app. Since
+    // Pitch 21a they live in the repository-root docs/, outside this workspace,
+    // so this lint never reaches them; the exclusion stays as the D5 record.
     "docs/pitches/**/preview.*",
   ]),
   {
