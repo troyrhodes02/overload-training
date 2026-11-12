@@ -45,7 +45,11 @@ export type ExerciseRecordsDto =
        */
       bestE1rm: number | null;
       heaviest: RecordSetDto;
-      repRecords: RecordSetDto[];
+      /**
+       * The rep-record frontier. Null when withheld on a Free account (it is
+       * Pro: `exercise_history_intelligence`, spec RD-1). Plans, Billing.
+       */
+      repRecords: RecordSetDto[] | null;
     }
   | {
       kind: "bodyweight";
@@ -101,8 +105,10 @@ export type ExerciseHistoryDto = {
   sessions: { rows: SessionRowDto[]; total: number; showingAll: boolean };
   /**
    * Plans, Billing: the Pro capability withheld on a Free account (null for
-   * Pro). Non-null means the page renders one upgrade note; the Free-visible
-   * sessions, goals, reps trend, and heaviest/best-set records still render.
+   * Pro, and null on Free when nothing was withheld — no history, or not
+   * enough of it). Non-null means the page renders one upgrade note; the
+   * Free-visible sessions, goals, reps trend, and heaviest/best-set records
+   * still render.
    */
   locked: Capability | null;
 };

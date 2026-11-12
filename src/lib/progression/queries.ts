@@ -907,7 +907,9 @@ async function computeSessionProgressionSummary(
   const performed = ls.loggedExercises.filter((le) => le._count.sets > 0);
   const exercises = await Promise.all(
     performed.map(async (le) => {
-      const occ = await getOccurrenceProgression(account, le.id);
+      // The UNGATED occurrence: this summary is gated once, as a whole, by
+      // gateSessionSummary below (so its `locked` marker sees what it withholds).
+      const occ = await computeOccurrenceProgression(account, le.id);
       const loggedWorkingSets = le.sets.filter(
         (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
       ).length;

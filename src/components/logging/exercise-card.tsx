@@ -388,7 +388,12 @@ export function ExerciseCard({
         </p>
       ) : null}
       <Recommendation recommendation={progression?.recommendation ?? null} />
-      {progression?.locked ? <UpgradeNote surface="exercise-card" /> : null}
+      {progression?.locked ? (
+        <UpgradeNote
+          surface="exercise-card"
+          message="Progress, hold, and deload calls for this lift are part of Pro."
+        />
+      ) : null}
 
       <div className="mt-4 space-y-1 tabular-nums">
         {rows.map((s) => {

@@ -19,7 +19,7 @@ export type Capability =
   | "progression_insights" // progress/hold/deload call, evidence, suggested load, stall gate, RIR qualifiers
   | "e1rm_trends" // e1RM/weight trend + best-e1RM record
   | "exercise_history_intelligence" // per-session calls + rep-record frontier
-  | "plan_import"; // reserved for the later Plan Import pitch; unused here
+  | "plan_import"; // Workout Plan Import & Review (Pitch 22), behind its kill switch
 
 export const ALL_CAPABILITIES: readonly Capability[] = [
   "progression_insights",
@@ -80,6 +80,9 @@ export const BLIZZY = {
 export function isCheckoutEnabled(): boolean {
   return process.env.STRIPE_BILLING_ENABLED === "true";
 }
+
+/** The existing plan-selection flow: every upgrade invitation links here. */
+export const UPGRADE_HREF = "/settings/billing";
 
 export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
