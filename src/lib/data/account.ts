@@ -164,6 +164,8 @@ export async function establishProfile(
     username: string;
     timeZone: string;
   },
+  /** Item 2a: false when this person already had a trial (dedupe on). */
+  opts: { grantTrial?: boolean } = {},
 ): Promise<void> {
   const db = createAccountClient(user.id);
   const timeZone = isValidTimeZone(input.timeZone)
@@ -221,6 +223,9 @@ export async function establishProfile(
       error instanceof Error ? error.name : "unknown",
     );
   }
+  // One trial per person (signup hardening 2a): a repeat account for the
+  // same person starts on Free. Default true, so every caller is unchanged.
+  if (opts.grantTrial === false) return;
   try {
     // Plans, Billing & Promo Codes: every new account begins a 14-day card-free
     // Pro trial. Expiry is pure date math on read (no job). skipDuplicates +
@@ -262,6 +267,32 @@ export const requireAccount = cache(async (): Promise<Account> => {
   await touchLastActive(account, lastActiveOn);
   return account;
 });
+
+/**
+ * The acting account for the two DATA-RIGHTS surfaces only — downloading the
+ * account's export (/settings/export) and deleting the account (the
+ * delete-account action and its page) — which a SUSPENDED account may still
+ * use (OVE-125 / audit F-A7): suspension stops someone using Overload, never
+ * taking their data with them or removing it.
+ *
+ * Identical to requireAccount() except that a suspended account is returned
+ * instead of redirected, and nothing is recorded for it (last-active stays as
+ * it was, like every other suspended request). requireAccount() itself is
+ * unchanged and still refuses suspension everywhere else. A static guard
+ * (tests/unit/account-isolation-guards.test.ts) pins the callers of this
+ * function to exactly those surfaces.
+ */
+export const requireAccountForDataRights = cache(
+  async (): Promise<{ account: Account; suspended: boolean }> => {
+    const user = await currentUser();
+    const { account, status, lastActiveOn } = await resolveAccountState(
+      user.id,
+    );
+    const suspended = status === "suspended";
+    if (!suspended) await touchLastActive(account, lastActiveOn);
+    return { account, suspended };
+  },
+);
 
 /**
  * Where the signed-in visitor stands (the /suspended page): signed out, an

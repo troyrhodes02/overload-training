@@ -46,6 +46,23 @@ export async function createTestMesocycle(
   });
 }
 
+/**
+ * An ACTIVE test block (OVE-131: a new workout must be an occurrence of the
+ * active block). An account has at most one active block, so any active block
+ * the owner already has is archived first — suites that build one plan per
+ * case keep working, case after case.
+ */
+export async function createActiveTestMesocycle(
+  overrides: Partial<Prisma.MesocycleUncheckedCreateInput> = {},
+) {
+  const userId = overrides.userId ?? (await owner()).userId;
+  await prisma().mesocycle.updateMany({
+    where: { userId, status: "active" },
+    data: { status: "archived" },
+  });
+  return createTestMesocycle({ ...overrides, status: "active" });
+}
+
 export async function createTestSession(
   mesocycleId: string,
   overrides: Partial<Prisma.SessionUncheckedCreateInput> = {},

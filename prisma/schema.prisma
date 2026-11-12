@@ -918,6 +918,24 @@ model AdminAuditEntry {
   @@map("admin_audit_entries")
 }
 
+/// Signup hardening (item 2a): one Pro trial per person, shipped DARK behind
+/// TRIAL_DEDUPE_ENABLED (default off). An UN-OWNED system table like
+/// AuthThrottle: no owner column (so the account-scoped client can never reach
+/// it), no foreign key (a claim deliberately outlives its account, so deleting
+/// and re-creating an account does not restart the trial), RLS deny-all. It
+/// stores only the SHA-256 of the normalized email key, never the address.
+/// Reached only through src/lib/data/trial-claims.ts, and only while the flag
+/// is on; with it off the app never queries this table.
+model TrialClaim {
+  /// SHA-256 hex of the normalized email key (lowercase, no +suffix, Gmail dots removed).
+  keyHash   String   @id @map("key_hash")
+  /// The account that claimed the trial (no FK; not an owner column).
+  claimedBy String   @map("claimed_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("trial_claims")
+}
+
 /// Public Accounts: a DB-backed, server-enforced rate limiter for the two
 /// PRE-authentication endpoints (signup, forgot-password), built without a
 /// cache or queue (CLAUDE.md infra non-goal). One row per (hashed key, action,

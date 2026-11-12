@@ -1,4 +1,5 @@
 import "server-only";
+import { isUuid } from "@/lib/actions/result";
 import { formatRepTarget } from "@/lib/plan/rep-target";
 import { accountToday, type Account } from "@/lib/data/account";
 import type { LoggedSessionStatus } from "@prisma/client";
@@ -169,12 +170,17 @@ async function activeContext(account: Account): Promise<{
   });
   if (!meso || !meso.startDate) return null;
   const startDate = toIsoDate(meso.startDate);
-  const ctx = await loadScheduleContext(account.db, {
-    id: meso.id,
-    startDate: meso.startDate,
-    lengthWeeks: meso.lengthWeeks,
-    sessions: meso.sessions,
-  });
+  const ctx = await loadScheduleContext(
+    account.db,
+    {
+      id: meso.id,
+      startDate: meso.startDate,
+      lengthWeeks: meso.lengthWeeks,
+      createdAt: meso.createdAt,
+      sessions: meso.sessions,
+    },
+    account.timeZone,
+  );
   return {
     mesocycleId: meso.id,
     lengthWeeks: meso.lengthWeeks,
@@ -541,6 +547,8 @@ export async function getWorkout(
   account: Account,
   loggedSessionId: string,
 ): Promise<WorkoutDto | null> {
+  // A malformed id is simply not found (OVE-136 / audit F-T10).
+  if (!isUuid(loggedSessionId)) return null;
   const ls = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     include: {
@@ -693,11 +701,14 @@ export async function getSwapContext(
   loggedExerciseId: string,
   muscle?: string | null,
 ): Promise<SwapContextDto | null> {
+  // A malformed id is simply not found (OVE-136 / audit F-T10).
+  if (!isUuid(loggedExerciseId)) return null;
   const le = await account.db.loggedExercise.findUnique({
     where: { id: loggedExerciseId },
     include: {
       plannedExercise: { select: { name: true, primaryMuscle: true } },
       sets: { select: { id: true }, take: 1 },
+      loggedSession: { select: { status: true } },
     },
   });
   if (!le) return null;
@@ -728,7 +739,8 @@ export async function getSwapContext(
     primaryMuscleLabel: muscleGroupLabel(plannedMuscle),
     selectedMuscle,
     selectedMuscleLabel: muscleGroupLabel(selectedMuscle),
-    swapLocked: le.sets.length > 0,
+    // Locked once a set exists, and always on a finished workout (OVE-130).
+    swapLocked: le.sets.length > 0 || le.loggedSession.status !== "in_progress",
     candidates,
   };
 }
@@ -854,6 +866,8 @@ export async function getLoggedWorkoutDetail(
   account: Account,
   loggedSessionId: string,
 ): Promise<LoggedWorkoutDetailDto | null> {
+  // A malformed id is simply not found (OVE-136 / audit F-T10).
+  if (!isUuid(loggedSessionId)) return null;
   const ls = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     include: {

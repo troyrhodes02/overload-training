@@ -5,12 +5,22 @@ import {
   establishProfile,
 } from "@/lib/data/account";
 import { isUsernameAvailable } from "@/lib/data/usernames";
+import { claimTrial, releaseTrialClaim } from "@/lib/data/trial-claims";
+import { countRecentSignups } from "@/lib/data/signup-cap";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
 import { isInviteValid, signupMode } from "./signup-gate";
 import { checkAndIncrement } from "./throttle";
 import { verifyChallenge } from "./turnstile";
 import { UsernameTakenError } from "./username-taken";
+import {
+  EMAIL_NOT_ACCEPTED,
+  isDisposableEmail,
+  isReservedUsername,
+  isTrialDedupeEnabled,
+  signupHourlyCap,
+  USERNAME_NOT_AVAILABLE,
+} from "./signup-guards";
 import {
   checkEmail,
   checkName,
@@ -55,6 +65,8 @@ export type SignUpOutcome =
   | { kind: "invite_invalid" }
   | { kind: "rate_limited" }
   | { kind: "challenge_failed" }
+  /** The global hourly signup cap is reached (item 2d). */
+  | { kind: "paused" }
   | { kind: "invalid"; fieldErrors: Partial<Record<SignUpField, string>> }
   | { kind: "email_taken" }
   | { kind: "unexpected" };
@@ -97,6 +109,12 @@ export type SignUpDeps = {
   ) => Promise<{ user: { id: string } } | null>;
   signOut: () => Promise<void>;
   establishProfile: typeof establishProfile;
+  /** Item 2d: successful signups since an instant (a count only). */
+  countRecentSignups: typeof countRecentSignups;
+  /** Item 2a: called ONLY when TRIAL_DEDUPE_ENABLED is true. */
+  claimTrial: typeof claimTrial;
+  releaseTrialClaim: typeof releaseTrialClaim;
+  now?: () => Date;
 };
 
 const defaultDeps: SignUpDeps = {
@@ -118,6 +136,9 @@ const defaultDeps: SignUpDeps = {
     await supabase.auth.signOut();
   },
   establishProfile,
+  countRecentSignups,
+  claimTrial,
+  releaseTrialClaim,
 };
 
 export async function signUp(
@@ -151,6 +172,19 @@ export async function signUp(
     return { kind: "challenge_failed" };
   }
 
+  // Global hourly cap (item 2d): counted from existing data (accounts created
+  // in the last hour). Neutral to the visitor; logged for the owner, with no
+  // personal data in the line.
+  const now = deps.now?.() ?? new Date();
+  const cap = signupHourlyCap(env);
+  const lastHour = await deps.countRecentSignups(
+    new Date(now.getTime() - 60 * 60 * 1000),
+  );
+  if (lastHour >= cap) {
+    console.warn(`signup: hourly signup cap reached (cap ${cap}); paused`);
+    return { kind: "paused" };
+  }
+
   const fieldErrors: Partial<Record<SignUpField, string>> = {};
   const first = checkName("firstName", raw.firstName);
   const last = checkName("lastName", raw.lastName);
@@ -162,7 +196,13 @@ export async function signUp(
   if (!first.ok) fieldErrors.firstName = first.message;
   if (!last.ok) fieldErrors.lastName = last.message;
   if (!username.ok) fieldErrors.username = username.message;
+  // Reserved names (item 2c) and throwaway domains (item 2b): neutral
+  // messages that name no rule or list.
+  else if (isReservedUsername(username.value))
+    fieldErrors.username = USERNAME_NOT_AVAILABLE;
   if (!email.ok) fieldErrors.email = email.message;
+  else if (isDisposableEmail(email.value))
+    fieldErrors.email = EMAIL_NOT_ACCEPTED;
   if (!password) fieldErrors.password = "Enter a password.";
   else if (!confirm) fieldErrors.confirmPassword = "Enter your password again.";
   else if (confirm !== password) fieldErrors.confirmPassword = PASSWORDS_DIFFER;
@@ -173,6 +213,8 @@ export async function signUp(
     !last.ok ||
     !username.ok ||
     !email.ok ||
+    fieldErrors.username ||
+    fieldErrors.email ||
     fieldErrors.password ||
     fieldErrors.confirmPassword
   ) {
@@ -213,6 +255,12 @@ export async function signUp(
     return { kind: "unexpected" };
   }
 
+  // One trial per person (item 2a), DARK by default: with the flag off the
+  // claims table is never touched and every new account gets its trial, as
+  // before. With it on, a later account for the same person is created
+  // normally but starts on Free — nothing is said to the visitor.
+  const dedupe = isTrialDedupeEnabled(env);
+  let claimed = false;
   try {
     const session = await deps.signIn(email.value, password);
     if (!session || session.user.id !== created.user.id) {
@@ -222,12 +270,30 @@ export async function signUp(
       typeof raw.timeZone === "string" && isValidTimeZone(raw.timeZone)
         ? raw.timeZone
         : DEFAULT_PROFILE_TIME_ZONE;
-    await deps.establishProfile(session.user, {
-      firstName: first.value,
-      lastName: last.value,
-      username: username.value,
-      timeZone,
-    });
+    let grantTrial = true;
+    if (dedupe) {
+      try {
+        grantTrial = await deps.claimTrial(email.value, created.user.id);
+        claimed = grantTrial;
+      } catch (error) {
+        // Fail open: a claims problem (for example the table isn't migrated
+        // yet) must never block a signup. Logged without personal data.
+        console.error(
+          "signup: trial claim check failed; granting the trial",
+          error instanceof Error ? error.name : "unknown",
+        );
+      }
+    }
+    await deps.establishProfile(
+      session.user,
+      {
+        firstName: first.value,
+        lastName: last.value,
+        username: username.value,
+        timeZone,
+      },
+      { grantTrial },
+    );
   } catch (error) {
     // The unique index refused the username: another signup took it between
     // the availability check and the profile write.
@@ -242,6 +308,11 @@ export async function signUp(
     await Promise.allSettled([
       deps.deleteAuthUser(created.user.id),
       deps.signOut(),
+      // The account is gone, so is its claim: the person can still get a
+      // trial on their next, successful signup.
+      ...(claimed
+        ? [deps.releaseTrialClaim(email.value, created.user.id)]
+        : []),
     ]);
     return lostUsernameRace
       ? { kind: "invalid", fieldErrors: { username: USERNAME_TAKEN } }

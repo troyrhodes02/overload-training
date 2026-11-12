@@ -1,5 +1,6 @@
 "use client";
 
+import { checkWeightLbs } from "@/lib/logging/weight";
 import { formatRepTarget } from "@/lib/plan/rep-target";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -286,12 +287,13 @@ export function ExerciseCard({
     if (pendingSet !== null) return;
     const weight = Number(weightValue);
     const reps = Number(draft.reps);
-    if (
-      needsWeight &&
-      (!weightValue || !Number.isFinite(weight) || weight <= 0)
-    ) {
-      fail(n, { message: "Enter a weight above 0.", field: "weight" });
-      return;
+    if (needsWeight) {
+      // The same rule the server applies (lib/logging/weight.ts, OVE-135).
+      const checked = checkWeightLbs(weightValue ? weight : Number.NaN);
+      if (!checked.ok) {
+        fail(n, { message: checked.message, field: "weight" });
+        return;
+      }
     }
     if (!draft.reps || !Number.isInteger(reps) || reps <= 0) {
       fail(n, { message: "Enter reps above 0.", field: "reps" });

@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { requireAccount } from "@/lib/data/account";
 import { DomainError } from "@/lib/actions/result";
-import { submitFeedback } from "@/lib/feedback/feedback";
+import { assertFeedbackAllowed, submitFeedback } from "@/lib/feedback/feedback";
 import type { FeedbackFieldErrors } from "@/lib/feedback/validation";
 import { validateScreenshots } from "@/lib/feedback/attachment-validation";
 import {
@@ -57,6 +57,9 @@ export async function submitFeedbackAction(
 
   let uploadedPaths: string[] = [];
   try {
+    // Validate and check the daily limit FIRST (OVE-126 / audit F-A8): a
+    // submission that will be refused uploads nothing to Storage.
+    await assertFeedbackAllowed(account, { category, message });
     if (files.length > 0) {
       const bytes = await Promise.all(
         files.map(async (f) => ({
@@ -80,7 +83,8 @@ export async function submitFeedbackAction(
     }
     return { status: "sent" };
   } catch (error) {
-    // The message never saved, so its uploaded screenshots must not linger.
+    // The message never saved (the row insert failed or lost the limit race),
+    // so its uploaded screenshots must not linger.
     if (uploadedPaths.length > 0)
       await removeFeedbackScreenshots(uploadedPaths);
     if (error instanceof DomainError && error.code === "validation_error") {

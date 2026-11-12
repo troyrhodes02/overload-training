@@ -99,6 +99,11 @@ export const UNOWNED_SYSTEM_MODELS: readonly string[] = [
   // never through the account-scoped client. ImportSession/ImportSourcePart/
   // ImportUsageDay all carry user_id, so they are scoped automatically as owned.
   "ImportSpendLedger",
+  // Signup hardening (item 2a): one-trial-per-person claims. Un-owned (no
+  // owner column), holds only a hash of the normalized email key; written only
+  // by src/lib/data/trial-claims.ts while TRIAL_DEDUPE_ENABLED is on, never
+  // through the account-scoped client.
+  "TrialClaim",
 ];
 
 /**

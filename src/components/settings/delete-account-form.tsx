@@ -50,8 +50,11 @@ const FORM_ERRORS: Record<
  */
 export function DeleteAccountForm({
   inventory,
+  cancelHref = "/settings",
 }: {
   inventory: AccountInventoryDto;
+  /** Where Cancel returns (Settings, or /suspended for a suspended account). */
+  cancelHref?: string;
 }) {
   const [state, formAction, isPending] = useActionState<
     DeleteAccountState,
@@ -154,7 +157,7 @@ export function DeleteAccountForm({
             aria-disabled={isPending}
           >
             <Link
-              href="/settings"
+              href={cancelHref}
               tabIndex={isPending ? -1 : undefined}
               className={isPending ? "pointer-events-none opacity-50" : ""}
             >
@@ -164,5 +167,22 @@ export function DeleteAccountForm({
         </div>
       </StickyActions>
     </form>
+  );
+}
+
+/**
+ * What happens to a Pro subscription when the account is deleted (OVE-122,
+ * Plans & Billing RD-16). Shared by the Settings and suspended delete pages.
+ */
+export function DeleteAccountBillingNote() {
+  return (
+    <p className="text-sm text-muted-foreground">
+      If you have a Pro subscription, it&apos;s canceled immediately and you
+      won&apos;t be charged again. For questions about a refund,{" "}
+      <Link href="/support" className="underline underline-offset-4">
+        contact support
+      </Link>
+      .
+    </p>
   );
 }

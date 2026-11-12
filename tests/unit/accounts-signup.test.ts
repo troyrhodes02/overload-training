@@ -46,6 +46,11 @@ function deps(overrides: Partial<SignUpDeps> = {}) {
     signIn: jest.fn(async () => ({ user: { id: NEW_ID } })),
     signOut: jest.fn(async () => {}),
     establishProfile: jest.fn(async () => {}),
+    // Signup hardening: nobody signed up in the last hour, and a trial claim
+    // (only reached with TRIAL_DEDUPE_ENABLED=true) succeeds.
+    countRecentSignups: jest.fn(async () => 0),
+    claimTrial: jest.fn(async () => true),
+    releaseTrialClaim: jest.fn(async () => {}),
     ...overrides,
   } satisfies SignUpDeps;
 }
@@ -136,6 +141,42 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
   it("public mode needs no invite code", async () => {
     const d = deps();
     expect(await signUp(valid, d, OPEN)).toEqual({ kind: "created" });
+  });
+
+  it("public mode: a missing or invalid invite code never blocks signup (OVE-128)", async () => {
+    for (const inviteCode of [undefined, "", "   ", "wrong-code"]) {
+      const d = deps();
+      expect(
+        await signUp({ ...valid, inviteCode }, d, {
+          ...OPEN,
+          OVERLOAD_INVITE_CODE: INVITE_CODE,
+        }),
+      ).toEqual({ kind: "created" });
+    }
+  });
+
+  it("public mode: the per-IP throttle and the bot challenge are still enforced (OVE-128)", async () => {
+    const throttled = deps({
+      checkAndIncrement: jest.fn(async () => ({ allowed: false })),
+    });
+    expect(await signUp(valid, throttled, OPEN)).toEqual({
+      kind: "rate_limited",
+    });
+    expect(throttled.createConfirmedUser).not.toHaveBeenCalled();
+
+    const bot = deps({ verifyChallenge: jest.fn(async () => false) });
+    expect(await signUp(valid, bot, OPEN)).toEqual({
+      kind: "challenge_failed",
+    });
+    expect(bot.createConfirmedUser).not.toHaveBeenCalled();
+
+    const human = deps();
+    await signUp(valid, human, OPEN);
+    expect(human.checkAndIncrement).toHaveBeenCalledWith(
+      "signup",
+      expect.any(String),
+    );
+    expect(human.verifyChallenge).toHaveBeenCalled();
   });
 
   it("invite mode: a valid code (checked first) lets a full submit through", async () => {
@@ -276,6 +317,8 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
         username: "sam_lifts",
         timeZone: "America/Chicago",
       },
+      // Signup hardening 2a: with TRIAL_DEDUPE_ENABLED off, always the trial.
+      { grantTrial: true },
     );
     expect(d.deleteAuthUser).not.toHaveBeenCalled();
   });
@@ -286,6 +329,7 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
     expect(d.establishProfile).toHaveBeenCalledWith(
       { id: NEW_ID },
       expect.objectContaining({ timeZone: "UTC" }),
+      { grantTrial: true },
     );
   });
 

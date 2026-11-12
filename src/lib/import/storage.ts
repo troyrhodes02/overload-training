@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   ACCEPTED_CONTENT_TYPES,
   MAX_FILE_BYTES,
+  fileTooLargeMessage,
   contentTypeExtension,
   type AcceptedContentType,
 } from "./constants";
@@ -158,9 +159,7 @@ export async function normalizeForStorage(input: {
   sizeBytes: number;
 }): Promise<NormalizedSource> {
   if (input.sizeBytes <= 0 || input.sizeBytes > MAX_FILE_BYTES) {
-    throw new SourceValidationError(
-      `This file is too large. Choose a file under ${MAX_FILE_BYTES / (1024 * 1024)} MB.`,
-    );
+    throw new SourceValidationError(fileTooLargeMessage());
   }
   if (input.bytes.byteLength !== input.sizeBytes) {
     throw new SourceValidationError(

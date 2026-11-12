@@ -1,4 +1,5 @@
 import "server-only";
+import { isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb } from "@/lib/data/account-db";
 import {
@@ -172,6 +173,13 @@ type Row = PerformanceRow;
  * plan context (R8), effective mesocycle week, scheduled-deload flag, gym, and
  * working sets. A performance is `completed` iff its LoggedSession is complete
  * and all planned working sets are present (R9, R44).
+ *
+ * UNGATED (OVE-137 / audit F-T11): this computes Pro content (calls,
+ * recommendations, e1RM trends) with no capability check. No page, action, or
+ * route may call it; only the gated readers in this folder do
+ * (getPlannedProgression, getOccurrenceProgression,
+ * getSessionProgressionSummary here; getExerciseHistory in history-queries.ts).
+ * tests/unit/progression-gate-guards.test.ts enforces that.
  */
 export async function gatherRows(
   account: Account,
@@ -497,6 +505,13 @@ export type ScopeDescription = Pick<
  * gym-variable one (`gym` null → nothing in scope, never another gym's rows).
  * Shared by the progression section and Exercise History & PR Intelligence
  * (spec §11.1), so both describe the same rows the same way.
+ *
+ * UNGATED (OVE-137 / audit F-T11): this computes Pro content (calls,
+ * recommendations, e1RM trends) with no capability check. No page, action, or
+ * route may call it; only the gated readers in this folder do
+ * (getPlannedProgression, getOccurrenceProgression,
+ * getSessionProgressionSummary here; getExerciseHistory in history-queries.ts).
+ * tests/unit/progression-gate-guards.test.ts enforces that.
  */
 export async function describeScope(
   account: Account,
@@ -552,6 +567,13 @@ export async function describeScope(
  * gym-variable exercise the active scope is one gym (selected or most-recent);
  * for a gym-consistent exercise it is the global history. The recommendation
  * advises the next session (`when: "next"`); the planned list asks for today's.
+ *
+ * UNGATED (OVE-137 / audit F-T11): this computes Pro content (calls,
+ * recommendations, e1RM trends) with no capability check. No page, action, or
+ * route may call it; only the gated readers in this folder do
+ * (getPlannedProgression, getOccurrenceProgression,
+ * getSessionProgressionSummary here; getExerciseHistory in history-queries.ts).
+ * tests/unit/progression-gate-guards.test.ts enforces that.
  */
 export async function getExerciseProgression(
   account: Account,
@@ -736,6 +758,8 @@ export async function getOccurrenceProgression(
   account: Account,
   loggedExerciseId: string,
 ): Promise<OccurrenceProgressionDto | null> {
+  // A malformed id is simply not found (OVE-136 / audit F-T10).
+  if (!isUuid(loggedExerciseId)) return null;
   const dto = await computeOccurrenceProgression(account, loggedExerciseId);
   if (!dto) return null;
   const resolved = await resolveEntitlement(account);
@@ -861,6 +885,8 @@ export async function getSessionProgressionSummary(
   account: Account,
   loggedSessionId: string,
 ): Promise<SessionProgressionSummaryDto | null> {
+  // A malformed id is simply not found (OVE-136 / audit F-T10).
+  if (!isUuid(loggedSessionId)) return null;
   const dto = await computeSessionProgressionSummary(account, loggedSessionId);
   if (!dto) return null;
   const resolved = await resolveEntitlement(account);

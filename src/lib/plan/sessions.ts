@@ -56,9 +56,18 @@ export async function requireEditableSession(
       })
     : null;
   if (!session) throw new DomainError("not_found", SESSION_NOT_FOUND);
-  await requireEditableMesocycle(account, session.mesocycleId, tx);
-  return session;
+  const meso = await requireEditableMesocycle(account, session.mesocycleId, tx);
+  return { ...session, mesocycleStatus: meso.status };
 }
+
+/**
+ * Why an active block's weekdays are fixed (OVE-138 / audit F-T5). The
+ * schedule is derived from the current plan for every week, and a logged
+ * workout is matched to its occurrence by (session, date), so moving a
+ * session's day would turn weeks already trained into "missed" days.
+ */
+export const ACTIVE_DAY_LOCKED =
+  "This block is active, so its training days can't move — that would rewrite the weeks you've already trained. Make the change in a new block instead.";
 
 function parseDay(raw: unknown): number | null {
   const day = parseDayOfWeek(raw);
@@ -186,6 +195,9 @@ export async function moveSession(
     inTx(account, tx, async (t) => {
       const s = await requireEditableSession(account, input.sessionId, t);
       if (s.dayOfWeek === dayOfWeek) return { id: s.id, displacedId: null };
+      if (s.mesocycleStatus === "active") {
+        throw new DomainError("invalid_state_transition", ACTIVE_DAY_LOCKED);
+      }
       const { displacedId } = await clearDayFor(
         {
           mesocycleId: s.mesocycleId,

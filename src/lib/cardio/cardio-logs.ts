@@ -86,7 +86,9 @@ async function logCardioInTx(
   const meso = await tx.mesocycle.findUnique({
     where: { id: input.mesocycleId },
     include: {
-      sessions: { select: { id: true, name: true, dayOfWeek: true } },
+      sessions: {
+        select: { id: true, name: true, dayOfWeek: true, createdAt: true },
+      },
       plannedCardio: true,
     },
   });
@@ -102,12 +104,17 @@ async function logCardioInTx(
     toIsoDate(meso.startDate),
     input.scheduledFor,
   );
-  const ctx = await loadScheduleContext(tx, {
-    id: meso.id,
-    startDate: meso.startDate,
-    lengthWeeks: meso.lengthWeeks,
-    sessions: meso.sessions,
-  });
+  const ctx = await loadScheduleContext(
+    tx,
+    {
+      id: meso.id,
+      startDate: meso.startDate,
+      lengthWeeks: meso.lengthWeeks,
+      createdAt: meso.createdAt,
+      sessions: meso.sessions,
+    },
+    account.timeZone,
+  );
   const planned = meso.plannedCardio.map((p) => ({
     id: p.id,
     dayOfWeek: p.dayOfWeek,

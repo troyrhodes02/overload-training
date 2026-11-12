@@ -357,10 +357,22 @@ describe("editing details", () => {
       deloadEveryWeeks:
         "An active block needs its deload to happen at least once.",
     });
+    // OVE-138: an active block's start date is fixed (it anchors the weeks
+    // already trained); its other details stay editable.
+    const moved = await fails(
+      updateMesocycleDetails(account, {
+        mesocycleId: mesocycle.id,
+        name: "Strength Block II",
+        startDate: "2026-11-09",
+        lengthWeeks: "6",
+        deloadEveryWeeks: "6",
+      }),
+    );
+    expect(moved.code).toBe("invalid_state_transition");
     await updateMesocycleDetails(account, {
       mesocycleId: mesocycle.id,
       name: "Strength Block II",
-      startDate: "2026-11-09",
+      startDate: "2026-11-02",
       lengthWeeks: "6",
       deloadEveryWeeks: "6",
     });

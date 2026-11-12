@@ -498,6 +498,9 @@ describe("the Overview on controlled data (spec §9)", () => {
       active7: 1, // a
       active30: 2, // a, b
       newThisMonth: 2, // a, e
+      // Signup cap (item 2d): every fixture account was created days before `now`.
+      signupsLastHour: 0,
+      signupsLast24h: 0,
       withPlan: 3, // a, b, c
       loggedWorkout: 1, // a
       // Public Landing Page & Changelog: none of these signed up from /blizzy.

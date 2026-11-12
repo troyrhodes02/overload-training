@@ -2,7 +2,9 @@ jest.mock("@/lib/supabase/admin", () => ({
   createConfirmedUser: jest.fn(),
   deleteAuthUser: jest.fn(),
 }));
-jest.mock("@/lib/data/account", () => ({ requireAccount: jest.fn() }));
+jest.mock("@/lib/data/account", () => ({
+  requireAccountForDataRights: jest.fn(),
+}));
 jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
 jest.mock("@/lib/accounts/password", () => ({
   verifyCurrentPassword: jest.fn(),
@@ -24,7 +26,7 @@ jest.mock("next/navigation", () => ({
 
 import { ownedModels, SHARED_OR_OWNED_MODEL } from "@/lib/data/scope";
 import { ACCOUNT_DELETION_ORDER, deleteAccount } from "@/lib/accounts/deletion";
-import { requireAccount } from "@/lib/data/account";
+import { requireAccountForDataRights } from "@/lib/data/account";
 import { requireUser } from "@/lib/auth";
 import { verifyCurrentPassword } from "@/lib/accounts/password";
 import { SubscriptionCancellationError } from "@/lib/billing/cancel-on-deletion";
@@ -80,7 +82,10 @@ describe("ACCOUNT_DELETION_ORDER (spec §8)", () => {
 describe("deleteAccountAction (spec §14.6)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireAccount as jest.Mock).mockResolvedValue(ACCOUNT);
+    (requireAccountForDataRights as jest.Mock).mockResolvedValue({
+      account: ACCOUNT,
+      suspended: false,
+    });
     (requireUser as jest.Mock).mockResolvedValue({
       id: ACCOUNT.userId,
       email: "will@example.com",
@@ -149,6 +154,19 @@ describe("deleteAccountAction (spec §14.6)", () => {
       await deleteAccountAction(idle, form({ password: "right" })),
     ).toMatchObject({ formError: "identity_pending" });
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("a SUSPENDED account can still delete itself (OVE-125 / audit F-A7)", async () => {
+    (requireAccountForDataRights as jest.Mock).mockResolvedValue({
+      account: ACCOUNT,
+      suspended: true,
+    });
+    (verifyCurrentPassword as jest.Mock).mockResolvedValue("ok");
+    (deleteAccount as jest.Mock).mockResolvedValue({ identityRemoved: true });
+    await expect(
+      deleteAccountAction(idle, form({ password: "right" })),
+    ).rejects.toThrow("NEXT_REDIRECT:/login?notice=deleted");
+    expect(deleteAccount).toHaveBeenCalledWith(ACCOUNT);
   });
 
   it("a subscription that couldn't be canceled deletes nothing and says to retry or contact support (OVE-122)", async () => {
