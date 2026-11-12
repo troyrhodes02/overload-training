@@ -5,6 +5,7 @@ import type {
   MirrorSnapshot,
   OpenSubscription,
 } from "@/lib/data/billing-webhook";
+import type { DeletionBillingDeps } from "@/lib/billing/cancel-on-deletion";
 
 /**
  * Plans, Billing & Promo Codes — the Stripe adapter (spec §11, RD-8/RD-12).
@@ -254,6 +255,69 @@ export function stripeEnforceDeps(): EnforceDeps {
     },
     async expireOpenCheckoutSessions(customerId) {
       return stripeProvider().expireOpenCheckoutSessions(customerId);
+    },
+  };
+}
+
+/** Stripe statuses that mean a subscription is already over. */
+const ENDED_SUBSCRIPTION_STATUSES = new Set(["canceled", "incomplete_expired"]);
+
+/**
+ * The Stripe side of cancel-before-deletion (OVE-122; spec RD-16). Null
+ * `cancelAllSubscriptions` when Stripe is not configured here, so the caller
+ * can refuse rather than delete a possibly-paying account.
+ *
+ * Cancels every subscription on the customer that is not already over,
+ * immediately, with no proration and no final invoice. No refund, and the
+ * customer is kept. Retry-safe: ended subscriptions are skipped, and a cancel
+ * that errors because the subscription ended in the meantime is re-read and
+ * counted as done. A customer Stripe no longer has holds nothing to cancel.
+ */
+export function stripeDeletionDeps(
+  env: Record<string, string | undefined> = process.env,
+): DeletionBillingDeps {
+  if (!env.STRIPE_SECRET_KEY) return { cancelAllSubscriptions: null };
+  return {
+    async cancelAllSubscriptions(customerId) {
+      const canceled: string[] = [];
+      const open: string[] = [];
+      try {
+        let startingAfter: string | undefined;
+        do {
+          const page = await stripe().subscriptions.list({
+            customer: customerId,
+            status: "all",
+            limit: 100,
+            ...(startingAfter ? { starting_after: startingAfter } : {}),
+          });
+          for (const sub of page.data) {
+            if (!ENDED_SUBSCRIPTION_STATUSES.has(sub.status)) open.push(sub.id);
+          }
+          startingAfter = page.has_more ? page.data.at(-1)?.id : undefined;
+        } while (startingAfter);
+      } catch (error) {
+        const e = error as { code?: string; param?: string };
+        if (e.code === "resource_missing" && e.param === "customer") {
+          return { canceled };
+        }
+        throw error;
+      }
+      for (const id of open) {
+        try {
+          await stripe().subscriptions.cancel(id, {
+            prorate: false,
+            invoice_now: false,
+          });
+          canceled.push(id);
+        } catch (error) {
+          // Ended between the list and the cancel (a retry, or the lifter
+          // canceled in the portal): that is the outcome we want.
+          const current = await stripe().subscriptions.retrieve(id);
+          if (ENDED_SUBSCRIPTION_STATUSES.has(current.status)) continue;
+          throw error;
+        }
+      }
+      return { canceled };
     },
   };
 }

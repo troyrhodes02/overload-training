@@ -5,13 +5,19 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { requireAccount } from "@/lib/data/account";
 import { deleteAccount } from "@/lib/accounts/deletion";
+import { SubscriptionCancellationError } from "@/lib/billing/cancel-on-deletion";
 import { verifyCurrentPassword } from "@/lib/accounts/password";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export type DeleteAccountState = {
   status: "idle" | "error";
   fieldError: string | null;
-  formError: "nothing_deleted" | "identity_pending" | "rate_limited" | null;
+  formError:
+    | "nothing_deleted"
+    | "billing_not_canceled"
+    | "identity_pending"
+    | "rate_limited"
+    | null;
 };
 
 const fail = (
@@ -45,6 +51,11 @@ export async function deleteAccountAction(
   try {
     ({ identityRemoved } = await deleteAccount(account));
   } catch (error) {
+    // Billing could not be canceled (OVE-122): nothing was deleted, and the
+    // lifter is told to retry or contact support.
+    if (error instanceof SubscriptionCancellationError) {
+      return fail("billing_not_canceled");
+    }
     console.error(
       "account deletion failed; nothing was deleted",
       error instanceof Error ? error.name : "unknown",
