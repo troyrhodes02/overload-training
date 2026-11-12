@@ -27,7 +27,12 @@ export type SignUpState = {
   status: "idle" | "error" | "closed";
   fieldErrors: Partial<Record<SignUpField, string>>;
   formError:
-    "email_taken" | "unexpected" | "rate_limited" | "challenge_failed" | null;
+    | "email_taken"
+    | "unexpected"
+    | "rate_limited"
+    | "challenge_failed"
+    | "paused"
+    | null;
   /**
    * Invite mode only: the server-checked code was wrong. Rendered ALONE under
    * the invite-code field, with no other field feedback, so a codeless visitor
@@ -113,6 +118,13 @@ export async function signUpAction(
         status: "error",
         fieldErrors: {},
         formError: "challenge_failed",
+      };
+    case "paused":
+      return {
+        ...base,
+        status: "error",
+        fieldErrors: {},
+        formError: "paused",
       };
     default:
       return {

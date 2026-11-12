@@ -1,5 +1,6 @@
 "use client";
 
+import { SIGNUPS_PAUSED } from "@/lib/accounts/signup-messages";
 import Link from "next/link";
 import {
   startTransition,
@@ -324,6 +325,11 @@ export function SignupForm({ view }: { view: SignupViewDto }) {
           <AlertDescription>
             Couldn&apos;t verify you&apos;re human. Try again.
           </AlertDescription>
+        </Alert>
+      ) : null}
+      {state.formError === "paused" ? (
+        <Alert variant="destructive">
+          <AlertDescription>{SIGNUPS_PAUSED}</AlertDescription>
         </Alert>
       ) : null}
       {state.formError === "rate_limited" ? (
