@@ -17,7 +17,7 @@ Overload's iPhone app is a native interface on the same backend as the web produ
 
 ## Before you start
 
-1. Read `docs/planning/mobile-roadmap.md` and the Mobile App slice specs (`spec.md` in the `21b` to `21d` pitch folders under `docs/pitches/mvp-5b-mobile-app/`). They record the navigation, styling, data-fetching, chart, and storage choices. Follow them exactly and do not choose libraries here.
+1. Read `docs/planning/mobile-roadmap.md` and the Mobile App slice specs (`spec.md` in the `21b` to `21d` pitch folders, and `21i` for the chart, under `docs/pitches/mvp-5b-mobile-app/`). They record the navigation, styling, data-fetching, chart, and storage choices. Follow them exactly and do not choose libraries here.
 2. Read the feature's `design.md` for the intended behavior, and the web screen it maps from. Parity means equivalent capability, not identical screens.
 3. Read `CLAUDE.md`, especially the mobile app rules and the plan rules.
 

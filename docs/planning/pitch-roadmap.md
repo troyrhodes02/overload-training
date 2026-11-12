@@ -223,7 +223,7 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ### Pitch 21: Mobile App (React Native + Expo)
 - **Type:** Foundational (a parent pitch with a sub-roadmap)
-- **Status:** Planned, after the web fixes and the audit
+- **Status:** Planned (next). The web fixes, the audit, and the pre-mobile hardening are done.
 - **Value delivered:** Overload is a native iPhone app on the existing backend, rebuilt feature by feature to equivalent capability, reviewed on a device at every step, and delivered to the existing friends through TestFlight.
 - **Includes:**
   - A React Native app using Expo, in the same repository as the web app with a shared package for types, validation, and the pure training logic that needs no database. The web app's behavior is unchanged.

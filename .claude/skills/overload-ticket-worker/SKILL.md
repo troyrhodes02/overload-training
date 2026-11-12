@@ -168,7 +168,7 @@ Overload-specific test examples:
 - The first log of a machine exercise at a new gym creates its baseline and is not treated as a correction.
 - A failed `logSet` leaves no `LoggedSet` and no baseline change behind.
 - An exercise performed for the first time gets no progress or deload tag.
-- During the scheduled deload week no reactive deload tag appears, and it resumes the following week.
+- During a scheduled deload week (every Nth week, `deloadEveryWeeks`) no reactive deload tag appears, and it resumes the following week.
 - Editing a past set changes the computed tag with no stored value to update.
 - A swap to an archived exercise returns `validation_error`; a different muscle group is allowed (Workout Logging Refinements).
 - Choosing shift on a missed day moves only the current week, and the prompt does not return on the next open.
@@ -402,7 +402,7 @@ Watch for:
 - Hiding admin navigation and calling it authorization. Every admin operation re-checks the allowlist on the server.
 - An admin query that returns a plan, gym, set, goal, or cardio record, even "just for the count". Counts come from the aggregate layer.
 - Making admin identity a database role, or something an account can be granted.
-- A suspended account that can still act. Suspension is enforced on every authenticated request.
+- A suspended account that can still act. Suspension is enforced on every authenticated request, except the export and account deletion through `requireAccountForDataRights()`, whose callers a guard test pins.
 - An admin mutation without an audit entry, or an audit log that can be edited.
 - Building impersonation.
 
@@ -412,8 +412,8 @@ Likely touches: the signup mode setting, abuse protection, password recovery, th
 
 Watch for:
 
-- Turning public signup on in production from a run. That is a human step.
-- Treating password recovery as already built. It was deliberately not shipped and is built here.
+- Changing the Production signup mode from a run. That is a human step. (Signup is open; the closed mode is the emergency stop.)
+- Weakening a signup defense (bot challenge, per-IP throttle, hourly cap, reserved usernames, disposable-email blocklist) or making a refusal reveal why.
 - A recovery response that differs for a known and an unknown email.
 - Using Supabase's built-in email sender, which only reaches the project's own team.
 - An export that includes any other account's data, or a deletion that leaves data behind.

@@ -127,7 +127,7 @@ Source: `docs/pitches/mvp-2-multi-user/13-faster-logging-ux/spec.md` (§5, §7, 
 
 ## RIR scale and progression qualifiers (established by RIR Logging & Autoregulation)
 
-Source: `docs/pitches/mvp-3-training-intelligence/14-rir-logging-autoregulation/spec.md` (§5, §6, §11; Resolved Decisions R3–R16, R25, R30). Code: `src/lib/logging/rir.ts` (scale, formatters), `src/lib/logging/logged-sets.ts` (the only writer), `src/lib/progression/config.ts` (`RIR_AT_LIMIT`, `RIR_TO_SPARE_MIN`), `src/lib/progression/engine.ts` (`evaluateReactiveDecision`), `src/lib/progression/rir-copy.ts` (reason lines). Consumed by Smarter & Explainable Progression (evidence lines) and Exercise History & PR Intelligence.
+Source: `docs/pitches/mvp-3-training-intelligence/14-rir-logging-autoregulation/spec.md` (§5, §6, §11; Resolved Decisions R3–R16, R25, R30). Code: `src/lib/logging/rir.ts` (scale, formatters), `src/lib/logging/logged-sets.ts` (the only writer), `src/lib/progression/config.ts` (`RIR_AT_LIMIT`, `RIR_TO_SPARE_MIN`), `src/lib/progression/engine.ts` (`evaluateReactiveDecision`), `src/lib/progression/recommendation.ts` (reason lines; the earlier `rir-copy.ts` was folded into it). Consumed by Smarter & Explainable Progression (evidence lines) and Exercise History & PR Intelligence.
 
 ### The stored fact
 
