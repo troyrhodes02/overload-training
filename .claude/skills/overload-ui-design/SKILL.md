@@ -81,7 +81,7 @@ Avoid:
 - A defined palette (see Appearance below) and a single typography family (Inter), used as consistent tokens throughout.
 - Consistent iconography via `lucide-react`, used at one stroke and size scale.
 - No screen should retain an un-themed default appearance.
-- **Logo: none exists yet.** The creator will make one later. Do not design, ideate, or approximate a logo or icon mark. Until one is supplied, the brand is the wordmark "Overload" set in Inter semibold, plain text only.
+- **Logo: one exists.** Use the shipped lockup (`src/components/brand/overload-lockup.tsx`) and app icon exactly as they are. Do not redesign, recolor, or approximate it.
 
 ## Typography
 
@@ -97,9 +97,9 @@ Overload supports light and dark, and **system** is the default when the lifter 
 - Dark mode is a true near-black, not navy and not tinted blue. Surfaces step up in lightness only slightly.
 - Design every screen theme-aware using theme tokens, not hardcoded colors.
 
-**Dark foundation:** app background `#0B0B0C`, surface `#141416`, elevated surface `#1C1C1F`, divider `#26262A`, primary text `#F2F2F3`, secondary text `#A1A1A8`, accent `#7B93FF` (hover `#93A6FF`, soft is accent at 14% opacity).
+**Dark foundation (shipped, from `globals.css`):** background `#0b0b0c`, foreground `#f2f2f3`, card `#141416`, popover `#1c1c1f`, secondary, muted, and accent `#1c1c1f`, muted text `#a1a1a8`, border and input `#26262a`, primary `#1a66ff` (ring `#2f7bff`), destructive `#e5484d`.
 
-**Light foundation:** app background `#F7F7F8`, surface `#FFFFFF`, elevated surface `#FFFFFF` with a hairline divider border, divider `#E4E4E8`, primary text `#0E0E10`, secondary text `#5F5F68`, accent `#3F5BD9` (hover `#3350C4`, soft is accent at 10% opacity).
+**Light foundation (shipped, from `globals.css`):** background `#f7f7f8`, foreground `#0e0e10`, card and popover `#ffffff`, secondary, muted, and accent `#ececed`, muted text `#5f5f68`, border and input `#e4e4e8`, primary and ring `#0159fd`, destructive `#b42318`. The shipped primary is the product's accent. `globals.css` is canonical, and when this skill and the file disagree, the file wins.
 
 **Status colors (functional only):** progress green `#2F9E6B` light / `#4CC38A` dark; deload amber `#B7791F` light / `#E0A93B` dark. They appear only on the progress and deload tags. A hold has no tag and no color — it is simply an ordinary exercise. Never use these colors decoratively.
 
@@ -138,7 +138,7 @@ Use realistic training mock data, and units are always **lbs**:
 - **Exercise logging card** — one exercise per card, all of its planned sets together as rows. Weight and reps are the largest elements, each an easy tap target with a numeric keypad. Show the planned rep range, the gym, and the tag if any. Nothing else competes.
 - **Session summary** — short. One progression chart or a percentage toward a goal, and nothing resembling a statistics report.
 - **Week at a glance (history)** — the week as a simple list of days with state and session name. Tapping a day opens its logged workout, which stays editable.
-- **Mesocycle builder** — create and clone-forward. Length and deload week are pre-filled (5 weeks, week 5) and editable in place.
+- **Mesocycle builder** — create and clone-forward. Length and the deload cadence are pre-filled (5 weeks, a deload every 5th week) and editable in place.
 - **Session builder** — exercises with planned sets and target rep range, assign to a day, duplicate to another day.
 - **Exercise library** — search by name and filter by muscle group on one screen. Library exercises show an image, custom ones a monogram tile.
 - **Gyms** — a plain list with an add action. Each gym is a name and free-text address.
@@ -149,7 +149,7 @@ Use realistic training mock data, and units are always **lbs**:
 
 ### Secondary surfaces
 
-- **Login, signup, and (once Public Accounts ships) password reset** — wordmark, the form, and nothing else, with no marketing copy. Login: email, password, the sign-in action, a quiet "Forgot password?" link once recovery exists, and a link to signup. Signup: first name, last name, email, password, invite code, the create-account action, and a link back to login. Reset: an email field and a submit, then a new-password field. Give each failure its own plain message: wrong credentials, expired session, invalid invite code, email already in use, and network error. A reset request always confirms in the same words.
+- **Login, signup, and password reset** — wordmark, the form, and nothing else, with no marketing copy. Login: email, password, the sign-in action, a quiet "Forgot password?" link, and a link to signup. Signup: first name, last name, username, email, password, the bot challenge, the create-account action, and a link back to login. There is no invite code. Reset: an email field and a submit, then a new-password field. Give each failure its own plain message: wrong credentials, expired session, email already in use, username not available, signups paused, and network error. Abuse refusals stay neutral and never name a rule or a list. A reset request always confirms in the same words.
 - **Settings** — appearance (light, dark, system) lives here and only here, plus the name, a link to replay the tour, What's New, the gym and archive management links, and delete account, which is the one destructive action and uses a confirmation dialog.
 - **Onboarding tour** — a quiet spotlight on the real control with a short popover: a title line, one or two sentences, a step count, and Next, Back, and Skip. No illustration, no animation beyond a short fade, never covering the control it describes, and usable one-handed on a phone.
 - **What's New modal and page** — the modal shows a title, a date, and two or three plain sentences per entry with one dismiss action. The page is a dated list, newest first, in plain text.

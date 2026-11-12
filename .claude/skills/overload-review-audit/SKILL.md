@@ -164,7 +164,7 @@ Rate as:
 
 **Auth and privacy**
 
-- Do not accept suggestions to add a role system for lifters, sharing, or visibility between accounts. Admin identity comes from the server-side allowlist and never from a database role. Signup is invite-only until Public Accounts is verified, and every action re-checks the session. Authentication only in middleware is a gap.
+- Do not accept suggestions to add a role system for lifters, sharing, or visibility between accounts. Admin identity comes from the server-side allowlist and never from a database role. Signup is open with no invite code, protected on the server by a bot challenge, a per-IP throttle, an hourly cap, reserved usernames, and a disposable-email blocklist, with a closed mode kept as an emergency stop. Every action re-checks the session. Authentication only in middleware is a gap.
 - Row-level security is enabled with no policies on every table, because Supabase's Data API is reachable with the anon key. A new table without RLS is blocking. A policy added for anon or authenticated "to make it work" is blocking.
 - Secrets never appear in `NEXT_PUBLIC_` variables or client bundles.
 - Gym addresses are personal location data, shown only on the gym screens, never linked to a map.
@@ -195,6 +195,7 @@ Rate as:
 
 - Every mobile endpoint verifies the token on the server, takes the account from the token, goes through the scoped layer, and enforces capabilities. An endpoint that takes an account id from the request, or skips any of these, is blocking.
 - Every endpoint is covered by the cross-account isolation suite. A missing endpoint is a defect.
+- Tokens are verified with `getUser(token)`, not locally. The proxy exempts the mobile path. Create endpoints use an idempotency key. No handler calls an ungated progression builder.
 - Writes are retry-safe. Changes within an API version are backward compatible, and a breaking change needs a new version. The version gate must still work.
 - The mobile app talks only to the mobile API. Direct database or Supabase table access, a secret in the app bundle, or a second copy of a business rule in the app is blocking.
 - One backend and one training model. A second progression engine or separate mobile training records is blocking.
@@ -203,7 +204,7 @@ Rate as:
 
 **Storage**
 
-- Storage holds only public-domain exercise images, imported once by a seed script. User uploads are not in this build.
+- Storage holds three buckets: the public `exercise-images` bucket (public-domain library images, imported once by a seed script) and the private `feedback-screenshots` and `plan-import-sources` buckets, reached only on the server with the service-role key. Do not accept a new kind of user upload without a pitch.
 
 **Product logic**
 

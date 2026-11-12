@@ -10,7 +10,7 @@ There's a second, more specific version of this problem: the working weight for 
 
 The first user is the product's builder, a serious lifter who programs his own training rather than following a pre-built app plan. He trains across more than one gym, uses free weights and machines, and wants a tool that tells him what to do with his numbers rather than one that just stores them. He's technical enough to want a system that reasons about his data, not just displays it, and he has no interest in a general fitness or wellness app — he wants an instrument built specifically for his own training, with nothing in it he won't use.
 
-Overload also serves a small group of friends in the same position, and is now being opened to the public: serious lifters who either build their own plan or already keep one in a notes app, and want a tool that tells them what to do with their numbers. Each person has their own account, plan, gyms, and history, and no one can see anyone else's. It has a free plan and a paid Pro plan.
+Overload also serves a small group of friends in the same position, and is now open to the public, with signup open to anyone: serious lifters who either build their own plan or already keep one in a notes app, and want a tool that tells them what to do with their numbers. Each person has their own account, plan, gyms, and history, and no one can see anyone else's. It has a free plan and a paid Pro plan.
 
 ## Why Now / Why This
 

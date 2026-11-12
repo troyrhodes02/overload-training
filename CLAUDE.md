@@ -1,26 +1,26 @@
 # Overload — CLAUDE.md
 
-Overload is a strength training tracker whose job is to tell each lifter, per lift and per session, whether to progress, hold, or deload, based on logged performance against a plan they built themselves. It is invite-only today and is being opened to the public, with a free plan and a paid Pro plan. Every lifter has their own account, and no account can see, change, or learn anything about another account's data.
+Overload is a strength training tracker whose job is to tell each lifter, per lift and per session, whether to progress, hold, or deload, based on logged performance against a plan they built themselves. Signup is open to the public, with a free plan and a paid Pro plan. Every lifter has their own account, and no account can see, change, or learn anything about another account's data.
 
-**Status.** MVP 1 to 3 (the training product, the multi-user conversion, and the training-intelligence features) are shipped, and MVP 4, the web commercial foundation (admin center, public accounts, plans and billing, the landing page, and plan import), is largely built. The next work is a small set of web fixes (workout logging refinements and two chores), then a read-only codebase audit, then a React Native (Expo) iPhone app built on the existing backend and rebuilt feature by feature. Overload is operated by an individual, with a Free plan and a paid Pro plan. Public signup stays gated by the signup-mode setting, and no purchase flow is added inside a mobile app until the store billing path is decided.
+**Status.** MVP 1 to 4 are shipped: the training product, the multi-user conversion, the training-intelligence features, and the web commercial foundation (admin center, public accounts, plans and billing, the landing page, and plan import; Launch Readiness is deferred to MVP 6). MVP 5A is done: Workout Logging Refinements with its two chores, the read-only mobile codebase audit (`docs/planning/mobile-audit.md`), and the pre-mobile hardening that fixed the web defects the audit found (account and billing fixes, logging correctness, all-time history, and signup hardening). The next work is the React Native (Expo) iPhone app, built on the existing backend in slices 21a to 21l (`docs/planning/mobile-roadmap.md`); none of its code exists yet. Overload is operated by an individual, with a Free plan and a paid Pro plan. Signup is open to everyone with no invite code, and the closed signup mode stays only as an emergency stop. No purchase flow is added inside a mobile app until the store billing path is decided.
 
 This file is persistent context for Claude Code. It encodes the non-obvious rules and invariants specific to this project. For product intent see `docs/planning/product-brief.md`; for features and acceptance criteria see `docs/planning/prd.md`; for technical decisions and rationale see `docs/planning/architecture.md`; for build sequencing see `docs/planning/pitch-roadmap.md`. This file is the "how we write code here" layer on top of those.
 
 ## Stack (ground truth)
 
 - **Next.js (App Router), React, TypeScript** — the application framework. Server-first: pages are server components that read data directly. It is **not** a client-side SPA and has no REST layer for its own UI to call.
-- **Supabase** — managed Postgres, Auth, and Storage. The Supabase client handles the auth session (via its Next.js cookie integration) and Storage for exercise images. It is **not** the query layer for application data; that is Prisma. Supabase's auto-generated Data API is closed (see security invariants).
-- **Email** — none today. Password recovery was deliberately not built, to avoid a third-party email dependency, and the application sends no email. The Public Accounts pitch adds a custom SMTP provider configured in Supabase Auth (Supabase's built-in sender only reaches the project's own team and is capped at two messages an hour). Do not add email sending before that pitch.
-- **Prisma** — schema authority, migrations, and the only path to application data. If a table exists, its shape is defined in `schema.prisma` and nowhere else.
+- **Supabase** — managed Postgres, Auth, and Storage. The Supabase client handles the auth session (via its Next.js cookie integration) and Storage. It is **not** the query layer for application data; that is Prisma. Supabase's auto-generated Data API is closed (see security invariants).
+- **Email** — account email (password recovery and email verification links) is sent by Supabase Auth through a custom SMTP provider configured in each Supabase project (`supabase/config.toml` documents the block; local development uses Mailpit). The application itself sends no email and never holds the SMTP credentials. Do not add application-side email sending without a pitch that decides it.
+- **Prisma** — schema authority, migrations, and the only path to application data. If a table exists, its shape is defined in `prisma/schema.prisma` and nowhere else.
 - **Vercel** — hosting and deployment. Serverless: no process holds state between requests.
 - **Recharts** — progression charts (e1RM trend lines, goal progress). Nothing else draws charts.
 - **free-exercise-db** — public-domain exercise dataset, imported **once** by a Prisma seed script into the `Exercise` table and Supabase Storage. It is not queried at runtime. If it disappears tomorrow, nothing breaks.
 
 - **Tailwind CSS with shadcn/ui** — the single component and styling system, with `lucide-react` icons. It owns layout, theming, and every UI primitive. It is **not** a license to mix in a second library: no Material UI, styled-components, CSS modules, or other component kit. Design rules for how it looks live in the `overload-ui-design` skill, not here.
 
-Planned for the commercial launch, and not to be added before the pitch that introduces them: **Stripe** (Billing, hosted Checkout, and the Customer Portal; the only place money and card data live), a **custom SMTP provider** for account email (Public Accounts), a **language-model API** called from the server for plan import only (Plan Import), and **Expo with React Native** for the iPhone app, in the same repository as the web app (Pitch 21 and its slices; Android later).
+Added by the commercial pitches and in use now: **Stripe** (Billing, hosted Checkout, and the Customer Portal; the only place money and card data live), the **custom SMTP provider** behind Supabase Auth email, and a **language-model API** (Anthropic, `src/lib/import/extraction/anthropic.ts`) called from the server for plan import only. Planned and not to be added before its slice: **Expo with React Native** for the iPhone app, in the same repository as the web app (slices 21a to 21l of Pitch 21; Android later).
 
-Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no maps or geocoding service (gym location is free text), no health-data integration (HealthKit is unreachable from a website), and no role system for lifters. The owner-only admin area, once built, is separate (see the admin boundary). An agent that does not know these were rejected will add them.
+Infrastructure Overload deliberately does **not** have, as decisions rather than omissions: no scheduler or cron job, no queue, no cache layer, no realtime subscriptions, no offline mode or sync layer (the lifter logs later if the gym has no signal), no maps or geocoding service (gym location is free text), no health-data integration (HealthKit is unreachable from a website), and no role system for lifters. The owner-only admin area is separate (see the admin boundary). An agent that does not know these were rejected will add them.
 
 Do not add libraries or infrastructure not already decided in the Architecture Doc without flagging it first.
 
@@ -29,11 +29,11 @@ Do not add libraries or infrastructure not already decided in the Architecture D
 **Account isolation outranks every other rule in this file.** A leak between accounts shows one person's training history, plan, and gyms to another, cannot be taken back, and produces no error. Prisma connects to Postgres in a way that bypasses row-level security, so the database does not protect accounts from each other. The application does, and only by scoping every query.
 
 - **Ownership.** Every owned model, including child models, carries a `userId` for the owning account. Library `Exercise` rows are the one exception: they are shared, have no owner, and application code never writes to them. A custom exercise carries its owner's `userId`. Exercise reads return the shared library plus the acting account's own custom exercises.
-- **Scoped access only.** Feature code reaches owned data only through the account-scoped data-access layer, whose functions take the acting `userId` as a required argument and apply it to every query. A raw `prisma.<model>` call on an owned model is allowed only inside that layer, the account-deletion module, the admin metrics layer (account metadata and aggregate counts only, never training content), the billing webhook handler (entitlement and billing records only), and operator tasks, and a static check in CI enforces it. The layer's location and shape are set in the Multi-User Foundation spec.
-- **Identity comes from the session.** The acting `userId` is read from the authenticated session on the server. It is never a request parameter, a form field, a URL segment, or anything else a client supplies. The one exception is a verified Stripe webhook, which resolves the account from the stored Stripe customer id, never from the payload alone.
+- **Scoped access only.** Feature code reaches owned data only through the account-scoped client `account.db`, built by `createAccountClient` (`src/lib/data/account-db.ts`) over `scopeArgs` (`src/lib/data/scope.ts`), which ANDs the acting `userId` into every read and targeted write, stamps it onto every create, refuses nested writes, and keeps library `Exercise` rows read-only. Interactive transactions on it stay scoped. Lib functions take the acting `Account` (from `requireAccount()` in `src/lib/data/account.ts`), never a bare `userId`. The raw client in `src/lib/db.ts` is imported only inside `src/lib/data/` (the scoped layer, the admin metrics layer in `src/lib/data/admin/`, the billing webhook handler `src/lib/data/billing-webhook.ts`, and the operator entry `src/lib/data/operator.ts`) and by three sanctioned modules for un-owned tables (`src/lib/accounts/throttle.ts`, `src/lib/import/usage.ts`, `src/lib/import/spend.ts`). `tests/unit/account-isolation-guards.test.ts` and an ESLint rule enforce it. There is no CI service, so these guards protect anything only when the unit suite (`npm test`) runs, which this file requires on every commit.
+- **Identity comes from the session.** The acting `userId` is read from the authenticated session on the server. It is never a request parameter, a form field, a URL segment, or anything else a client supplies. The one exception is a verified Stripe webhook, which resolves the account from the stored Stripe customer id, never from the payload alone. The planned mobile API takes it from a bearer token verified on the server (see the mobile app rules).
 - **An id is not authorization.** Fetching or changing a record by id must also match the acting `userId`. A record owned by someone else is indistinguishable from one that does not exist: return not-found, never forbidden, and never an error that reveals it.
 - **Uniqueness is per account.** Constraints such as one active goal per exercise include `userId`.
-- **Deleting an account** is the single sanctioned way to destroy logged history. It is user-initiated, confirmed, handled by one dedicated module, and removes only that account's rows, in dependency order, in one transaction. Nothing else may bypass the history rules below.
+- **Deleting an account** is the single sanctioned way to destroy logged history. It is user-initiated, confirmed with the current password, handled by one module (`src/lib/accounts/deletion.ts`), and removes only that account's rows. It first cancels every live Stripe subscription on the account's customer; if that fails, or Stripe is not configured while the mirror shows a subscription, nothing is deleted. Then one transaction deletes every owned model in dependency order through the scoped client, then the account's Storage objects and auth identity. A suspended account can still delete itself (see the access model). Nothing else may bypass the history rules below.
 - **Operator tasks** (applying the production migration, seeding a friend's plan) always name the target account explicitly and never infer it.
 
 The cross-account isolation suite is the first standing check. It proves, for every owned model and every read and write path, that a second account cannot see, change, or detect the first account's data. Every later pitch keeps it green and extends it for any new owned model.
@@ -44,7 +44,7 @@ The cross-account isolation suite is the first standing check. It proves, for ev
 
 Enforcement is layered, because neither layer is sufficient alone.
 
-**Layer 1 — application (all feature code).** `LoggedSet` rows are written and edited only through `lib/logging/logged-sets.ts`. Nothing outside that module calls `prisma.loggedSet.create`, `.update`, or `.delete`. `Exercise` and `Gym` are never hard-deleted (the account-deletion module is the only exception); deletion sets `deletedAt` and removes the row from selection lists only. Queries that feed pickers filter `deletedAt: null`. Queries that render history must not filter it, or archived exercises vanish from the past.
+**Layer 1 — application (all feature code).** `LoggedSet` rows are written and edited only through `src/lib/logging/logged-sets.ts`. Nothing outside that module calls `prisma.loggedSet.create`, `.update`, or `.delete`. `Exercise` and `Gym` are never hard-deleted (the account-deletion module is the only exception); deletion sets `deletedAt` and removes the row from selection lists only. Queries that feed pickers filter `deletedAt: null`. Queries that render history must not filter it, or archived exercises vanish from the past.
 
 **Layer 2 — database.** Foreign keys from `LoggedExercise` to `Exercise` and `Gym` use `onDelete: Restrict`, so even a buggy hard delete fails loudly rather than cascading history away. Row-level security is enabled on every table (see security invariants), so no path other than Prisma can write.
 
@@ -58,61 +58,67 @@ The progress/hold/deload tag and the e1RM trend are pure functions of the logged
 
 Serverless functions can be retried, run concurrently, and cold-start on any request, and Postgres through Supabase's pooler cannot be assumed to give a function one long-lived connection. Therefore:
 
-- Use the pooled connection string (`DATABASE_URL`) at runtime and the direct one (`DIRECT_URL`) only for migrations. Instantiate one `PrismaClient` per process in `lib/db.ts` and import it; never construct another.
+- Use the pooled connection string (`DATABASE_URL`) at runtime and the direct one (`DIRECT_URL`) only for migrations. Instantiate one `PrismaClient` per process in `src/lib/db.ts` and import it; never construct another.
 - A logged set and any baseline correction it triggers happen in **one transaction**. A set that exists without its baseline update, or a baseline updated for a set that failed to save, is a correctness bug.
+- The baseline is applied by `applyBaselineOnCompletion` (`src/lib/gyms/baselines.ts`) inside the set's transaction, once the set completes every planned working set of a gym-variable exercise at a gym. Editing a past set never replays the baseline; the stored baseline stays the latest value live logging established or corrected.
 - A correction touches only the `(gymId, exerciseId)` row for the gym the set was logged at. It must never alter another gym's baseline, and it must never rewrite an existing `LoggedSet`.
 - The first log of an exercise at a gym has no baseline to deviate from. It establishes the baseline and never counts as a correction.
-- Free-weight and plate-loaded exercises have no `GymExerciseBaseline` row. Whether an exercise is gym-variable is decided in exactly one function, `isGymVariable(exercise)`.
+- Free-weight, plate-loaded, and bodyweight exercises have no `GymExerciseBaseline` row. Whether an exercise is gym-variable is decided in exactly one function, `isGymVariable(exercise)` (`src/lib/exercises/gym-variable.ts`).
 
 If you are ever unsure whether a code path keeps a set and its baseline update in the same transaction, treat it as a blocking issue, not a detail.
 
 ### Multi-step writes must be atomic
 
-Logging a set, applying a baseline correction, and marking a `LoggedSession` complete are dependent writes. They succeed or fail together. Use `prisma.$transaction`, and make every write function accept an optional transaction client so callers can compose.
+Logging a set, applying a baseline correction, and marking a `LoggedSession` complete are dependent writes. They succeed or fail together. Every write function takes the acting `Account`, runs on its scoped client, and accepts an optional scoped transaction so callers can compose; without one it opens its own with `account.db.$transaction`. This is the shape of the real code in `src/lib/logging/logged-sets.ts` (abridged; read the file before changing it):
 
 ```ts
-// lib/logging/logged-sets.ts
-import { Prisma, LoggedSet } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { applyBaselineCorrection } from "@/lib/gyms/baselines";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
+// src/lib/logging/logged-sets.ts (abridged)
+import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
+import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
+import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
 
-export async function logSet(
-  input: { loggedExerciseId: string; setNumber: number; weight: number; reps: number },
-  tx?: Prisma.TransactionClient,
-): Promise<LoggedSet> {
-  if (!tx) return prisma.$transaction((t) => logSet(input, t)); // wrap if none passed
-  return logSetInTx(input, tx); // compose if one was
+export type LogSetInput = {
+  loggedExerciseId: string;
+  setNumber: number;
+  weightLbs?: number | null; // null or omitted = bodyweight, stored as NULL, never 0
+  reps: number;
+  rir?: number | null; // null or omitted = not recorded, never 0
+};
+
+export async function logSet(account: Account, input: LogSetInput, tx?: AccountTx) {
+  if (tx) return logSetInTx(account, input, tx); // compose with the caller's transaction
+  const run = () => account.db.$transaction((t) => logSetInTx(account, input, t));
+  try {
+    return await run();
+  } catch (error) {
+    // A concurrent duplicate submit lost the (loggedExerciseId, setNumber) key:
+    // re-run so it answers exactly like a replay, never an internal_error.
+    if (isUniqueViolation(error)) return run();
+    throw error;
+  }
 }
 
-async function logSetInTx(
-  input: { loggedExerciseId: string; setNumber: number; weight: number; reps: number },
-  tx: Prisma.TransactionClient,
-): Promise<LoggedSet> {
-  const loggedExercise = await tx.loggedExercise.findUniqueOrThrow({
-    where: { id: input.loggedExerciseId },
-    include: { exercise: true },
+async function logSetInTx(account: Account, input: LogSetInput, tx: AccountTx) {
+  // Scoped read: another account's id is "not found", never "forbidden".
+  const le = isUuid(input.loggedExerciseId)
+    ? await tx.loggedExercise.findUnique({ where: { id: input.loggedExerciseId }, select: { /* ... */ } })
+    : null;
+  if (!le) throw new DomainError("not_found", "That exercise isn't part of this workout.");
+  // A finished workout refuses new sets; past sets are corrected with editLoggedSet.
+  if (le.loggedSession.status !== "in_progress") throw new DomainError("invalid_state_transition", "...");
+  const weight = validateValues(le.exercise, input.weightLbs, input.reps, input.rir); // two-decimal, range, RIR checks
+  // ...skipped exercise, set-number range, and identical-replay checks...
+
+  // Invariant: the set is stored exactly as entered. No tag, no e1RM, no derived value.
+  const created = await tx.loggedSet.create({
+    data: { userId: account.userId, loggedExerciseId: input.loggedExerciseId, setNumber: input.setNumber, weightLbs: weight, reps: input.reps, rir: input.rir ?? null },
   });
 
-  // Invariant: the set is stored exactly as entered. No tag, no e1RM, no derived value is written here.
-  const set = await tx.loggedSet.create({
-    data: {
-      loggedExerciseId: input.loggedExerciseId,
-      setNumber: input.setNumber,
-      weight: input.weight,
-      reps: input.reps,
-    },
-  });
+  // Invariant: same transaction, scoped to this (gymId, exerciseId) only. A bodyweight set has no load to baseline.
+  if (weight !== null) await applyBaselineOnCompletion(account, input.loggedExerciseId, tx);
 
-  // Invariant: baseline correction runs in the same transaction, scoped to this gym and exercise only.
-  if (loggedExercise.gymId && isGymVariable(loggedExercise.exercise)) {
-    await applyBaselineCorrection(
-      { gymId: loggedExercise.gymId, exerciseId: loggedExercise.exerciseId, loggedWeight: input.weight },
-      tx,
-    );
-  }
-
-  return set;
+  return created;
 }
 ```
 
@@ -120,8 +126,8 @@ async function logSetInTx(
 
 **Application data is read and written through Prisma in server-side code. Never fetch application data with client-side `fetch()` or query the database from the browser.** This is the web app's rule, and the web stays server-first. The mobile app is a separate client that calls the versioned mobile API and nothing else (see the mobile app rules).
 
-- Server components read through the account-scoped data-access layer, with the acting `userId` resolved from the Supabase session cookie. The auth check runs on every request, and the Prisma client in `lib/db.ts` is imported only by that layer and the other modules the first invariant names.
-- Mutations run through server actions that call the write modules (`lib/logging/logged-sets.ts` and its siblings), not raw client fetches and not ad hoc `prisma` calls inside components.
+- Server components read through the account-scoped data-access layer, with the acting account resolved by `requireAccount()` from the Supabase session cookie. The auth check runs on every request, and the Prisma client in `src/lib/db.ts` is imported only by the modules the first invariant names.
+- Mutations run through server actions that call the write modules (`src/lib/logging/logged-sets.ts` and its siblings), not raw client fetches and not ad hoc `prisma` calls inside components.
 - Client components are interactive islands only: the exercise logging card (set entry), the swap picker, the missed-day prompt, the exercise library search and muscle-group filter, and the Recharts charts. They call server actions. They never touch the data store or hold credentials.
 - The Supabase client is used for the auth session and Storage only. It must not be used to query or mutate application tables.
 
@@ -129,7 +135,25 @@ async function logSetInTx(
 
 ### Access and registration model
 
-Identity is Supabase Auth with email and password. Accounts are created through the signup form (first name, last name, email, password). Signup is invite-only today: it requires a valid invite code checked on the server, and it stays that way until Public Accounts is verified, after which a server-side setting can switch it to public. There is no social login and no multi-factor authentication. Password recovery does not exist today, because it was deliberately removed to avoid a third-party email dependency. Public Accounts builds it over a custom SMTP provider, with the same response whether or not an email has an account, and adds email verification before a first checkout and abuse protection on signup and recovery. Every route except login, signup, and (later) recovery requires an authenticated session, enforced in middleware and re-checked in server actions. A suspended account is refused on every authenticated request. Do not enable public signup, loosen the invite gate, or add social login, a role system for lifters, or any email sending outside the pitch that scopes it.
+Identity is Supabase Auth with email and password. There is no social login, no multi-factor authentication, and no role system for lifters.
+
+**Signup is open to everyone with no invite code.** The signup form (first name, last name, username, email, password) calls `signUp` in `src/lib/accounts/signup.ts`, which creates a confirmed user with the service-role key (Supabase's own public signup is off). The mode is read only by `src/lib/accounts/signup-gate.ts` from `OVERLOAD_SIGNUP_MODE`: `public` is the operating mode, and `closed` is the emergency stop that refuses every signup. An unset or invalid value resolves to `closed`, so a misconfigured environment fails closed. The code still recognizes a legacy `invite` value with `OVERLOAD_INVITE_CODE`; it is not the operating mode and is not to be brought back without a pitch. The signup defenses all run on the server and refuse neutrally, never revealing another account, a list, or a limit:
+
+- a bot challenge (Cloudflare Turnstile, `src/lib/accounts/turnstile.ts`);
+- a per-IP throttle: 10 attempts a minute per hashed request fingerprint, stored in `AuthThrottle` and failing closed (`src/lib/accounts/throttle.ts`);
+- a global hourly cap on successful signups (default 30, `OVERLOAD_SIGNUP_HOURLY_CAP`), counted from `Profile.createdAt`;
+- reserved usernames, ignoring case and separators, including anything starting with `admin` or `overload` (`isReservedUsername` in `src/lib/accounts/signup-guards.ts`);
+- a disposable-email-domain blocklist (`src/lib/accounts/disposable-domains.ts`).
+
+A new account gets a 14-day Pro trial. One trial per person is built and off by default: with `TRIAL_DEDUPE_ENABLED=true`, a hashed, normalized email key in the un-owned `TrialClaim` table makes a repeat person's new account start on Free, and with the flag off that table is never queried.
+
+**Password recovery.** From `/forgot-password`, `requestPasswordReset` (`src/lib/accounts/recovery.ts`) verifies the bot challenge, counts the attempt in the throttle, and gives the same response whether or not the email has an account. Supabase Auth emails a link through the SMTP provider. `/auth/confirm` verifies it, and `/reset-password` accepts a new password only from a recovery auth session less than 30 minutes old, then signs out every auth session of that account.
+
+**Email verification** is optional and gates only the first checkout. Settings sends a one-time link. `Profile.emailVerifiedAt` is written only by `confirmEmailVerificationLink` (`src/lib/data/email-verification.ts`), called from the `/auth/confirm` route once the link verifies. No page writes it.
+
+**Auth sessions and suspension.** Every route except the public pages, login, signup, recovery, and the email-link landings requires an authenticated session. `src/proxy.ts` redirects optimistically, and `requireAccount()` is the authoritative check in every page and server action. A suspended account is refused on every authenticated request and sent to `/suspended`, with one narrow exception: `requireAccountForDataRights()` (`src/lib/data/account.ts`) lets it download its export and delete its account, and `tests/unit/data-rights-guard.test.ts` pins that function's callers to the export route and the delete-account flow. Nothing else accepts a suspended account. Web sign-out ends only the current browser's auth session (`signOut({ scope: "local" })`); a password reset is the one flow that signs out everywhere.
+
+Do not loosen the signup defenses, remove the closed mode, or add social login, a role system for lifters, or application-side email sending outside a pitch that scopes it.
 
 ### Row-level security: deny-all, Prisma is the only door
 
@@ -137,11 +161,11 @@ Prisma connects directly to Postgres and bypasses row-level security. Supabase a
 
 ### Storage
 
-Exercise images are public-domain assets from free-exercise-db. They are the only content in Storage. Custom exercises have no image. Do not add user-uploaded files without a pitch.
+Storage holds three buckets. `exercise-images` is public-read and holds the public-domain free-exercise-db images; custom exercises have no image. `feedback-screenshots` (screenshots attached to in-app feedback) and `plan-import-sources` (files uploaded for plan import) are private with no Storage policies, reached only on the server with the service-role key and read back through short-lived signed URLs. Deleting an account removes its objects. Do not add another kind of user-uploaded file without a pitch.
 
 ### Secrets
 
-`DATABASE_URL`, `DIRECT_URL`, the Supabase service-role key, the invite code, the SMTP credentials, the Stripe secret and webhook signing keys, and the language-model API key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Vercel preview deployments and local development point at the Supabase dev project, never at production.
+`DATABASE_URL`, `DIRECT_URL`, the Supabase service-role key, the signup mode, the Turnstile secret, the SMTP credentials (held by Supabase, never by the app), the Stripe secret and webhook signing keys, and the language-model API key are server-only and never appear in client bundles or in `NEXT_PUBLIC_` variables. Vercel preview deployments and local development point at the Supabase dev project, never at production.
 
 ### Personal data
 
@@ -162,7 +186,7 @@ Names, emails, and training history are personal data. Never log them, never put
 - There are two plans: Free (no ads, ever) and Pro. Capture is free and interpretation is paid. Everything a lifter enters, their full history, and their export stay free and are never gated, locked, or deleted, including on a downgrade.
 - Code checks named capabilities (for example progression insights, plan import), and each plan grants a set of them. Never branch on a plan name. Later Pro additions are Pro by default, and every pitch states the capability that gates what it adds.
 - Enforcement is on the server. A Free account must never receive a Pro result, even by calling a server action directly. Hiding a button is not enforcement.
-- An entitlement has a source: trial (14 days from signup, no card), subscription, or comp. Trial and comp are Overload's own state. Subscription state comes only from verified, idempotent Stripe webhooks, and a replayed event must change nothing. Comp carries a reason, an optional end date, and an audit entry. It is not a role and never touches Stripe.
+- Pro access has three sources. Two are Overload's own `Entitlement` rows, whose stored `source` is only `trial` (14 days from signup, no card) or `comp`. The third is the subscription, read from the `BillingAccount` mirror of Stripe (active or trialing, canceling until the period ends, past due within the grace period). `computeEntitlement` (`src/lib/entitlements/resolve.ts`) combines them. The mirror is written from verified, idempotent Stripe webhooks (a replayed event changes nothing) and by a best-effort refetch of the account's own subscription when the Plan & Billing page loads (`src/lib/billing/sync.ts`), never from client input. Comp carries a reason, an optional end date, and an audit entry. It is not a role and never touches Stripe.
 - Stripe is the only place money and card data live. Never store, log, or handle card numbers; use hosted Checkout and the Customer Portal. Runs use Stripe test mode only.
 - Upgrade prompts are one quiet, dismissible note where a Pro feature would be. No countdowns, banners, or other dark patterns.
 
@@ -176,13 +200,24 @@ Names, emails, and training history are personal data. Never log them, never put
 
 ### Mobile app (React Native + Expo)
 
-- **One repository.** The web app, the mobile app, and a shared package live together so one run can change both clients. The shared package holds types, validation schemas, the pure training functions that need no database (for example e1RM and progression rules), constants, and the tour and release-note data. Server modules that touch Prisma stay on the server and are never imported by the mobile app. The exact layout is set in the Monorepo & Shared Package slice.
-- **One backend and one training model.** Never build a second progression engine or separate mobile training records. The mobile app calls the mobile API, which wraps the same business logic the web uses.
-- **The mobile API.** Versioned route handlers. Every handler verifies the bearer token on the server, takes the acting `userId` from the token and never from the request, calls account-scoped functions, enforces capabilities, returns a stable error shape, and makes writes safe to retry. An app-config endpoint returns the minimum supported app version and kill switches so the server can force an update. Changes within a version are backward compatible, because old app versions stay installed. Breaking changes need a new version. Every endpoint is covered by the cross-account isolation suite.
-- **The mobile app talks only to that API.** Never to Supabase tables. The Supabase client is for the auth session only, tokens are held in secure device storage, and no secret ships in the app bundle.
-- **Parity means equivalent capability, not identical screens.** Native screens use native patterns, designed with `overload-mobile-ui`. Web-only for now: the admin area, billing and checkout, and public pages. The plan builder and plan import may stay web-only during the beta, per the mobile roadmap (`docs/planning/mobile-roadmap.md`).
+None of the mobile code exists yet. It is built in slices 21a to 21l, defined in `docs/planning/mobile-roadmap.md`, which owns their order and scope; `docs/planning/mobile-audit.md` holds the facts they were planned from. The rules below bind every slice.
+
+- **One repository, planned layout.** npm workspaces with `apps/web` (the current Next.js app, moved there in 21a), `apps/mobile` (the Expo app, 21d), and `packages/shared` (21b: source-only TypeScript holding the API contracts and error shape, the pure training rules, validation parsers and limits, the Prisma enum tuples with a parity test against `Prisma.$Enums`, release-note and tour content, and design tokens). Until 21a lands, the web app sits at the repository root and paths are `src/...`. The shared package never depends on `@prisma/client`, `next`, `react`, `@supabase/*`, or `server-only`, enforced by an ESLint rule. Prisma, the scoped data layer, entitlement resolution, and gating stay in `apps/web`, and the mobile app never imports server modules. Moving the hosting root directory to `apps/web` is a human step.
+- **One backend and one training model.** Never build a second progression engine or separate mobile training records. The mobile API wraps the same business logic the web uses, and the app receives Pro calls (recommendations, evidence, trends) from the API and never runs the engine itself.
+- **The mobile API (21c).** Versioned route handlers under `/api/mobile/v1`. Every handler:
+  - verifies the bearer token with `supabase.auth.getUser(token)` on a cookie-less anon client, never by local JWT checking, because the profile loader lazily recreates a missing profile and a locally valid token for a deleted account would recreate an orphan; it takes the acting account from the verified user, never from the request;
+  - returns 401 `unauthorized` for a missing or invalid token and 403 `account_suspended` for a suspended account;
+  - calls account-scoped lib functions and the gated queries, serializing the gated result as-is including `locked`, and never calls an ungated progression builder (`gatherRows`, `describeScope`, `getExerciseProgression`);
+  - returns a 2xx status with JSON on success, and on failure a status with `{ error: { code, message, details? } }` using the existing error codes;
+  - reads the `X-Overload-App-Version` header and answers 426 `upgrade_required` below the minimum supported version;
+  - is safe to retry: natural-key writes (logging a set, starting a workout, logging cardio, absolute edits) already are, and create endpoints (goals, gyms, custom exercises, mesocycles, feedback) take an `Idempotency-Key` header stored in a new owned table with RLS, scope-layer coverage, and isolation-suite coverage. Never accept client-supplied primary keys.
+- **The proxy exemption.** `src/proxy.ts` and `src/lib/auth-routes.ts` must exempt `/api/mobile`, or every cookie-less request is redirected to `/login`.
+- **App config.** A public `GET /api/mobile/v1/app-config` returns the minimum and latest app versions and kill switches, so the server can force an update. Changes within an API version are backward compatible, because old app versions stay installed, and breaking changes need a new version. Every endpoint is covered by the cross-account isolation suite.
+- **The mobile app talks only to that API**, apart from Supabase Auth for its own auth session. Never to Supabase tables. Tokens are held in secure device storage, and no secret ships in the app bundle.
+- **Accounts on the phone.** Sign-in, sign-up, and the password-reset request are native (21d), with no invite code and the same server-side signup defenses; the mobile bot challenge is decided in 21d. The reset itself completes on the web through the email link.
+- **Parity means equivalent capability, not identical screens.** Native screens use native patterns, designed with `overload-mobile-ui`. Web-only for now: the admin area, billing and checkout, public pages, the plan builder, and plan import.
 - **Online-only.** No offline logging.
-- **No purchase flow in the app** until the billing path for that store is decided, because store rules differ.
+- **No purchase flow in the app** until the billing path for that store is decided, because store rules differ. A Pro note on the phone has no purchase link.
 - **Review loop.** Development builds connect to staging, and the friends' build connects to Production. A run may publish an over-the-air update to the Expo `staging` channel if a staging-only token is configured. Publishing to the `production` channel, building for or submitting to TestFlight or a store, and anything that needs a real device are human steps. A check that needs a simulator or a real device is reported as unverified, never as passed.
 
 ## Business logic
@@ -191,16 +226,16 @@ Names, emails, and training history are personal data. Never log them, never put
 
 The rule is the same regardless of training phase: hit the top of the **planned rep range** for the required number of consecutive sessions and the lift is tagged progress; fall short consistently and it is tagged deload; anything else is hold, which renders with no tag at all. There is no "declared goal" or "training phase" object, and none should be added. A 3×5 bench and a 3×10 bench differ only in their planned rep range.
 
-- The thresholds (consecutive sessions, misses before deload, weight increment) are named constants in `lib/progression/config.ts`, not magic numbers. Their values are open in `architecture.md` and are set in the controlling pitch.
+- The thresholds (consecutive sessions, misses before deload, weight increment) are named constants in `src/lib/progression/config.ts`, not magic numbers. Their current values and rationale are in `docs/planning/method-note.md` and the controlling specs.
 - An exercise with insufficient history (first time performed) is never tagged progress or deload.
 - The e1RM trend is the secondary stall-detector: if the rule says progress but e1RM has been flat across the recent window, flag it instead of blindly bumping weight.
 - Goal progress and the e1RM trend use the **same** `estimateOneRepMax` function. A goal like 225×12 and a current best of 205×10 are both converted through it. Never write a second formula.
 
 ### Two deload systems that must stay separate
 
-The **scheduled deload** is planned recovery: the mesocycle's designated week reduces load across the whole split, regardless of how any lift is doing. The **reactive deload** is a per-exercise call from the progression rule. They are independent. A valid state proving it: a lift can be tagged deload by the rule during week 2, while week 5 is a scheduled deload for everything, including lifts that never stalled.
+The **scheduled deload** is planned recovery on a cadence: `Mesocycle.deloadEveryWeeks` (stored in the column `deload_week`, default 5) makes every Nth week of the block (N, 2N, 3N, ...) a deload week that reduces load across the whole split, regardless of how any lift is doing (`isScheduledDeloadWeek` in `src/lib/progression/deload.ts`). It is not a single designated week. The **reactive deload** is a per-exercise call from the progression rule. They are independent. A valid state proving it: a lift can be tagged deload by the rule during week 2, while week 5 is a scheduled deload for everything, including lifts that never stalled.
 
-During a scheduled deload week the reactive check is **suppressed entirely**. It resumes the moment the week ends. Editing a past log never retroactively applies the reactive check to a week that was a scheduled deload.
+During a scheduled deload week the reactive check is **suppressed entirely**. It resumes the moment the week ends. Because tags are computed on read, editing a past set changes the computed call for its week, and a week that was a scheduled deload stays suppressed.
 
 ### Today is per account
 
@@ -208,11 +243,15 @@ Every computation of "today", a weekday, or a time of day uses the account's sto
 
 ### Planned versus logged, and the word "Session"
 
-`Session` always means a planned workout template inside a `Mesocycle` (for example "Push Day 1"). `LoggedSession` is a record of a day actually trained. Never call the auth session a `Session`; say "auth session". Never write to a `Session` or `SessionExercise` while logging; swapping an exercise mid-workout affects that `LoggedExercise` only, unless the lifter explicitly saves the swap back to the template. The swap picker opens on the planned exercise's muscle group and can be switched to any group (Workout Logging Refinements superseded the same-muscle-only rule).
+`Session` always means a planned workout template inside a `Mesocycle` (for example "Push Day 1"). `LoggedSession` is a record of a day actually trained. Never call the auth session a `Session`; say "auth session". Never write to a `Session` or `SessionExercise` while logging. Swapping an exercise mid-workout changes only that `LoggedExercise`; there is no path that saves a swap back to the template. The swap picker opens on the planned exercise's muscle group and can be switched to any group (Workout Logging Refinements superseded the same-muscle-only rule). A swap is refused once the exercise has a logged set.
+
+**Workout state rules.** Starting a new workout (`startOrResumeWorkout`, `src/lib/logging/sessions.ts`) is accepted only for a session of the active block, on a date that block schedules it, today or earlier in the account's timezone; resuming an existing workout is never re-validated. A completed workout refuses new sets and swaps (`invalid_state_transition`); its past sets stay correctable through `editLoggedSet`. Finishing an already finished workout succeeds and changes nothing. Weights are pounds, above 0, at most 9,999.99, with at most two decimal places (`checkWeightLbs`, `src/lib/logging/weight.ts`), and a value with more places is refused rather than rounded by the database.
+
+**History is all-time.** `getHistoryWeek` (`src/lib/logging/history-week.ts`) reads one week at a time, across every block, back to the earliest logged workout or cardio. Weeks are anchored on the active block's start weekday (Monday with no active block). It is Free.
 
 ### Missed days: three outcomes, shift is scoped to one week
 
-An uncompleted prior day prompts three choices: log it late, shift, or skip. Shift moves the remaining days of the **current week** forward by one; the following week returns to the split's normal alignment. A shift must never compound across weeks. Where skipped and shifted days are persisted is open in `architecture.md`; whatever the controlling pitch chooses, a skipped day must not re-prompt on every app open.
+An uncompleted prior day prompts three choices: log it late, shift, or skip. Log it late is starting the workout for the missed date. Shift moves the remaining days of the **current week** forward by one; the following week returns to the split's normal alignment. A shift must never compound across weeks. Shift and skip are stored as `MissedDayResolution` rows, one per missed day, so a resolved day never re-prompts. `resolveMissedDay` (`src/lib/logging/missed-days.ts`) validates at runtime that the outcome is shift or skip and that the date is a real past occurrence of the active block that is not logged, not dropped by an earlier shift, and not already resolved. Replaying the same outcome returns the existing resolution, and a different outcome is a conflict. On an active block, a session's weekday and the block's start date cannot be changed (that would turn trained weeks into missed days), and a session added to an active block counts from the day it was created.
 
 ### Goals
 
@@ -228,7 +267,7 @@ Permanent non-goals from the Brief. These are "never" for this product:
 
 - **No program generation.** The lifter designs every split and mesocycle. The app tracks and adjusts load inside the plan; it never authors one.
 - **No social network.** No feed, following, comments, messaging, or leaderboards, and no account ever reads another account's data live. Limited, user-initiated sharing is planned (a workout template shared by copy, and progress cards through the phone's share sheet). Until those pitches ship, none exists. A shared template arrives as a copy the recipient confirms and owns.
-- **Not open to the public yet.** Signup stays invite-only and no payment is collected until the launch-readiness checklist passes. Social login stays out.
+- **No social login.** Signup is open with email and password only. No payment is collected until the launch-readiness checklist passes.
 - **No ads, ever.** The Free plan has no ads.
 - **No AI coach.** AI is used only to parse a plan the lifter wrote (plan import). It never generates programs or coaches. A chat-style coach would be a separate, much later tier, and is not planned.
 - **No dated goals and no rest timer.** Both were considered and decided against. A strength deadline can pressure someone to lift past what their readiness supports.
@@ -242,11 +281,11 @@ Deferred (planned in the roadmap; don't build unless a pitch calls for it, but d
 Focus tests where correctness matters most. Highest-value targets, in order:
 
 1. **Cross-account isolation (adversarial, and first).** For every owned model and every read and write path, prove a second account cannot see, change, or detect the first account's data: by id, by list, by search, and through relations. Prove an owned-model query cannot be written outside the allowed modules, that another account's id returns not-found, that the acting account is never taken from client input, and that deleting an account removes only that account's rows.
-2. **Logged history integrity (adversarial).** Prove that soft-deleting an `Exercise` or `Gym` leaves every historical `LoggedExercise` readable, that hard deletes of referenced rows are rejected by `onDelete: Restrict`, and that no code path outside `lib/logging/logged-sets.ts` writes a `LoggedSet`. Everything else is derived from it.
+2. **Logged history integrity (adversarial).** Prove that soft-deleting an `Exercise` or `Gym` leaves every historical `LoggedExercise` readable, that hard deletes of referenced rows are rejected by `onDelete: Restrict`, and that no code path outside `src/lib/logging/logged-sets.ts` writes a `LoggedSet`, and that a completed workout refuses new sets. Everything else is derived from it.
 3. **Gym baseline isolation and atomicity.** A correction at Gym A never changes Gym B's baseline; the first log at a gym establishes rather than corrects; a failed set write leaves the baseline untouched.
 4. **The progression engine.** Threshold boundaries, insufficient-history behavior, scheduled-deload suppression, the e1RM stall override, and that editing a past set changes the computed tag. Pure functions; test them as such.
 5. **Missed-day handling.** Each of the three outcomes, shift scoped to one week, and no compounding across weeks or across consecutive misses.
-6. **Auth, signup, and RLS.** Unauthenticated requests are redirected, the anon-key Data API returns nothing for every table, signup rejects a missing or wrong invite code while it is invite-only, and a suspended account is refused. Once recovery exists, a request gives the same response for a known and an unknown email.
+6. **Auth, signup, and RLS.** Unauthenticated requests are redirected, the anon-key Data API returns nothing for every table, signup needs no invite code and the closed mode refuses every signup, each signup defense refuses neutrally, a recovery request gives the same response for a known and an unknown email, and a suspended account is refused everywhere except its export and account deletion.
 7. **Admin authorization and its privacy boundary.** A non-admin cannot reach any admin page or operation, by URL or by calling a server action directly. Admin lists and metrics expose no training content. Every admin mutation writes an audit entry.
 8. **Plans, entitlements, and billing.** A Free account never receives a Pro result, even by calling a server action directly. Webhooks are authenticated and idempotent, and replaying one changes nothing. Trial, subscription, and comp resolve correctly, and a downgrade deletes nothing.
 
@@ -256,8 +295,10 @@ Test the risky logic hard; lean tests or manual verification are fine for low-ri
 
 ```text
 docs/
-├── planning/   product-brief, prd, architecture, pitch-roadmap, method-note (cross-milestone)
-├── pipeline/   branching workflow, promotion prompt, pipeline guide
+├── planning/   product-brief, prd, architecture, pitch-roadmap, mobile-roadmap, mobile-audit, method-note (cross-milestone)
+├── pipeline/   branching workflow, promotion prompt, pipeline guide, run prompts
+├── technical/  environment isolation, staging environment, development handoff
+├── releases/   release records
 ├── marketing/
 └── pitches/
     └── <milestone>/            e.g. mvp-4-web-commercial
@@ -359,7 +400,7 @@ Every resolved question is recorded in the spec under a `## Resolved Decisions` 
 
 Halt, state the reason in the final message and the feature PR description, and stop if any of these arise:
 
-1. **An invariant would be weakened.** A `LoggedSet` written outside its module, or destroyed, altered, or detached from its exercise and gym. A hard delete of an `Exercise` or `Gym`, or a cascade on the logged chain. A stored progression tag or e1RM. A baseline correction outside its set's transaction or across gyms. A table without row-level security, or a policy that opens the Data API. Any read or write of owned data that is not scoped to the acting account, an account id taken from client input, or anything that lets one account see or detect another's data. Signup opened to the public before Public Accounts is verified, or any signup path that skips the invite gate while signup is invite-only. A secret in a client bundle. Any admin operation without a server-side admin check, or any admin view of an account's training content. A Pro result delivered to a Free account. Card data stored or logged.
+1. **An invariant would be weakened.** A `LoggedSet` written outside its module, or destroyed, altered, or detached from its exercise and gym. A hard delete of an `Exercise` or `Gym`, or a cascade on the logged chain. A stored progression tag or e1RM. A baseline correction outside its set's transaction or across gyms. A table without row-level security, or a policy that opens the Data API. Any read or write of owned data that is not scoped to the acting account, an account id taken from client input, or anything that lets one account see or detect another's data. A signup path that skips the server-side signup defenses (bot challenge, throttle, hourly cap, reserved usernames, disposable-email blocklist) or the closed-mode stop, or that removes the closed mode. A secret in a client bundle. Any admin operation without a server-side admin check, or any admin view of an account's training content. A Pro result delivered to a Free account. Card data stored or logged.
 2. **An approved planning doc would be contradicted.**
 3. **Irreplaceable-data or credential scope.** Anything that could lose or alter any account's logged history beyond what the pitch names, that could expose one account's data to another, or that touches production data, production credentials, the Supabase service-role key, live Stripe keys, or any real charge.
 4. **A destructive or irreversible operation not named in the pitch.** Hard deletes, dropping or renaming a table or column that holds data, `prisma migrate reset`, a forced schema push, force-pushes, or rewriting history.
