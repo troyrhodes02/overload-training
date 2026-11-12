@@ -119,6 +119,23 @@ export async function updateMesocycleDetails(
         details.deloadEveryWeeks =
           "An active block needs its deload to happen at least once.";
       if (Object.keys(details).length > 0) throw invalid(details);
+      // The start date anchors every week of an active block: changing it
+      // renumbers the weeks already trained (and which were deload weeks) and
+      // can surface past days as missed (OVE-138 / audit F-T5). Other details
+      // stay editable.
+      const current = await t.mesocycle.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { startDate: true },
+      });
+      const currentIso = current.startDate
+        ? current.startDate.toISOString().slice(0, 10)
+        : null;
+      if (v.startDate !== currentIso) {
+        throw new DomainError(
+          "invalid_state_transition",
+          "This block is active, so its start date can't change — that would rewrite the weeks you've already trained. Make the change in a new block instead.",
+        );
+      }
     }
     await t.mesocycle.update({
       where: { id: row.id },
