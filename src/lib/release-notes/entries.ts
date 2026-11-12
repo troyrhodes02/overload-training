@@ -47,13 +47,12 @@ export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   //   significant: true, audience: "internal" (or "public" after launch)
   {
     // All-time history (OVE-141–146, overload-onboarding). Significant: it adds
-    // a capability (browsing every past week). PROVISIONAL date: written
-    // 2026-11-12 when it merged to staging. When it is promoted, set `date` and
-    // the id's date prefix to the production day; once published it is never
-    // re-dated. No tour step: History is already toured (page-history) and the
-    // anchor stays on the week navigation.
-    id: "2026-11-12-all-time-history",
-    date: "2026-11-12",
+    // a capability (browsing every past week). Dated the Production release day
+    // (2026-11-11, the owner's local day); published, so never re-dated. No tour
+    // step: History is already toured (page-history) and the anchor stays on
+    // the week navigation.
+    id: "2026-11-11-all-time-history",
+    date: "2026-11-11",
     title: "Your whole training history",
     body: "History now goes back as far as you've trained, not just this block. Step back a week at a time or jump to an earlier block. Weeks outside your current block show what you logged there.",
     significant: true,
