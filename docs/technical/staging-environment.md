@@ -58,11 +58,14 @@ Settings → Environment Variables. **Production values are never touched.** Eve
 | `OVERLOAD_INVITE_CODE` | a dev-only code that is not used anywhere else | Preview |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare's published always-pass test key `1x00000000000000000000AA` | Preview |
 | `TURNSTILE_SECRET_KEY` | Cloudflare's published always-pass test secret `1x0000000000000000000000000000000AA` | Preview |
+| `TURNSTILE_DISABLED` | `true` (optional: hides the widget and lifts the hourly signup cap for test accounts) | **staging only** |
 | `PLAN_IMPORT_ENABLED` | `true` | **staging only**, once the schema is migrated |
 | `ANTHROPIC_API_KEY`, `PLAN_IMPORT_MONTHLY_SPEND_MICROS` | **unset** | everywhere, until provider approval |
 | Stripe variables, `OVERLOAD_ADMIN_USER_IDS` | unset, unless testing billing or admin (use dev/test-mode values only) | Preview |
 
-The Turnstile test pair is documented by Cloudflare and always passes. It is not a secret, and it is needed because Preview builds run with `NODE_ENV=production`, so the local Turnstile bypass does not apply.
+The Turnstile test pair is documented by Cloudflare and always passes. It is not a secret, and it is needed because Preview builds run with `NODE_ENV=production`, so the local no-secret Turnstile fallback does not apply.
+
+`TURNSTILE_DISABLED=true` is the explicit development bypass (`src/lib/accounts/turnstile-bypass.ts`). On Preview (`VERCEL_ENV=preview`) or in local `next dev` it removes the widget from signup and forgot-password, skips server-side verification, and skips the global hourly signup cap, so repeated test accounts are never paused. The per-IP throttle, the signup mode and invite code, field validation, reserved usernames, and the disposable-email blocklist still apply. It is refused on `VERCEL_ENV=production` whatever its value, in any production-mode process outside Preview, and whenever a database or Supabase variable names the Production project. Scope it to Preview with the custom branch `staging`, never to all Preview branches and never to Production, and redeploy `staging` after adding it. Login has no bot challenge, so it is unaffected either way.
 
 Do **not** add a Production-scoped `PLAN_IMPORT_ENABLED`. Old Preview deployments keep the variables they were built with, so redeploy `staging` after changing any variable.
 

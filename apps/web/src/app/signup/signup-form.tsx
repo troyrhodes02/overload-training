@@ -77,9 +77,11 @@ export function SignupForm({ view }: { view: SignupViewDto }) {
   // The bot challenge must pass before submit is allowed. A null site key leaves
   // the widget unavailable, so this stays false and the button stays disabled
   // (D3) — the server rejects a tokenless submit regardless.
-  const [challengeReady, setChallengeReady] = useState(false);
+  // Under the development / Preview bypass there is no widget and no token.
+  const [challengePassed, setChallengePassed] = useState(false);
+  const challengeReady = view.challengeDisabled || challengePassed;
   const onChallengeReady = useCallback(
-    (v: boolean) => setChallengeReady(v),
+    (v: boolean) => setChallengePassed(v),
     [],
   );
   const timeZone = useDeviceTimeZone() ?? "";
@@ -352,10 +354,12 @@ export function SignupForm({ view }: { view: SignupViewDto }) {
         </Alert>
       ) : null}
 
-      <BotChallenge
-        siteKey={view.turnstileSiteKey}
-        onReadyChange={onChallengeReady}
-      />
+      {view.challengeDisabled ? null : (
+        <BotChallenge
+          siteKey={view.turnstileSiteKey}
+          onReadyChange={onChallengeReady}
+        />
+      )}
 
       <Button
         type="submit"
