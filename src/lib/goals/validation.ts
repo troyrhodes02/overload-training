@@ -4,7 +4,10 @@
  * date, note, e1RM, or percent can ever be submitted. Limits mirror LoggedSet
  * (weight > 0 and ≤ 9999.99 lb; reps a whole number 1–1000).
  */
-export const GOAL_WEIGHT_MAX_LBS = 9999.99;
+import { checkWeightLbs, WEIGHT_LBS_MAX } from "@/lib/logging/weight";
+
+/** Same storable limit as a logged set (one shared rule, OVE-135). */
+export const GOAL_WEIGHT_MAX_LBS = WEIGHT_LBS_MAX;
 export const GOAL_REPS_MAX = 1000;
 
 export type GoalInput = {
@@ -51,8 +54,10 @@ export function parseGoalInput(
   const gymId = gymRaw.length > 0 ? gymRaw : null;
 
   const weight = toNumber(raw.targetWeightLbs);
-  if (!Number.isFinite(weight) || weight <= 0 || weight > GOAL_WEIGHT_MAX_LBS)
-    details.targetWeightLbs = GOAL_FIELD_ERRORS.targetWeightLbs;
+  // The shared weight rule (OVE-135 / audit F-D3): above 0, at most 9,999.99,
+  // at most two decimal places, each with its own message.
+  const checkedWeight = checkWeightLbs(weight);
+  if (!checkedWeight.ok) details.targetWeightLbs = checkedWeight.message;
 
   const reps = toNumber(raw.targetReps);
   if (!Number.isInteger(reps) || reps < 1 || reps > GOAL_REPS_MAX)

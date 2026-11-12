@@ -6,8 +6,8 @@ import { formatRepTarget } from "@/lib/plan/rep-target";
 import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,
-  createTestMesocycle,
   createTestSession,
+  createActiveTestMesocycle,
 } from "./support/plan-factories";
 import type { Account } from "@/lib/data/account";
 import { defaultAccount } from "./support/accounts";
@@ -25,7 +25,7 @@ const db = () => getTestPrisma();
 
 describe("3 × 10 through the plan and the workout", () => {
   it("adds, edits, snapshots, and prints a fixed target", async () => {
-    const meso = await createTestMesocycle();
+    const meso = await createActiveTestMesocycle();
     const session = await createTestSession(meso.id, { dayOfWeek: 1 });
     const crunch = await createTestExercise({
       name: "Cable Crunch",

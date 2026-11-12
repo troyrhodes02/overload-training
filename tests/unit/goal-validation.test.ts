@@ -1,3 +1,4 @@
+import { WEIGHT_MESSAGES } from "@/lib/logging/weight";
 import {
   GOAL_FIELD_ERRORS,
   goalInputFromFormData,
@@ -51,12 +52,17 @@ describe("goal target validation (spec §12)", () => {
     ["zero", "0"],
     ["negative", "-5"],
     ["non-numeric", "abc"],
-    ["above the column limit", "10000"],
     ["not a number type", null],
   ])("rejects a %s weight", (_label, weight) => {
     expect(
       errorsFor({ exerciseId: EX, targetWeightLbs: weight, targetReps: "1" }),
     ).toEqual({ targetWeightLbs: GOAL_FIELD_ERRORS.targetWeightLbs });
+  });
+
+  it("rejects a weight above the column limit with its own message (OVE-135)", () => {
+    expect(
+      errorsFor({ exerciseId: EX, targetWeightLbs: "10000", targetReps: "1" }),
+    ).toEqual({ targetWeightLbs: WEIGHT_MESSAGES.tooLarge });
   });
 
   it.each([
