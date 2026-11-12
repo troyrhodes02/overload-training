@@ -20,7 +20,18 @@ export function mesocycleWeek(startDate: string, dateIso: string): number {
  * All dates are "YYYY-MM-DD" strings, which compare lexicographically === chronologically.
  */
 
-export type ScheduleSession = { id: string; name: string; dayOfWeek: number };
+export type ScheduleSession = {
+  id: string;
+  name: string;
+  dayOfWeek: number;
+  /**
+   * The first date this session's occurrences count from, or null for all of
+   * them. Set for a session added to a block after the block had started
+   * (OVE follow-up, F-T5): its earlier weeks were never planned with it, so
+   * they hold no occurrence of it — never a missed day.
+   */
+  countsFrom?: string | null;
+};
 export type ScheduleResolution = {
   missedOn: string;
   outcome: "logged_late" | "shifted" | "skipped";
@@ -84,20 +95,26 @@ export function effectiveWeekSchedule(
   const weekStart = addDays(ctx.startDate, (week - 1) * 7);
   const weekEnd = addDays(weekStart, 6);
 
-  const occ: EffectiveOccurrence[] = ctx.sessions.map((s) => {
-    const authoredIso = authoredDate(ctx.startDate, week, s.dayOfWeek);
-    return {
-      sessionId: s.id,
-      sessionName: s.name,
-      dayOfWeek: s.dayOfWeek,
-      week,
-      authoredIso,
-      effectiveIso: authoredIso,
-      resolution: null,
-      loggedStatus: null,
-      dropped: false,
-    };
-  });
+  const occ: EffectiveOccurrence[] = ctx.sessions
+    .filter(
+      (s) =>
+        !s.countsFrom ||
+        cmp(authoredDate(ctx.startDate, week, s.dayOfWeek), s.countsFrom) >= 0,
+    )
+    .map((s) => {
+      const authoredIso = authoredDate(ctx.startDate, week, s.dayOfWeek);
+      return {
+        sessionId: s.id,
+        sessionName: s.name,
+        dayOfWeek: s.dayOfWeek,
+        week,
+        authoredIso,
+        effectiveIso: authoredIso,
+        resolution: null,
+        loggedStatus: null,
+        dropped: false,
+      };
+    });
 
   const weekResolutions = ctx.resolutions
     .filter(

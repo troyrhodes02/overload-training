@@ -170,12 +170,17 @@ async function activeContext(account: Account): Promise<{
   });
   if (!meso || !meso.startDate) return null;
   const startDate = toIsoDate(meso.startDate);
-  const ctx = await loadScheduleContext(account.db, {
-    id: meso.id,
-    startDate: meso.startDate,
-    lengthWeeks: meso.lengthWeeks,
-    sessions: meso.sessions,
-  });
+  const ctx = await loadScheduleContext(
+    account.db,
+    {
+      id: meso.id,
+      startDate: meso.startDate,
+      lengthWeeks: meso.lengthWeeks,
+      createdAt: meso.createdAt,
+      sessions: meso.sessions,
+    },
+    account.timeZone,
+  );
   return {
     mesocycleId: meso.id,
     lengthWeeks: meso.lengthWeeks,
