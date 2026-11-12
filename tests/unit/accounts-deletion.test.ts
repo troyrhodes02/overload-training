@@ -27,6 +27,7 @@ import { ACCOUNT_DELETION_ORDER, deleteAccount } from "@/lib/accounts/deletion";
 import { requireAccount } from "@/lib/data/account";
 import { requireUser } from "@/lib/auth";
 import { verifyCurrentPassword } from "@/lib/accounts/password";
+import { SubscriptionCancellationError } from "@/lib/billing/cancel-on-deletion";
 import {
   deleteAccountAction,
   type DeleteAccountState,
@@ -147,6 +148,17 @@ describe("deleteAccountAction (spec §14.6)", () => {
     expect(
       await deleteAccountAction(idle, form({ password: "right" })),
     ).toMatchObject({ formError: "identity_pending" });
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("a subscription that couldn't be canceled deletes nothing and says to retry or contact support (OVE-122)", async () => {
+    (verifyCurrentPassword as jest.Mock).mockResolvedValue("ok");
+    (deleteAccount as jest.Mock).mockRejectedValue(
+      new SubscriptionCancellationError("stripe_failed"),
+    );
+    expect(
+      await deleteAccountAction(idle, form({ password: "right" })),
+    ).toMatchObject({ formError: "billing_not_canceled" });
     expect(signOut).not.toHaveBeenCalled();
   });
 

@@ -28,6 +28,14 @@ export default async function DeleteAccountPage() {
         This permanently deletes your account and everything in it. It
         can&apos;t be undone.
       </p>
+      <p className="text-sm text-muted-foreground">
+        If you have a Pro subscription, it&apos;s canceled immediately and you
+        won&apos;t be charged again. For questions about a refund,{" "}
+        <Link href="/support" className="underline underline-offset-4">
+          contact support
+        </Link>
+        .
+      </p>
       <DeleteAccountForm inventory={inventory} />
     </section>
   );

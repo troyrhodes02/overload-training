@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabase/server";
+import {
+  confirmEmailVerificationLink,
+  EMAIL_VERIFICATION_OTP_TYPES,
+  type VerificationLinkAuth,
+} from "@/lib/data/email-verification";
 
 /**
  * GET /auth/confirm — the landing target for recovery and verification links
@@ -14,7 +19,13 @@ import { createServerSupabase } from "@/lib/supabase/server";
  * hands off by type:
  *
  *   - recovery                    → /reset-password  (choose a new password)
- *   - email / signup / email_change (verification) → /verify-email
+ *   - email / signup / email_change / magiclink (verification) → /verify-email
+ *
+ * Verification is RECORDED HERE, in the same request that verified the token
+ * (OVE-121 / audit F-A1): `confirmEmailVerificationLink` marks the account
+ * verified only when the token verified and the verified email matches the
+ * account's current email. /verify-email only displays the
+ * stored state and never writes. Recovery tokens never reach that function.
  *
  * It never throws to an error page. A missing, malformed, unknown, expired,
  * reused, or otherwise rejected token redirects to the matching expired state:
@@ -29,23 +40,12 @@ import { createServerSupabase } from "@/lib/supabase/server";
 const RECOVERY_EXPIRED = "/forgot-password?link=expired";
 const VERIFY_EXPIRED = "/verify-email?error=expired";
 
-/** Verification OTP types Supabase may send for email ownership. */
-const VERIFY_TYPES: ReadonlySet<string> = new Set([
-  "email",
-  "signup",
-  "email_change",
-  // The one-time link signInWithOtp sends — the path an already-confirmed
-  // account uses to complete Overload's separate email verification (a
-  // confirmed account gets no signup-confirmation email).
-  "magiclink",
-]);
-
 function isRecovery(type: string | null): boolean {
   return type === "recovery";
 }
 
 function isVerify(type: string | null): boolean {
-  return type !== null && VERIFY_TYPES.has(type);
+  return type !== null && EMAIL_VERIFICATION_OTP_TYPES.has(type);
 }
 
 export async function GET(request: NextRequest) {
@@ -59,12 +59,28 @@ export async function GET(request: NextRequest) {
   // Decide the destination/expired pair up front so an unknown or missing type
   // still has a safe landing; default to the recovery door (the first flow).
   const expired = isVerify(type) ? VERIFY_EXPIRED : RECOVERY_EXPIRED;
-  const success = isVerify(type) ? "/verify-email" : "/reset-password";
 
   if ((!isRecovery(type) && !isVerify(type)) || !tokenHash) {
     return to(expired);
   }
 
+  if (type !== null && isVerify(type)) {
+    try {
+      const supabase = await createServerSupabase();
+      const outcome = await confirmEmailVerificationLink(
+        supabase.auth as unknown as VerificationLinkAuth,
+        { type, tokenHash },
+      );
+      // A verified token always lands on /verify-email, which shows the STORED
+      // state (verified, or not verified when the emails didn't match).
+      return to(outcome === "invalid" ? VERIFY_EXPIRED : "/verify-email");
+    } catch {
+      return to(VERIFY_EXPIRED);
+    }
+  }
+
+  // Recovery: unchanged. The session it establishes is for /reset-password
+  // only and never marks an email verified.
   try {
     const supabase = await createServerSupabase();
     const { error } = await supabase.auth.verifyOtp({
@@ -76,5 +92,5 @@ export async function GET(request: NextRequest) {
     return to(expired);
   }
 
-  return to(success);
+  return to("/reset-password");
 }
