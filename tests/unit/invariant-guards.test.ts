@@ -353,6 +353,11 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
   it("emailVerifiedAt is referenced only by the verification module and its Settings surface", () => {
     const ALLOWED = [
       "src/lib/accounts/verification.ts",
+      // OVE-121 (audit F-A1): the ONE writer — called by /auth/confirm in the
+      // request that verified the token — and the read-only state behind the
+      // display-only /verify-email page. Both moved here from the
+      // verification module and the page; neither gates anything.
+      "src/lib/data/email-verification.ts",
       "src/app/(app)/settings/page.tsx",
       "src/app/verify-email/page.tsx",
       // Public Accounts PA6 (spec §9, R7): the data export surfaces the whole
@@ -387,6 +392,8 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       /\b(requirePro|isPro|hasCapability|checkCapability|entitlement|capability|paywall)\b/i;
     const surfaces = [
       "src/lib/accounts/verification.ts",
+      "src/lib/data/email-verification.ts",
+      "src/app/auth/confirm/route.ts",
       "src/components/settings/verify-email-nudge.tsx",
       "src/app/verify-email/page.tsx",
       "src/app/verify-email/verify-email-confirmation.tsx",
