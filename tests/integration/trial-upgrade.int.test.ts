@@ -353,6 +353,13 @@ describe("trial notices", () => {
 
   it("never shows to a comped account, before or after its trial ends", async () => {
     const account = await createTestAccount(); // complimentary Pro
+    // createTestAccount() starts the comp at the real time, but this suite runs
+    // on a fixed clock (NOW). Start the comp before NOW so it covers the trial
+    // at every instant this test checks, whatever today's date is (OVE-163).
+    await prisma().entitlement.updateMany({
+      where: { userId: account.userId, source: "comp" },
+      data: { startedAt: new Date(NOW.getTime() - 30 * DAY) },
+    });
     await trialAccount(DAY + 60 * 60 * 1000, { userId: account.userId });
     expect(await notice(account, NOW)).toBeNull();
     expect(await notice(account, new Date(NOW.getTime() + 3 * DAY))).toBeNull();
