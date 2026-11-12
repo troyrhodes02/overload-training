@@ -4,6 +4,11 @@ import type { AccountTx } from "@/lib/data/account-db";
 import { deleteAuthUser } from "@/lib/supabase/admin";
 import { removeFeedbackScreenshots } from "@/lib/feedback/screenshots";
 import { removeSourceObjects } from "@/lib/import/storage";
+import {
+  cancelSubscriptionsBeforeDeletion,
+  type DeletionBillingDeps,
+} from "@/lib/billing/cancel-on-deletion";
+import { stripeDeletionDeps } from "@/lib/billing/stripe";
 
 /**
  * THE ACCOUNT-DELETION MODULE (CLAUDE.md first invariant; Accounts spec R12).
@@ -14,6 +19,11 @@ import { removeSourceObjects } from "@/lib/import/storage";
  * `userId = acting` — so another account's rows and the shared exercise
  * library (owner null) are unreachable here even with a bug.
  *
+ *  0. Billing first (OVE-122; Plans & Billing RD-16): every subscription on
+ *     the account's Stripe customer that is not already over is canceled
+ *     immediately. If that fails — or Stripe isn't configured while the mirror
+ *     says a subscription exists — this throws SubscriptionCancellationError
+ *     BEFORE anything is deleted, and the account stays fully intact.
  *  1. One transaction deletes every owned model in ACCOUNT_DELETION_ORDER
  *     (children before parents; every owned relation is onDelete: Restrict).
  *     Any failure rolls back: nothing is deleted.
@@ -23,8 +33,8 @@ import { removeSourceObjects } from "@/lib/import/storage";
  *     is an empty account its owner can still remove — never personal data
  *     without an owner able to remove it.
  *  3. Then a best-effort profile sweep, for a profile a concurrent request
- *     may have lazily recreated between 1 and 2. Only step 1 can make this
- *     function throw, so a throw always means "nothing was deleted".
+ *     may have lazily recreated between 1 and 2. Only steps 0 and 1 can make
+ *     this function throw, so a throw always means "nothing was deleted".
  *
  * Guard tests keep every LoggedSet / Exercise / Gym / Profile delete in the
  * application inside this file.
@@ -101,6 +111,8 @@ export type AccountDeletionResult = {
 
 export type AccountDeletionDeps = {
   deleteAuthUser: (id: string) => Promise<"deleted" | "not_found">;
+  /** Stripe cancel-before-delete; defaults to the real Stripe adapter. */
+  billing?: DeletionBillingDeps;
 };
 
 /** Generous: one person's history is small, but this must not time out. */
@@ -110,6 +122,12 @@ export async function deleteAccount(
   account: Account,
   deps: AccountDeletionDeps = { deleteAuthUser },
 ): Promise<AccountDeletionResult> {
+  // Billing before data: a throw here means nothing was deleted.
+  await cancelSubscriptionsBeforeDeletion(
+    account,
+    deps.billing ?? stripeDeletionDeps(),
+  );
+
   // Capture the feedback-screenshot object paths before the rows are deleted;
   // the image bytes live in Storage and are swept best-effort once the rows go.
   const screenshotPaths = (
