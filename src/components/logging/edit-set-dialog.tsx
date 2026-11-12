@@ -1,5 +1,6 @@
 "use client";
 
+import { checkWeightLbs } from "@/lib/logging/weight";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -75,9 +76,13 @@ export function EditSetDialog({
   function save() {
     const w = Number(weight);
     const r = Number(repsValue);
-    if (requiresExternalWeight && (!weight || !Number.isFinite(w) || w <= 0)) {
-      setError("Enter a weight above 0.");
-      return;
+    if (requiresExternalWeight) {
+      // The same rule the server applies (lib/logging/weight.ts, OVE-135).
+      const checked = checkWeightLbs(weight ? w : Number.NaN);
+      if (!checked.ok) {
+        setError(checked.message);
+        return;
+      }
     }
     if (!repsValue || !Number.isInteger(r) || r <= 0) {
       setError("Enter reps above 0.");
