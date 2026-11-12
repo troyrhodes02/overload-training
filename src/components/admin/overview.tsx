@@ -56,6 +56,11 @@ export function OverviewTiles({ data }: { data: AdminOverviewDto }) {
         caption={`since ${fullDate(data.monthStart).replace(/, \d{4}$/, "")}`}
       />
       <MetricTile
+        label="Signups, last hour"
+        value={data.signupsLastHour}
+        caption={`${data.signupsLast24h} in the last 24 hours`}
+      />
+      <MetricTile
         label="Created a plan"
         value={data.withPlan}
         caption={ofRegistered(data.pct.withPlan)}

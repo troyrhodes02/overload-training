@@ -46,6 +46,11 @@ function deps(overrides: Partial<SignUpDeps> = {}) {
     signIn: jest.fn(async () => ({ user: { id: NEW_ID } })),
     signOut: jest.fn(async () => {}),
     establishProfile: jest.fn(async () => {}),
+    // Signup hardening: nobody signed up in the last hour, and a trial claim
+    // (only reached with TRIAL_DEDUPE_ENABLED=true) succeeds.
+    countRecentSignups: jest.fn(async () => 0),
+    claimTrial: jest.fn(async () => true),
+    releaseTrialClaim: jest.fn(async () => {}),
     ...overrides,
   } satisfies SignUpDeps;
 }
@@ -312,6 +317,8 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
         username: "sam_lifts",
         timeZone: "America/Chicago",
       },
+      // Signup hardening 2a: with TRIAL_DEDUPE_ENABLED off, always the trial.
+      { grantTrial: true },
     );
     expect(d.deleteAuthUser).not.toHaveBeenCalled();
   });
@@ -322,6 +329,7 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
     expect(d.establishProfile).toHaveBeenCalledWith(
       { id: NEW_ID },
       expect.objectContaining({ timeZone: "UTC" }),
+      { grantTrial: true },
     );
   });
 

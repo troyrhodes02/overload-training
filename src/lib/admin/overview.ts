@@ -63,8 +63,13 @@ export function computeOverview(input: {
   loggedWorkout: ReadonlySet<string>;
   today: string;
   timeZone: string;
+  /** The instant "last hour" and "last 24 hours" are measured back from. */
+  now?: Date;
 }): AdminOverviewDto {
   const { profiles, today } = input;
+  const nowMs = (input.now ?? new Date()).getTime();
+  const signedUpSince = (ms: number) =>
+    profiles.filter((p) => p.createdAt.getTime() >= nowMs - ms).length;
   const from7 = addDays(today, -6);
   const from30 = addDays(today, -29);
   const monthStart = `${today.slice(0, 7)}-01`;
@@ -121,6 +126,8 @@ export function computeOverview(input: {
     active7,
     active30,
     newThisMonth,
+    signupsLastHour: signedUpSince(60 * 60 * 1000),
+    signupsLast24h: signedUpSince(24 * 60 * 60 * 1000),
     withPlan,
     loggedWorkout,
     pct: {
