@@ -148,7 +148,7 @@ There are three stages. Production is the `main` branch, deployed on Vercel and 
 
 A feature reaches Production only through a release branch cut fresh from `main`, containing just the approved feature and its tested fixes, opened as a PR into `main` and never merged automatically. Production schema changes are applied by a human from a runbook with a fresh backup taken immediately before, and risky ones are rehearsed first on a restored copy in the development project. After a release, `main` is synchronized back into `staging`. The full rule is in `docs/pipeline/branching-and-release-workflow.md`.
 
-Going commercial adds requirements. Production must run on hosting and database plans that allow commercial use and include backups (check the providers' current terms), with a tested restore. Stripe runs in test mode everywhere except production, and live mode is switched on only by a human. Mobile builds run on Expo's EAS service. A development build connects to staging and the friends' build connects to Production. Over-the-air updates use a `staging` channel for review and a `production` channel that only a human publishes to. An unattended run cannot verify anything on a device, so device checks are reported as unverified.
+Going commercial adds requirements. Production must run on hosting and database plans that allow commercial use and include backups (check the providers' current terms), with a tested restore. Stripe runs in test mode everywhere except production, and live mode is switched on only by a human. Web subscriptions can go live before Paid-Launch Safeguards (Pitch 23) is complete; paid checkout stays off until `STRIPE_BILLING_ENABLED` is exactly `true`, and the switch-on order and rollback are in `docs/planning/payments-go-live-checklist.md`. Mobile builds run on Expo's EAS service. A development build connects to staging and the friends' build connects to Production. Over-the-air updates use a `staging` channel for review and a `production` channel that only a human publishes to. An unattended run cannot verify anything on a device, so device checks are reported as unverified.
 
 ## Non-Functional Requirements
 
@@ -175,7 +175,7 @@ The third risk is billing and entitlement correctness, together with the admin b
 **Still open.** Each must be decided in the controlling pitch or slice and recorded as a documented decision, not guessed by an implementing agent.
 
 - Mobile app: the navigation and data-fetching libraries, the styling approach and chart library, secure token storage and refresh, the mobile bot challenge for native sign-up (the recommended default is the web challenge in a small web view for the beta, with Apple's App Attest evaluated before the public release), per-email and per-device signup limits behind carrier networks, and the beta gate. Decided in slices 21a to 21l, starting from `docs/planning/mobile-audit.md`.
-- Launch readiness: error monitoring provider, the backup and restore drill, and the hosting and database plan changes.
+- Paid-Launch Safeguards (Pitch 23): error monitoring provider, the backup and restore drill, and the hosting and database plan changes.
 - Store billing paths: how paid access works inside each app (US link-out in the external browser, in-app purchase, or sign-in only), decided in the store release pitches.
 - Android equivalents: what replaces the Live Activity, and what Health Connect covers.
 - Sharing: what a friend is, the share link or code mechanism, and revocation, decided in the sharing pitch's planning step.

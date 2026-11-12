@@ -2,7 +2,7 @@
 
 Overload is a strength training tracker whose job is to tell each lifter, per lift and per session, whether to progress, hold, or deload, based on logged performance against a plan they built themselves. Signup is open to the public, with a free plan and a paid Pro plan. Every lifter has their own account, and no account can see, change, or learn anything about another account's data.
 
-**Status.** MVP 1 to 4 are shipped: the training product, the multi-user conversion, the training-intelligence features, and the web commercial foundation (admin center, public accounts, plans and billing, the landing page, and plan import; Launch Readiness is deferred to MVP 6). MVP 5A is done: Workout Logging Refinements with its two chores, the read-only mobile codebase audit (`docs/planning/mobile-audit.md`), and the pre-mobile hardening that fixed the web defects the audit found (account and billing fixes, logging correctness, all-time history, and signup hardening). The next work is the React Native (Expo) iPhone app, built on the existing backend in slices 21a to 21l (`docs/planning/mobile-roadmap.md`); none of its code exists yet. Overload is operated by an individual, with a Free plan and a paid Pro plan. Signup is open to everyone with no invite code, and the closed signup mode stays only as an emergency stop. No purchase flow is added inside a mobile app until the store billing path is decided.
+**Status.** MVP 1 to 4 are shipped: the training product, the multi-user conversion, the training-intelligence features, and the web commercial foundation (admin center, public accounts, plans and billing, the landing page, and plan import; Pitch 23, now Paid-Launch Safeguards, sits in MVP 6 and no longer gates the first web payment). MVP 5A is done: Workout Logging Refinements with its two chores, the read-only mobile codebase audit (`docs/planning/mobile-audit.md`), and the pre-mobile hardening that fixed the web defects the audit found (account and billing fixes, logging correctness, all-time history, and signup hardening). The next work is the React Native (Expo) iPhone app, built on the existing backend in slices 21a to 21l (`docs/planning/mobile-roadmap.md`); none of its code exists yet. Overload is operated by an individual, with a Free plan and a paid Pro plan. Signup is open to everyone with no invite code, and the closed signup mode stays only as an emergency stop. Web subscriptions through Stripe Checkout can go live before Paid-Launch Safeguards is complete; the owner switches Stripe to live mode and sets the production keys (`docs/planning/payments-go-live-checklist.md`). No purchase flow is added inside a mobile app until the store billing path is decided.
 
 This file is persistent context for Claude Code. It encodes the non-obvious rules and invariants specific to this project. For product intent see `docs/planning/product-brief.md`; for features and acceptance criteria see `docs/planning/prd.md`; for technical decisions and rationale see `docs/planning/architecture.md`; for build sequencing see `docs/planning/pitch-roadmap.md`. This file is the "how we write code here" layer on top of those.
 
@@ -188,6 +188,7 @@ Names, emails, and training history are personal data. Never log them, never put
 - Enforcement is on the server. A Free account must never receive a Pro result, even by calling a server action directly. Hiding a button is not enforcement.
 - Pro access has three sources. Two are Overload's own `Entitlement` rows, whose stored `source` is only `trial` (14 days from signup, no card) or `comp`. The third is the subscription, read from the `BillingAccount` mirror of Stripe (active or trialing, canceling until the period ends, past due within the grace period). `computeEntitlement` (`src/lib/entitlements/resolve.ts`) combines them. The mirror is written from verified, idempotent Stripe webhooks (a replayed event changes nothing) and by a best-effort refetch of the account's own subscription when the Plan & Billing page loads (`src/lib/billing/sync.ts`), never from client input. Comp carries a reason, an optional end date, and an audit entry. It is not a role and never touches Stripe.
 - Stripe is the only place money and card data live. Never store, log, or handle card numbers; use hosted Checkout and the Customer Portal. Runs use Stripe test mode only.
+- Web subscriptions can go live before Paid-Launch Safeguards (Pitch 23) is complete. Going live is an owner step: the owner switches Stripe to live mode, sets the production keys, and turns on `STRIPE_BILLING_ENABLED`, following `docs/planning/payments-go-live-checklist.md`. A run never uses live keys, makes a real charge, or changes a Production environment variable. Inside the mobile app there is still no purchase flow until the App Store pitch decides the store billing path.
 - Upgrade prompts are one quiet, dismissible note where a Pro feature would be. No countdowns, banners, or other dark patterns.
 
 ### Plan import (AI)
@@ -267,14 +268,14 @@ Permanent non-goals from the Brief. These are "never" for this product:
 
 - **No program generation.** The lifter designs every split and mesocycle. The app tracks and adjusts load inside the plan; it never authors one.
 - **No social network.** No feed, following, comments, messaging, or leaderboards, and no account ever reads another account's data live. Limited, user-initiated sharing is planned (a workout template shared by copy, and progress cards through the phone's share sheet). Until those pitches ship, none exists. A shared template arrives as a copy the recipient confirms and owns.
-- **No social login.** Signup is open with email and password only. No payment is collected until the launch-readiness checklist passes.
+- **No social login.** Signup is open with email and password only.
 - **No ads, ever.** The Free plan has no ads.
 - **No AI coach.** AI is used only to parse a plan the lifter wrote (plan import). It never generates programs or coaches. A chat-style coach would be a separate, much later tier, and is not planned.
 - **No dated goals and no rest timer.** Both were considered and decided against. A strength deadline can pressure someone to lift past what their readiness supports.
 - **No progression analysis of cardio.**
 - **No nutrition or body-composition features in this build.** Those are a deliberately separate, later build. Don't model them here, and don't preclude connecting to them later.
 
-Deferred (planned in the roadmap; don't build unless a pitch calls for it, but don't preclude): the React Native iPhone app (Pitch 21 and its slices) and its TestFlight beta; workout logging refinements; wing-it workouts; the history calendar; friends and template sharing; shareable progress cards; gym location and notifications; Launch Readiness and the store releases; Android; the Live Activity and Watch app; advanced cardio and video attachments (discovery first); body metrics; nutrition. Cardio stays type and duration until a pitch decides otherwise. A built-in social platform is future exploration, not planned.
+Deferred (planned in the roadmap; don't build unless a pitch calls for it, but don't preclude): the React Native iPhone app (Pitch 21 and its slices) and its TestFlight beta; workout logging refinements; wing-it workouts; the history calendar; friends and template sharing; shareable progress cards; gym location and notifications; Paid-Launch Safeguards and the store releases; Android; the Live Activity and Watch app; advanced cardio and video attachments (discovery first); body metrics; nutrition. Cardio stays type and duration until a pitch decides otherwise. A built-in social platform is future exploration, not planned.
 
 ## Testing
 
@@ -295,7 +296,7 @@ Test the risky logic hard; lean tests or manual verification are fine for low-ri
 
 ```text
 docs/
-├── planning/   product-brief, prd, architecture, pitch-roadmap, mobile-roadmap, mobile-audit, method-note (cross-milestone)
+├── planning/   product-brief, prd, architecture, pitch-roadmap, mobile-roadmap, mobile-audit, method-note, payments-go-live-checklist (cross-milestone)
 ├── pipeline/   branching workflow, promotion prompt, pipeline guide, run prompts
 ├── technical/  environment isolation, staging environment, development handoff
 ├── releases/   release records

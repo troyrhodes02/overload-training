@@ -2,7 +2,7 @@
 
 ## Sequencing Logic
 
-Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation, is largely built: Admin Center & Feedback, Public Accounts, Plans & Billing, the Public Landing Page, and Workout Plan Import are shipped, and the Launch Readiness gate is deferred to MVP 6. Real friends already have accounts on the web app, and the Discord is ready. Signup is open to everyone, with no invite code. The closed signup mode stays only as an emergency stop, and the signup defenses are a bot challenge, a per-IP throttle, a disposable-email blocklist, reserved usernames, and an hourly cap.
+Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation, is largely built: Admin Center & Feedback, Public Accounts, Plans & Billing, the Public Landing Page, and Workout Plan Import are shipped, and Pitch 23, now Paid-Launch Safeguards, sits in MVP 6. It no longer gates the first payment: web subscriptions through Stripe Checkout can go live before it is complete, and the owner switches Stripe to live mode and sets the production keys. Real friends already have accounts on the web app, and the Discord is ready. Signup is open to everyone, with no invite code. The closed signup mode stays only as an emergency stop, and the signup defenses are a bot challenge, a per-IP throttle, a disposable-email blocklist, reserved usernames, and an hourly cap.
 
 **Decision: the mobile app is React Native with Expo, iOS first.** Overload's iPhone app will be a native interface rebuilt on top of the existing backend, not a wrapper around the website. The Capacitor approach is dropped. Android is deferred and becomes cheap later because the code is shared. Overload is operated by an individual with no LLC, and the Apple Developer account is individual.
 
@@ -24,7 +24,7 @@ Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation,
 | MVP 5A | Web fixes before mobile | 24, two chores, the audit, and hardening, complete | `mvp-5a-web-fixes` |
 | MVP 5B | Mobile app (React Native + Expo) | 21 and slices 21a to 21l | `mvp-5b-mobile-app` |
 | MVP 5C | Features on both clients | 25 to 30 | `mvp-5c-native-and-sharing` |
-| MVP 6 | Public mobile distribution & commercial safeguards | 23, 31 | `mvp-6-public-mobile` |
+| MVP 6 | Paid-launch safeguards and public mobile distribution | 23, 31 | `mvp-6-public-mobile` |
 | MVP 7+ | Expansion | 32 to 39+ | `mvp-7-expansion` |
 
 Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
@@ -37,9 +37,9 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 - The mobile app is online-only. Offline logging is not planned.
 - Signup is open to everyone, so the mobile app includes sign-up and the password-reset request, with the bot challenge decided in slice 21d. The reset itself completes on the web through the email link.
 - History is all-time: any earlier week can be browsed, and the mobile history reuses the same account-scoped query.
-- Existing Stripe web billing stays as built. No purchase flow is added inside the app until Pitch 31 decides the store billing path. Existing account holders see their access read-only.
+- Existing Stripe web billing stays as built. Web subscriptions can go live before Pitch 23 is complete; going live is an owner step that follows `docs/planning/payments-go-live-checklist.md`, and a run never uses live keys or makes a real charge. No purchase flow is added inside the app until Pitch 31 decides the store billing path. Existing account holders see their access read-only.
 - Beta users are the existing friends, using their existing accounts, invite-only through external TestFlight. The development build connects to staging. The friends' build connects to Production deliberately.
-- Overload is operated by an individual. No LLC is planned, and legal, tax, and payout handling stay lean and are checked at Launch Readiness. This roadmap is not legal or tax advice.
+- Overload is operated by an individual. No LLC is planned, and legal, tax, and payout handling stay lean and are owner items on the Paid-Launch Safeguards checklist, checked before web subscriptions go live. This roadmap is not legal or tax advice.
 - Workout Plan Import (Pitch 22) is built, and the model provider stays disabled in Production until its Production approvals pass.
 - A built-in social network is future exploration, not a pitch. Limited, user-initiated sharing (Pitches 27 and 28) is planned and deliberately amends the earlier "no social features" boundary.
 
@@ -327,22 +327,28 @@ From here on, every feature is built for web and mobile in one run and left for 
 
 ## MVP 6 — Public Mobile Distribution & Commercial Safeguards
 
-### Pitch 23: Launch Readiness
+Pitch 23 is a lean checklist the owner works through before and alongside switching web subscriptions on; it does not hold back the first web payment. Its before-live items come first, and the rest follow while paying lifters use the web app. The public App Store release (Pitch 31) still waits for all of Pitch 23.
+
+### Pitch 23: Paid-Launch Safeguards
 - **Type:** Foundational
-- **Status:** Planned (deferred until the beta proves the experience)
-- **Value delivered:** Evidence that Overload is ready to accept paying strangers, kept lean for a solo individual operator.
+- **Status:** In progress, worked by the owner. The before-live items are done before or alongside switching web subscriptions on; the later items follow.
+- **Value delivered:** A lean checklist that keeps a solo individual operator safe while taking money. It is not a gate before the first web payment: web subscriptions through Stripe Checkout can go live before it is complete, once the owner works through the before-live items and `docs/planning/payments-go-live-checklist.md`. It remains a gate for the public App Store release.
 - **Includes:**
-  - A tested backup and restore drill, and essential failure visibility instead of heavy monitoring.
-  - Basic rate limiting, and a check that cross-account isolation, admin authorization, and webhook authentication still hold.
-  - Documented procedures for payment failure, cancellation, refund, deletion, and support.
-  - The full journey from landing page through checkout to a first workout, on web and iPhone.
-  - Owner checks, listed so they are not forgotten and kept minimal: confirm the tax and payout obligations that apply to an individual seller, confirm the hosting and database plans allow commercial use and include backups, and make sure the creator videos disclose any commercial relationship. This roadmap is not legal or tax advice.
+  - **Before live:** the payments go-live checklist (live keys, webhook, prices, portal, the switch-on order and the rollback, and the first-hour checks).
+  - **Before live:** a fresh Production backup and confirmation that the hosting and database plans allow commercial use and include backups.
+  - **Before live:** the owner checks that apply to an individual seller: Stripe account and payout setup, the tax and sales-tax position, the refund and cancellation wording, and published terms and privacy pages. This roadmap is not legal or tax advice.
+  - **Before live:** account email (password recovery and email verification) works in Production for addresses outside the team, because checkout requires a verified email.
+  - **Before live:** short written procedures for payment failure, cancellation, refund, deletion, and support.
+  - **Later:** a tested backup and restore drill, and essential failure visibility instead of heavy monitoring.
+  - **Later:** a check that cross-account isolation, admin authorization, webhook authentication, and the signup defenses still hold.
+  - **Later:** the full journey from landing page through checkout to a first workout on the web, and sign-in to a first workout on iPhone.
+  - **Later:** make sure the creator videos disclose any commercial relationship.
 - **Defers:** Anything that needs a company, a lawyer, or heavy tooling.
-- **Depends on:** Pitches 17 to 22 and 21.
+- **Depends on:** Pitches 17 to 20 and 22 for the before-live items. The iPhone journey depends on Pitch 21.
 - **Definition of done:**
-  - Each checklist item has recorded evidence.
+  - Each item has recorded evidence, and every before-live item is done before or at the switch-on.
   - A small group of real testers completes real workouts without the owner's help.
-  - The owner signs off before any stranger is charged.
+  - The owner signs off before the public App Store release.
 
 ### Pitch 31: App Store Release
 - **Type:** Foundational
@@ -435,8 +441,8 @@ From here on, every feature is built for web and mobile in one run and left for 
 
 ## Dependency Map
 
-Pitches 1 to 20 and 22 are complete. Pitch 24, the two chores, the audit, and the pre-mobile hardening are complete. Pitch 21 (and its slices 21a to 21l, in the order in the mobile roadmap) depends on the audit and blocks everything native: 26 to 31 and 32 to 38. Pitch 25 depends on 4 and 5 and is built for both clients after 21. Pitch 26 depends on 4 and 21. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
+Pitches 1 to 20 and 22 are complete. Pitch 24, the two chores, the audit, and the pre-mobile hardening are complete. Pitch 21 (and its slices 21a to 21l, in the order in the mobile roadmap) depends on the audit and blocks everything native: 26 to 31 and 32 to 38. Pitch 25 depends on 4 and 5 and is built for both clients after 21. Pitch 26 depends on 4 and 21. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23's before-live items depend on 17 to 20 and 22, and its iPhone journey depends on 21; it does not block web subscriptions going live. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
 
 Pitch 32 depends on 21 and ships after the iOS app. Pitch 33 depends on 19 and 32. Pitch 34 depends on 21. Pitch 35 depends on 21 and 34. Pitches 36 and 37 depend on 21 and begin with discovery. Pitch 38 depends on 21 and 32, and the nutrition pitches depend on 38.
 
-**Rollout gates (not pitches):** the friends' TestFlight build connects to Production only after sign-in and workout logging are verified on the development build against staging. The mobile API reaches Production only through the promotion workflow. No payment flow is added inside the app until Pitch 31 decides the store billing path. Pitch 22's model provider stays disabled in Production until its approvals pass. A public App Store release waits for Pitches 23 and 31.
+**Rollout gates (not pitches):** the friends' TestFlight build connects to Production only after sign-in and workout logging are verified on the development build against staging. The mobile API reaches Production only through the promotion workflow. Web subscriptions go live when the owner switches Stripe to live mode after the before-live items of Pitch 23 and the payments go-live checklist, and never from a run. No payment flow is added inside the app until Pitch 31 decides the store billing path. Pitch 22's model provider stays disabled in Production until its approvals pass. A public App Store release waits for Pitches 23 and 31.
