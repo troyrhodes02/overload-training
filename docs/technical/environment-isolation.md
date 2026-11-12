@@ -2,6 +2,8 @@
 
 **Status:** current (OVE-111, 2026-11-09). This page supersedes earlier wording that said there is no development cloud project and no DB-backed Preview deployments. That wording appears in older runbooks, specs, and the root `CLAUDE.md` history.
 
+> **Since Pitch 21a (monorepo move):** the web app lives in `apps/web` of an npm workspace. Code paths on this page (`src/…`, `scripts/…`, `prisma/…`) are relative to `apps/web/`. Run `npm run …` commands from the repository root. Run direct `npx tsx …`, `npx prisma …`, and `npx supabase …` commands from `apps/web/`, as shown. A local `.env` lives in `apps/web/`.
+
 It describes where each environment points, the rules that keep Preview and operator tooling away from Production, and the one safe procedure for initializing the development project.
 
 ## The three environments
@@ -46,14 +48,14 @@ There is no separate staging database or tier. `overload-dev` serves every Previ
 
 | Tool | Command | Local | Development project | Production |
 | --- | --- | --- | --- | --- |
-| Dev migration wrapper | `npx tsx scripts/operator/migrate-dev/cli.ts` | allowed | `--confirm-ref <ref>` + marker; `--execute` to apply | **refused, no override.** Production migrations stay a human runbook step with a fresh backup. |
+| Dev migration wrapper | `cd apps/web && npx tsx scripts/operator/migrate-dev/cli.ts` | allowed | `--confirm-ref <ref>` + marker; `--execute` to apply | **refused, no override.** Production migrations stay a human runbook step with a fresh backup. |
 | Demo seed | `npm run demo:seed` | allowed (default) | `--confirm-ref <ref>` + marker | **refused, no override** |
-| Exercise-library seed | `npm run db:seed` (local) / `npx tsx prisma/seed.ts` (hosted) | allowed | `--confirm-ref <ref>` (or `OVERLOAD_IMPORT_CONFIRM_REF`) + marker | only with `--production` **and** `--confirm-ref <prod ref>`. There is no environment-variable form of the opt-in; `OVERLOAD_IMPORT_PRODUCTION` is refused. |
+| Exercise-library seed | `npm run db:seed` (local) / `cd apps/web && npx tsx prisma/seed.ts` (hosted) | allowed | `--confirm-ref <ref>` (or `OVERLOAD_IMPORT_CONFIRM_REF`) + marker | only with `--production` **and** `--confirm-ref <prod ref>`. There is no environment-variable form of the opt-in; `OVERLOAD_IMPORT_PRODUCTION` is refused. |
 | Real-plan import | `npm run import:plan` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
 | Founding-member grant | `npm run founding-members:grant` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
 | Ownership backfill | `npm run ownership:backfill` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
 | Plan-import cleanup | `npm run plan-import:cleanup` | allowed | `--confirm-ref <ref>` + marker | only with `--production` **and** `--confirm-ref <prod ref>` |
-| Dev test-account provisioning | `npx tsx scripts/operator/provision-dev-test-user/cli.ts` | refused | `--confirm-ref vdxrmfadikwzodjljbdi` + marker + dev service-role key; `--execute` to write | **refused, no override** |
+| Dev test-account provisioning | `cd apps/web && npx tsx scripts/operator/provision-dev-test-user/cli.ts` | refused | `--confirm-ref vdxrmfadikwzodjljbdi` + marker + dev service-role key; `--execute` to write | **refused, no override** |
 
 The production opt-in exists only where an approved runbook already sanctions a deliberate, human production run. It is stricter than the host confirmation it replaces. Every production step still requires a fresh backup immediately before. In PowerShell, npm drops options after `--`, so run the CLIs with `npx tsx …` directly.
 
@@ -82,15 +84,15 @@ Nothing here touches Production. Steps marked **(human)** happen in the Supabase
    - `SUPABASE_SERVICE_ROLE_KEY` = the dev key
 
    Never print them.
-9. **(tool) Dry run:** `npx tsx scripts/operator/migrate-dev/cli.ts --confirm-ref vdxrmfadikwzodjljbdi`. It prints the confirmed target, verifies the marker, and runs the read-only `prisma migrate status`. Expect every migration pending on the empty database.
-10. **(tool) Apply:** `npx tsx scripts/operator/migrate-dev/cli.ts --confirm-ref vdxrmfadikwzodjljbdi --execute` (runs `prisma migrate deploy`).
+9. **(tool) Dry run:** `cd apps/web && npx tsx scripts/operator/migrate-dev/cli.ts --confirm-ref vdxrmfadikwzodjljbdi`. It prints the confirmed target, verifies the marker, and runs the read-only `prisma migrate status`. Expect every migration pending on the empty database.
+10. **(tool) Apply:** `cd apps/web && npx tsx scripts/operator/migrate-dev/cli.ts --confirm-ref vdxrmfadikwzodjljbdi --execute` (runs `prisma migrate deploy`).
 11. **(tool) Read-only checks** in the dev SQL editor:
     - Every `public` table has RLS enabled.
     - `SELECT count(*) FROM pg_policies WHERE schemaname = 'public'` is 0.
     - The same-owner and `user_id`-immutability triggers exist.
     - `_prisma_migrations` lists every migration.
     - With the dev anon key, `GET https://vdxrmfadikwzodjljbdi.supabase.co/rest/v1/<table>` returns nothing for each table.
-12. **(tool) Exercise library:** `npx tsx prisma/seed.ts --confirm-ref vdxrmfadikwzodjljbdi` (all four variables from step 8 exported).
+12. **(tool) Exercise library:** `cd apps/web && npx tsx prisma/seed.ts --confirm-ref vdxrmfadikwzodjljbdi` (all four variables from step 8 exported).
 13. **(human) Vercel → Settings → Environment Variables.**
     - Scope every database and Supabase variable to the dev project for **Preview**.
     - Leave Production untouched.

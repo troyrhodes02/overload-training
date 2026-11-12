@@ -385,7 +385,7 @@ Investigation, run on 2026-11-12 against the npm registry with no Expo install i
 | --- | --- |
 | `README.md` | Layout, install, and commands from the root; `.env` location |
 | `CLAUDE.md` | Status line and the mobile section's "Until 21a lands…" sentence updated; one note that web paths in the file (`src/…`, `prisma/…`, `scripts/…`, `tests/…`) are relative to `apps/web/`. Rules unchanged. |
-| `.claude/skills/*` that name web paths (`overload-ui-design`, `overload-spec`, `overload-ticket-worker`, `overload-cross-platform`) | The same one-line path note |
+| `.claude/skills/*` that name web paths (`overload-ui-design`, `overload-spec`, `overload-ticket-worker`; a scan found none in the others) | Concrete web paths gain the `apps/web/` prefix; the spec and ticket-worker skills get a one-line path note |
 | `docs/technical/environment-isolation.md`, `staging-environment.md`, `mac-development-handoff.md` | Commands run from the root (delegates) or from `apps/web`; `.env` location; local Supabase from `apps/web` |
 | `docs/pitches/mvp-5b-mobile-app/21a-monorepo-move/runbook.md` | Owner handoff (pipeline step 9) |
 | `docs/planning/*` | **Not edited** (run policy). Amendments are listed in the owner notes. |
