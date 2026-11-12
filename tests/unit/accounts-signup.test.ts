@@ -138,6 +138,42 @@ describe("signUp orchestration (OVE-50; Public Accounts invite gate)", () => {
     expect(await signUp(valid, d, OPEN)).toEqual({ kind: "created" });
   });
 
+  it("public mode: a missing or invalid invite code never blocks signup (OVE-128)", async () => {
+    for (const inviteCode of [undefined, "", "   ", "wrong-code"]) {
+      const d = deps();
+      expect(
+        await signUp({ ...valid, inviteCode }, d, {
+          ...OPEN,
+          OVERLOAD_INVITE_CODE: INVITE_CODE,
+        }),
+      ).toEqual({ kind: "created" });
+    }
+  });
+
+  it("public mode: the per-IP throttle and the bot challenge are still enforced (OVE-128)", async () => {
+    const throttled = deps({
+      checkAndIncrement: jest.fn(async () => ({ allowed: false })),
+    });
+    expect(await signUp(valid, throttled, OPEN)).toEqual({
+      kind: "rate_limited",
+    });
+    expect(throttled.createConfirmedUser).not.toHaveBeenCalled();
+
+    const bot = deps({ verifyChallenge: jest.fn(async () => false) });
+    expect(await signUp(valid, bot, OPEN)).toEqual({
+      kind: "challenge_failed",
+    });
+    expect(bot.createConfirmedUser).not.toHaveBeenCalled();
+
+    const human = deps();
+    await signUp(valid, human, OPEN);
+    expect(human.checkAndIncrement).toHaveBeenCalledWith(
+      "signup",
+      expect.any(String),
+    );
+    expect(human.verifyChallenge).toHaveBeenCalled();
+  });
+
   it("invite mode: a valid code (checked first) lets a full submit through", async () => {
     const d = deps();
     expect(
