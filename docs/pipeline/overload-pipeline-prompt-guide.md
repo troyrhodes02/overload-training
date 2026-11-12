@@ -445,7 +445,7 @@ Lead with the first one listed for the pitch unless the pitch text points elsewh
 | Plans & Billing | Branching on a plan name or enforcing only in the UI. Gating capture, history, or export, or deleting something when access ends. Handling card data. Using live Stripe keys. A webhook that does not verify its signature, is not idempotent, or trusts the payload to pick the account. Making comped access a role. Countdowns or banners in the upgrade note |
 | Public Landing Page & Changelog | Real lifters' data in screenshots. Invented testimonials or fake scarcity. Third-party trackers. A call to action that promises billing before it is live |
 | Plan Import | Calling the model from the browser. Treating pasted text as instructions. Saving before the lifter confirms. Generating a program. Accepting output that is not validated or does not trace to the pasted text. Skipping the usage limits |
-| Launch Readiness & Closed Beta | Calling the checklist done without evidence. Turning on live payments or public signup from the run. Skipping the restore drill |
+| Paid-Launch Safeguards | Calling an item done without evidence. Turning on live payments, setting live keys, or changing the signup mode from the run. Skipping the restore drill |
 | Android Build & Release Readiness | A separate Android data path. A second copy of a business rule. A purchase flow in the app |
 | Gym Location | Always-on location tracking. Silently assigning a gym when detection is uncertain |
 | Native Notifications | Engagement nudges, streak reminders, or guilt-based wording. Sending when there is nothing actionable |
@@ -477,7 +477,7 @@ Once a test applies, every later run keeps it green. The cross-account suite is 
 
 ### D5. UI-bearing classification and the previews folder
 
-Pitches with no screens record step 3 as "Skipped — no UI surface in this pitch": Monorepo Move, Shared Package & Contracts, Mobile API & Auth Foundation, Launch Readiness, and the store releases. Mobile-only slices also record step 3 as skipped, because their visual contract is the design doc's Mobile design section. Every other pitch on the roadmap is UI-bearing by the section 5 definition, so step 3 runs for it, including Admin Center & Feedback, Public Accounts, Plans & Billing, the Landing Page, and Plan Import.
+Pitches with no screens record step 3 as "Skipped — no UI surface in this pitch": Monorepo Move, Shared Package & Contracts, Mobile API & Auth Foundation, Paid-Launch Safeguards, and the store releases. Mobile-only slices also record step 3 as skipped, because their visual contract is the design doc's Mobile design section. Every other pitch on the roadmap is UI-bearing by the section 5 definition, so step 3 runs for it, including Admin Center & Feedback, Public Accounts, Plans & Billing, the Landing Page, and Plan Import.
 
 Preview files (`docs/pitches/**/preview.*`) must not break the build. They are excluded from type-checking, linting, format checks, and the production build, because a preview may import shadcn/ui components the application has not built yet. A preview is self-contained: inline mock data, no data-layer imports, no network requests. If a run fails typecheck or lint on a preview, it halts under the contradiction stop condition and does not delete the exclusion.
 
