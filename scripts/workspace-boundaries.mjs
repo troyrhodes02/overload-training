@@ -21,7 +21,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const EXPECTED_WORKSPACES = ["apps/*", "packages/*"];
-export const ROOT_DEV_TOOLING = ["prettier"];
+/** Repository-wide tooling: formatting, and linting of the root scripts/. */
+export const ROOT_DEV_TOOLING = ["prettier", "eslint", "@eslint/js"];
 
 /** Node-only or native packages that belong to apps/web alone (audit §8). */
 export const WEB_ONLY_PACKAGES = [
@@ -87,6 +88,43 @@ export function declaredDeps(manifest) {
   ];
 }
 
+/**
+ * The ESLint `no-restricted-imports` option for packages/shared, built from
+ * the same SHARED_FORBIDDEN list rule B3 uses, so the lint fence and the
+ * npm test fence cannot drift. Covers exact names, their subpaths, scoped
+ * groups, Node built-ins (bare and node:), the web's @/ alias, and relative
+ * paths that reach into an app or node_modules.
+ */
+export function sharedRestrictedImports() {
+  const message =
+    "packages/shared is pure, platform-independent TypeScript: no Prisma, Next.js, React, Supabase, server-only, Node, or web-app modules (Pitch 21a rule B3; packages/shared/README.md).";
+  const exact = SHARED_FORBIDDEN.filter((p) => !p.endsWith("/*"));
+  // ESLint's schema requires unique entries.
+  const unique = (list) => [...new Set(list)];
+  return {
+    paths: unique([...exact, ...builtinModules]).map((name) => ({
+      name,
+      message,
+    })),
+    patterns: [
+      {
+        group: unique([
+          ...SHARED_FORBIDDEN.filter((p) => p.endsWith("/*")),
+          ...exact.map((name) => `${name}/*`),
+          "node:*",
+          "@/*",
+        ]),
+        message,
+      },
+      {
+        regex: "(^|/)(apps|node_modules)/",
+        message:
+          "packages/shared cannot reach into an app or node_modules by a relative path (Pitch 21a rule B3).",
+      },
+    ],
+  };
+}
+
 /** Whether `spec` (a package name or import specifier) matches a pattern. */
 export function matches(spec, pattern) {
   if (pattern.endsWith("/*")) return spec.startsWith(pattern.slice(0, -1));
@@ -131,10 +169,16 @@ export function checkBoundaries(repo) {
   }
 
   // B2
-  for (const dep of Object.keys(root.dependencies ?? {})) {
-    errors.push(
-      `B2: the root declares runtime dependency "${dep}"; dependencies belong to the workspace that uses them.`,
-    );
+  for (const field of [
+    "dependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ]) {
+    for (const dep of Object.keys(root[field] ?? {})) {
+      errors.push(
+        `B2: the root declares "${dep}" in ${field}; dependencies belong to the workspace that uses them.`,
+      );
+    }
   }
   for (const dep of Object.keys(root.devDependencies ?? {})) {
     if (!ROOT_DEV_TOOLING.includes(dep)) {
@@ -165,7 +209,8 @@ export function checkBoundaries(repo) {
           matchesAny(spec, SHARED_FORBIDDEN) ||
           spec.startsWith("node:") ||
           builtinModules.includes(spec.split("/")[0]) ||
-          spec.startsWith("@/")
+          spec.startsWith("@/") ||
+          escapesPackage(file, spec, "packages/shared/")
         ) {
           errors.push(
             `B3: ${file} imports "${spec}", which shared code must never import.`,
@@ -213,13 +258,11 @@ export function checkBoundaries(repo) {
 
   // B7
   for (const pkg of ["react", "react-dom"]) {
-    const pins = workspaces
-      .map((w) => [
-        w.dir,
-        (w.manifest.dependencies ?? {})[pkg] ??
-          (w.manifest.devDependencies ?? {})[pkg],
-      ])
-      .filter(([, v]) => v !== undefined);
+    const pins = workspaces.flatMap((w) =>
+      DEP_FIELDS.filter((f) => (w.manifest[f] ?? {})[pkg] !== undefined).map(
+        (f) => [`${w.dir} (${f})`, w.manifest[f][pkg]],
+      ),
+    );
     for (const [dir, v] of pins) {
       if (!/^\d+\.\d+\.\d+$/.test(v)) {
         errors.push(
@@ -241,9 +284,28 @@ export function checkBoundaries(repo) {
         `B7: package-lock.json holds ${copies.length} copies of ${pkg} (${copies.join(", ") || "none"}); the install must have exactly one React runtime.`,
       );
     }
+    const locked =
+      copies.length === 1 ? lock.packages[copies[0]].version : null;
+    if (locked !== null && versions.size === 1 && !versions.has(locked)) {
+      errors.push(
+        `B7: package-lock.json locks ${pkg}@${locked} but the workspaces pin ${[...versions][0]}; run npm install so the lockfile matches.`,
+      );
+    }
   }
 
   return errors;
+}
+
+/**
+ * Whether a relative import in `file` (repository-relative, POSIX) resolves
+ * outside `pkgDir`, for example "../../../apps/web/src/lib/db" from shared.
+ */
+export function escapesPackage(file, spec, pkgDir) {
+  if (!spec.startsWith(".")) return false;
+  const target = path.posix.normalize(
+    path.posix.join(path.posix.dirname(file), spec),
+  );
+  return !`${target}/`.startsWith(pkgDir);
 }
 
 /** Static import / require / export-from specifiers in a source file. */

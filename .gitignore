@@ -17,10 +17,16 @@ coverage/
 
 # next.js
 .next/
-out/
+# Static-export and build output only where a workspace (or the root) produces
+# it, so a source folder that happens to be named out/ or build/ is never hidden.
+/out/
+/apps/*/out/
+/packages/*/out/
 
 # production
-build/
+/build/
+/apps/*/build/
+/packages/*/build/
 
 # misc
 .DS_Store

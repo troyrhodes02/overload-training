@@ -9,8 +9,10 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   checkBoundaries,
+  escapesPackage,
   importSpecifiers,
   loadRepo,
+  sharedRestrictedImports,
 } from "./workspace-boundaries.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -197,6 +199,85 @@ describe("workspace boundaries", () => {
     const r = repo();
     r.lock.packages["apps/web/node_modules/react"] = { version: "19.3.0" };
     fails(r, "B7");
+  });
+
+  it("B2: a root optional or peer dependency fails", () => {
+    const a = repo();
+    a.root.optionalDependencies = { sharp: "0.34.4" };
+    fails(a, "B2");
+    const b = repo();
+    b.root.peerDependencies = { react: "19.3.0" };
+    fails(b, "B2");
+  });
+
+  it("B3: a relative import that leaves packages/shared fails; one inside it passes", () => {
+    const out = repo();
+    out.sharedSources.push({
+      file: "packages/shared/src/bad.ts",
+      code: 'import { prisma } from "../../../apps/web/src/lib/db";',
+    });
+    fails(out, "B3");
+    const inside = repo();
+    inside.sharedSources.push({
+      file: "packages/shared/src/training/e1rm.ts",
+      code: 'import { LIMITS } from "../validation/limits";\nimport "./local";',
+    });
+    assert.deepEqual(checkBoundaries(inside), []);
+    assert.equal(
+      escapesPackage(
+        "packages/shared/src/a.ts",
+        "../../web/x",
+        "packages/shared/",
+      ),
+      true,
+    );
+    assert.equal(
+      escapesPackage("packages/shared/src/a/b.ts", "../c", "packages/shared/"),
+      false,
+    );
+  });
+
+  it("B7: a React peer range in any workspace fails", () => {
+    const r = repo();
+    r.workspaces[1].manifest.peerDependencies = { react: "^19.3.0" };
+    fails(r, "B7");
+  });
+
+  it("B7: a lockfile that locks a different React than the pin fails", () => {
+    const r = repo();
+    r.lock.packages["node_modules/react"].version = "19.2.3";
+    fails(r, "B7");
+  });
+
+  it("the shared lint option covers exact names, subpaths, built-ins, the alias, and relative escapes", () => {
+    const { paths, patterns } = sharedRestrictedImports();
+    const names = paths.map((p) => p.name);
+    for (const n of [
+      "@overload/web",
+      "server-only",
+      "pdfjs-dist",
+      "react",
+      "fs",
+    ]) {
+      assert.ok(names.includes(n), `paths include ${n}`);
+    }
+    const groups = patterns.flatMap((p) => p.group ?? []);
+    for (const g of [
+      "@overload/web/*",
+      "pdfjs-dist/*",
+      "stripe/*",
+      "server-only/*",
+      "@prisma/*",
+      "@supabase/*",
+      "node:*",
+      "@/*",
+    ]) {
+      assert.ok(groups.includes(g), `patterns include ${g}`);
+    }
+    const regex = new RegExp(patterns.find((p) => p.regex).regex);
+    assert.ok(regex.test("../../../apps/web/src/lib/db"));
+    assert.ok(regex.test("../../node_modules/next/server"));
+    assert.ok(!regex.test("../validation/limits"));
   });
 
   it("import scanning finds static, type-only, side-effect, require, and dynamic imports", () => {

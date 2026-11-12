@@ -10,8 +10,9 @@
     "dev": "npm run dev -w @overload/web --",
     "build": "npm run build -w @overload/web --",
     "start": "npm run start -w @overload/web --",
-    "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present --",
+    "postlint": "eslint scripts",
+    "typecheck": "npm run typecheck --workspaces --if-present --",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present --",
@@ -30,6 +31,8 @@
     "demo:seed": "npm run demo:seed -w @overload/web --"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9",
     "prettier": "^3.9.9"
   }
 }

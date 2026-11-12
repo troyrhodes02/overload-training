@@ -136,12 +136,12 @@ describe("wording library", () => {
   });
 
   it("the design doc still carries every variant (copy changes go through it)", () => {
-    // docs/ stays at the npm workspace root, two levels above apps/web (21a).
+    // docs/ stays at the npm workspace root, two levels above apps/web (21a);
+    // anchored on this file so it holds whatever directory Jest runs from.
     const doc = fs.readFileSync(
-      path.join(
-        process.cwd(),
-        "..",
-        "..",
+      path.resolve(
+        __dirname,
+        "../../../..",
         "docs/pitches/mvp-2-multi-user/10-personalization-navigation-polish/design.md",
       ),
       "utf8",
