@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { AuthCard } from "@/components/auth/auth-card";
-import { getAuthUser } from "@/lib/auth";
-import { confirmEmailVerification } from "@/lib/accounts/verification";
-import { VerifyEmailConfirmation } from "./verify-email-confirmation";
+import { getOwnEmailVerificationState } from "@/lib/data/email-verification";
+import {
+  VerifyEmailConfirmation,
+  type VerifyEmailState,
+} from "./verify-email-confirmation";
 
 export const metadata: Metadata = {
   title: "Verify your email — Overload",
@@ -14,17 +16,13 @@ export const instant = false;
 
 /**
  * The landing target for a verification link (Public Accounts design Screen 6;
- * D8). /auth/confirm has already exchanged the one-time token for a short-lived
- * session and redirected here — on success plainly, or with `?error=expired`
- * when the token was missing, expired, reused, or rejected.
+ * D8). /auth/confirm has already verified the one-time token — and, when it
+ * was good and matched the account's email, RECORDED the verification in that
+ * same request — then redirected here, plainly or with `?error=expired`.
  *
- * When the link was good and the visitor is signed in, this records
- * `Profile.emailVerifiedAt` for the acting account (idempotent) and confirms
- * it. Works signed out too: the card still shows, with a Sign in button, and
- * nothing is written for a visitor with no session.
- *
- * Verification gates NOTHING — reaching this page opens no feature and sign-in
- * is never blocked by it.
+ * DISPLAY ONLY (OVE-121 / audit F-A1): this page never writes. Opening it
+ * directly, signed in or not, changes nothing. It shows the stored state:
+ * verified, not verified yet, or (signed out) a prompt to sign in.
  */
 export default async function VerifyEmailPage({
   searchParams,
@@ -33,36 +31,23 @@ export default async function VerifyEmailPage({
 }) {
   await connection();
   const { error } = await searchParams;
-  const user = await getAuthUser();
-  const signedIn = Boolean(user);
+  const stored = await getOwnEmailVerificationState();
+  const signedIn = stored.state !== "signed_out";
+  const email = stored.state === "signed_out" ? null : stored.email;
 
-  if (error === "expired") {
-    return (
-      <AuthCard>
-        <VerifyEmailConfirmation
-          state="expired"
-          signedIn={signedIn}
-          email={user?.email ?? null}
-        />
-      </AuthCard>
-    );
-  }
-
-  // A valid link with a signed-in session records the verified state.
-  // confirmEmailVerification resolves the acting account from the session
-  // (requireAccount), scopes the write to it, and is idempotent. A signed-out
-  // visitor (the session never landed) sees the confirmation without any
-  // write, so the surface works either way (D8).
-  if (user) {
-    await confirmEmailVerification();
-  }
+  const state: VerifyEmailState =
+    error === "expired"
+      ? "expired"
+      : stored.state === "signed_out"
+        ? "signed_out"
+        : stored.state;
 
   return (
     <AuthCard>
       <VerifyEmailConfirmation
-        state="verified"
+        state={state}
         signedIn={signedIn}
-        email={user?.email ?? null}
+        email={email}
       />
     </AuthCard>
   );

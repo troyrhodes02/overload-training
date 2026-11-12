@@ -36,6 +36,8 @@ const FORM_ERRORS: Record<
 > = {
   nothing_deleted:
     "Couldn't delete your account. Nothing was deleted. Try again.",
+  billing_not_canceled:
+    "We couldn't cancel your subscription, so nothing was deleted. Try again, or contact support.",
   identity_pending:
     "Your training data was deleted, but closing your account didn't finish. Try again to finish.",
   rate_limited: "Too many attempts. Wait a minute and try again.",

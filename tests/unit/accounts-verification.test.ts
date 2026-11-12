@@ -21,7 +21,6 @@ jest.mock("@/lib/auth", () => ({
 
 import {
   sendVerificationEmail,
-  confirmEmailVerification,
   getEmailVerification,
   isAllowedRedirectHost,
   type SendVerificationDeps,
@@ -214,49 +213,6 @@ describe("isAllowedRedirectHost — the verification link host is validated", ()
       const apex = { NEXT_PUBLIC_APP_URL: "https://overloadtraining.app" };
       expect(isAllowedRedirectHost("feat-xyz.vercel.app", apex)).toBe(true);
     });
-  });
-});
-
-describe("confirmEmailVerification — scoped and idempotent", () => {
-  it("sets emailVerifiedAt only where it is still null, scoped to the account", async () => {
-    const { account, updateMany } = fakeAccount();
-    const now = new Date("2026-10-29T12:00:00.000Z");
-    const result = await confirmEmailVerification({
-      now: () => now,
-      actingAccount: async () => account,
-    });
-    expect(result).toEqual({ ok: true, data: { verified: true } });
-    expect(updateMany).toHaveBeenCalledWith({
-      where: { userId: account.userId, emailVerifiedAt: null },
-      data: { emailVerifiedAt: now },
-    });
-  });
-
-  it("re-confirming is a no-op that still reports verified (idempotent)", async () => {
-    // The null filter means an already-set row matches nothing; count 0.
-    const { account, updateMany } = fakeAccount();
-    updateMany.mockResolvedValueOnce({ count: 0 });
-    const result = await confirmEmailVerification({
-      actingAccount: async () => account,
-    });
-    expect(result).toEqual({ ok: true, data: { verified: true } });
-  });
-
-  it("writes through the acting account's scoped client (its own userId)", async () => {
-    const { account, updateMany } = fakeAccount(
-      "22222222-2222-2222-2222-222222222222",
-    );
-    await confirmEmailVerification({ actingAccount: async () => account });
-    const [firstCall] = updateMany.mock.calls;
-    expect(firstCall?.[0].where.userId).toBe(account.userId);
-  });
-
-  it("resolves the acting account from requireAccount by default (never from input)", async () => {
-    // The default dep is the session chokepoint; it takes no account argument.
-    const { account } = fakeAccount();
-    const actingAccount = jest.fn(async () => account);
-    await confirmEmailVerification({ actingAccount });
-    expect(actingAccount).toHaveBeenCalledWith();
   });
 });
 

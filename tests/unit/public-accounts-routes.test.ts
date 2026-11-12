@@ -4,12 +4,31 @@
  */
 
 const verifyOtp = jest.fn();
+const getUser = jest.fn();
 
 jest.mock("@/lib/supabase/server", () => ({
   createServerSupabase: jest.fn(async () => ({
-    auth: { verifyOtp },
+    auth: { verifyOtp, getUser },
   })),
 }));
+
+// The verification write goes through the account-scoped client; record it.
+const updateMany = jest.fn(async () => ({ count: 1 }));
+const findUnique = jest.fn(async () => ({ emailVerifiedAt: new Date() }));
+const createAccountClient = jest.fn((id: string) => {
+  void id;
+  return { profile: { updateMany, findUnique } };
+});
+jest.mock("@/lib/data/account-db", () => ({
+  createAccountClient: (id: string) => createAccountClient(id),
+}));
+jest.mock("@/lib/auth", () => ({ getAuthUser: jest.fn() }));
+
+const USER = { id: "11111111-1111-4111-8111-111111111111", email: "a@x.test" };
+const verified = () => ({
+  data: { user: USER, session: { access_token: "jwt" } },
+  error: null,
+});
 
 import { NextRequest } from "next/server";
 import { isPublicPath, routeRedirect, PUBLIC_PATHS } from "@/lib/auth-routes";
@@ -105,6 +124,10 @@ describe("GET /auth/confirm (PA3 / R3)", () => {
 
   beforeEach(() => {
     verifyOtp.mockReset();
+    getUser.mockReset();
+    getUser.mockResolvedValue({ data: { user: USER }, error: null });
+    updateMany.mockClear();
+    createAccountClient.mockClear();
   });
 
   it("recovery: a valid token exchanges and lands on /reset-password", async () => {
@@ -118,15 +141,40 @@ describe("GET /auth/confirm (PA3 / R3)", () => {
     expect(location(res)).toBe("/reset-password");
   });
 
-  it.each(["email", "signup", "email_change"])(
-    "verify (%s): a valid token lands on /verify-email",
+  it("recovery: a valid recovery session NEVER marks the email verified (OVE-121)", async () => {
+    verifyOtp.mockResolvedValue(verified());
+    await GET(request("?token_hash=abc&type=recovery"));
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(createAccountClient).not.toHaveBeenCalled();
+  });
+
+  it.each(["email", "signup", "email_change", "magiclink"])(
+    "verify (%s): a valid token records verification in this request and lands on /verify-email",
     async (type) => {
-      verifyOtp.mockResolvedValue({ error: null });
+      verifyOtp.mockResolvedValue(verified());
       const res = await GET(request(`?token_hash=tok&type=${type}`));
       expect(verifyOtp).toHaveBeenCalledWith({ type, token_hash: "tok" });
+      expect(getUser).toHaveBeenCalledWith("jwt");
+      expect(createAccountClient).toHaveBeenCalledWith(USER.id);
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { userId: USER.id, emailVerifiedAt: null },
+        data: { emailVerifiedAt: expect.any(Date) },
+      });
       expect(location(res)).toBe("/verify-email");
     },
   );
+
+  it("verify: a token for an email that no longer matches the account records nothing", async () => {
+    verifyOtp.mockResolvedValue(verified());
+    getUser.mockResolvedValue({
+      data: { user: { id: USER.id, email: "changed@x.test" } },
+      error: null,
+    });
+    const res = await GET(request("?token_hash=tok&type=magiclink"));
+    expect(updateMany).not.toHaveBeenCalled();
+    // The page shows the stored (unverified) state; not the expired card.
+    expect(location(res)).toBe("/verify-email");
+  });
 
   it("recovery: an invalid/expired token lands on the recovery expired state", async () => {
     verifyOtp.mockResolvedValue({ error: { message: "expired" } });
@@ -134,10 +182,21 @@ describe("GET /auth/confirm (PA3 / R3)", () => {
     expect(location(res)).toBe("/forgot-password?link=expired");
   });
 
-  it("verify: an invalid/expired token lands on the verify expired state", async () => {
-    verifyOtp.mockResolvedValue({ error: { message: "expired" } });
+  it("verify: an invalid/expired token lands on the verify expired state and records nothing", async () => {
+    verifyOtp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { message: "expired" },
+    });
     const res = await GET(request("?token_hash=stale&type=email"));
     expect(location(res)).toBe("/verify-email?error=expired");
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("verify: a thrown verifyOtp lands on the verify expired state and records nothing", async () => {
+    verifyOtp.mockRejectedValue(new Error("network"));
+    const res = await GET(request("?token_hash=x&type=magiclink"));
+    expect(location(res)).toBe("/verify-email?error=expired");
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("a thrown error never reaches an error page (recovery)", async () => {
