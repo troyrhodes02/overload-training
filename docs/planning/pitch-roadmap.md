@@ -2,15 +2,15 @@
 
 ## Sequencing Logic
 
-Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation, is largely built: Admin Center & Feedback, Public Accounts, Plans & Billing, the Public Landing Page, and Workout Plan Import are shipped, and the Launch Readiness gate is deferred to MVP 6. Real friends already have accounts on the web app, and the Discord is ready.
+Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation, is largely built: Admin Center & Feedback, Public Accounts, Plans & Billing, the Public Landing Page, and Workout Plan Import are shipped, and the Launch Readiness gate is deferred to MVP 6. Real friends already have accounts on the web app, and the Discord is ready. Signup is open to everyone, with no invite code. The closed signup mode stays only as an emergency stop, and the signup defenses are a bot challenge, a per-IP throttle, a disposable-email blocklist, reserved usernames, and an hourly cap.
 
 **Decision: the mobile app is React Native with Expo, iOS first.** Overload's iPhone app will be a native interface rebuilt on top of the existing backend, not a wrapper around the website. The Capacitor approach is dropped. Android is deferred and becomes cheap later because the code is shared. Overload is operated by an individual with no LLC, and the Apple Developer account is individual.
 
 **Order of work**
 
-1. **Web fixes first (MVP 5A).** The web app is in production, so the identified fixes and chores land there before mobile work starts: Pitch 24 (Workout Logging Refinements), which also carries the two chores (landing page trial wording, admin membership visibility) as included items. Doing them first means the mobile rebuild targets the final business logic, not logic that is about to change.
-2. **Mobile codebase audit.** A read-only audit of the web codebase, run once the web fixes are on staging, produces `docs/planning/mobile-audit.md`: every screen, server action, shared rule, and test, with the API surface mobile needs and a rebuild estimate per feature. It exists so the rebuild is planned from facts, not from this roadmap's general shape.
-3. **The mobile app (MVP 5B, Pitch 21).** A parent pitch with its own sub-roadmap, `docs/planning/mobile-roadmap.md`, finalized from the audit. Each existing feature is rebuilt natively one slice at a time, and each slice is reviewed on a device before the next begins. The slices end with a TestFlight beta for the existing friends.
+1. **Web fixes first (MVP 5A) — done.** Pitch 24 (Workout Logging Refinements), the two chores (landing page trial wording, admin membership visibility), and a pre-mobile hardening batch are built and released. The batch covered account and billing fixes, logging correctness, all-time history, and signup hardening. The mobile rebuild therefore targets final business logic.
+2. **Mobile codebase audit — done.** `docs/planning/mobile-audit.md` inventories every screen, server action, shared rule, and test, lists the API surface mobile needs, and sizes the rebuild per feature. The mobile roadmap is revised from it.
+3. **The mobile app (MVP 5B, Pitch 21) — next.** A parent pitch with its own sub-roadmap, `docs/planning/mobile-roadmap.md`, in slices 21a to 21l. Each existing feature is rebuilt natively one slice at a time, and each slice is reviewed on a device before the next begins. The slices end with a TestFlight beta for the existing friends.
 4. **New features on both clients (MVP 5C).** After the mobile app exists, every new feature is built for web and mobile in one run and left for review on staging and on the phone.
 
 **How the roadmap is organized.** Pitch numbers are permanent IDs, not the order of work. Mobile slices are numbered 21a, 21b, and so on under Pitch 21. Pitches that have not started were renumbered once so their numbers follow the milestone order.
@@ -21,8 +21,8 @@ Pitches 1 to 16 are complete (MVP 1 to 3). MVP 4, the web commercial foundation,
 | MVP 2 | Multi-user and first impressions | 8 to 13, complete | `mvp-2-multi-user` |
 | MVP 3 | Training intelligence | 14 to 16, complete | `mvp-3-training-intelligence` |
 | MVP 4 | Web commercial foundation | 17 to 20 and 22 complete | `mvp-4-web-commercial` |
-| MVP 5A | Web fixes before mobile | 24 (with its two included chores) and the audit | `mvp-5a-web-fixes` |
-| MVP 5B | Mobile app (React Native + Expo) | 21 and slices 21a to 21i | `mvp-5b-mobile-app` |
+| MVP 5A | Web fixes before mobile | 24, two chores, the audit, and hardening, complete | `mvp-5a-web-fixes` |
+| MVP 5B | Mobile app (React Native + Expo) | 21 and slices 21a to 21l | `mvp-5b-mobile-app` |
 | MVP 5C | Features on both clients | 25 to 30 | `mvp-5c-native-and-sharing` |
 | MVP 6 | Public mobile distribution & commercial safeguards | 23, 31 | `mvp-6-public-mobile` |
 | MVP 7+ | Expansion | 32 to 39+ | `mvp-7-expansion` |
@@ -33,8 +33,10 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 - The mobile app is React Native with Expo, iOS only for now. It lives in the same repository as the web app, with a shared package, so one run can change both clients. No wrapper, no SwiftUI rewrite, and Android later.
 - Mobile talks to the backend only through a secure, versioned mobile API over the existing business logic. It never reads the database directly. Web stays server-first and unchanged.
-- Parity means equivalent user capability, not identical screens. Native screens should feel native. Web-only for now: admin, billing and checkout, and public pages. The plan builder and plan import may stay web-only during the beta, decided from the audit.
+- Parity means equivalent user capability, not identical screens. Native screens should feel native. Web-only for now: admin, billing and checkout, public pages, the plan builder, and plan import. Sign-in, sign-up, and the password-reset request are built natively, and the reset itself completes on the web through the email link.
 - The mobile app is online-only. Offline logging is not planned.
+- Signup is open to everyone, so the mobile app includes sign-up and the password-reset request, with the bot challenge decided in slice 21d. The reset itself completes on the web through the email link.
+- History is all-time: any earlier week can be browsed, and the mobile history reuses the same account-scoped query.
 - Existing Stripe web billing stays as built. No purchase flow is added inside the app until Pitch 31 decides the store billing path. Existing account holders see their access read-only.
 - Beta users are the existing friends, using their existing accounts, invite-only through external TestFlight. The development build connects to staging. The friends' build connects to Production deliberately.
 - Overload is operated by an individual. No LLC is planned, and legal, tax, and payout handling stay lean and are checked at Launch Readiness. This roadmap is not legal or tax advice.
@@ -157,7 +159,7 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 - **Type:** Feature
 - **Status:** Complete
 - **Value delivered:** Strangers can sign up safely, recover access without the owner, take their data with them, and leave.
-- **Detail:** see the pitch's spec. Public signup stays gated by the signup-mode setting until the owner opens it.
+- **Detail:** see the pitch's spec. Signup is open to everyone with no invite code, and the closed mode remains as an emergency stop.
 
 ### Pitch 19: Plans, Billing & Promo Codes
 - **Type:** Feature
@@ -182,13 +184,13 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ---
 
-## MVP 5A — Web Fixes Before Mobile (next)
+## MVP 5A — Web Fixes Before Mobile (complete)
 
-**Order inside this milestone.** Pitch 24, including its two chores, runs first on the web app. The mobile codebase audit runs after they are on staging, using `docs/pipeline/mobile-audit-prompt.md`.
+**Order inside this milestone.** Pitch 24 and the two chores run first on the web app. The mobile codebase audit runs after they are on staging, using `docs/pipeline/mobile-audit-prompt.md`.
 
 ### Pitch 24: Workout Logging Refinements
 - **Type:** Feature
-- **Status:** Planned (next)
+- **Status:** Complete
 - **Value delivered:** Four small correctness and usability gaps in logging and planning are closed.
 - **Includes:**
   - **Below-minimum reps.** If a logged set falls below the planned minimum (for example 90 lb planned at 6 to 10 reps, logged 3), the app must not recommend staying at that weight. A clearly failed set triggers a reassessment or reduction recommendation under the existing progression rules and history. It does not overwrite a reliable baseline by itself, and not every missed set reduces weight. The spec defines the rule using the existing constants. Verify first whether the current behavior really is a bug.
@@ -213,7 +215,7 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 **Chore: admin membership visibility.** The admin account list shows each account's plan (Pro, Free, or comped). It shows account metadata only and never any training content. Included in Pitch 24 (originally a standalone chore).
 
-**Mobile codebase audit (an activity, not a pitch).** A read-only audit run once the web fixes are on staging. It writes `docs/planning/mobile-audit.md` and proposes refinements to the mobile roadmap. No application code, schema, or data changes.
+**Mobile codebase audit (an activity, not a pitch) — done.** It wrote `docs/planning/mobile-audit.md`. A hardening batch then fixed the web defects the audit found (account and billing fixes, logging correctness, all-time history, and signup hardening) before the mobile work starts.
 
 ---
 
@@ -221,14 +223,14 @@ Each pitch's documents live in `docs/pitches/<docs folder>/<NN-pitch-name>/`.
 
 ### Pitch 21: Mobile App (React Native + Expo)
 - **Type:** Foundational (a parent pitch with a sub-roadmap)
-- **Status:** Planned, after the web fixes and the audit
+- **Status:** Planned (next). The web fixes, the audit, and the pre-mobile hardening are done.
 - **Value delivered:** Overload is a native iPhone app on the existing backend, rebuilt feature by feature to equivalent capability, reviewed on a device at every step, and delivered to the existing friends through TestFlight.
 - **Includes:**
   - A React Native app using Expo, in the same repository as the web app with a shared package for types, validation, and the pure training logic that needs no database. The web app's behavior is unchanged.
   - A secure, versioned mobile API in the existing backend over the same business logic: token authentication, the acting account taken from the token, capability enforcement, retry-safe writes, a minimum-supported-version check with a force-update screen, and the cross-account isolation suite extended to every endpoint.
   - Native screens designed with `overload-mobile-ui` that give equivalent capability, not identical screens.
   - The rebuild order, sizing, and gates in `docs/planning/mobile-roadmap.md`, finalized from the audit. Each slice is reviewed on a device before the next begins.
-  - Web-only for now: admin, billing and checkout, and public pages. The plan builder and plan import may stay web-only during the beta, decided from the audit.
+  - Web-only for now: admin, billing and checkout, public pages, the plan builder, and plan import. Sign-in, sign-up, and the password-reset request are built natively, and the reset itself completes on the web through the email link.
   - Online-only operation. A development build against staging, and a build against Production for the friends. Over-the-air updates through an Expo staging channel for review.
   - No purchase flow and no in-app purchase. The app shows an account's access read-only.
 - **Human steps (in the runbooks):** set up Expo and EAS accounts and the staging update token, enroll in the Apple Developer Program as an individual, register the iPhone, create the App Store Connect record, review each slice on the device, and invite the friends.
@@ -433,7 +435,7 @@ From here on, every feature is built for web and mobile in one run and left for 
 
 ## Dependency Map
 
-Pitches 1 to 20 and 22 are complete. Pitch 24, with its two included chores, runs next and is not blocked by anything. The mobile audit depends on Pitch 24 being on staging. Pitch 21 (and its slices 21a to 21i, in the order in the mobile roadmap) depends on the audit and blocks everything native: 26 to 31 and 32 to 38. Pitch 25 depends on 4 and 5 and is built for both clients after 21. Pitch 26 depends on 4 and 21. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
+Pitches 1 to 20 and 22 are complete. Pitch 24, the two chores, the audit, and the pre-mobile hardening are complete. Pitch 21 (and its slices 21a to 21l, in the order in the mobile roadmap) depends on the audit and blocks everything native: 26 to 31 and 32 to 38. Pitch 25 depends on 4 and 5 and is built for both clients after 21. Pitch 26 depends on 4 and 21. Pitch 27 depends on 3 and 21. Pitch 28 depends on 6 and 21. Pitches 29 and 30 depend on 21, and 30 uses 29. Pitch 23 depends on 17 to 22 and 21. Pitch 31 depends on 19 and 21 and at least some of 26 to 30.
 
 Pitch 32 depends on 21 and ships after the iOS app. Pitch 33 depends on 19 and 32. Pitch 34 depends on 21. Pitch 35 depends on 21 and 34. Pitches 36 and 37 depend on 21 and begin with discovery. Pitch 38 depends on 21 and 32, and the nutrition pitches depend on 38.
 

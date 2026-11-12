@@ -341,7 +341,7 @@ Accessibility requirements:
 
 Privacy requirements:
 
-- Design no share, export-to-others, or cross-account visibility affordance. Every account is private: the UI must never show another account's name or data, or imply that anyone else can see this account's. (An invite code field on signup is an access gate, not a sharing feature.)
+- Design no share, export-to-others, or cross-account visibility affordance. Every account is private: the UI must never show another account's name or data, or imply that anyone else can see this account's.
 - Gym addresses are personal location data. Show them only on the Gyms screen and in the gym picker, never in headers, summaries, or anywhere that could be screenshotted by accident.
 - Do not link gym addresses to maps or any external service.
 - Do not add external links leaving the product.

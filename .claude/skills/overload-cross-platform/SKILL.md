@@ -56,7 +56,9 @@ Plan placement (Free, or a named Pro capability) is a separate decision recorded
 | Admin center | Web only | The owner operates from a browser. No mobile admin UI. |
 | Billing and checkout | Web only | The app shows plan and access read-only. |
 | Logging a workout | Both | Shared rules, one API, a web card and a native card. |
-| Workout plan import | Web only for the beta | Decided in the mobile roadmap. |
+| Workout plan import | Web only for the beta | A long synchronous model call that does not survive the app going to the background. Decided in the mobile roadmap. |
+| Plan builder | Web only for the beta | Dense forms used rarely. Mobile shows the plan read-only. |
+| Sign-in, sign-up, password-reset request | Both | Signup is open with no invite code. The bot-challenge choice for mobile is made in slice 21d. The reset itself completes on the web through the email link. |
 | Goals | Both | Shared e1RM function, native charts. |
 | Live Activity | Mobile only | Built with Expo's widgets support, iOS only. |
 | Apple Watch | Mobile only | iOS only. |

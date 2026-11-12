@@ -239,7 +239,7 @@ ALTER TABLE "logged_exercises" ENABLE ROW LEVEL SECURITY;
 
 Overload has no roles and no admin interface. Every account has the same capabilities over its own data and none over anyone else's, so the only authorization rule is ownership. Access control has three layers, and the spec must express all that apply.
 
-1. **Authentication in application code.** Every route and server action except login, signup, and (once built) password recovery requires the authenticated session. Re-check it inside server actions, not just in middleware. The acting `userId` comes from that session, never from client input.
+1. **Authentication in application code.** Every route and server action except the public pages, login, signup, password recovery, and the email-link landings requires the authenticated session. Re-check it inside server actions, not just in middleware. The acting `userId` comes from that session, never from client input.
 2. **Account scoping in the data-access layer.** Owned data is reached only through functions that take the acting `userId` as a required argument and apply it to every query, including children and relations. Fetching by id must also match `userId`: a record owned by another account behaves exactly like a missing one (`not_found`, never a distinct error).
 3. **Row-level security deny-all in the database.** It closes Supabase's public Data API, which the anon key can reach. Prisma bypasses RLS, so RLS is not what separates accounts. Layers 1 and 2 do that, and layer 3 does not protect server code. None is sufficient alone.
 
@@ -264,9 +264,7 @@ For every resource, document read, create, update, and delete, and state the iso
 
 ### 10. Storage model
 
-Include only when the feature touches Supabase Storage (Library & Gyms Setup). The only content is public-domain exercise images from free-exercise-db, imported once by a seed script. Custom exercises have no image. There are no user uploads in this build.
-
-The planning docs do not decide whether the bucket is public or private. The Library & Gyms Setup spec must state the posture and list it in Open Questions as blocking.
+Include only when the feature touches Supabase Storage. Three buckets exist: `exercise-images` (public-read, the public-domain free-exercise-db images imported once by a seed script; custom exercises have no image), `feedback-screenshots`, and `plan-import-sources`. The two private buckets have no Storage policies, are reached only on the server with the service-role key (`src/lib/feedback/screenshots.ts`, `src/lib/import/storage.ts`), and are read back through short-lived signed URLs. Account deletion removes an account's objects. A spec that adds a new kind of upload or bucket must state its posture, its size and type limits, and how deletion removes it.
 
 ### 11. Server actions and API surface
 

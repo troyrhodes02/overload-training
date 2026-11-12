@@ -13,11 +13,11 @@ description: >
 
 # Overload Mobile UI
 
-Overload's iPhone app is a native interface on the same backend as the web product. This skill turns a web design into a native one. It shares the brand, palette, and typography with `overload-ui-design` (a quiet, precise instrument), and it adds the native patterns the web does not have.
+Overload's iPhone app is a native interface on the same backend as the web product. This skill turns a web design into a native one. It shares the brand, palette, and typography with `overload-ui-design` (the shipped colors in `globals.css`, exposed to native as the shared design tokens in `packages/shared`) (a quiet, precise instrument), and it adds the native patterns the web does not have.
 
 ## Before you start
 
-1. Read `docs/planning/mobile-roadmap.md` and the Mobile App slice specs (`spec.md` in the `21a` to `21c` pitch folders under `docs/pitches/mvp-5b-mobile-app/`). They record the navigation, styling, data-fetching, chart, and storage choices. Follow them exactly and do not choose libraries here.
+1. Read `docs/planning/mobile-roadmap.md` and the Mobile App slice specs (`spec.md` in the `21b` to `21d` pitch folders, and `21i` for the chart, under `docs/pitches/mvp-5b-mobile-app/`). They record the navigation, styling, data-fetching, chart, and storage choices. Follow them exactly and do not choose libraries here.
 2. Read the feature's `design.md` for the intended behavior, and the web screen it maps from. Parity means equivalent capability, not identical screens.
 3. Read `CLAUDE.md`, especially the mobile app rules and the plan rules.
 

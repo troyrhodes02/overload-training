@@ -1,5 +1,7 @@
 # Docs Reorganization — One-Shot Prompt
 
+**Status: already run.** The reorganization is done. The old paths below (`docs/design`, `docs/specs`, `docs/runs`) are kept only as the record of what moved where; none of them exists any more, and no current document should point to them.
+
 Paste into Claude Code once. Run it after the updated `CLAUDE.md`, skills, and `docs/pipeline/` files have been merged into `staging`, so the new layout and the paths in the skills already agree.
 
 ---
