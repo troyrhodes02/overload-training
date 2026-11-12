@@ -2,7 +2,10 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { requireAccount } from "@/lib/data/account";
 import { accountInventory } from "@/lib/accounts/deletion";
-import { DeleteAccountForm } from "@/components/settings/delete-account-form";
+import {
+  DeleteAccountBillingNote,
+  DeleteAccountForm,
+} from "@/components/settings/delete-account-form";
 
 export const metadata = { title: "Delete account · Overload" };
 
@@ -28,14 +31,7 @@ export default async function DeleteAccountPage() {
         This permanently deletes your account and everything in it. It
         can&apos;t be undone.
       </p>
-      <p className="text-sm text-muted-foreground">
-        If you have a Pro subscription, it&apos;s canceled immediately and you
-        won&apos;t be charged again. For questions about a refund,{" "}
-        <Link href="/support" className="underline underline-offset-4">
-          contact support
-        </Link>
-        .
-      </p>
+      <DeleteAccountBillingNote />
       <DeleteAccountForm inventory={inventory} />
     </section>
   );
