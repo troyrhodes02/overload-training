@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  confirmEmailVerificationLink,
+  type VerificationLinkAuth,
+} from "@/lib/data/email-verification";
+import {
   accountToday,
   establishProfile,
   resolveAccount,
@@ -13,10 +17,7 @@ import {
   getAccountAppearance,
   updateAppearance,
 } from "@/lib/accounts/appearance";
-import {
-  confirmEmailVerification,
-  getEmailVerification,
-} from "@/lib/accounts/verification";
+import { getEmailVerification } from "@/lib/accounts/verification";
 
 /**
  * Cross-account isolation — Profile and the per-account "today" (spec R17,
@@ -308,21 +309,47 @@ describe("email verification is owned and isolated (Public Accounts, OVE-85)", (
       })
     ).emailVerifiedAt;
 
-  it("confirmEmailVerification sets emailVerifiedAt for the acting account only", async () => {
+  /** A verified magic-link token for `userId` whose account email matches. */
+  const linkFor = (
+    userId: string,
+    email = "lifter@x.test",
+    accountEmail = email,
+  ): VerificationLinkAuth => ({
+    verifyOtp: async () => ({
+      data: { user: { id: userId, email }, session: { access_token: "jwt" } },
+      error: null,
+    }),
+    getUser: async () => ({
+      data: { user: { id: userId, email: accountEmail } },
+      error: null,
+    }),
+  });
+  const confirm = (auth: VerificationLinkAuth) =>
+    confirmEmailVerificationLink(auth, { type: "magiclink", tokenHash: "t" });
+
+  it("a verified link sets emailVerifiedAt for the token's account only (OVE-121)", async () => {
     const a = await createTestAccount("America/Chicago");
     const b = await createTestAccount("Europe/Berlin");
-    await confirmEmailVerification({ actingAccount: async () => a });
+    expect(await confirm(linkFor(a.userId))).toBe("verified");
     expect(await verifiedAt(a.userId)).not.toBeNull();
-    // B is untouched — the write is scoped to the acting account.
+    // B is untouched — the write is scoped to the verified account.
     expect(await verifiedAt(b.userId)).toBeNull();
   });
 
-  it("is idempotent: a second confirm never moves an already-verified timestamp", async () => {
+  it("is idempotent: a reused link never moves an already-verified timestamp", async () => {
     const a = await createTestAccount();
-    await confirmEmailVerification({ actingAccount: async () => a });
+    await confirm(linkFor(a.userId));
     const first = await verifiedAt(a.userId);
-    await confirmEmailVerification({ actingAccount: async () => a });
+    await confirm(linkFor(a.userId));
     expect(await verifiedAt(a.userId)).toEqual(first);
+  });
+
+  it("a link whose email doesn't match the account's email writes nothing", async () => {
+    const a = await createTestAccount();
+    expect(await confirm(linkFor(a.userId, "old@x.test", "new@x.test"))).toBe(
+      "not_verified",
+    );
+    expect(await verifiedAt(a.userId)).toBeNull();
   });
 
   it("an account can't set another account's emailVerifiedAt, even by id", async () => {
@@ -339,7 +366,7 @@ describe("email verification is owned and isolated (Public Accounts, OVE-85)", (
   it("an account never reads another account's verification state", async () => {
     const a = await createTestAccount();
     const b = await createTestAccount();
-    await confirmEmailVerification({ actingAccount: async () => a });
+    await confirm(linkFor(a.userId));
     // B reads only its own: verified is false and A's set row is invisible.
     expect(await getEmailVerification(b, "b@example.com")).toEqual({
       email: "b@example.com",

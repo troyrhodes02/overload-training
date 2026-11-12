@@ -1,7 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { requireAccount, type Account } from "@/lib/data/account";
+import type { Account } from "@/lib/data/account";
 import { getAuthUser } from "@/lib/auth";
 import { type ActionResult } from "@/lib/actions/result";
 
@@ -14,9 +14,9 @@ import { type ActionResult } from "@/lib/actions/result";
  * reads `emailVerifiedAt`, sign-in is never gated, and Supabase's global
  * `enable_confirmations` stays `false` (turning it on would gate sign-in).
  * The stored fact exists only for a later first-checkout gate (Billing) to
- * read; it is written here and read nowhere as a Free gate.
+ * read; it is written only by /auth/confirm and read nowhere as a Free gate.
  *
- * Two server-side operations, built from an injectable `deps` seam (mirroring
+ * Server-side operations, built from an injectable `deps` seam (mirroring
  * recovery.ts) so tests need no Supabase:
  *
  *   - sendVerificationEmail — trigger a Supabase verification email to the
@@ -26,11 +26,12 @@ import { type ActionResult } from "@/lib/actions/result";
  *     is logged by code (never the address) and SURFACED to the caller — this
  *     is the signed-in account's own email, so there is no enumeration concern.
  *
- *   - confirmEmailVerification — run under the short-lived verify auth session
- *     that /auth/confirm established. It sets `emailVerifiedAt = now()` for the
- *     acting account, through `account.db`, so another account's row can never
- *     be touched. Idempotent: re-confirming an already-verified email is a
- *     no-op that still reports success.
+ *   - getEmailVerification — the Settings nudge's read of the stored state.
+ *
+ * Recording verification is NOT here: it happens only in /auth/confirm, in the
+ * same request that verified the one-time token, through
+ * `confirmEmailVerificationLink` (src/lib/data/email-verification.ts). No page
+ * or session ever writes it (OVE-121 / audit F-A1).
  */
 
 /**
@@ -219,47 +220,6 @@ export async function sendVerificationEmail(
   }
 
   return { ok: true, data: { sent: true } };
-}
-
-export type ConfirmVerificationDeps = {
-  now: () => Date;
-  /** Resolves the acting account from the session; a seam for unit tests. */
-  actingAccount: () => Promise<Account>;
-};
-
-const defaultConfirmDeps: ConfirmVerificationDeps = {
-  now: () => new Date(),
-  actingAccount: requireAccount,
-};
-
-/**
- * Record that the acting account's email is verified. The account is resolved
- * from the authenticated session through requireAccount() — NEVER from input,
- * a parameter, or the URL — so the row written is the one the verify link's
- * session belongs to. The caller reaches this only with a live session (the
- * /verify-email page gates it on an authenticated user), so requireAccount()'s
- * redirect never fires here.
- *
- * The write is a single-column `updateMany` through `account.db`, scoped to the
- * acting account — it can never touch another account's row. Idempotent: a
- * second confirm (a reused or refreshed link) matches no `null` row and is a
- * no-op that still reports `{ verified: true }`.
- *
- * A test seam (`actingAccount`) lets unit tests supply a fake account without
- * a session; by default it is requireAccount().
- */
-export async function confirmEmailVerification(
-  deps: Partial<ConfirmVerificationDeps> = {},
-): Promise<ActionResult<{ verified: true }>> {
-  const { now, actingAccount } = { ...defaultConfirmDeps, ...deps };
-  const account = await actingAccount();
-
-  await account.db.profile.updateMany({
-    where: { userId: account.userId, emailVerifiedAt: null },
-    data: { emailVerifiedAt: now() },
-  });
-
-  return { ok: true, data: { verified: true } };
 }
 
 /** The Settings nudge's view of the acting account's OWN email verification. */
