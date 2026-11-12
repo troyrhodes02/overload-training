@@ -34,7 +34,13 @@ describe("BotChallenge (design Screen 7, D3)", () => {
 describe("signup form button gating (D3)", () => {
   it("disables the primary button until the challenge is ready (null key stays disabled)", () => {
     const html = renderToStaticMarkup(
-      <SignupForm view={{ mode: "public", turnstileSiteKey: null }} />,
+      <SignupForm
+        view={{
+          mode: "public",
+          turnstileSiteKey: null,
+          challengeDisabled: false,
+        }}
+      />,
     );
     // The create-account button is rendered disabled before any token exists.
     const buttonFragment = html.slice(html.indexOf("Create account") - 400);
