@@ -25,17 +25,49 @@ One `npm install` at the root installs every workspace into the root `node_modul
 
 ## Getting started
 
+Prerequisites: Node 22 and Docker running (the Supabase CLI local stack runs in Docker).
+
+**1. Create `apps/web/.env.local`** (git-ignored). Copy the two keys from `npx supabase status` (run in `apps/web`) after step 2 starts the stack:
+
 ```bash
-npm install                       # all workspaces; generates the Prisma client
-cd apps/web
-npx supabase start                # local Supabase stack (Docker): Postgres + Auth + Studio
-cp .env.example .env              # fill the LOCAL block from `supabase start` output
-npx prisma migrate deploy         # apply the schema to the local stack
-cd ../..
-npm run dev
+# apps/web/.env.local — LOCAL stack only. Never put hosted or Production values here.
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+DIRECT_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="<Publishable key, sb_publishable_…>"
+SUPABASE_SERVICE_ROLE_KEY="<Secret key, sb_secret_…>"   # server-only; signup needs it
+
+OVERLOAD_SIGNUP_MODE=public    # open signup locally
+TURNSTILE_DISABLED=true        # no bot-challenge widget locally (refused on Vercel Production)
+PLAN_IMPORT_ENABLED=false
+STRIPE_BILLING_ENABLED=false   # set true with Stripe TEST keys: STRIPE_SECRET_KEY,
+                               # STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID_MONTHLY, STRIPE_PRICE_ID_ANNUAL
 ```
 
-The local `.env` lives in `apps/web/` (git-ignored). Create a local user in local Studio (http://127.0.0.1:54323 → Authentication → Add user), or sign up at `/signup`, then sign in at `/login`.
+**2. Install, start the stack, migrate, seed, run.** From the repository root:
+
+```bash
+npm ci                                       # all workspaces; generates the Prisma client
+cd apps/web
+npx supabase start                           # local Postgres + Auth + Studio + Mailpit (status: npx supabase status)
+set -a; . ./.env.local; set +a               # Prisma and the operator scripts read exported vars, not .env.local
+npm run db:migrate:dev -- --execute          # guarded migrate deploy: local stack OK, hosted needs --confirm-ref
+npm run db:seed                              # exercise library (refuses a non-local DB without confirmation)
+cd ../..
+npm run dev                                  # http://localhost:3000
+```
+
+Re-running is safe: migrate applies only pending migrations, and the seed is idempotent. Day to day, only `npx supabase start` (in `apps/web`, if the stack is stopped) and `npm run dev` are needed; repeat the migrate step after pulling a branch that adds a migration.
+
+Then sign up at `/signup` (or add a user in Studio, http://127.0.0.1:54323 → Authentication), and sign in at `/login`. Auth emails land in Mailpit (http://127.0.0.1:54324).
+
+Env files live in `apps/web/`. A `.env` at the repository root is no longer read (Pitch 21a). `.env.local` is read by `next dev`; Prisma's CLI reads `apps/web/.env` or exported variables, hence the `set -a` line.
+
+**Troubleshooting**
+
+- *"Too many attempts" on the first signup* — the local database has no schema. The signup throttle fails closed when it can't write, so an unmigrated database shows up as a rate limit. Run the migrate step.
+- *Signup fails after the throttle* — `SUPABASE_SERVICE_ROLE_KEY` is missing from `.env.local`.
+- *Empty exercise library or plan builder* — run `npm run db:seed`.
 
 **Environment model:** local development runs against the **Supabase CLI local stack**. Vercel **Preview** deployments (every branch, including the permanent `staging` branch) run against the **`overload-dev`** Supabase project (synthetic data only), and Vercel **Production** runs against **`overload-prod`**. A Preview build or server whose database or Supabase variables name the Production project refuses to run. Operator scripts identify their target by Supabase project ref and need `--confirm-ref` for any hosted project. See **`docs/technical/environment-isolation.md`** and **`docs/technical/staging-environment.md`**.
 
