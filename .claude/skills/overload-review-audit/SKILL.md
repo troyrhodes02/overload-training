@@ -195,6 +195,7 @@ Rate as:
 
 - Every mobile endpoint verifies the token on the server, takes the account from the token, goes through the scoped layer, and enforces capabilities. An endpoint that takes an account id from the request, or skips any of these, is blocking.
 - Every endpoint is covered by the cross-account isolation suite. A missing endpoint is a defect.
+- Tokens are verified with `getUser(token)`, not locally. The proxy exempts the mobile path. Create endpoints use an idempotency key. No handler calls an ungated progression builder.
 - Writes are retry-safe. Changes within an API version are backward compatible, and a breaking change needs a new version. The version gate must still work.
 - The mobile app talks only to the mobile API. Direct database or Supabase table access, a secret in the app bundle, or a second copy of a business rule in the app is blocking.
 - One backend and one training model. A second progression engine or separate mobile training records is blocking.

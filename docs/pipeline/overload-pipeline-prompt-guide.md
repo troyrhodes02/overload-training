@@ -234,7 +234,7 @@ The runbook is the only document a run writes for the owner.
 
 Pitches run alone by default. The only reasonable chain is small, same-surface work, such as the Landing Page followed by its changelog.
 
-**Mobile slices.** The slices of Pitch 21 (21a to 21i in `docs/planning/mobile-roadmap.md`) run as ordinary pitches with slugs like `21a-monorepo-shared-package`, under the milestone folder `mvp-5b-mobile-app`. The run prompt names the slice's gate: the owner reviews it on a device before the next slice starts. A mobile-only slice records step 3 as skipped and uses `/overload-mobile-ui`.
+**Mobile slices.** The slices of Pitch 21 (21a to 21l in `docs/planning/mobile-roadmap.md`) run as ordinary pitches with slugs like `21a-monorepo-move`, under the milestone folder `mvp-5b-mobile-app`. The run prompt names the slice's gate: the owner reviews it on a device before the next slice starts. A mobile-only slice records step 3 as skipped and uses `/overload-mobile-ui`.
 
 **Resume after a context reset.** Appendix B.
 
@@ -368,7 +368,7 @@ Next action: <the first incomplete step>. Work the remaining tickets in order, a
 | Pitch folder | `docs/pitches/<milestone>/<slug>/`, holding `pitch.md`, `design.md`, `preview.tsx` (UI-bearing pitches), `spec.md`, `runbook.md`, and `sql/` or `assets/` when needed. The milestone folder is listed in the roadmap |
 | Run documents | The runbook only. No progress file and no run report |
 | Skills | `overload-design-doc`, `overload-ui-design`, `overload-spec`, `overload-ticket-worker`, `overload-review-audit`, `overload-onboarding`, `overload-cross-platform` |
-| What it is | Strength training tracker for individual lifters, each with a private account, with a Free plan and a paid Pro plan. MVP 1 to 3 are shipped and it is moving from invite-only to a commercial launch. Next.js (App Router), Prisma, Supabase, Tailwind with shadcn/ui, Vercel, with Stripe, a custom SMTP provider, a language-model API, and a React Native (Expo) iPhone app planned |
+| What it is | Strength training tracker for individual lifters, each with a private account, with a Free plan and a paid Pro plan. MVP 1 to 4 are shipped, signup is open to everyone, and the next work is a React Native (Expo) iPhone app. Next.js (App Router), Prisma, Supabase, Tailwind with shadcn/ui, Vercel, Stripe, a custom SMTP provider, and a language-model API |
 | Mutations | Server actions that call the write modules under `lib/`. No REST layer for the app's own UI |
 | Core invariants | Account isolation: every owned row is scoped to the acting account by construction. Logged sets are the only source of truth. Derived values are computed on read and never stored. Gym baselines are written atomically with their set and scoped to one gym. Row-level security is deny-all on every table. The admin area never shows training content. A Free account never receives a Pro result. One backend and one training model across web, iOS, and Android |
 | Stop conditions (in `CLAUDE.md`) | Invariant weakened (account isolation, logged history, baselines, RLS, signup gate, admin boundary, plan enforcement, card data); approved doc contradicted; irreplaceable-data or credential scope, including exposing one account's data to another, live Stripe keys, or any real charge; destructive or irreversible operation not named in the pitch |
@@ -410,7 +410,7 @@ A feature reaches Production only through the promotion workflow in Appendix E, 
 | Last-active date | Date only, updated at most once a day | C | Admin Center & Feedback |
 | Suspension | An account status checked on every authenticated request | B | Admin Center & Feedback |
 | Feedback categories | Bug, idea, question, other | C | Admin Center & Feedback |
-| Signup mode | A server-side setting, invite or public, default invite | B | Public Accounts |
+| Signup | Open to everyone with no invite code. The closed mode stays as an emergency stop. Defenses: bot challenge, per-IP throttle, disposable-email blocklist, reserved usernames, and an hourly signup cap | A | Public Accounts |
 | Email verification | Required before a first checkout, not before signup | C | Public Accounts |
 | Abuse protection | Rate limits plus a bot challenge, with Cloudflare Turnstile as the default | C | Public Accounts |
 | Email provider | Resend over SMTP from a verified domain. Domain and DNS are human steps in the runbook | C, domain is D | Public Accounts |
@@ -438,7 +438,7 @@ Lead with the first one listed for the pitch unless the pitch text points elsewh
 | Pitch | Sensible-sounding boundaries a run will be tempted to cross |
 | --- | --- |
 | Admin Center & Feedback | Showing a lifter's workouts "to help with support". Making admin a database role or a flag an account can be given. Hiding navigation and calling it authorization. Building impersonation. An admin mutation without an audit entry |
-| Monorepo & Shared Package | Changing what a user sees on the web. Putting server code that touches Prisma in the shared package. Skipping the hosting root-directory step |
+| Monorepo Move & Shared Package | Changing what a user sees on the web. Putting server code that touches Prisma in the shared package. Skipping the hosting root-directory step. Leaving a hand-copied Prisma enum without the parity test |
 | Mobile API & Auth Foundation | Taking the account from the request instead of the verified token. An endpoint that skips the scoped layer or the capability check. A write that duplicates when retried. A breaking change inside an existing version. Reimplementing a business rule in a handler |
 | Mobile app slices | Calling Supabase tables directly from the app. A second copy of a training rule in the app. A purchase flow in the app. Building a screen from the web layout instead of the Mobile design section. Reporting a device check as passed |
 | Public Accounts | Turning public signup on from the run. Using Supabase's built-in email sender. A recovery response that reveals whether an email has an account. Adding social login or email confirmation at signup. An export that includes another account's data |
@@ -466,7 +466,7 @@ Once a test applies, every later run keeps it green. The cross-account suite is 
 | A baseline correction at one gym leaves another gym's unchanged, and a failed set leaves the baseline untouched | Isolation and atomicity | MVP 1 |
 | The reactive check is suppressed in the scheduled deload week and resumes after | The two deload systems stay separate | MVP 1 |
 | Cross-account isolation for every owned model, every owned model has an indexed `userId`, no owned-model query outside the allowed modules, and the acting account ignores client input | Account isolation | MVP 2 |
-| Signup rejects a missing or wrong invite code while invite-only, and deleting an account removes only that account's rows | The access gate and safe deletion | MVP 2 |
+| Signup works with no invite code, the closed mode refuses signups, and deleting an account removes only that account's rows | The open signup and safe deletion | MVP 2 |
 | Every tour step's anchor exists at phone and desktop widths, and a new account has no unread release backlog | The tour and What's New behave | MVP 2 |
 | A non-admin cannot reach any admin page or operation, admin responses contain no training content, and every admin mutation is audited | The admin boundary | Admin Center & Feedback |
 | A suspended account is refused on its next request | Suspension is enforced | Admin Center & Feedback |
@@ -477,7 +477,7 @@ Once a test applies, every later run keeps it green. The cross-account suite is 
 
 ### D5. UI-bearing classification and the previews folder
 
-Pitches with no screens record step 3 as "Skipped — no UI surface in this pitch": Monorepo & Shared Package, Mobile API & Auth Foundation, Launch Readiness, and the store releases. Mobile-only slices also record step 3 as skipped, because their visual contract is the design doc's Mobile design section. Every other pitch on the roadmap is UI-bearing by the section 5 definition, so step 3 runs for it, including Admin Center & Feedback, Public Accounts, Plans & Billing, the Landing Page, and Plan Import.
+Pitches with no screens record step 3 as "Skipped — no UI surface in this pitch": Monorepo Move, Shared Package & Contracts, Mobile API & Auth Foundation, Launch Readiness, and the store releases. Mobile-only slices also record step 3 as skipped, because their visual contract is the design doc's Mobile design section. Every other pitch on the roadmap is UI-bearing by the section 5 definition, so step 3 runs for it, including Admin Center & Feedback, Public Accounts, Plans & Billing, the Landing Page, and Plan Import.
 
 Preview files (`docs/pitches/**/preview.*`) must not break the build. They are excluded from type-checking, linting, format checks, and the production build, because a preview may import shadcn/ui components the application has not built yet. A preview is self-contained: inline mock data, no data-layer imports, no network requests. If a run fails typecheck or lint on a preview, it halts under the contradiction stop condition and does not delete the exclusion.
 

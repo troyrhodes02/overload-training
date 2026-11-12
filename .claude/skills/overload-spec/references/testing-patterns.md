@@ -161,11 +161,11 @@ THEN:
 ```
 
 ```text
-TEST: mobile_old_version_gets_update_error
-GIVEN: A request with an X-App-Version below the minimum supported version
+TEST: mobile_old_version_gets_upgrade_required
+GIVEN: A request with an X-Overload-App-Version below the minimum supported version
 WHEN: Any mobile endpoint is called
 THEN:
-  - error: version_too_old, and nothing is changed
+  - 426 with error: upgrade_required, and nothing is changed
 ```
 
 ```text

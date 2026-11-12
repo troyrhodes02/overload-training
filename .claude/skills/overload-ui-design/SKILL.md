@@ -81,7 +81,7 @@ Avoid:
 - A defined palette (see Appearance below) and a single typography family (Inter), used as consistent tokens throughout.
 - Consistent iconography via `lucide-react`, used at one stroke and size scale.
 - No screen should retain an un-themed default appearance.
-- **Logo: none exists yet.** The creator will make one later. Do not design, ideate, or approximate a logo or icon mark. Until one is supplied, the brand is the wordmark "Overload" set in Inter semibold, plain text only.
+- **Logo: one exists.** Use the shipped lockup (`src/components/brand/overload-lockup.tsx`) and app icon exactly as they are. Do not redesign, recolor, or approximate it.
 
 ## Typography
 
@@ -97,9 +97,9 @@ Overload supports light and dark, and **system** is the default when the lifter 
 - Dark mode is a true near-black, not navy and not tinted blue. Surfaces step up in lightness only slightly.
 - Design every screen theme-aware using theme tokens, not hardcoded colors.
 
-**Dark foundation:** app background `#0B0B0C`, surface `#141416`, elevated surface `#1C1C1F`, divider `#26262A`, primary text `#F2F2F3`, secondary text `#A1A1A8`, accent `#7B93FF` (hover `#93A6FF`, soft is accent at 14% opacity).
+**Dark foundation (shipped, from `globals.css`):** background `#0b0b0c`, foreground `#f2f2f3`, card `#141416`, popover `#1c1c1f`, secondary, muted, and accent `#1c1c1f`, muted text `#a1a1a8`, border and input `#26262a`, primary `#1a66ff` (ring `#2f7bff`), destructive `#e5484d`.
 
-**Light foundation:** app background `#F7F7F8`, surface `#FFFFFF`, elevated surface `#FFFFFF` with a hairline divider border, divider `#E4E4E8`, primary text `#0E0E10`, secondary text `#5F5F68`, accent `#3F5BD9` (hover `#3350C4`, soft is accent at 10% opacity).
+**Light foundation (shipped, from `globals.css`):** background `#f7f7f8`, foreground `#0e0e10`, card and popover `#ffffff`, secondary, muted, and accent `#ececed`, muted text `#5f5f68`, border and input `#e4e4e8`, primary and ring `#0159fd`, destructive `#b42318`. The shipped primary is the product's accent. `globals.css` is canonical, and when this skill and the file disagree, the file wins.
 
 **Status colors (functional only):** progress green `#2F9E6B` light / `#4CC38A` dark; deload amber `#B7791F` light / `#E0A93B` dark. They appear only on the progress and deload tags. A hold has no tag and no color — it is simply an ordinary exercise. Never use these colors decoratively.
 
