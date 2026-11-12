@@ -12,6 +12,7 @@ import { createConfirmedUser, deleteAuthUser } from "@/lib/supabase/admin";
 import { isInviteValid, signupMode } from "./signup-gate";
 import { checkAndIncrement } from "./throttle";
 import { verifyChallenge } from "./turnstile";
+import { isTurnstileBypassEnabled } from "./turnstile-bypass";
 import { UsernameTakenError } from "./username-taken";
 import {
   EMAIL_NOT_ACCEPTED,
@@ -174,15 +175,20 @@ export async function signUp(
 
   // Global hourly cap (item 2d): counted from existing data (accounts created
   // in the last hour). Neutral to the visitor; logged for the owner, with no
-  // personal data in the line.
+  // personal data in the line. Skipped only under the development / Preview
+  // bypass (TURNSTILE_DISABLED, never on Production), where the cap counts the
+  // whole shared dev project and would pause repeated test-account creation.
+  // The per-IP throttle above and every validation below still apply.
   const now = deps.now?.() ?? new Date();
-  const cap = signupHourlyCap(env);
-  const lastHour = await deps.countRecentSignups(
-    new Date(now.getTime() - 60 * 60 * 1000),
-  );
-  if (lastHour >= cap) {
-    console.warn(`signup: hourly signup cap reached (cap ${cap}); paused`);
-    return { kind: "paused" };
+  if (!isTurnstileBypassEnabled(env)) {
+    const cap = signupHourlyCap(env);
+    const lastHour = await deps.countRecentSignups(
+      new Date(now.getTime() - 60 * 60 * 1000),
+    );
+    if (lastHour >= cap) {
+      console.warn(`signup: hourly signup cap reached (cap ${cap}); paused`);
+      return { kind: "paused" };
+    }
   }
 
   const fieldErrors: Partial<Record<SignUpField, string>> = {};

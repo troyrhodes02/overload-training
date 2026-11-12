@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isTurnstileBypassEnabled } from "./turnstile-bypass";
+
 /**
  * Server-side Cloudflare Turnstile verification (Public Accounts, spec §9, R6).
  * The browser renders the widget and submits a short-lived token; the server
@@ -18,6 +20,11 @@ import "server-only";
  * The bypass is NEVER client-controllable: it is gated on `NODE_ENV !==
  * "production"` AND an unset server secret, both server-only. Production always
  * requires a real key and a real siteverify round-trip.
+ *
+ * Separately, `TURNSTILE_DISABLED=true` in local development or on Vercel
+ * Preview skips verification entirely, token or not. That decision belongs to
+ * `isTurnstileBypassEnabled` (./turnstile-bypass.ts), which refuses it on
+ * Vercel Production and in any production-mode process outside Preview.
  */
 
 const SITEVERIFY_URL =
@@ -56,6 +63,10 @@ export async function verifyChallenge(
   deps: Partial<VerifyTurnstileDeps> = {},
 ): Promise<boolean> {
   const { verify, env } = { ...defaultDeps, ...deps };
+
+  // The development / Preview bypass (TURNSTILE_DISABLED): never on Vercel
+  // Production, never from anything the client sends.
+  if (isTurnstileBypassEnabled(env)) return true;
 
   const value = typeof token === "string" ? token.trim() : "";
   const secret = env.TURNSTILE_SECRET_KEY?.trim() ?? "";
