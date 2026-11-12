@@ -17,6 +17,35 @@ import {
  * DomainError("conflict", "limit") once the account has sent
  * FEEDBACK_DAILY_LIMIT messages in the last 24 hours.
  */
+/**
+ * Pre-flight for a submission (OVE-126 / audit F-A8): validate the input and
+ * check the daily limit BEFORE any screenshot is uploaded, so a rejected
+ * submission puts nothing in Storage. Throws exactly what submitFeedback would
+ * (validation_error / conflict "limit"). submitFeedback re-checks the limit
+ * inside its serializable transaction, so this never weakens the race guard.
+ */
+export async function assertFeedbackAllowed(
+  account: Account,
+  raw: { category: unknown; message: unknown },
+  now: Date = new Date(),
+): Promise<void> {
+  const parsed = parseFeedbackInput(raw);
+  if (!parsed.ok) {
+    throw new DomainError(
+      "validation_error",
+      "Check the highlighted fields.",
+      parsed.errors as Record<string, string>,
+    );
+  }
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const recent = await account.db.feedback.count({
+    where: { createdAt: { gte: since } },
+  });
+  if (recent >= FEEDBACK_DAILY_LIMIT) {
+    throw new DomainError("conflict", "limit");
+  }
+}
+
 export async function submitFeedback(
   account: Account,
   raw: {

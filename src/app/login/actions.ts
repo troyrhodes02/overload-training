@@ -48,6 +48,10 @@ export async function signOutAction(): Promise<void> {
   // Server actions re-check auth independently, never relying only on routing.
   await requireUser();
   const supabase = await createServerSupabase();
-  await supabase.auth.signOut();
+  // Only THIS browser's session ends (OVE-124 / audit F-A4). The default scope
+  // is global, which would also sign the lifter out on every other device —
+  // including the phone app once it exists. Password recovery's global
+  // sign-out (lib/accounts/recovery.ts) is deliberate and unchanged.
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/login");
 }

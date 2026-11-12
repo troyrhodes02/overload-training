@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { requireAccount } from "@/lib/data/account";
+import { requireAccountForDataRights } from "@/lib/data/account";
 import { deleteAccount } from "@/lib/accounts/deletion";
 import { SubscriptionCancellationError } from "@/lib/billing/cancel-on-deletion";
 import { verifyCurrentPassword } from "@/lib/accounts/password";
@@ -35,7 +35,9 @@ export async function deleteAccountAction(
   _prev: DeleteAccountState,
   formData: FormData,
 ): Promise<DeleteAccountState> {
-  const account = await requireAccount();
+  // The narrow data-rights guard: a suspended account may still delete itself
+  // (OVE-125 / audit F-A7). Every other action keeps requireAccount().
+  const { account } = await requireAccountForDataRights();
   const user = await requireUser();
 
   const password = formData.get("password");

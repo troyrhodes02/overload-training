@@ -12,6 +12,7 @@ import {
   type SendResetEmailResult,
 } from "@/lib/data/admin/reset-email";
 import { grantComp, revokeComp } from "@/lib/data/admin/billing";
+import { parseCompEndsAt } from "@/lib/admin/comp-ends-at";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import type { CompReason } from "@prisma/client";
 
@@ -76,16 +77,37 @@ export async function grantCompAction(input: {
   targetId: string;
   reason: CompReason;
   note?: string;
-  endsAt?: string;
+  endsAt?: unknown;
 }): Promise<ActionResult<{ granted: true }>> {
   const actor = await requireAdmin();
+  // Validate the end date before it becomes a Date (OVE-127 / audit F-A16): a
+  // malformed or past value is a validation_error, never an internal_error.
+  const endsAt = parseCompEndsAt(input.endsAt);
+  if (endsAt === "invalid") {
+    return {
+      ok: false,
+      error: {
+        code: "validation_error",
+        message: "Enter a valid end date.",
+      },
+    };
+  }
+  if (endsAt && endsAt.getTime() <= Date.now()) {
+    return {
+      ok: false,
+      error: {
+        code: "validation_error",
+        message: "Pick a future end date or leave it open.",
+      },
+    };
+  }
   const result = await toActionResult(
     () =>
       grantComp(actor, {
         targetUserId: input.targetId,
         reason: input.reason,
         note: input.note ?? null,
-        endsAt: input.endsAt ? new Date(input.endsAt) : null,
+        endsAt,
       }),
     "Couldn't grant complimentary access. Nothing changed.",
   );

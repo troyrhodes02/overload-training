@@ -122,7 +122,9 @@ describe("signOutAction", () => {
     (requireUser as jest.Mock).mockResolvedValue({ id: "user-1" });
     signOut.mockResolvedValue({ error: null });
     await expect(signOutAction()).rejects.toThrow("NEXT_REDIRECT:/login");
-    expect(signOut).toHaveBeenCalled();
+    // Only this browser's session ends; other devices stay signed in
+    // (OVE-124 / audit F-A4).
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
     expect(redirect).toHaveBeenCalledWith("/login");
   });
 });
