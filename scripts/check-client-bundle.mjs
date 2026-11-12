@@ -35,6 +35,9 @@ const forbiddenTokens = [
   // The Turnstile SECRET is server-only (Public Accounts, R6). The SITE key is
   // public (NEXT_PUBLIC_TURNSTILE_SITE_KEY) and intentionally not on this list.
   "TURNSTILE_SECRET_KEY",
+  // The development / Preview bypass flag is decided on the server only
+  // (src/lib/accounts/turnstile-bypass.ts); no client code may read it.
+  "TURNSTILE_DISABLED",
   // Plan import (Workout Plan Import & Review, OVE-109): the language-model
   // provider key and the server-only import config NEVER ship to the browser.
   // The model call is server-only (the client never learns the key, chooses a

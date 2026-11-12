@@ -33,10 +33,13 @@ export function ForgotPasswordForm({
   initialEmail,
   linkExpired,
   turnstileSiteKey,
+  challengeDisabled = false,
 }: {
   initialEmail: string;
   linkExpired: boolean;
   turnstileSiteKey: string | null;
+  /** The development / Preview bypass: no widget, no token needed. */
+  challengeDisabled?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState<ForgotState, FormData>(
     requestPasswordResetAction,
@@ -45,9 +48,10 @@ export function ForgotPasswordForm({
   // "send it again" returns to the request form without a page load.
   const [again, setAgain] = useState<ForgotState | null>(null);
   const [clientError, setClientError] = useState<string | null>(null);
-  const [challengeReady, setChallengeReady] = useState(false);
+  const [challengePassed, setChallengePassed] = useState(false);
+  const challengeReady = challengeDisabled || challengePassed;
   const onChallengeReady = useCallback(
-    (v: boolean) => setChallengeReady(v),
+    (v: boolean) => setChallengePassed(v),
     [],
   );
   const sentHeading = useRef<HTMLHeadingElement>(null);
@@ -189,10 +193,12 @@ export function ForgotPasswordForm({
             <AlertDescription>{CHALLENGE_FAILED}</AlertDescription>
           </Alert>
         ) : null}
-        <BotChallenge
-          siteKey={turnstileSiteKey}
-          onReadyChange={onChallengeReady}
-        />
+        {challengeDisabled ? null : (
+          <BotChallenge
+            siteKey={turnstileSiteKey}
+            onReadyChange={onChallengeReady}
+          />
+        )}
         <Button
           type="submit"
           className="h-11 w-full"
