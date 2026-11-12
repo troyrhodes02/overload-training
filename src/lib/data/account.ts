@@ -264,6 +264,32 @@ export const requireAccount = cache(async (): Promise<Account> => {
 });
 
 /**
+ * The acting account for the two DATA-RIGHTS surfaces only — downloading the
+ * account's export (/settings/export) and deleting the account (the
+ * delete-account action and its page) — which a SUSPENDED account may still
+ * use (OVE-125 / audit F-A7): suspension stops someone using Overload, never
+ * taking their data with them or removing it.
+ *
+ * Identical to requireAccount() except that a suspended account is returned
+ * instead of redirected, and nothing is recorded for it (last-active stays as
+ * it was, like every other suspended request). requireAccount() itself is
+ * unchanged and still refuses suspension everywhere else. A static guard
+ * (tests/unit/account-isolation-guards.test.ts) pins the callers of this
+ * function to exactly those surfaces.
+ */
+export const requireAccountForDataRights = cache(
+  async (): Promise<{ account: Account; suspended: boolean }> => {
+    const user = await currentUser();
+    const { account, status, lastActiveOn } = await resolveAccountState(
+      user.id,
+    );
+    const suspended = status === "suspended";
+    if (!suspended) await touchLastActive(account, lastActiveOn);
+    return { account, suspended };
+  },
+);
+
+/**
  * Where the signed-in visitor stands (the /suspended page): signed out, an
  * account that may use Overload, or a suspended one. From the auth session
  * only; never creates a profile.
