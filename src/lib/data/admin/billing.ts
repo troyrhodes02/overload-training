@@ -68,6 +68,9 @@ export async function grantComp(
   if (input.reason === "other" && !input.note?.trim()) {
     throw new DomainError("validation_error", "A note is required for Other.");
   }
+  if (input.endsAt && Number.isNaN(input.endsAt.getTime())) {
+    throw new DomainError("validation_error", "Enter a valid end date.");
+  }
   if (input.endsAt && input.endsAt.getTime() <= Date.now()) {
     throw new DomainError(
       "validation_error",
