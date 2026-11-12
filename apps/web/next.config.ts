@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 import { assertDeploymentTarget } from "./src/lib/env/deployment-guard";
 
@@ -5,6 +6,21 @@ import { assertDeploymentTarget } from "./src/lib/env/deployment-guard";
 // variables reference the Production project. Production and local builds are
 // unaffected. The error names the variable only, never its value.
 assertDeploymentTarget(process.env);
+
+// Pitch 21a: this app lives in apps/web of an npm workspace. The workspace root
+// (two levels up, where the single package-lock.json is) holds the hoisted
+// node_modules, `next` included. Turbopack resolves modules only inside its
+// root, and file tracing must use the same root, so both are pinned to it.
+// Pinning it explicitly also stops a stray lockfile in a parent directory from
+// being inferred as the root.
+const WORKSPACE_ROOT = path.join(__dirname, "..", "..");
+
+// Where npm placed pdfjs-dist (hoisted to the workspace root today), relative
+// to this project, because tracing includes resolve from the project root.
+const PDFJS_DIR = path
+  .relative(__dirname, path.dirname(require.resolve("pdfjs-dist/package.json")))
+  .split(path.sep)
+  .join("/");
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
@@ -19,10 +35,14 @@ const nextConfig: NextConfig = {
   // legacy build is ESM-only and must dodge the CommonJS test transform), which
   // Vercel's file tracer cannot see. Without this the package is missing from
   // the deployed function and every PDF upload fails before it is even opened.
+  // The path is resolved (PDFJS_DIR), not assumed to be ./node_modules, because
+  // npm workspaces hoist the package; a wrong path would fail silently and only
+  // in the deployed function (mobile audit Q-2).
+  outputFileTracingRoot: WORKSPACE_ROOT,
   outputFileTracingIncludes: {
     "/plan/import": [
-      "./node_modules/pdfjs-dist/package.json",
-      "./node_modules/pdfjs-dist/legacy/build/**/*",
+      `${PDFJS_DIR}/package.json`,
+      `${PDFJS_DIR}/legacy/build/**/*`,
     ],
   },
   // Feedback screenshots upload through a server action. Raise the default 1 MB
@@ -32,10 +52,10 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "5mb" },
     agentUpgrade: "security",
   },
-  // Pin the workspace root to this project. A stray lockfile in a parent
-  // directory would otherwise be inferred as the root.
+  // The npm workspace root (see WORKSPACE_ROOT); must equal
+  // outputFileTracingRoot.
   turbopack: {
-    root: __dirname,
+    root: WORKSPACE_ROOT,
   },
 };
 
