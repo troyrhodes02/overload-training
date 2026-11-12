@@ -38,7 +38,7 @@ Other worktrees need the same `npm ci` after they merge or rebase onto the new l
 | Command | What it runs |
 | --- | --- |
 | `npm ci` / `npm install` | Installs all workspaces into the root `node_modules`, then the web's `postinstall` runs `prisma generate`. Running it inside `apps/web` does the same and never creates a second lockfile. |
-| `npm run lint` | ESLint in every workspace (web rules unchanged; shared has the forbidden-import fence) |
+| `npm run lint` | ESLint in every workspace (web rules unchanged; shared has the forbidden-import fence), then the root `scripts/` |
 | `npm run typecheck` | `tsc --noEmit` in every workspace. In a fresh checkout with no `.next`, run `npm run build` or `npx next typegen` in `apps/web` first, as before the move. |
 | `npm run format:check` / `npm run format` | Prettier over the whole repository, one config |
 | `npm test` | Web unit suite, then the workspace boundary check (`npm run verify:workspaces`) |

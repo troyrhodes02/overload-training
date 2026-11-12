@@ -147,7 +147,7 @@ Root `package.json`:
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": { "…": "see §8.3" },
-  "devDependencies": { "prettier": "<the version the web declared>" }
+  "devDependencies": { "prettier": "<the version the web declared>", "eslint": "^9", "@eslint/js": "^9.39.5" }
 }
 ```
 
@@ -164,7 +164,7 @@ Every existing root command keeps its name. Root scripts delegate to the web wor
 | --- | --- | --- |
 | `dev`, `build`, `start` | `npm run <x> -w @overload/web --` | `npm start -- -p 3100` still works |
 | `postinstall` | (none at root) | the web workspace's own `postinstall: prisma generate` runs during the root install |
-| `lint` | `npm run lint --workspaces --if-present` | web: `eslint` (unchanged); shared: `eslint` (§8.10) |
+| `lint` | `npm run lint --workspaces --if-present --`, then the root `postlint` runs `eslint scripts` | web: `eslint` (unchanged); shared: `eslint` (§8.10); root: the boundary check scripts (review audit) |
 | `typecheck` | `npm run typecheck --workspaces --if-present` | web: `tsc --noEmit` (unchanged); shared: `tsc --noEmit -p .` |
 | `test` | `npm run test --workspaces --if-present --`, then the root `posttest` runs `npm run verify:workspaces` | web unit suite, then the boundary check. `posttest` (not `&&`) so `npm test -- <args>` still delivers its arguments to Jest. |
 | `verify:workspaces` | `node scripts/workspace-boundaries.mjs && node --test scripts/workspace-boundaries.test.mjs` | root only |
@@ -295,12 +295,12 @@ The web does **not** depend on `@overload/shared` in 21a and gets no `transpileP
 | # | Rule | Why |
 | --- | --- | --- |
 | B1 | The workspace list is exactly `apps/*` and `packages/*`, and every workspace has a unique name | Vercel skip-unaffected requires unique names; the layout is fixed |
-| B2 | The root manifest has no `dependencies`, and its `devDependencies` are limited to repository-wide tooling (`prettier`) | Audit §8: Node-only and native packages stay in `apps/web` |
-| B3 | `packages/shared` declares none of the forbidden packages (§8.10) in any dependency field, has no runtime `dependencies` at all, and none of its `src` files imports a forbidden module | Roadmap: the shared package has no server dependency |
+| B2 | The root manifest has no `dependencies`, and its `devDependencies` are limited to repository-wide tooling (`prettier`; `eslint` and `@eslint/js` for the root `scripts/`, added by the review audit) | Audit §8: Node-only and native packages stay in `apps/web` |
+| B3 | `packages/shared` declares none of the forbidden packages (§8.10) in any dependency field, has no runtime `dependencies` at all, and none of its `src` files imports a forbidden module, a subpath of one, or a relative path that leaves `packages/shared` | Roadmap: the shared package has no server dependency |
 | B4 | `apps/mobile`, once it has a manifest, declares none of `@prisma/client`, `prisma`, `next`, `server-only`, `@overload/web`, `sharp`, `heic-convert`, `pdfjs-dist`, `stripe`, `@anthropic-ai/sdk`, or `@supabase/ssr` | `CLAUDE.md`: the mobile app never imports server modules |
 | B5 | No workspace depends on `@overload/web` | The web app is a leaf, not a library |
 | B6 | No manifest (root or any workspace) declares a scheduler or queue package (the list from `invariant-guards.test.ts`) | Preserves the "no cron / queue" guard across the whole repository; the web test still covers the web manifest |
-| B7 | **React lockstep.** Every workspace that declares `react` or `react-dom` pins one identical exact version, and `package-lock.json` contains exactly one `react` package entry and exactly one `react-dom` entry | One React runtime (§10) |
+| B7 | **React lockstep.** Every workspace that declares `react` or `react-dom` pins one identical exact version, and `package-lock.json` contains exactly one `react` package entry and exactly one `react-dom` entry, whose version equals the pin. All dependency fields count, peer and optional included. | One React runtime (§10) |
 
 Each failure message names the workspace, the dependency or import, and the rule.
 
@@ -472,7 +472,7 @@ The full standing suites above are the regression net. No test assertion is weak
 ## 14. Acceptance criteria
 
 **Workspace**
-- [ ] Root `package.json` declares `workspaces: ["apps/*", "packages/*"]`, has no `dependencies`, and holds only `prettier` in `devDependencies`.
+- [ ] Root `package.json` declares `workspaces: ["apps/*", "packages/*"]`, has no `dependencies`, and holds only repository-wide tooling (`prettier`, `eslint`, `@eslint/js`) in `devDependencies`.
 - [ ] The web app lives in `apps/web` (`@overload/web`) with unchanged file contents apart from §8.5–§8.8.
 - [ ] `packages/shared` (`@overload/shared`) exists with no runtime dependencies, an empty export, the forbidden-import ESLint rule, and lint and typecheck scripts.
 - [ ] `apps/mobile` holds only a README; npm does not treat it as a workspace.
@@ -546,6 +546,8 @@ The full standing suites above are the regression net. No test assertion is weak
 | RD-21 | Leave the feature PR open; do not merge into `staging`. | Run prompt merge exception: the Vercel change must be coordinated first. | run prompt |
 | RD-22 | `apps/web/supabase/` (local stack config) moves with the app. | The local stack is the web backend; `playwright.accounts.config.ts` runs `npx supabase status` from `apps/web`. | codebase |
 | RD-23 | Fix the date-dependent integration test "never shows to a comped account" (`trial-upgrade.int.test.ts`) before the move, by moving that test's comp `startedAt` before its fixed clock. No assertion or product change. | The pre-move baseline on `staging` (fb0a1c3) had 951/952 passing. The fixture grants the comp at real time while the test clock is 2026-11-11, so the test started failing at 2026-11-12T13:00Z. The product rule (OVE-112) is correct. A green baseline is required for M-2 parity, and the policy forbids continuing on a failing check. | CLAUDE.md Verification honesty |
+
+| RD-24 | Review audit (feature PR #187, all 10 findings implemented): the shared fence also blocks subpaths and relative escapes, and is built from one list for lint and B3; B2 and B7 read every dependency field, and B7 checks the locked React version; the root lint and typecheck pass flags through; a root `eslint.config.mjs` lints `scripts/` (`eslint` and `@eslint/js` become root tooling at their already-resolved versions); the discovery guard asks Jest (`--listTests`); `.gitignore` anchors `build/` and `out/`. | Each closes a gap in a fence or guard this pitch introduced; none changes web behavior. | `/overload-review-audit` |
 
 ## Open Questions
 

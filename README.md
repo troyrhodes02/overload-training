@@ -45,7 +45,7 @@ The local `.env` lives in `apps/web/` (git-ignored). Create a local user in loca
 | ------ | ------------ |
 | `npm run dev` | Next.js dev server for the web app |
 | `npm run build` / `npm start` | Production build / start (`prisma generate` runs on install) |
-| `npm run lint` | ESLint in every workspace |
+| `npm run lint` | ESLint in every workspace, then the root `scripts/` |
 | `npm run typecheck` | `tsc --noEmit` in every workspace |
 | `npm run format` / `format:check` | Prettier write / check over the whole repository |
 | `npm test` | Web unit tests, then the workspace boundary check |
