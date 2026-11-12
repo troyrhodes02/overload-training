@@ -20,6 +20,8 @@ import {
   MAX_PARTS,
   MAX_TOTAL_BYTES,
   MAX_FILE_BYTES,
+  MAX_FILE_LABEL,
+  fileTooLargeMessage,
   UPLOAD_ACCEPT_ATTR,
 } from "@/lib/import/constants";
 import type { ActionResult } from "@/lib/actions/result";
@@ -113,14 +115,30 @@ export function SourceIntake({
           setError(`You can add at most ${MAX_PARTS} files.`);
           break;
         }
+        // Check the size BEFORE sending (OVE-139 / audit F-A3): a file over
+        // the per-request cap would be cut off by the host and fail with a
+        // generic error. Name the file and the limit instead.
+        if (file.size > MAX_FILE_BYTES) {
+          setError(fileTooLargeMessage(file.name));
+          continue;
+        }
         const form = new FormData();
         form.set("sessionId", id);
         form.set("file", file);
-        const res = (await commitPartAction(null, form)) as ActionResult<{
+        let res: ActionResult<{
           objectPath: string;
           contentType: string;
           position: number;
         }>;
+        try {
+          res = (await commitPartAction(null, form)) as typeof res;
+        } catch {
+          // The request itself failed (for example the host refused the body).
+          setError(
+            `"${file.name}" couldn't be uploaded. Files can be up to ${MAX_FILE_LABEL} each.`,
+          );
+          continue;
+        }
         if (!res.ok) {
           setError(res.error.message);
           continue;
@@ -297,7 +315,7 @@ export function SourceIntake({
                 </span>
               </p>
               <p className="text-xs text-muted-foreground">
-                PDF, JPG, PNG, WebP, HEIC · up to {mb(MAX_FILE_BYTES)} each
+                PDF, JPG, PNG, WebP, HEIC · up to {MAX_FILE_LABEL} each
               </p>
               <input
                 ref={fileInput}

@@ -8,11 +8,11 @@ import { requireCapability } from "@/lib/entitlements/require";
 import { isPlanImportEnabled } from "@/lib/import/config";
 import {
   MAX_FILE_BYTES,
+  fileTooLargeMessage,
   MAX_PARTS,
   UPLOAD_ACCEPT_ATTR,
 } from "@/lib/import/constants";
 
-const MAX_FILE_MB = MAX_FILE_BYTES / (1024 * 1024);
 import {
   addFilePart,
   addText,
@@ -119,10 +119,7 @@ export async function reserveUploadAction(input: {
     async () => {
       const account = await guardImport();
       if (input.sizeBytes <= 0 || input.sizeBytes > MAX_FILE_BYTES) {
-        throw new DomainError(
-          "validation_error",
-          `This file is too large. Choose a file under ${MAX_FILE_MB} MB.`,
-        );
+        throw new DomainError("validation_error", fileTooLargeMessage());
       }
       if (!UPLOAD_ACCEPT_ATTR.split(",").includes(input.contentType)) {
         throw new DomainError(
