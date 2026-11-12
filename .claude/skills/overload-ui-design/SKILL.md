@@ -81,7 +81,7 @@ Avoid:
 - A defined palette (see Appearance below) and a single typography family (Inter), used as consistent tokens throughout.
 - Consistent iconography via `lucide-react`, used at one stroke and size scale.
 - No screen should retain an un-themed default appearance.
-- **Logo: one exists.** Use the shipped lockup (`src/components/brand/overload-lockup.tsx`) and app icon exactly as they are. Do not redesign, recolor, or approximate it.
+- **Logo: one exists.** Use the shipped lockup (`apps/web/src/components/brand/overload-lockup.tsx`) and app icon exactly as they are. Do not redesign, recolor, or approximate it.
 
 ## Typography
 

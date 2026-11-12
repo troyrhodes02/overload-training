@@ -31,6 +31,8 @@ It defines data shape, mutations, server/client boundaries, validation, integrat
 
 **Read `CLAUDE.md` before writing any spec.** It is the authoritative statement of this project's stack, invariants, security rules, and product boundaries. Where a spec and `CLAUDE.md` conflict, `CLAUDE.md` wins. Read `docs/planning/architecture.md` for the rationale behind those decisions and for its Open Questions list, which a spec must not silently settle.
 
+**Paths.** The repository is an npm workspace (Pitch 21a). Web paths written here and in `CLAUDE.md` (`src/…`, `lib/…`, `prisma/…`, `tests/…`) are relative to `apps/web/`. Shared code goes in `packages/shared` only as the shared-package rules in `CLAUDE.md` allow.
+
 The following are inlined here only because this skill acts on them in nearly every spec:
 
 - **Schema format:** Prisma schema (`schema.prisma`). Raw SQL appears only for what Prisma cannot manage, which in practice means enabling row-level security on each table.
@@ -264,7 +266,7 @@ For every resource, document read, create, update, and delete, and state the iso
 
 ### 10. Storage model
 
-Include only when the feature touches Supabase Storage. Three buckets exist: `exercise-images` (public-read, the public-domain free-exercise-db images imported once by a seed script; custom exercises have no image), `feedback-screenshots`, and `plan-import-sources`. The two private buckets have no Storage policies, are reached only on the server with the service-role key (`src/lib/feedback/screenshots.ts`, `src/lib/import/storage.ts`), and are read back through short-lived signed URLs. Account deletion removes an account's objects. A spec that adds a new kind of upload or bucket must state its posture, its size and type limits, and how deletion removes it.
+Include only when the feature touches Supabase Storage. Three buckets exist: `exercise-images` (public-read, the public-domain free-exercise-db images imported once by a seed script; custom exercises have no image), `feedback-screenshots`, and `plan-import-sources`. The two private buckets have no Storage policies, are reached only on the server with the service-role key (`apps/web/src/lib/feedback/screenshots.ts`, `apps/web/src/lib/import/storage.ts`), and are read back through short-lived signed URLs. Account deletion removes an account's objects. A spec that adds a new kind of upload or bucket must state its posture, its size and type limits, and how deletion removes it.
 
 ### 11. Server actions and API surface
 
