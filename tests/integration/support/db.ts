@@ -47,6 +47,9 @@ export const APP_TABLES = [
   "import_sessions",
   "import_usage_days",
   "import_spend_ledger",
+  // Signup hardening 2a: the un-owned one-trial-per-person claims (no FK to
+  // profiles, so it must be truncated explicitly).
+  "trial_claims",
 ] as const;
 
 /** Tables that belong to no account (spec 17 R11): no owner column at all. */
@@ -64,6 +67,8 @@ export const UNOWNED_TABLES: readonly string[] = [
   "webhook_events",
   // Workout Plan Import & Review: the global provider-spend ledger has no owner.
   "import_spend_ledger",
+  // Signup hardening 2a: one-trial-per-person claims have no owner column.
+  "trial_claims",
 ];
 
 let client: PrismaClient | undefined;

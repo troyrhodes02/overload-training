@@ -71,7 +71,10 @@ export async function resolveMissedDay(
           status: true,
           startDate: true,
           lengthWeeks: true,
-          sessions: { select: { id: true, name: true, dayOfWeek: true } },
+          createdAt: true,
+          sessions: {
+            select: { id: true, name: true, dayOfWeek: true, createdAt: true },
+          },
         },
       })
     : null;
@@ -99,10 +102,11 @@ export async function resolveMissedDay(
       "That day isn't a missed workout you can resolve.",
     );
   if (meso.status !== "active" || !meso.startDate) throw notMissed();
-  const ctx = await loadScheduleContext(tx, {
-    ...meso,
-    startDate: meso.startDate,
-  });
+  const ctx = await loadScheduleContext(
+    tx,
+    { ...meso, startDate: meso.startDate },
+    account.timeZone,
+  );
   const week = mesocycleWeekForDate(ctx.startDate, missedOn);
   if (week === null || week < 1 || week > ctx.lengthWeeks) throw notMissed();
   const occurrence = effectiveWeekSchedule(ctx, week).find(

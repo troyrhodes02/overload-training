@@ -1,5 +1,6 @@
 import type { Account } from "@/lib/data/account";
 import { defaultAccount } from "./support/accounts";
+import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,
   createTestMesocycle,
@@ -9,7 +10,7 @@ import {
 import { createGym } from "@/lib/gyms/gyms";
 import { logSet } from "@/lib/logging/logged-sets";
 import { completeWorkout, startOrResumeWorkout } from "@/lib/logging/sessions";
-import { getTodayDashboard } from "@/lib/logging/queries";
+import { getTodayDashboard, getWeekSchedule } from "@/lib/logging/queries";
 import { addSession, moveSession } from "@/lib/plan/sessions";
 import { updateMesocycleDetails } from "@/lib/plan/mesocycles";
 import { addDays, isoWeekday, todayIso } from "@/lib/plan/calendar";
@@ -125,15 +126,68 @@ it("REPRODUCES F-T5, start date earlier by a week: a never-scheduled past week a
   }
 });
 
-it("RELATED (not blocked, owner decision): adding a scheduled session to an active block back-fills past missed days", async () => {
-  const { meso } = await trainedActiveBlock();
-  await addSession(account, {
-    mesocycleId: meso.id,
-    name: "Pull",
-    dayOfWeek: otherDay(isoWeekday(start)),
+describe("a session added to an active block (F-T5 follow-up)", () => {
+  /** The block and its first session were built on its start day, like a real block. */
+  async function builtOnStartDay() {
+    const block = await trainedActiveBlock();
+    const startInstant = new Date(`${start}T12:00:00.000Z`);
+    await getTestPrisma().mesocycle.update({
+      where: { id: block.meso.id },
+      data: { createdAt: startInstant },
+    });
+    await getTestPrisma().session.update({
+      where: { id: block.session.id },
+      data: { createdAt: startInstant },
+    });
+    return block;
+  }
+
+  it("creates no past missed days", async () => {
+    const { meso } = await builtOnStartDay();
+    await addSession(account, {
+      mesocycleId: meso.id,
+      name: "Pull",
+      dayOfWeek: otherDay(isoWeekday(start)),
+    });
+    expect((await getTodayDashboard(account)).kind).not.toBe("missed_day");
+    // Its past weeks hold no occurrence of it at all.
+    const week1 = await getWeekSchedule(account, 1);
+    expect(week1!.days.map((d) => d.sessionName)).not.toContain("Pull");
   });
-  const dash = await getTodayDashboard(account);
-  expect(dash.kind).toBe("missed_day");
+
+  it("counts normally from the day it was created onward", async () => {
+    const { meso } = await builtOnStartDay();
+    // Added today for tomorrow's weekday (today's weekday is the first
+    // session's): this week's and every later week's occurrence is planned.
+    await addSession(account, {
+      mesocycleId: meso.id,
+      name: "Pull",
+      dayOfWeek: otherDay(isoWeekday(today)),
+    });
+    for (const week of [3, 4, 5]) {
+      const days = (await getWeekSchedule(account, week))!.days;
+      expect([week, days.map((d) => d.sessionName)]).toEqual([
+        week,
+        expect.arrayContaining(["Pull"]),
+      ]);
+    }
+    for (const week of [1, 2]) {
+      const days = (await getWeekSchedule(account, week))!.days;
+      expect(days.map((d) => d.sessionName)).not.toContain("Pull");
+    }
+    expect((await getTodayDashboard(account)).kind).not.toBe("missed_day");
+  });
+
+  it("a block built and backdated in one sitting keeps every occurrence", async () => {
+    // No backdating of createdAt: block and both sessions were created today.
+    const { meso } = await trainedActiveBlock();
+    await addSession(account, {
+      mesocycleId: meso.id,
+      name: "Pull",
+      dayOfWeek: otherDay(isoWeekday(start)),
+    });
+    expect((await getTodayDashboard(account)).kind).toBe("missed_day");
+  });
 });
 
 describe("the guard (OVE-138)", () => {

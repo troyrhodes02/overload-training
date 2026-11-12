@@ -164,6 +164,8 @@ export async function establishProfile(
     username: string;
     timeZone: string;
   },
+  /** Item 2a: false when this person already had a trial (dedupe on). */
+  opts: { grantTrial?: boolean } = {},
 ): Promise<void> {
   const db = createAccountClient(user.id);
   const timeZone = isValidTimeZone(input.timeZone)
@@ -221,6 +223,9 @@ export async function establishProfile(
       error instanceof Error ? error.name : "unknown",
     );
   }
+  // One trial per person (signup hardening 2a): a repeat account for the
+  // same person starts on Free. Default true, so every caller is unchanged.
+  if (opts.grantTrial === false) return;
   try {
     // Plans, Billing & Promo Codes: every new account begins a 14-day card-free
     // Pro trial. Expiry is pure date math on read (no job). skipDuplicates +

@@ -72,6 +72,9 @@ export type AdminOverviewDto = {
   active7: number;
   active30: number;
   newThisMonth: number;
+  /** Accounts created in the last hour and the last 24 hours (signup cap, item 2d). */
+  signupsLastHour: number;
+  signupsLast24h: number;
   withPlan: number;
   loggedWorkout: number;
   /** Accounts that signed up from /blizzy (Public Landing Page, RD-10). */

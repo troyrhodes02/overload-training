@@ -48,5 +48,6 @@ export async function getAdminOverview(
     loggedWorkout: new Set(logged.map((r) => r.userId)),
     today: todayIso(actor.timeZone, now),
     timeZone: actor.timeZone,
+    now,
   });
 }

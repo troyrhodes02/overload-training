@@ -78,6 +78,9 @@ describe("classification", () => {
       "AuthThrottle",
       "WebhookEvent",
       "ImportSpendLedger",
+      // Signup hardening 2a: one-trial-per-person claims (a hash of the
+      // normalized email key; no owner column), a reviewed addition.
+      "TrialClaim",
     ]);
     expect(SHARED_OR_OWNED_MODEL).toBe("Exercise");
   });
