@@ -1,5 +1,7 @@
 # Mobile Codebase Audit — One-Shot Prompt
 
+**Status: already run.** Its output is `docs/planning/mobile-audit.md`.
+
 Paste into Claude Code after Pitch 24 and the web chores are merged into `staging`. This is a read-only audit. It finishes by writing one document.
 
 ---
@@ -17,7 +19,7 @@ Every user-facing route and screen: path, purpose, plan placement (Free or Pro c
 Every server action and every read or write module: inputs and outputs, whether the business logic lives in a reusable module or inside the action or component, whether it takes the acting account explicitly, where capabilities are enforced, and whether the write is safe to retry. For each, state the extraction work needed before a mobile API route can call it. List the proposed endpoints per mobile slice in `mobile-roadmap.md`.
 
 ## 3. Authentication and session
-How sign-in, signup, the invite gate, recovery, suspension, and sessions work today. What mobile token authentication, secure storage, and refresh need, and any assumption in the code that ties a request to a browser cookie.
+How sign-in, signup, the signup mode, recovery, suspension, and sessions work today. What mobile token authentication, secure storage, and refresh need, and any assumption in the code that ties a request to a browser cookie.
 
 ## 4. Shared code candidates
 Pure logic with no database or framework dependency that can move to a shared package: types, validation schemas, e1RM and progression rules, constants, tour and release-note data. Also logic that looks shareable but touches the database or server runtime.

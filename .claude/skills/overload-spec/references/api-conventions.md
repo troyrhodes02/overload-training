@@ -48,7 +48,7 @@ LoggedSession  startLoggedSession, completeLoggedSession, resolveMissedDay
 LoggedSet      logSet, editLoggedSet
 Goal           createGoal, archiveGoal
 CardioLog      logCardio
-Account        signUp, updateProfile, deleteAccount, exportAccountData (password recovery is added by Public Accounts)
+Account        signUp, requestPasswordReset, setNewPassword, sendVerificationEmail, updateProfile, deleteAccount, buildAccountExport
 Admin          listAccounts, getAccount, suspendAccount, reactivateAccount, adminDeleteAccount, grantComp, revokeComp, getAdminMetrics, listFeedback, markFeedbackHandled
 Billing        createCheckoutSession, createPortalSession, and the Stripe webhook route handler
 Plan import    submitPlanImport, confirmPlanImport, discardPlanImport
@@ -74,7 +74,7 @@ Where a route handler is justified, use plural nouns for collections and nest on
 
 | Resource | Purpose |
 | -------- | ------- |
-| `Mesocycle` | A training block with a length and a scheduled deload week |
+| `Mesocycle` | A training block with a length and a scheduled-deload cadence (`deloadEveryWeeks`: every Nth week is a deload week) |
 | `Session` | A planned workout template assigned to a day (with `SessionExercise` as its ordered exercises) |
 | `Exercise` | A library or custom movement, soft-deletable |
 | `Gym` | A named place the lifter trains, soft-deletable (with `GymExerciseBaseline` holding per-gym machine weights) |
@@ -147,16 +147,16 @@ cloneMesocycle({ sourceMesocycleId: string, name: string }): ActionResult<{ meso
 ```
 
 ```ts
-resolveMissedDay({ missedDate: string, choice: "log_late" | "shift" | "skip" }): ActionResult<{ resolved: true }>
+resolveMissedDay({ mesocycleId: string, missedOn: string, outcome: "shifted" | "skipped" }): ActionResult<{ ok: true }>
 ```
 
-`shift` moves the remaining days of the current week forward by one and must not carry into the following week. Where the result is persisted is an open question in the Architecture Doc; the spec that implements it must settle it.
+"Log it late" has no write of its own: it starts the workout for the missed date. `shifted` moves the remaining days of the current week forward by one and must not carry into the following week. The result is a `MissedDayResolution` row, unique per (mesocycle, day). The outcome and the date are validated at runtime (a real past occurrence of the active block, not logged, not already resolved); replaying the same outcome returns the existing row, and a different one is a `conflict`.
 
 ```ts
-swapExercise({ loggedExerciseId: string, replacementExerciseId: string, saveToTemplate?: boolean }): ActionResult<{ loggedExerciseId: string }>
+swapExercise({ loggedExerciseId: string, newExerciseId: string }): ActionResult<{ ok: true }>
 ```
 
-`replacementExerciseId` must share a muscle group with the planned exercise, or the action returns `validation_error`. `saveToTemplate` defaults to false so the planned `Session` is untouched.
+`newExerciseId` may be in any muscle group (Workout Logging Refinements) and must be an active exercise the account can see, or the action returns `validation_error`. A swap on a finished workout, or on an exercise that already has a logged set, returns `invalid_state_transition`. A swap changes only that `LoggedExercise`; there is no save-back to the planned `Session`.
 
 ## Response patterns
 
@@ -179,11 +179,12 @@ The mobile app is the one client that calls HTTP endpoints. Everything else here
 
 - **Base and versioning.** Route handlers under `/api/mobile/v1/`. Changes within a version are backward compatible (new optional fields, new endpoints). A breaking change needs a new version, because old app versions stay installed.
 - **Auth.** A bearer token verified on the server. The acting account comes from the token and never from the path, query, or body. No request or response type contains a `userId` the client controls.
-- **Envelope.** Responses use the same shape as an action result: `{ ok: true, data }` or `{ ok: false, error: { code, message, details? } }`, with the HTTP status from the error code table.
+- **Responses.** Success is a 2xx status with the data as JSON. Failure is a status code with `{ error: { code, message, details? } }`, reusing the existing error codes, which already map to HTTP statuses.
 - **Naming.** Plural nouns and nesting only where ownership is part of the domain, for example `/api/mobile/v1/logged-sessions/:id/sets`.
+- **Idempotency.** Create endpoints (goals, gyms, custom exercises, mesocycles, feedback) accept an `Idempotency-Key` header, stored in an owned table, so a repeated request returns the first result. Never accept client-supplied primary keys.
 - **Retry safety.** A repeated write must not duplicate data. A repeated `logSet` for the same `(loggedExerciseId, setNumber)` returns `conflict` with the existing set, never a second set.
 - **Pagination.** Lists take `limit` and `offset` or a cursor, with a sensible default and cap.
-- **App config.** `GET /api/mobile/v1/app-config` returns `minSupportedVersion`, `latestVersion`, and kill switches. The app sends its version in an `X-App-Version` header, and a request below the minimum gets a version-too-old error the app turns into an update screen.
+- **App config.** `GET /api/mobile/v1/app-config` (public) returns `minSupportedVersion`, `latestVersion`, and kill switches. The app sends its version in an `X-Overload-App-Version` header, and a request below the minimum gets 426 with the `upgrade_required` error, which the app turns into an update screen.
 - **Capabilities.** The same `plan_required` error as the web, enforced on the server.
 - **Isolation.** Every endpoint is covered by the cross-account isolation suite.
 
@@ -198,7 +199,7 @@ The mobile app is the one client that calls HTTP endpoints. Everything else here
 | `conflict` | 409 | Incompatible change, such as a retried set colliding with an existing one |
 | `unauthorized` | 401 | Missing or invalid session |
 | `plan_required` | 402 | The capability that gates this operation is not part of the account's plan |
-| `version_too_old` | 426 | The mobile app's version is below the minimum supported version |
+| `upgrade_required` | 426 | The mobile app's version is below the minimum supported version |
 | `internal_error` | 500 | Unexpected failure |
 
 `forbidden` is intentionally absent: a record owned by another account returns `not_found`, so its existence is never revealed. Likewise a non-admin who calls an admin operation gets `not_found`. `rate_limited`, `unsupported_media_type`, and `payload_too_large` are absent because the app has no throttled surface of its own and no uploads.
