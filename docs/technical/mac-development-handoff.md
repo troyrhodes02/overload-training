@@ -2,6 +2,8 @@
 
 **Written:** 2026-11-09, when development moved from a Windows machine to a Mac. Nothing here contains a secret or an `.env` value. Read `docs/technical/environment-isolation.md` (OVE-111) and `docs/technical/staging-environment.md` alongside this page.
 
+> **Since Pitch 21a (monorepo move):** the web app lives in `apps/web` of an npm workspace. Code paths on this page are relative to `apps/web/`. Run `npm install` and `npm run …` from the repository root. Run direct `npx tsx …`, `npx prisma …`, and `npx supabase …` commands from `apps/web/`, as shown. A local `.env` / `.env.local` lives in `apps/web/`.
+
 ## What is where
 
 | Thing | Location |
@@ -54,11 +56,12 @@ The branch's expected tip at handoff is the commit named in PR #139's header. Ch
 Everyday work should use the **Supabase CLI local stack**, which touches no hosted project:
 
 ```bash
+cd apps/web                           # the local stack config is apps/web/supabase/
 npx supabase start                    # Docker; API 127.0.0.1:54321, Postgres :54322 (ports 54320-54327 are this repo's)
 npx supabase status -o env            # shows local URLs and keys (local-only demo keys)
 ```
 
-Put the local values in a git-ignored `.env.local` (see `.env.example` for the names). `npm run db:migrate:dev` against the local stack needs no confirmation. Then:
+Put the local values in a git-ignored `apps/web/.env.local` (see `apps/web/.env.example` for the names). `npm run db:migrate:dev` against the local stack needs no confirmation. Then:
 
 ```bash
 npm run dev            # http://localhost:3000
@@ -78,7 +81,7 @@ Only when you need hosted behavior. `overload-dev` holds synthetic data only.
    ```bash
    set -a; . ~/.config/overload/overload-dev.env; set +a
    # Prove the target BEFORE anything runs (read-only: identity guard, marker, migration status):
-   npx tsx scripts/operator/migrate-dev/cli.ts --confirm-ref vdxrmfadikwzodjljbdi
+   (cd apps/web && npx tsx scripts/operator/migrate-dev/cli.ts --confirm-ref vdxrmfadikwzodjljbdi)
    npm run dev
    ```
 
@@ -98,6 +101,7 @@ npm test -- tests/unit/target-identity.test.ts tests/unit/deployment-guard.test.
 A real-process refusal with dummy values (no connection is ever opened; the password below is not real):
 
 ```bash
+cd apps/web
 DATABASE_URL='postgresql://postgres.ycxvdiklpefyhdclxyau:DUMMY@aws-0-us-east-1.pooler.supabase.com:6543/postgres' \
 DIRECT_URL='postgresql://postgres.ycxvdiklpefyhdclxyau:DUMMY@aws-0-us-east-1.pooler.supabase.com:5432/postgres' \
 NEXT_PUBLIC_SUPABASE_URL='https://ycxvdiklpefyhdclxyau.supabase.co' \
