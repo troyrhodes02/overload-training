@@ -267,7 +267,7 @@ Permanent non-goals from the Brief. These are "never" for this product:
 
 - **No program generation.** The lifter designs every split and mesocycle. The app tracks and adjusts load inside the plan; it never authors one.
 - **No social network.** No feed, following, comments, messaging, or leaderboards, and no account ever reads another account's data live. Limited, user-initiated sharing is planned (a workout template shared by copy, and progress cards through the phone's share sheet). Until those pitches ship, none exists. A shared template arrives as a copy the recipient confirms and owns.
-- **No social login.** Signup is open with email and password only.
+- **No social login.** Signup is open with email and password only. No payment is collected until the launch-readiness checklist passes.
 - **No ads, ever.** The Free plan has no ads.
 - **No AI coach.** AI is used only to parse a plan the lifter wrote (plan import). It never generates programs or coaches. A chat-style coach would be a separate, much later tier, and is not planned.
 - **No dated goals and no rest timer.** Both were considered and decided against. A strength deadline can pressure someone to lift past what their readiness supports.

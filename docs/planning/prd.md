@@ -2,7 +2,7 @@
 
 ## Overview
 
-Overload is a strength training tracker for individual lifters, each with a private account, offered as a free plan and a paid Pro plan. It began invite-only for a small group of friends and is being opened to the public. Its core job is to tell the lifter, per lift and per session, whether to progress, hold, or deload — based on logged performance against their own self-built plan — so they never have to eyeball their own numbers to make that call. It layers a rule-based progression engine and gym-specific weight tracking on top of a conventional split/session logging structure, and defers everything outside training (nutrition, body composition, a social network, auto-generated programming) to later or never.
+Overload is a strength training tracker for individual lifters, each with a private account, offered as a free plan and a paid Pro plan. It began with a small group of friends, and signup is now open to everyone. Its core job is to tell the lifter, per lift and per session, whether to progress, hold, or deload — based on logged performance against their own self-built plan — so they never have to eyeball their own numbers to make that call. It layers a rule-based progression engine and gym-specific weight tracking on top of a conventional split/session logging structure, and defers everything outside training (nutrition, body composition, a social network, auto-generated programming) to later or never.
 
 ## Core User Journeys
 
@@ -12,7 +12,7 @@ The lifter starts a new mesocycle by either picking a preset structure (push/pul
 
 ### Journey: Logging a workout
 
-On opening the app, the dashboard shows the current day's planned session if it hasn't been completed yet — this is the primary focus of the dashboard while a day is pending. Tapping into an exercise opens a full-card view showing all of that exercise's planned sets together, with quick-entry fields for weight and reps per set. Once every exercise in the day is logged, the day is marked complete; the dashboard no longer shows a completed day as "next up" — it moves to an alternate front-facing state (surfacing something like active goal progress) rather than immediately pushing the following day's plan forward. A separate history/week-at-a-glance view remains accessible at any time to review completed and upcoming days. At the end of a logged session, a short summary appears showing a progression chart or percentage-toward-goal view — not a full statistical breakdown.
+On opening the app, the dashboard shows the current day's planned session if it hasn't been completed yet — this is the primary focus of the dashboard while a day is pending. Tapping into an exercise opens a full-card view showing all of that exercise's planned sets together, with quick-entry fields for weight and reps per set. Once every exercise in the day is logged, the day is marked complete; the dashboard no longer shows a completed day as "next up" — it moves to an alternate front-facing state (surfacing something like active goal progress) rather than immediately pushing the following day's plan forward. A separate history/week-at-a-glance view remains accessible at any time to review completed and upcoming days. History is all-time: the lifter can step back to any earlier week, across every block they have trained, to the first workout or cardio they logged. At the end of a logged session, a short summary appears showing a progression chart or percentage-toward-goal view — not a full statistical breakdown.
 
 ### Journey: Receiving a progress/hold/deload call
 
@@ -20,7 +20,7 @@ As the lifter logs sets against an exercise's planned rep range, the rule-based 
 
 ### Journey: Scheduled deload week
 
-Independently of the reactive engine above, the mesocycle's designated deload week automatically reduces load/intensity across the entire split for that week — this is planned recovery, not a reaction to any single lift stalling. While a scheduled deload week is active, the reactive per-exercise progress/deload check is suppressed entirely, since every lift is already intentionally reduced and a stall flag on top of an intentional deload would be meaningless. The reactive engine resumes normal operation the moment the deload week ends.
+Independently of the reactive engine above, the mesocycle's deload cadence (every Nth week, set on the mesocycle, default every 5th) automatically reduces load/intensity across the entire split for each deload week — this is planned recovery, not a reaction to any single lift stalling. While a scheduled deload week is active, the reactive per-exercise progress/deload check is suppressed entirely, since every lift is already intentionally reduced and a stall flag on top of an intentional deload would be meaningless. The reactive engine resumes normal operation the moment the deload week ends.
 
 ### Journey: Handling a missed training day
 
@@ -28,7 +28,7 @@ If a scheduled day passes without being logged, the app notices on next open and
 
 ### Journey: Editing a past log
 
-The lifter can go back and correct a previously logged set's weight or reps. Doing so retroactively re-runs the progress/deload check for that lift using the corrected number, since the original call may have been based on incorrect data. This re-run does not apply retroactively during a period that was a scheduled deload week, since the reactive check is suppressed there regardless of the underlying data.
+The lifter can go back and correct a previously logged set's weight or reps, including on a finished workout. Because the progress/deload call is computed from the logged sets whenever it is shown, the corrected number is used from then on, since the original call may have been based on incorrect data. A week that was a scheduled deload week stays suppressed regardless of the underlying data. A finished workout does not accept new sets or swaps; it is corrected only by editing its sets.
 
 ### Journey: Managing the exercise library and gyms
 
@@ -52,15 +52,15 @@ The lifter can set one or more concurrent goals, each tied to a specific lift as
 
 ### Journey: Signing up and getting started
 
-A friend receives an invite code and opens the signup page. They enter first name, last name, email, password, and the invite code. There is no email confirmation and no social login. They land in their own empty account and are offered the onboarding tour. If they sent a written workout plan beforehand, it has already been created for them; otherwise they start with the plan builder. They never see any other account's data.
+Anyone can open the signup page; no invite code is needed. They enter first name, last name, a username, email, and password, and complete a bot challenge. Signup does not wait for an email confirmation, and there is no social login. A new account starts a 14-day Pro trial. They land in their own empty account and are offered the onboarding tour. If they sent a written workout plan beforehand, it has already been created for them; otherwise they start with the plan builder. They never see any other account's data.
 
-### Journey: Recovering a forgotten password (planned)
+### Journey: Recovering a forgotten password
 
-Not available today: it was deliberately left out to avoid a third-party email dependency, and is built with Public Accounts. From the login page the lifter asks for a reset, receives an email at their address, follows the link, and sets a new password. The page responds the same way whether or not the email belongs to an account, so it cannot be used to discover who has one.
+From the login page the lifter asks for a reset, receives an email at their address, follows the link, and sets a new password within 30 minutes. Setting it signs them out everywhere. The page responds the same way whether or not the email belongs to an account, so it cannot be used to discover who has one.
 
 ### Journey: Managing and deleting an account
 
-In Settings the lifter can change their name and delete their account after confirming. Deleting removes that account's data and nothing else's. It is the only action that permanently removes logged history.
+In Settings the lifter can change their name and delete their account after confirming with their password. Deleting first cancels any paid subscription, so nothing keeps charging, and then removes that account's data and nothing else's. It is the only action that permanently removes logged history. A suspended account can still download its data and delete itself, and can do nothing else.
 
 ### Journey: The dashboard greeting
 
@@ -92,19 +92,19 @@ A lifter pastes the plan they already keep in a notes app. Overload proposes a s
 
 ### Journey: Exporting your data
 
-A lifter can download everything their account holds, on either plan, at any time.
+A lifter can download everything their account holds, on either plan, at any time, including while the account is suspended.
 
 ## Feature Inventory
 
 ### MVP 1 Features (shipped)
 
 #### Split & Mesocycle Setup
-- **What it does:** Preset (PPL, Arnold, bro split) or custom split creation; exercise sessions built and assigned to days, duplicable across days; mesocycle length and deload-week placement configurable with a default of 5 weeks / deload on week 5; cloning a prior mesocycle forward into a new one.
+- **What it does:** Preset (PPL, Arnold, bro split) or custom split creation; exercise sessions built and assigned to days, duplicable across days; mesocycle length and deload cadence (every Nth week) configurable with a default of 5 weeks / deload every 5th week; cloning a prior mesocycle forward into a new one.
 - **Why:** Establishes the plan the entire tracking and progression system operates against — the core job has nothing to measure without it.
 - **Acceptance criteria:**
   - A lifter can select a preset split type or build a fully custom one from scratch.
   - A session can be assigned to a day, duplicated onto another day, and edited independently after duplication.
-  - Mesocycle length and deload week are set at creation with pre-filled defaults, and both are editable.
+  - Mesocycle length and deload cadence are set at creation with pre-filled defaults, and both are editable.
   - A new mesocycle can be created by cloning and editing a prior one.
 - **Edge cases / failure states:**
   - Starting a mesocycle with no exercises assigned to any day is either blocked or clearly flagged as incomplete before it can go live.
@@ -118,6 +118,8 @@ A lifter can download everything their account holds, on either plan, at any tim
   - Tapping an exercise opens a card showing all of its planned sets with editable weight/reps fields.
   - Completing every exercise in a day marks the day complete and changes the dashboard's front-facing state.
   - A summary view appears at the end of a completed session.
+  - History reaches any earlier week, across every block, back to the first logged workout or cardio.
+  - A finished workout refuses new sets and swaps; its sets can still be corrected.
 - **Edge cases / failure states:**
   - Partially logging a day (some exercises done, others not) and closing the app leaves the day in an incomplete state, resumable later the same day.
   - Logging a set with an empty or zero weight/reps value is handled explicitly (blocked, warned, or accepted as a genuine zero) rather than silently breaking the progression calculation.
@@ -134,10 +136,10 @@ A lifter can download everything their account holds, on either plan, at any tim
   - Editing a past log retroactively re-runs the check for that lift and can change a previously assigned tag.
 
 #### Scheduled Deload
-- **What it does:** Automatically reduces load/intensity across the entire split during the mesocycle's designated deload week.
+- **What it does:** Automatically reduces load/intensity across the entire split during each scheduled deload week, which falls every Nth week of the mesocycle.
 - **Why:** Matches established periodization practice and gives systemic recovery independent of any single lift's performance.
 - **Acceptance criteria:**
-  - The designated deload week applies reduced load/intensity across all exercises in the split without per-exercise configuration required.
+  - Each scheduled deload week applies reduced load/intensity across all exercises in the split without per-exercise configuration required.
   - The reactive progress/deload engine is suppressed for the duration of the scheduled deload week.
 - **Edge cases / failure states:**
   - A missed day that gets shifted into or out of the deload week correctly picks up or drops the deload behavior based on where it actually lands.
@@ -178,7 +180,7 @@ A lifter can download everything their account holds, on either plan, at any tim
 - **Why:** Handles real-world gym constraints (equipment unavailable or broken) without breaking the muscle-group intent of the day.
 - **Acceptance criteria:**
   - Swapping an exercise first surfaces same-muscle-group alternatives, and the muscle filter can be changed to any group.
-  - A swap applies to that single occurrence without altering the underlying session template unless the lifter explicitly saves it back.
+  - A swap applies to that single occurrence and never alters the underlying session template.
 - **Edge cases / failure states:**
   - No other exercises exist in the library for the selected muscle group, and the swap flow says so and keeps the muscle filter so the lifter can choose another group.
 
@@ -217,11 +219,11 @@ A lifter can download everything their account holds, on either plan, at any tim
   - The migration can be rehearsed on a copy and rolled back from a backup.
 
 #### Accounts: Signup, Login & Account Settings
-- **What it does:** Signup with first name, last name, email, and password, gated by an invite code. Login and logout. Account settings to change the name and to delete the account.
-- **Why:** Lets friends join and manage their own account. Password recovery is not part of this feature: it was deliberately left out to avoid a third-party email dependency and is built with Public Accounts.
+- **What it does:** Signup with first name, last name, username, email, and password, open to everyone with no invite code. Login and logout. Account settings to change the name and to delete the account. (This shipped invite-only in the multi-user phase; Public Accounts opened it.)
+- **Why:** Lets people join and manage their own account. Password recovery is part of Public Accounts.
 - **Acceptance criteria:**
-  - A new person can sign up with a valid invite code and land in an empty account.
-  - Signup without a valid invite code is rejected.
+  - A new person can sign up with no invite code and land in an empty account.
+  - While the closed mode is on, every signup is refused.
   - Deleting an account removes that account's data and nothing else's.
 - **Edge cases / failure states:**
   - Signing up with an email that already has an account fails without revealing more than that.
@@ -280,15 +282,16 @@ The admin center, public accounts, plans and billing, the landing page, and plan
   - The admin area never displays a plan, gym, set, goal, or cardio record, and has no impersonation.
 
 #### Public Accounts, Recovery & Support
-- **What it does:** A switch from invite-only to public signup, abuse protection, password recovery over email, email verification before a first checkout, data export, account deletion, and a support channel.
+- **What it does:** Open signup with no invite code (a closed mode remains as an emergency stop), abuse protection (a bot challenge, a per-IP throttle, an hourly signup cap, reserved usernames, and a disposable-email blocklist), password recovery over email, email verification before a first checkout, data export, account deletion, and a support channel.
 - **Why:** Strangers must be able to join safely, recover access without the owner, take their data, and leave.
 - **Acceptance criteria:**
   - A forgotten password can be recovered end to end, and the email reaches an external inbox.
-  - Public mode lets a stranger sign up, and with it off signup still needs the invite code.
+  - A stranger can sign up with no invite code, and the closed mode refuses every signup.
   - An export contains everything the account owns and nothing from any other account.
 - **Edge cases / failure states:**
   - A recovery request looks identical for a known and an unknown email.
-  - A suspended account cannot sign in.
+  - A suspended account is refused everywhere except downloading its export and deleting itself.
+  - Deleting an account with a paid subscription cancels the subscription first, and if that fails nothing is deleted.
 
 #### Plans, Billing & Promo Codes
 - **What it does:** A Free plan (no ads, ever) and a Pro plan with a 14-day trial and no card, hosted checkout and a customer portal, promo codes such as BLIZZY, and owner-granted free access. Capture, history, and export stay free. Pro adds progression recommendations and their evidence, e1RM trends and stall detection, reps-in-reserve in recommendations, exercise history and PR intelligence, and plan import.
@@ -323,10 +326,12 @@ The admin center, public accounts, plans and billing, the landing page, and plan
   - It never invents an exercise, set, or load.
 
 #### Mobile App (iPhone, React Native)
-- **What it does:** A native iPhone app built with React Native and Expo on the existing backend, rebuilt feature by feature to equivalent capability, with native navigation, keyboards, sheets, and haptics. It signs in with existing accounts and calls a secure, versioned mobile API. It is installed first through an invite-only TestFlight beta by the existing friends. A development build connects to staging, and the friends' build connects to Production. The admin area, billing and checkout, and public pages stay web-only, and the plan builder and plan import may stay web-only during the beta. The app is online-only, and no purchase flow is added inside it until the store billing path is decided. Android follows later.
+- **What it does:** A native iPhone app built with React Native and Expo on the existing backend, rebuilt feature by feature to equivalent capability, with native navigation, keyboards, sheets, and haptics. It signs in with existing accounts, and offers native sign-up (no invite code) and the password-reset request; the reset itself completes on the web through the email link. It calls a secure, versioned mobile API and receives Pro recommendations from it rather than computing them. It is installed first through an invite-only TestFlight beta by the existing friends. A development build connects to staging, and the friends' build connects to Production. The admin area, billing and checkout, public pages, the plan builder, and plan import stay web-only for now. It is built in slices 21a to 21l (see `docs/planning/mobile-roadmap.md`). The app is online-only, and no purchase flow is added inside it until the store billing path is decided. Android follows later.
 - **Why:** Lifters use a phone in the gym, and a native app feels better and opens the native features planned later.
 - **Acceptance criteria:**
   - The app installs on a real iPhone, signs in with an existing account, and completes a full workout.
+  - A new person can sign up on the phone with no invite code, and a password reset can be requested from the phone.
+  - History on the phone reaches any earlier week, like the web.
   - Every mobile endpoint takes the account from the token, and a second account cannot reach the first account's data.
   - An account's Pro or comped access shows in the app without a purchase path.
   - The website behaves exactly as before.
@@ -378,7 +383,7 @@ The admin center, public accounts, plans and billing, the landing page, and plan
 
 ### Planned Next, and Not Planned
 
-Planned next, in order (see the Pitch Roadmap): a few web fixes (workout logging refinements and two chores), a read-only codebase audit, then the React Native iPhone app, rebuilt feature by feature and reviewed on a device at each step, ending with a TestFlight beta for the existing friends. After that, features built for web and mobile together: wing-it workouts, the history calendar, friends and workout sharing, progress cards, gym location and notifications, then Launch Readiness and the store releases. Later: Android, the Live Activity and the Apple Watch app, advanced cardio and video attachments (each starting with discovery), body metrics, and nutrition.
+Done: the web fixes (workout logging refinements and two chores), the read-only codebase audit, and the pre-mobile hardening. Planned next, in order (see the Pitch Roadmap): the React Native iPhone app, rebuilt feature by feature in slices 21a to 21l and reviewed on a device at each step, ending with a TestFlight beta for the existing friends. After that, features built for web and mobile together: wing-it workouts, the history calendar, friends and workout sharing, progress cards, gym location and notifications, then Launch Readiness and the store releases. Later: Android, the Live Activity and the Apple Watch app, advanced cardio and video attachments (each starting with discovery), body metrics, and nutrition.
 
 Deliberately not planned, so no one adds them: dated goals (a strength deadline can pressure someone to lift past what their readiness supports), a rest timer, ads, AI that generates programs or coaches, a Capacitor or other web-view wrapper app, a SwiftUI rewrite of the phone app, a Wear OS watch app, social login, a feed, following, comments, messaging, or leaderboards, and any view of another account's training content, including by the owner. A built-in social platform is future exploration only.
 
@@ -386,9 +391,9 @@ Deliberately not planned, so no one adds them: dated goals (a strength deadline 
 
 Every object below belongs to exactly one account, except library exercises, which are shared and read-only.
 
-**Profile** — one per account: first name, last name, timezone, account status (active or suspended), and the date it was last active. Email and password are held by the sign-in system, not here.
+**Profile** — one per account: first name, last name, username, timezone, appearance, account status (active or suspended), whether the email is verified, and the date it was last active. Email and password are held by the sign-in system, not here.
 
-**Split / Mesocycle** — the lifter can create, clone, and edit a mesocycle, including its length and deload week placement. A mesocycle contains a set of Sessions assigned to days.
+**Split / Mesocycle** — the lifter can create, clone, and edit a mesocycle, including its length and deload cadence. A mesocycle contains a set of Sessions assigned to days.
 
 **Session** — a named workout template (e.g., "Push Day 1") the lifter can create, edit, duplicate across days, and reassign. Contains an ordered list of exercises with planned sets and target rep ranges.
 
@@ -398,7 +403,7 @@ Every object below belongs to exactly one account, except library exercises, whi
 
 **Logged Session** — a record of a completed (or partially completed) day, created automatically as the lifter logs sets. Contains Logged Sets. Progress/deload tags are computed on read from the sets, never stored.
 
-**Logged Set** — an individual weight/reps entry against a planned set. The lifter can create it during logging and edit it after the fact, which can retroactively affect that exercise's progress/deload tag.
+**Logged Set** — an individual weight/reps entry against a planned set. The lifter can create it during logging and edit it after the fact, which changes the progress/deload call computed from it.
 
 **Goal** — a per-lift numeric target the lifter can create, view progress on, and archive (automatically on completion). Multiple can exist concurrently, one per lift.
 
@@ -408,7 +413,7 @@ Every object below belongs to exactly one account, except library exercises, whi
 
 **Release Seen** — per account: the latest release-notes entry the lifter has been shown. The release notes themselves are repository content, not account data.
 
-**Entitlement** — per account: which plan's capabilities it has and why (trial, subscription, or comp), when each began and ends, and for a comp the reason and who granted it.
+**Entitlement** — per account: Overload's own grants of Pro, a trial or a comp, when each began and ends, and for a comp the reason and who granted it. Subscription access comes from the Billing Account, not from an entitlement record.
 
 **Billing Account** — per account: the payment provider's customer reference and a read-only mirror of its subscription state, written only from verified provider events.
 
@@ -424,6 +429,6 @@ An account can read and change only what it owns, and the shared exercise librar
 
 Split & Mesocycle Setup is foundational — Workout Logging, the Progressive Overload Engine, and Scheduled Deload all require a mesocycle and split to exist before they have anything to act on. The Exercise Library must exist before sessions can be built, since sessions reference exercises. Gym Management must exist before Gym-Specific Weight Tracking can attribute a logged weight to a baseline, though the two are natural to build together. The Progressive Overload Engine depends on Workout Logging producing history to evaluate, and Scheduled Deload depends on Split & Mesocycle Setup for its week-placement configuration; the two interact only through the suppression rule and are otherwise independent. Missed-Day Handling depends on Split & Mesocycle Setup's day schedule to know what was missed. Exercise Swap depends on the Exercise Library's muscle-group tagging. Goals depend on the same e1RM calculation used by the Progressive Overload Engine, so that engine should exist first, or at minimum the shared e1RM logic should be built as a common component both features draw from. Cardio Logging has no dependency on the progression system and can be built independently once Split & Mesocycle Setup exists to assign it to a day.
 
-The multi-user features build on each other. Account Ownership & Isolation must exist before Accounts, because signup must never open while data is unscoped, and public signup stays disabled in production until isolation is verified there. Personalization needs the name from Accounts. The Onboarding Tour needs the final navigation from Personalization & Navigation Polish. What's New needs per-account state from Account Ownership & Isolation and Accounts.
+The multi-user features build on each other. Account Ownership & Isolation had to exist before Accounts, because signup must never open while data is unscoped. Personalization needs the name from Accounts. The Onboarding Tour needs the final navigation from Personalization & Navigation Polish. What's New needs per-account state from Account Ownership & Isolation and Accounts.
 
-The commercial features build on each other. The admin center comes first so the owner can operate the product before opening it, and the React Native app follows the web fixes and the audit. Public Accounts must exist before Plans, Billing & Promo Codes, which must exist before the Landing Page can offer a subscribe action and before Plan Import can be tied to an entitlement. Public signup stays invite-only until Public Accounts is verified, and no payment is collected until launch readiness passes.
+The commercial features build on each other. The admin center comes first so the owner can operate the product before opening it, and the React Native app follows the web fixes and the audit. Public Accounts must exist before Plans, Billing & Promo Codes, which must exist before the Landing Page can offer a subscribe action and before Plan Import can be tied to an entitlement. Public Accounts is verified and signup is open to everyone. No payment is collected until launch readiness passes.
