@@ -23,7 +23,8 @@ export default async function LoggedWorkoutPage({
     <section className="space-y-3">
       <div>
         <Link
-          href="/history"
+          // Back to this workout's own week, however long ago (OVE-143).
+          href={`/history?week=${detail.dateIso}`}
           className="flex items-center text-sm text-muted-foreground"
         >
           <ChevronLeft className="size-4" /> {detail.sessionName}
