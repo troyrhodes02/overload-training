@@ -166,7 +166,7 @@ Every existing root command keeps its name. Root scripts delegate to the web wor
 | `postinstall` | (none at root) | the web workspace's own `postinstall: prisma generate` runs during the root install |
 | `lint` | `npm run lint --workspaces --if-present` | web: `eslint` (unchanged); shared: `eslint` (§8.10) |
 | `typecheck` | `npm run typecheck --workspaces --if-present` | web: `tsc --noEmit` (unchanged); shared: `tsc --noEmit -p .` |
-| `test` | `npm run test --workspaces --if-present && npm run verify:workspaces` | web unit suite, plus the boundary check |
+| `test` | `npm run test --workspaces --if-present --`, then the root `posttest` runs `npm run verify:workspaces` | web unit suite, then the boundary check. `posttest` (not `&&`) so `npm test -- <args>` still delivers its arguments to Jest. |
 | `verify:workspaces` | `node scripts/workspace-boundaries.mjs && node --test scripts/workspace-boundaries.test.mjs` | root only |
 | `format`, `format:check` | `prettier --write .` / `prettier --check .` at the root | one config, one ignore file; no workspace format scripts |
 | `test:integration`, `test:e2e`, `test:e2e:accounts`, `verify:client-bundle`, `db:seed`, `db:migrate:dev`, `import:plan`, `ownership:backfill`, `founding-members:grant`, `plan-import:cleanup`, `demo:seed` | `npm run <x> -w @overload/web --` | unchanged web definitions, run with cwd `apps/web` |
