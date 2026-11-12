@@ -4,6 +4,7 @@ import {
   createTestMesocycle,
   createTestSession,
   createTestSessionExercise,
+  createActiveTestMesocycle,
 } from "./support/plan-factories";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
 import { logSet } from "@/lib/logging/logged-sets";
@@ -38,7 +39,7 @@ describe("getTodayDashboard", () => {
 
 describe("getWorkout", () => {
   it("builds the runner DTO with saved/unsaved rows, gym lock, and gym-variable context", async () => {
-    const meso = await createTestMesocycle();
+    const meso = await createActiveTestMesocycle();
     const exercise = await createTestExercise({
       name: "Chest Press Machine",
       equipmentType: "machine",
@@ -102,7 +103,7 @@ describe("getWorkout", () => {
 
 describe("getSwapContext", () => {
   it("offers active candidates for the selected primary muscle (planned by default; favorites first), excluding the performed one", async () => {
-    const meso = await createTestMesocycle();
+    const meso = await createActiveTestMesocycle();
     const planned = await createTestExercise({
       name: "Chest Press Machine",
       primaryMuscle: "chest",
@@ -179,7 +180,7 @@ describe("getSwapContext", () => {
 
 describe("getLoggedWorkoutDetail", () => {
   it("renders archived exercise and gym by name (never Unknown)", async () => {
-    const meso = await createTestMesocycle();
+    const meso = await createActiveTestMesocycle();
     const exercise = await createTestExercise({
       name: "Chest Press Machine",
       equipmentType: "machine",

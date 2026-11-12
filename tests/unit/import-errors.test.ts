@@ -162,7 +162,7 @@ describe("file validation messages", () => {
         bytes: pdfBytes(),
         sizeBytes: 11 * 1024 * 1024,
       }),
-    ).rejects.toThrow(/too large.*10 MB/);
+    ).rejects.toThrow(/too large.*4 MB/);
   });
 
   it("recognizes a PDF by its signature", () => {

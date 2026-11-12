@@ -1,9 +1,9 @@
 import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,
-  createTestMesocycle,
   createTestSession,
   createTestSessionExercise,
+  createActiveTestMesocycle,
 } from "./support/plan-factories";
 import { logSet } from "@/lib/logging/logged-sets";
 import {
@@ -41,7 +41,7 @@ async function workout(
     plannedSets?: number;
   } = {},
 ) {
-  const meso = await createTestMesocycle();
+  const meso = await createActiveTestMesocycle();
   const bench = await createTestExercise({
     name: "Barbell Bench Press",
     equipmentType: (opts.equipment ?? "barbell") as never,
