@@ -1,12 +1,13 @@
 import "server-only";
 import { Prisma, type LoggedSet } from "@prisma/client";
-import { DomainError, isUuid } from "@/lib/actions/result";
+import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
 import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
 import type { EquipmentValue } from "@/lib/exercises/taxonomy";
 import { isRir } from "@/lib/logging/rir";
+import { checkWeightLbs } from "@/lib/logging/weight";
 
 /**
  * The ONLY path that writes a LoggedSet (CLAUDE.md Layer 1; Resolved Decision 9).
@@ -69,14 +70,10 @@ function validateValues(
   const details: Record<string, string> = {};
   const external = requiresExternalWeight(exercise);
   if (external) {
-    if (
-      typeof weightLbs !== "number" ||
-      !Number.isFinite(weightLbs) ||
-      weightLbs <= 0 ||
-      weightLbs > 9999.99
-    ) {
-      details.weightLbs = "Enter a weight above 0.";
-    }
+    // One shared rule: above 0, at most 9,999.99, at most two decimals
+    // (OVE-135 / audit F-D3) — never silently rounded by the database.
+    const checked = checkWeightLbs(weightLbs);
+    if (!checked.ok) details.weightLbs = checked.message;
   } else if (weightLbs !== null && weightLbs !== undefined) {
     details.weightLbs = "This is a bodyweight exercise — log reps only.";
   }
@@ -140,8 +137,20 @@ export async function logSet(
   input: LogSetInput,
   tx?: Db,
 ): Promise<LoggedSet> {
-  if (!tx) return account.db.$transaction((t) => logSet(account, input, t));
-  return logSetInTx(account, input, tx);
+  if (tx) return logSetInTx(account, input, tx);
+  const run = () =>
+    account.db.$transaction((t) => logSetInTx(account, input, t));
+  try {
+    return await run();
+  } catch (error) {
+    // A concurrent submit of the same set won the unique key
+    // (loggedExerciseId, setNumber) (OVE-134 / audit F-T9). Postgres aborted
+    // this transaction, so re-run it: the up-front check now sees the winner's
+    // row and answers exactly like a replay (the same row if identical, a
+    // conflict if different) — never an internal_error.
+    if (isUniqueViolation(error)) return run();
+    throw error;
+  }
 }
 
 async function logSetInTx(
@@ -156,6 +165,7 @@ async function logSetInTx(
           id: true,
           plannedSets: true,
           skippedAt: true,
+          loggedSession: { select: { status: true } },
           exercise: { select: { equipmentType: true } },
           sets: { select: { setNumber: true } },
         },
@@ -165,6 +175,15 @@ async function logSetInTx(
     throw new DomainError(
       "not_found",
       "That exercise isn't part of this workout.",
+    );
+  }
+  // A finished workout is a historical record: new sets are refused and
+  // nothing is written (OVE-129 / audit F-T1). Correcting a past set goes
+  // through editLoggedSet, which stays allowed on finished workouts.
+  if (loggedExercise.loggedSession.status !== "in_progress") {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This workout is already finished. Edit its sets from history.",
     );
   }
   // Mode comes from the PERFORMED exercise (swap is locked once a set exists).

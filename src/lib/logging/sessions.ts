@@ -1,8 +1,14 @@
 import "server-only";
-import { DomainError, isUuid } from "@/lib/actions/result";
+import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
-import { parseIsoDate } from "@/lib/plan/calendar";
+import {
+  mesocycleWeekForDate,
+  parseIsoDate,
+  todayIso,
+  toIsoDate,
+} from "@/lib/plan/calendar";
+import { authoredDate } from "./schedule";
 
 /**
  * LoggedSession lifecycle for Guided Workout Logging. These functions create and
@@ -29,21 +35,36 @@ export async function startOrResumeWorkout(
   input: { sessionId: string; scheduledFor: string; gymId: string },
   tx?: Db,
 ): Promise<{ loggedSessionId: string }> {
-  if (!tx)
-    return account.db.$transaction((t) =>
-      startOrResumeWorkout(account, input, t),
-    );
+  if (!tx) {
+    const run = () =>
+      account.db.$transaction((t) => startOrResumeWorkout(account, input, t));
+    try {
+      return await run();
+    } catch (error) {
+      // A concurrent start of the same occurrence won the unique key
+      // (sessionId, scheduledFor) (OVE-134 / audit F-T9). Postgres aborted this
+      // transaction, so re-run it: it now finds and resumes the winner's
+      // workout, exactly like a replay — never an internal_error.
+      if (isUniqueViolation(error)) return run();
+      throw error;
+    }
+  }
 
   const date = parseIsoDate(input.scheduledFor);
   if (!date) throw new DomainError("validation_error", "Invalid date.");
   await requireActiveGym(input.gymId, tx);
 
-  const session = await tx.session.findUnique({
-    where: { id: input.sessionId },
-    include: {
-      sessionExercises: { orderBy: { position: "asc" } },
-    },
-  });
+  const session = isUuid(input.sessionId)
+    ? await tx.session.findUnique({
+        where: { id: input.sessionId },
+        include: {
+          sessionExercises: { orderBy: { position: "asc" } },
+          mesocycle: {
+            select: { status: true, startDate: true, lengthWeeks: true },
+          },
+        },
+      })
+    : null;
   if (!session)
     throw new DomainError("not_found", "That session doesn't exist.");
 
@@ -69,6 +90,12 @@ export async function startOrResumeWorkout(
     }
     return { loggedSessionId: existing.id };
   }
+
+  // A NEW workout must be a real, due occurrence (OVE-131 / audit F-T3):
+  // a session of the active block, on a date that block schedules it, today
+  // or earlier in the account's own timezone ("log it late" is a past
+  // occurrence). Resuming an existing workout (above) is never re-validated.
+  assertStartableOccurrence(session, input.scheduledFor, account.timeZone);
 
   const ls = await tx.loggedSession.create({
     data: {
@@ -153,17 +180,27 @@ export async function swapExercise(
       swapExercise(account, input, t),
     ));
 
-  const le = await tx.loggedExercise.findUnique({
-    where: { id: input.loggedExerciseId },
-    include: {
-      sets: { select: { id: true }, take: 1 },
-    },
-  });
+  const le = isUuid(input.loggedExerciseId)
+    ? await tx.loggedExercise.findUnique({
+        where: { id: input.loggedExerciseId },
+        include: {
+          loggedSession: { select: { status: true } },
+          sets: { select: { id: true }, take: 1 },
+        },
+      })
+    : null;
   if (!le)
     throw new DomainError(
       "not_found",
       "That exercise isn't part of this workout.",
     );
+  // A finished workout is a historical record: no swaps (OVE-130 / F-T2).
+  if (le.loggedSession.status !== "in_progress") {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This workout is already finished.",
+    );
+  }
   if (le.sets.length > 0) {
     throw new DomainError(
       "invalid_state_transition",
@@ -322,13 +359,18 @@ export async function completeWorkout(
       completeWorkout(account, input, t),
     ));
 
-  const ls = await tx.loggedSession.findUnique({
-    where: { id: input.loggedSessionId },
-    include: {
-      loggedExercises: { include: { sets: { select: { id: true } } } },
-    },
-  });
+  const ls = isUuid(input.loggedSessionId)
+    ? await tx.loggedSession.findUnique({
+        where: { id: input.loggedSessionId },
+        include: {
+          loggedExercises: { include: { sets: { select: { id: true } } } },
+        },
+      })
+    : null;
   if (!ls) throw new DomainError("not_found", "That workout doesn't exist.");
+  // Idempotent (OVE-133 / audit F-T6): finishing an already finished workout
+  // succeeds and changes nothing — completedAt keeps its first value.
+  if (ls.status === "complete") return;
 
   const anySet = ls.loggedExercises.some((le) => le.sets.length > 0);
   if (!anySet) {
@@ -353,6 +395,46 @@ export async function completeWorkout(
     where: { id: ls.id },
     data: { status: "complete", completedAt: now },
   });
+}
+
+/**
+ * Throws validation_error unless a new workout for `scheduledForIso` is a real,
+ * due occurrence of `session` (OVE-131 / audit F-T3).
+ */
+function assertStartableOccurrence(
+  session: {
+    dayOfWeek: number | null;
+    mesocycle: { status: string; startDate: Date | null; lengthWeeks: number };
+  },
+  scheduledForIso: string,
+  timeZone: string,
+): void {
+  if (session.mesocycle.status !== "active" || !session.mesocycle.startDate) {
+    throw new DomainError(
+      "validation_error",
+      "That workout isn't part of your active plan.",
+    );
+  }
+  const startIso = toIsoDate(session.mesocycle.startDate);
+  const week = mesocycleWeekForDate(startIso, scheduledForIso);
+  if (
+    session.dayOfWeek === null ||
+    week === null ||
+    week < 1 ||
+    week > session.mesocycle.lengthWeeks ||
+    authoredDate(startIso, week, session.dayOfWeek) !== scheduledForIso
+  ) {
+    throw new DomainError(
+      "validation_error",
+      "That workout isn't scheduled on that day.",
+    );
+  }
+  if (scheduledForIso > todayIso(timeZone)) {
+    throw new DomainError(
+      "validation_error",
+      "That workout's day hasn't come yet.",
+    );
+  }
 }
 
 async function requireActiveGym(gymId: string, tx: Db): Promise<void> {

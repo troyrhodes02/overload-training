@@ -2,9 +2,9 @@ import { Prisma } from "@prisma/client";
 import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,
-  createTestMesocycle,
   createTestSession,
   createTestSessionExercise,
+  createActiveTestMesocycle,
 } from "./support/plan-factories";
 import { logSet, editLoggedSet } from "@/lib/logging/logged-sets";
 import {
@@ -50,7 +50,7 @@ async function makePlan(
     dayOfWeek?: number;
   } = {},
 ) {
-  const meso = await createTestMesocycle();
+  const meso = await createActiveTestMesocycle();
   const exercise = await createTestExercise({
     name: "Chest Press Machine",
     equipmentType: (opts.equipment ?? "machine") as never,
@@ -523,7 +523,7 @@ describe("baseline pure helpers", () => {
 
 describe("missed-day resolution is immutable (Decision 33)", () => {
   it("records one resolution per day and rejects a second", async () => {
-    const meso = await createTestMesocycle();
+    const meso = await createActiveTestMesocycle();
     await createTestSession(meso.id, { dayOfWeek: 1 });
     await resolveMissedDay(account, {
       mesocycleId: meso.id,
@@ -541,7 +541,7 @@ describe("missed-day resolution is immutable (Decision 33)", () => {
   });
 
   it("links the resolution to the planned session for that weekday", async () => {
-    const meso = await createTestMesocycle();
+    const meso = await createActiveTestMesocycle();
     const session = await createTestSession(meso.id, { dayOfWeek: 1 }); // Monday
     // 2026-11-02 is a Monday.
     await resolveMissedDay(account, {

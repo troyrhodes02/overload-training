@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { listActiveGyms } from "@/lib/gyms/queries";
 import { getWorkout } from "@/lib/logging/queries";
 import { getOccurrenceProgression } from "@/lib/progression/queries";
@@ -17,6 +17,10 @@ export default async function WorkoutPage({
   const { loggedSessionId } = await params;
   const workout = await getWorkout(account, loggedSessionId);
   if (!workout) notFound();
+  // A finished workout is a historical record: never offer set entry or a
+  // swap on it (OVE-129 / audit F-T1). Its sets are corrected from history.
+  if (workout.status === "complete")
+    redirect(`/history/${workout.loggedSessionId}`);
 
   // Derived per-occurrence progression for each card (OVE-28). Computed on read;
   // nothing is stored. Scheduled-deload weeks suppress the reactive tag here too.

@@ -1,9 +1,9 @@
 import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,
-  createTestMesocycle,
   createTestSession,
   createTestSessionExercise,
+  createActiveTestMesocycle,
 } from "./support/plan-factories";
 import {
   setExerciseSkipped,
@@ -30,17 +30,21 @@ beforeEach(async () => {
   account = await defaultAccount();
 });
 
-// Mondays of the test mesocycle (start 2026-11-02, every session on Monday).
-const W1 = "2026-11-02";
-const W2 = "2026-11-09";
-const W3 = "2026-11-16";
-const W5 = "2026-11-30"; // scheduled deload week (deload every 5)
+// Mondays of the test mesocycle (start 2026-10-05, every session on Monday).
+const W1 = "2026-10-05";
+const W2 = "2026-10-12";
+const W3 = "2026-10-19";
+const W5 = "2026-11-02"; // scheduled deload week (deload every 5)
 
 async function plan(
   equipmentType: "barbell" | "cable" | "bodyweight" = "barbell",
   name = "Barbell Bench Press",
 ) {
-  const meso = await createTestMesocycle();
+  const meso = await createActiveTestMesocycle({
+    // OVE-131: a workout can only start on a past or current occurrence, so
+    // this suite's block sits four weeks back (every date in it is past).
+    startDate: new Date("2026-10-05T00:00:00Z"),
+  });
   const exercise = await createTestExercise({
     name,
     equipmentType,

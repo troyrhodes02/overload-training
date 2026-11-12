@@ -130,7 +130,7 @@ describe("reads never surface another account's training", () => {
   it("the card's last-time context and working weight use only the acting account's sets (Faster Logging UX)", async () => {
     // B: same library exercises, a gym with A's gym's name, the same day, and
     // started after A logged — so only scoping keeps A's sets out of B's card.
-    const bPlan = await activePlan(b, lib, "A", { activate: false });
+    const bPlan = await activePlan(b, lib, "A");
     const { loggedSessionId } = await startToday(b, bPlan);
     const bCards = (await getWorkout(b, loggedSessionId))!.exercises;
     expect(bCards.map((c) => c.performedExerciseId).sort()).toEqual(
@@ -280,7 +280,7 @@ describe("writes naming another account's history behave like missing ids and ch
   });
 
   it("another account's custom exercise is not a swap candidate (same as a missing one)", async () => {
-    const bPlan = await activePlan(b, lib, "B", { activate: false });
+    const bPlan = await activePlan(b, lib, "B");
     const { les } = await startToday(b, bPlan);
     const bench = les[1];
     const result = await expectForeignLikeMissing(A.plan.custom.id, (id) =>
@@ -301,7 +301,7 @@ describe("gym baselines are per account and per gym", () => {
     });
     expect(Number(aBaseline.weightLbs)).toBe(120);
 
-    const bPlan = await activePlan(b, lib, "B", { activate: false });
+    const bPlan = await activePlan(b, lib, "B");
     const { loggedSessionId, les } = await startToday(b, bPlan);
     // No history of its own: the card suggests nothing, never A's 120 lb.
     const workout = await getWorkout(b, loggedSessionId);
@@ -329,7 +329,7 @@ describe("gym baselines are per account and per gym", () => {
   });
 
   it("logged rows a second account writes are owned by it", async () => {
-    const bPlan = await activePlan(b, lib, "B", { activate: false });
+    const bPlan = await activePlan(b, lib, "B");
     const { loggedSessionId, les } = await startToday(b, bPlan);
     await logSet(b, {
       loggedExerciseId: les[1].id,

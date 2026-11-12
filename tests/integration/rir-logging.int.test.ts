@@ -1,9 +1,9 @@
 import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,
-  createTestMesocycle,
   createTestSession,
   createTestSessionExercise,
+  createActiveTestMesocycle,
 } from "./support/plan-factories";
 import { editLoggedSet, logSet } from "@/lib/logging/logged-sets";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
@@ -28,7 +28,7 @@ beforeEach(async () => {
 const db = () => getTestPrisma();
 
 async function workout(opts: { equipment: string; plannedSets?: number }) {
-  const meso = await createTestMesocycle();
+  const meso = await createActiveTestMesocycle();
   const exercise = await createTestExercise({
     name: `RIR ${opts.equipment}`,
     equipmentType: opts.equipment as never,

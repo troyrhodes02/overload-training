@@ -20,11 +20,31 @@ export const MAX_IMPORTS_PER_DAY = 5;
 /** Most parts (files, or a single text part) in one source bundle. */
 export const MAX_PARTS = 5;
 
-/** Largest single uploaded file, in bytes (10 MiB). Mirrors the size CHECK. */
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+/**
+ * Largest single uploaded file, in bytes (4 MiB) — OVE-139 / audit F-A3.
+ *
+ * Each file travels in ONE request: the commit-part server action's FormData
+ * body. Vercel caps a function's request body at 4.5 MB, and next.config sets
+ * the server-action body limit to 5 MB, so a file much over 4 MB never reaches
+ * the server and the lifter saw a generic failure. 4 MiB plus the multipart
+ * overhead stays under both. (The database CHECK still allows up to 10 MiB, so
+ * no migration is needed to lower the app limit.)
+ */
+export const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
-/** Largest combined upload across all parts, in bytes (25 MiB). */
-export const MAX_TOTAL_BYTES = 25 * 1024 * 1024;
+/** Largest combined upload across all parts: every part at the per-file cap. */
+export const MAX_TOTAL_BYTES = MAX_PARTS * MAX_FILE_BYTES;
+
+/** "4 MB" — the per-file cap as the lifter reads it. */
+export const MAX_FILE_LABEL = `${MAX_FILE_BYTES / (1024 * 1024)} MB`;
+
+/** The one message for a file over the cap, naming the file and the limit. */
+export function fileTooLargeMessage(fileName?: string): string {
+  const subject = fileName
+    ? `"${fileName}" is too large`
+    : "This file is too large";
+  return `${subject}. Files can be up to ${MAX_FILE_LABEL} each — try a smaller PDF or a photo of each page.`;
+}
 
 /** Most pages a PDF part may have (server-checked). Mirrors the page CHECK. */
 export const MAX_PDF_PAGES = 20;
