@@ -67,10 +67,10 @@ npm run qa:reset -- --user-id "$QA_USER" --confirm-ref vdxrmfadikwzodjljbdi --ex
 - The Supabase Auth user (never deleted or recreated) and the `Profile` row. The profile's first and last name, time zone (`America/Chicago`), and appearance are rewritten to the baseline; the username is kept.
 - `TourProgress` and `ReleaseSeen`, rewritten to "tour finished" and "What's New caught up".
 - `Entitlement` rows: trial and revoked rows are kept, and an active comp is kept. If the comp has expired (or there is none), the reset revokes the expired one and adds a fresh comp (reason `tester`, no end date), so the account is always Pro after a reset.
-- `BillingAccount` and `PromoRedemption` (the Stripe mirror; never written), `Feedback` and attachments, and plan-import data (`ImportSession`, `ImportSourcePart`, `ImportUsageDay`).
+- `BillingAccount` and `PromoRedemption` (the Stripe mirror; never written), `Feedback` and attachments, and plan-import data (`ImportSession`, `ImportSourcePart`, `ImportUsageDay`). An import linked to one of the account's blocks is unlinked, not deleted (below).
 - The shared exercise library, global configuration, and every other account.
 
-If a confirmed plan import points at one of the account's blocks, the reset refuses (the block cannot be removed while it is referenced) and changes nothing. Clear it with `npm run plan-import:cleanup` first.
+A confirmed plan import keeps a link to the block it created, and a block cannot be deleted while it is linked. So, inside the same transaction and before deleting the blocks, the reset unlinks **this account's own** plan imports from its blocks and keeps the import records (still confirmed, with no linked plan; the import page then shows the finished import without an "Open plan" link). The dry run shows how many it would unlink. Do not use `npm run plan-import:cleanup` for this: that tool works across every account and never touches a confirmed import.
 
 ## 6. The baseline (fixture `qa-v1`)
 

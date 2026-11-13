@@ -254,10 +254,9 @@ async function main() {
         `\n  reset deletes: ${qa.QA_RESET_MODELS.join(", ")} (this account only)`,
       );
       console.log(`  reset keeps:   ${qa.QA_PRESERVED_MODELS.join("; ")}`);
-      if (inspection.importsHoldingABlock > 0)
-        fail(
-          `\nRefusing: ${inspection.importsHoldingABlock} plan-import session(s) point at a block. Clear them with the plan-import cleanup tool first. Nothing was written.`,
-        );
+      console.log(
+        `  reset unlinks: ${inspection.importsHoldingABlock} plan-import session(s) of this account from its blocks (the import records are kept)`,
+      );
     }
     if (!args.execute) {
       console.log(
@@ -273,8 +272,12 @@ async function main() {
     console.log(
       `\n${command === "seed" ? "Seeded" : "Reset"} in one transaction. Baseline date: ${result.anchorIso}.`,
     );
-    if (result.deleted)
+    if (result.deleted) {
       console.log(qa.formatCounts("  training rows deleted:", result.deleted));
+      console.log(
+        `  plan imports unlinked from deleted blocks: ${result.importsUnlinked}`,
+      );
+    }
     console.log(qa.formatCounts("  training rows now:", result.created));
     console.log("\nNot seeded, by design:");
     for (const line of fixture.QA_NOT_SEEDED) console.log(`  - ${line}`);
