@@ -10,6 +10,8 @@ import {
 } from "@overload/shared/plan/calendar";
 import { effectiveWeekSchedule } from "@overload/shared/logging/schedule";
 import { loadScheduleContext } from "./schedule-context";
+import type { MissedDayResolutionDto } from "@overload/shared/contracts/logging";
+export type { MissedDayResolutionDto } from "@overload/shared/contracts/logging";
 
 /**
  * Missed-day resolution (Resolved Decisions 30–39). A resolution is a dated
@@ -27,12 +29,6 @@ export type ResolvableOutcome = (typeof RESOLVABLE_OUTCOMES)[number];
 function isResolvableOutcome(v: unknown): v is ResolvableOutcome {
   return (RESOLVABLE_OUTCOMES as readonly unknown[]).includes(v);
 }
-
-export type MissedDayResolutionDto = {
-  id: string;
-  missedOn: string;
-  outcome: ResolvableOutcome;
-};
 
 /**
  * Resolve a genuinely missed planned day as shifted or skipped (OVE-132 /

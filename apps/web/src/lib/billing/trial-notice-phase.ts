@@ -2,6 +2,8 @@ import type { BillingAccount, Entitlement } from "@prisma/client";
 import { MS_PER_DAY } from "@/lib/billing/config";
 import { computeEntitlement } from "@/lib/entitlements/resolve";
 import { addDays, isoDateInZone } from "@overload/shared/plan/calendar";
+import type { TrialNoticePhase } from "@overload/shared/contracts/account";
+export type { TrialNoticePhase } from "@overload/shared/contracts/account";
 
 /**
  * Trial notices (OVE-112) — which one-time notice, if any, an account is due.
@@ -28,9 +30,6 @@ import { addDays, isoDateInZone } from "@overload/shared/plan/calendar";
  */
 
 export const TRIAL_ENDED_NOTICE_WINDOW_DAYS = 30;
-
-export type TrialNoticePhase =
-  { phase: "ending"; endsToday: boolean } | { phase: "ended" };
 
 export type TrialNoticeInput = {
   entitlements: Entitlement[];

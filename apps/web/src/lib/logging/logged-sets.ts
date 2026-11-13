@@ -9,6 +9,14 @@ import type { EquipmentValue } from "@overload/shared/exercises/taxonomy";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { isRir } from "@overload/shared/logging/rir";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
+import type {
+  LogSetInput,
+  EditLoggedSetInput,
+} from "@overload/shared/contracts/requests";
+export type {
+  LogSetInput,
+  EditLoggedSetInput,
+} from "@overload/shared/contracts/requests";
 
 /**
  * The ONLY path that writes a LoggedSet (CLAUDE.md Layer 1; Resolved Decision 9).
@@ -26,34 +34,6 @@ import { checkWeightLbs } from "@overload/shared/logging/weight";
  */
 
 type Db = AccountTx;
-
-/**
- * `weightLbs` is the external load. A bodyweight exercise (requiresExternalWeight
- * false) logs reps only: omit it or pass null. It is stored as NULL — never 0,
- * never a fake positive number, never a guessed bodyweight.
- *
- * `rir` is the optional reps in reserve (RIR Logging & Autoregulation R4):
- * omitted or null is stored as NULL ("not recorded") — never 0.
- */
-export type LogSetInput = {
-  loggedExerciseId: string;
-  setNumber: number;
-  weightLbs?: number | null;
-  reps: number;
-  rir?: number | null;
-};
-
-/**
- * `rir`: undefined leaves the stored value unchanged, so a payload without it
- * can never silently erase it; null clears it to "not recorded"; 0..4 sets it
- * (R9).
- */
-export type EditLoggedSetInput = {
-  loggedSetId: string;
-  weightLbs?: number | null;
-  reps: number;
-  rir?: number | null;
-};
 
 /**
  * Validates against the PERFORMED exercise's loading mode (Decision 11, extended

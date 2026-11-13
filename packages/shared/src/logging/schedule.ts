@@ -1,3 +1,4 @@
+import type { LoggedSessionStatusValue, MissedDayOutcomeValue } from "../enums";
 import { addDays, isoWeekday, mesocycleWeekForDate } from "../plan/calendar";
 
 /** Mesocycle week for a date, defaulting to week 1 before the start. */
@@ -34,12 +35,12 @@ export type ScheduleSession = {
 };
 export type ScheduleResolution = {
   missedOn: string;
-  outcome: "logged_late" | "shifted" | "skipped";
+  outcome: MissedDayOutcomeValue;
 };
 export type ScheduleLoggedSession = {
   sessionId: string;
   scheduledFor: string;
-  status: "in_progress" | "complete";
+  status: LoggedSessionStatusValue;
 };
 
 export type ScheduleContext = {

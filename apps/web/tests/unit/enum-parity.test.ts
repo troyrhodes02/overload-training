@@ -1,4 +1,11 @@
 import { $Enums } from "@prisma/client";
+import type { Plan } from "@overload/shared/billing/plans";
+import {
+  SHARED_ENUMS,
+  type LoggedSessionStatusValue,
+  type MesocycleStatusValue as RegistryMesocycleStatus,
+  type MissedDayOutcomeValue,
+} from "@overload/shared/enums";
 import { APPEARANCES } from "@overload/shared/appearance/appearance";
 import { FEEDBACK_CATEGORIES } from "@overload/shared/feedback/validation";
 import { SPLIT_TYPES } from "@overload/shared/plan/presets";
@@ -81,5 +88,46 @@ describe("type-only enum mirrors match Prisma.$Enums", () => {
   it("dashboard kind (goals/dashboard.ts mirrors DashboardDto)", () => {
     const kind: Equal<DashboardKind, DashboardDto["kind"]> = true;
     expect(kind).toBe(true);
+  });
+});
+
+/**
+ * Pitch 21b: the shared enum registry. Every tuple a client can use equals its
+ * Prisma enum, and every Prisma enum is classified: shared, or deliberately
+ * web-only. A new Prisma enum fails here until someone decides which.
+ */
+const WEB_ONLY_ENUMS = [
+  "SignupCampaign", // marketing attribution, admin only
+  "EntitlementSource", // entitlement resolution stays on the server
+  "CompReason", // admin comp grants
+  "SubscriptionStatus", // the Stripe mirror; clients see DisplayState
+  "BillingInterval", // the Stripe mirror
+  "AdminAuditAction", // admin audit log
+  "AuthThrottleAction", // signup and recovery throttle
+  "ImportStatus", // plan import is web-only for the beta
+  "ImportSourceKind", // plan import is web-only for the beta
+] as const;
+
+describe("the shared enum registry (Pitch 21b)", () => {
+  it.each(Object.entries(SHARED_ENUMS))("%s", (name, tuple) => {
+    const source = ($Enums as Record<string, Record<string, string>>)[name];
+    expect(source).toBeDefined();
+    expect(sorted(tuple)).toEqual(sorted(Object.values(source)));
+  });
+
+  it("classifies every Prisma enum as shared or web-only, never both", () => {
+    const shared = Object.keys(SHARED_ENUMS);
+    const webOnly: readonly string[] = WEB_ONLY_ENUMS;
+    expect(shared.filter((n) => webOnly.includes(n))).toEqual([]);
+    expect(Object.keys($Enums).sort()).toEqual([...shared, ...webOnly].sort());
+  });
+
+  it("the former type mirrors are the registry's unions", () => {
+    const status: Equal<RegistryMesocycleStatus, $Enums.MesocycleStatus> = true;
+    const plan: Equal<Plan, $Enums.Plan> = true;
+    const outcome: Equal<MissedDayOutcomeValue, $Enums.MissedDayOutcome> = true;
+    const logged: Equal<LoggedSessionStatusValue, $Enums.LoggedSessionStatus> =
+      true;
+    expect([status, plan, outcome, logged]).toEqual([true, true, true, true]);
   });
 });
