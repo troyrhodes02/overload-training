@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { parseGoalInput } from "@/lib/goals/validation";
+import { parseGoalInput } from "@overload/shared/goals/validation";
 
 type Field = "gymId" | "targetWeightLbs" | "targetReps";
 const FIELD_ORDER: Field[] = ["gymId", "targetWeightLbs", "targetReps"];

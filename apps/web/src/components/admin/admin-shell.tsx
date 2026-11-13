@@ -5,7 +5,7 @@ import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { AccountMenu } from "@/components/shell/account-menu";
 import { AppearanceSync } from "@/components/shell/appearance-sync";
 import { Toaster } from "@/components/ui/sonner";
-import type { Appearance } from "@/lib/appearance/appearance";
+import type { Appearance } from "@overload/shared/appearance/appearance";
 import { AdminNav } from "./admin-nav";
 
 /**

@@ -1,6 +1,6 @@
 import { $Enums } from "@prisma/client";
-import { APPEARANCES } from "@/lib/appearance/appearance";
-import { FEEDBACK_CATEGORIES } from "@/lib/feedback/validation";
+import { APPEARANCES } from "@overload/shared/appearance/appearance";
+import { FEEDBACK_CATEGORIES } from "@overload/shared/feedback/validation";
 import { SPLIT_TYPES } from "@overload/shared/plan/presets";
 import { RESOLVABLE_OUTCOMES } from "@/lib/logging/missed-days";
 import type { MesocycleStatusValue } from "@/lib/plan/queries";

@@ -1,5 +1,5 @@
 import { DISPOSABLE_EMAIL_DOMAINS } from "./disposable-domains";
-import { RESERVED_USERNAMES } from "./validation";
+import { RESERVED_USERNAMES } from "@overload/shared/accounts/validation";
 
 /**
  * Signup hardening (pre-mobile follow-up, items 2a–2d). Pure: no database,

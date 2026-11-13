@@ -25,12 +25,12 @@ const FIXTURE = [
 
 afterEach(() => {
   jest.resetModules();
-  jest.dontMock("@/lib/release-notes/entries");
+  jest.dontMock("@overload/shared/release-notes/entries");
 });
 
 async function renderPage(entries?: readonly (typeof FIXTURE)[number][]) {
   if (entries) {
-    jest.doMock("@/lib/release-notes/entries", () => ({
+    jest.doMock("@overload/shared/release-notes/entries", () => ({
       RELEASE_NOTES: entries,
     }));
   }

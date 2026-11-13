@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { CustomExerciseForm } from "@/components/exercises/custom-exercise-form";
-import { EXERCISE_NAME_MAX } from "@/lib/exercises/validation";
+import { EXERCISE_NAME_MAX } from "@overload/shared/exercises/validation";
 
 export const metadata = { title: "Add custom exercise · Overload" };
 

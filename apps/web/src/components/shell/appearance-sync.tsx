@@ -2,8 +2,8 @@
 
 import { useLayoutEffect } from "react";
 import { applyAppearance } from "@/lib/appearance/apply";
-import type { Appearance } from "@/lib/appearance/appearance";
-import { appearanceSaveInFlight } from "@/lib/appearance/choices";
+import type { Appearance } from "@overload/shared/appearance/appearance";
+import { appearanceSaveInFlight } from "@overload/shared/appearance/choices";
 
 /**
  * Keeps the document on the account's stored appearance (spec §7.3, R6). The

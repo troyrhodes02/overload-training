@@ -9,7 +9,7 @@ import {
   isMuscleGroup,
   type EquipmentValue,
   type MuscleGroupValue,
-} from "@overload/shared/exercises/taxonomy";
+} from "./taxonomy";
 
 export const EXERCISE_NAME_MAX = 100;
 export const SECONDARY_MUSCLES_MAX = 15;
@@ -80,17 +80,5 @@ export function parseCustomExerciseInput(
       equipmentType: equipmentType as EquipmentValue,
       secondaryMuscles,
     },
-  };
-}
-
-/** Reads the custom exercise form. Only these four fields are ever read. */
-export function customExerciseInputFromFormData(
-  formData: FormData,
-): RawCustomExerciseInput {
-  return {
-    name: formData.get("name") ?? "",
-    primaryMuscle: formData.get("primaryMuscle") ?? "",
-    equipmentType: formData.get("equipmentType") ?? "",
-    secondaryMuscles: formData.getAll("secondaryMuscles"),
   };
 }

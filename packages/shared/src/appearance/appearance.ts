@@ -1,3 +1,5 @@
+import { colors } from "../design/tokens";
+
 /**
  * The appearance preference (Personalization & Navigation Polish, spec §7.3).
  * Pure values only — no React, no Prisma, no `server-only` — so the Settings
@@ -28,9 +30,10 @@ export const APPEARANCE_STORAGE_KEY = "overload.appearance";
 /**
  * Browser chrome colors per mode — the theme's `--background` values. The
  * root layout's viewport `themeColor` and the appearance applier both read
- * these, so they cannot drift apart.
+ * these, so they cannot drift apart. Read from the shared design tokens
+ * (Pitch 21b), which a test keeps equal to globals.css.
  */
 export const THEME_COLORS = {
-  light: "#f7f7f8",
-  dark: "#0b0b0c",
+  light: colors.light.background,
+  dark: colors.dark.background,
 } as const;

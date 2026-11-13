@@ -1,4 +1,4 @@
-import type { ReleaseNoteEntry } from "@/lib/release-notes/types";
+import type { ReleaseNoteEntry } from "@overload/shared/release-notes/types";
 
 /**
  * A fixture catalog for What's New tests (spec §14.2). The repository's own

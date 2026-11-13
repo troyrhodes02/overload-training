@@ -3,7 +3,10 @@ import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb, AccountTx } from "@/lib/data/account-db";
 import { asUsernameConflict } from "./username-taken";
-import { parseProfileInput, type ProfileInput } from "./validation";
+import {
+  parseProfileInput,
+  type ProfileInput,
+} from "@overload/shared/accounts/validation";
 
 /**
  * The acting account's profile (Accounts spec §11; OVE-50): first name, last

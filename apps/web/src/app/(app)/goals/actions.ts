@@ -10,7 +10,7 @@ import {
   createGoal,
   type CreateGoalResult,
 } from "@/lib/goals/goals";
-import { goalInputFromFormData } from "@/lib/goals/validation";
+import { goalInputFromFormData } from "@/lib/goals/form-data";
 
 /*
  * Goals server actions. Each re-checks the auth session FIRST, then calls the

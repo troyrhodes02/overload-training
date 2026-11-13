@@ -7,7 +7,10 @@ import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import { computeGoalProgress } from "@overload/shared/goals/progress";
 import { goalPerformances } from "./queries";
-import { parseGoalInput, type RawGoalInput } from "./validation";
+import {
+  parseGoalInput,
+  type RawGoalInput,
+} from "@overload/shared/goals/validation";
 
 /**
  * The Goal write module (Goals spec §11b–§11c) — the ONLY place Goal rows are

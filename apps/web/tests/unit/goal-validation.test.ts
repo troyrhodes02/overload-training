@@ -1,9 +1,9 @@
 import { WEIGHT_MESSAGES } from "@overload/shared/logging/weight";
 import {
   GOAL_FIELD_ERRORS,
-  goalInputFromFormData,
   parseGoalInput,
-} from "@/lib/goals/validation";
+} from "@overload/shared/goals/validation";
+import { goalInputFromFormData } from "@/lib/goals/form-data";
 
 const EX = "3f2c1d1e-8a7b-4c6d-9e0f-112233445566";
 

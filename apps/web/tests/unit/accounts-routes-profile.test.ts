@@ -8,7 +8,7 @@ import {
   parseProfileInput,
   PROFILE_NAME_MAX,
   RESERVED_USERNAMES,
-} from "@/lib/accounts/validation";
+} from "@overload/shared/accounts/validation";
 
 describe("proxy routing (Accounts spec §9)", () => {
   it.each(["/login", "/signup"])(

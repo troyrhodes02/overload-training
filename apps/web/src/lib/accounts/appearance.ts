@@ -7,7 +7,7 @@ import {
   DEFAULT_APPEARANCE,
   isAppearance,
   type Appearance,
-} from "@/lib/appearance/appearance";
+} from "@overload/shared/appearance/appearance";
 
 /**
  * The acting account's appearance preference (Personalization & Navigation

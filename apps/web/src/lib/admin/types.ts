@@ -1,7 +1,7 @@
 import {
   FEEDBACK_CATEGORY_LABELS,
   type FeedbackCategoryValue,
-} from "@/lib/feedback/validation";
+} from "@overload/shared/feedback/validation";
 import type { CompReason } from "@prisma/client";
 
 export type { FeedbackCategoryValue };

@@ -7,7 +7,7 @@ import {
   FEEDBACK_SCREENSHOT_MAX_COUNT,
   FEEDBACK_SCREENSHOT_TYPES,
   validateScreenshots,
-} from "@/lib/feedback/attachment-validation";
+} from "@overload/shared/feedback/attachment-validation";
 import { cn } from "@/lib/utils";
 
 type Item = { file: File; url: string };
