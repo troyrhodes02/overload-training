@@ -2,6 +2,8 @@
 
 **Status:** current (2026-11-09). Builds on `docs/technical/environment-isolation.md` (OVE-111), which this page does not replace.
 
+> **Since Pitch 21a (monorepo move):** the web app lives in `apps/web` of an npm workspace, and Vercel builds it with the project's Root Directory set to `apps/web` (an owner step; see `docs/pitches/mvp-5b-mobile-app/21a-monorepo-move/runbook.md`). Code paths on this page are relative to `apps/web/`. Run `npm run …` commands from the repository root, and direct `npx tsx …` commands from `apps/web/`.
+
 Staging is a **Git branch plus a stable Vercel URL**, not a new database or service. It exists so unfinished work, Pitch 22 first among it, can be clicked through in a browser with real auth against **synthetic data only**, without going near Production.
 
 ## Branches
@@ -119,6 +121,7 @@ The default login email is `overload-staging-tester@example.com`, a reserved non
 Export the **development** values in the shell (never in `.env`): `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Then:
 
 ```sh
+cd apps/web
 npx tsx scripts/operator/provision-dev-test-user/cli.ts --confirm-ref vdxrmfadikwzodjljbdi            # dry run
 npx tsx scripts/operator/provision-dev-test-user/cli.ts --confirm-ref vdxrmfadikwzodjljbdi --execute  # create
 ```

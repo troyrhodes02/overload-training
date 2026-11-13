@@ -10,6 +10,9 @@ import { TOUR_ANCHORS, TOUR_STEPS, tourAnchor } from "@/lib/tour/steps";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const SRC = path.join(REPO_ROOT, "src");
+// The web app is apps/web of the npm workspace (Pitch 21a); docs/ stays at the
+// workspace root, two levels above it.
+const MONOREPO_ROOT = path.resolve(REPO_ROOT, "..", "..");
 
 function walk(dir: string, acc: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -117,7 +120,7 @@ describe("copy is the design doc's, verbatim (R32)", () => {
   }
   const doc = fs.readFileSync(
     path.join(
-      REPO_ROOT,
+      MONOREPO_ROOT,
       "docs/pitches/mvp-2-multi-user/11-onboarding-tour/design.md",
     ),
     "utf8",
@@ -130,7 +133,7 @@ describe("copy is the design doc's, verbatim (R32)", () => {
   );
   // A later pitch that adds a step records its copy in its own design doc,
   // under "### Tour steps added", in the same columns (overload-onboarding).
-  const designDir = path.join(REPO_ROOT, "docs/pitches");
+  const designDir = path.join(MONOREPO_ROOT, "docs/pitches");
   const added = fs
     .readdirSync(designDir, { recursive: true, encoding: "utf8" })
     .filter((f) => path.basename(f) === "design.md")

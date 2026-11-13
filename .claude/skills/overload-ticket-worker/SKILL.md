@@ -35,6 +35,8 @@ Overload is a strength training tracker for individual lifters, each with a priv
 
 **Read `CLAUDE.md` before writing code.** It is authoritative for stack, invariants, security rules, and product boundaries; where anything here conflicts with it, `CLAUDE.md` wins. Read `docs/planning/architecture.md` when a ticket requires understanding *why* a decision was made, and check its Open Questions before assuming a value.
 
+**Paths and commands.** The repository is an npm workspace (Pitch 21a). Web paths written here and in `CLAUDE.md` (`src/…`, `lib/…`, `prisma/…`, `tests/…`) are relative to `apps/web/`. Run the verification commands from the repository root (`npm run lint`, `npm run typecheck`, `npm run format:check`, `npm test`, `npm run test:integration`, `npm run build`); each delegates to the workspace that owns it, and `npm test` also runs the workspace boundary check.
+
 Inlined here because implementation applies them constantly:
 
 - **Styling / components:** Tailwind CSS with shadcn/ui. Do not introduce Material UI, styled-components, CSS modules, or a second component library.

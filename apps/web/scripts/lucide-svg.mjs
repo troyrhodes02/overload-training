@@ -11,12 +11,15 @@
  * CSS sizes and colors it the same way the app's `className="size-4"` does.
  */
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 
+// Resolve lucide-react wherever npm placed it: npm workspaces hoist it to the
+// repository root, so it is not under this app's node_modules (Pitch 21a).
 const ICON_DIR = path.join(
-  process.cwd(),
-  "node_modules",
-  "lucide-react",
+  path.dirname(
+    createRequire(import.meta.url).resolve("lucide-react/package.json"),
+  ),
   "dist",
   "esm",
   "icons",
