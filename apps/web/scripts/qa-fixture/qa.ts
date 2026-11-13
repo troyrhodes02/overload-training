@@ -145,7 +145,7 @@ export type QaInspection = {
   expected: QaCounts;
   /** "empty": no training data; anything else holds data (ours or not). */
   state: "empty" | "has-data";
-  /** Plan-import sessions that point at a mesocycle (block a reset). */
+  /** Plan-import sessions that point at a mesocycle (a reset unlinks them). */
   importsHoldingABlock: number;
 };
 
@@ -466,6 +466,8 @@ export type QaWriteResult = {
   anchorIso: string;
   deleted: QaCounts | null;
   created: QaCounts;
+  /** Reset only: this account's plan imports unlinked from its deleted blocks. */
+  importsUnlinked: number;
 };
 
 /**
@@ -492,7 +494,7 @@ export async function executeQaSeed(
     await writeBaseline(acting, tx, anchorIso, now);
     created = await countsOf(tx);
   }, TX_OPTIONS);
-  return { anchorIso, deleted: null, created: created! };
+  return { anchorIso, deleted: null, created: created!, importsUnlinked: 0 };
 }
 
 /**
@@ -511,16 +513,18 @@ export async function executeQaReset(
   const now = opts.now ?? new Date();
   let deleted: QaCounts | null = null;
   let created: QaCounts | undefined;
+  let importsUnlinked = 0;
   await account.db.$transaction(async (tx) => {
-    const blocking = await tx.importSession.count({
-      where: { mesocycleId: { not: null } },
-    });
-    if (blocking > 0) {
-      throw new QaFixtureRefused(
-        `Refusing: ${blocking} plan-import session(s) on this account point at a mesocycle, so the blocks cannot be removed. Plan-import data is preserved by design; clear it with the plan-import cleanup tool first. Nothing was changed.`,
-      );
-    }
     deleted = await countsOf(tx);
+    // A confirmed plan import points at the block it created (FK Restrict), so
+    // the block could not be deleted. Unlink THIS account's imports (the scoped
+    // client ANDs its userId in) and keep the import records themselves; the
+    // app already treats a confirmed import with no linked plan as finished.
+    // Same transaction: a later failure restores the links too.
+    ({ count: importsUnlinked } = await tx.importSession.updateMany({
+      where: { mesocycleId: { not: null } },
+      data: { mesocycleId: null },
+    }));
     // The deletion module's own removal steps (one definition), scoped to
     // this account, for the training models only.
     for (const model of QA_RESET_MODELS)
@@ -529,7 +533,7 @@ export async function executeQaReset(
     await writeBaseline(acting, tx, anchorIso, now);
     created = await countsOf(tx);
   }, TX_OPTIONS);
-  return { anchorIso, deleted, created: created! };
+  return { anchorIso, deleted, created: created!, importsUnlinked };
 }
 
 // ---------------------------------------------------------------------------
