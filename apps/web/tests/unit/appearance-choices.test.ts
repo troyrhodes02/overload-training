@@ -3,7 +3,7 @@ import path from "node:path";
 import {
   appearanceSaveInFlight,
   createChoiceTracker,
-} from "@/lib/appearance/choices";
+} from "@overload/shared/appearance/choices";
 
 /**
  * Appearance save ordering (spec R7; review findings on #62): the last

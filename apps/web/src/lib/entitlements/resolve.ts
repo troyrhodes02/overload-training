@@ -12,7 +12,7 @@ import type {
   DisplayState,
   EntitlementSourceKind,
   ResolvedEntitlement,
-} from "@/lib/entitlements/types";
+} from "@overload/shared/entitlements/types";
 
 /** Capabilities a plan grants, as a Set (spec RD-1). */
 export function capabilitiesFor(plan: Plan): ReadonlySet<Capability> {

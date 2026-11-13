@@ -8,7 +8,7 @@ import { adminDb, inAdminTx } from "@/lib/data/admin/db";
 import { AdminScopeError } from "@/lib/data/admin/gate";
 import { recordAudit } from "@/lib/data/admin/audit";
 import { adminActorFor, NotAdminError } from "@/lib/data/admin/identity";
-import { addDays } from "@/lib/plan/calendar";
+import { addDays } from "@overload/shared/plan/calendar";
 import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 

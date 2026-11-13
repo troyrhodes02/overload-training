@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { libFile, relToWeb, walkCode } from "../support/code-roots";
 import {
   TOUR_ANCHORS,
   TOUR_STEPS,
@@ -101,11 +102,21 @@ it("the mechanism files contain no step ids, step routes, anchor names, or copy"
 });
 
 it("only the provider reads the registry's steps (as an overridable default)", () => {
-  const readers = walk(path.join(REPO_ROOT, "src"))
+  // The web source and the shared package (Pitch 21b), where the steps' words
+  // now live.
+  const readers = walkCode()
     .filter((f) => /\bTOUR_STEPS\b/.test(code(f)))
     .map(rel);
   expect(readers.sort()).toEqual(
     ["src/components/tour/tour-provider.tsx", "src/lib/tour/steps.ts"].sort(),
+  );
+  // The shared words are read only by the web registry, which joins them to
+  // their placement (Pitch 21b; the native tour will be the second reader).
+  const contentReaders = walkCode()
+    .filter((f) => /\bTOUR_CONTENT\b/.test(code(f)))
+    .map(rel);
+  expect(contentReaders.sort()).toEqual(
+    ["src/lib/tour/steps.ts", relToWeb(libFile("tour/content.ts"))].sort(),
   );
   const provider = code(
     path.join(REPO_ROOT, "src/components/tour/tour-provider.tsx"),

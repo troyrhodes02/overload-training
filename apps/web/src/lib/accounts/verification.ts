@@ -4,6 +4,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import type { Account } from "@/lib/data/account";
 import { getAuthUser } from "@/lib/auth";
 import { type ActionResult } from "@/lib/actions/result";
+import type { EmailVerificationDto } from "@overload/shared/contracts/account";
+export type { EmailVerificationDto } from "@overload/shared/contracts/account";
 
 /**
  * Email verification (Public Accounts, spec §9 verification, §5 lifecycle,
@@ -221,9 +223,6 @@ export async function sendVerificationEmail(
 
   return { ok: true, data: { sent: true } };
 }
-
-/** The Settings nudge's view of the acting account's OWN email verification. */
-export type EmailVerificationDto = { email: string; verified: boolean };
 
 /**
  * The verification state for the acting account's own email. The email comes

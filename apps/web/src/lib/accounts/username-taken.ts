@@ -1,5 +1,5 @@
 import { DomainError, isUniqueViolation } from "@/lib/actions/result";
-import { USERNAME_TAKEN } from "./validation";
+import { USERNAME_TAKEN } from "@overload/shared/accounts/validation";
 
 /**
  * A username another account already holds (OVE-50). Its own class, so signup

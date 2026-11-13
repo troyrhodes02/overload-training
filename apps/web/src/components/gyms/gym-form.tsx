@@ -16,7 +16,7 @@ import {
   GYM_ADDRESS_MAX,
   GYM_NAME_MAX,
   parseGymInput,
-} from "@/lib/gyms/validation";
+} from "@overload/shared/gyms/validation";
 
 const initial: GymFormState = {
   result: null,

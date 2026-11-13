@@ -13,7 +13,7 @@ import {
   RenameSessionButton,
   SessionActionsMenu,
 } from "@/components/plan/session-controls";
-import { dayName } from "@/lib/plan/calendar";
+import { dayName } from "@overload/shared/plan/calendar";
 import { getSessionDetail } from "@/lib/plan/queries";
 import { requireAccount } from "@/lib/data/account";
 

@@ -22,7 +22,7 @@ import {
   getQualifyingSessionE1rms,
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
-import { addDays } from "@/lib/plan/calendar";
+import { addDays } from "@overload/shared/plan/calendar";
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { activePlan, library, startToday, today, type Lib } from "./fixtures";

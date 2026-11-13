@@ -1,7 +1,7 @@
 import {
   orderedReleaseNotes,
   toReleaseNoteView,
-} from "@/lib/release-notes/catalog";
+} from "@overload/shared/release-notes/catalog";
 import { ReleaseNote } from "@/components/release-notes/release-note";
 
 export const metadata = { title: "What's New · Overload" };

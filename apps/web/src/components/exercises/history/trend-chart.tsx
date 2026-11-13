@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { TrendPointDto } from "@/lib/progression/history-types";
+import type { TrendPointDto } from "@overload/shared/progression/history-types";
 
 /**
  * One trend line of an exercise's history (Exercise History & PR Intelligence

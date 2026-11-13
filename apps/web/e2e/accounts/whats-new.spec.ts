@@ -8,7 +8,7 @@ import {
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { skipFirstTour, tourCard } from "./tour-support";
-import { RELEASE_NOTES } from "../../src/lib/release-notes/entries";
+import { RELEASE_NOTES } from "@overload/shared/release-notes/entries";
 
 /**
  * What's New against the LOCAL Supabase stack (spec §14.3; R22, R28): the

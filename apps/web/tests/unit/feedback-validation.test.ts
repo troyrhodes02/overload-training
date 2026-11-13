@@ -4,7 +4,7 @@ import {
   FEEDBACK_MESSAGE_MAX,
   isFeedbackCategory,
   parseFeedbackInput,
-} from "@/lib/feedback/validation";
+} from "@overload/shared/feedback/validation";
 
 /** Feedback input rules (Admin Center & Feedback, spec §10.3, §12; R5, R19). */
 

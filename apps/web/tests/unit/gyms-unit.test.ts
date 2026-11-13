@@ -18,7 +18,8 @@ import {
   restoreGymAction,
   type GymFormState,
 } from "@/app/(app)/gyms/actions";
-import { gymInputFromFormData, parseGymInput } from "@/lib/gyms/validation";
+import { parseGymInput } from "@overload/shared/gyms/validation";
+import { gymInputFromFormData } from "@/lib/gyms/form-data";
 
 /** The acting account the mocked requireAccount() resolves (Multi-User Foundation). */
 const TEST_ACCOUNT = { userId: "a0000000-0000-4000-8000-000000000001" };

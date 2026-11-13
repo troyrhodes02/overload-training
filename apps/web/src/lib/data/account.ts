@@ -7,7 +7,11 @@ import {
   asUsernameConflict,
   UsernameTakenError,
 } from "@/lib/accounts/username-taken";
-import { isValidTimeZone, toIsoDate, todayIso } from "@/lib/plan/calendar";
+import {
+  isValidTimeZone,
+  toIsoDate,
+  todayIso,
+} from "@overload/shared/plan/calendar";
 import { initialReleaseSeen } from "@/lib/release-notes/seen";
 import { addDays, TRIAL_DURATION_DAYS } from "@/lib/billing/config";
 import {

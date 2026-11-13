@@ -6,8 +6,8 @@ import {
   toReleaseNoteView,
   validateReleaseNotes,
   type ReleaseNoteEntry,
-} from "@/lib/release-notes/catalog";
-import { RELEASE_NOTES } from "@/lib/release-notes/entries";
+} from "@overload/shared/release-notes/catalog";
+import { RELEASE_NOTES } from "@overload/shared/release-notes/entries";
 
 /**
  * What's New — the release-note content contract (spec §8, §12; R5–R7, R25).

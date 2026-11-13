@@ -1,4 +1,7 @@
-import { APPEARANCE_STORAGE_KEY, THEME_COLORS } from "./appearance";
+import {
+  APPEARANCE_STORAGE_KEY,
+  THEME_COLORS,
+} from "@overload/shared/appearance/appearance";
 
 /**
  * The first-paint script (spec §7.3, R6), inlined in the root layout's <head>

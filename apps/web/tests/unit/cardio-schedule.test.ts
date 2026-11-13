@@ -4,11 +4,11 @@ import {
   cardioWeekOccurrences,
   type CardioLogInput,
   type PlannedCardioInput,
-} from "@/lib/cardio/schedule";
+} from "@overload/shared/cardio/schedule";
 import {
   oldestUnresolvedMissedDay,
   type ScheduleContext,
-} from "@/lib/logging/schedule";
+} from "@overload/shared/logging/schedule";
 
 /**
  * Cardio occurrences consume the effective schedule (Cardio Logging spec

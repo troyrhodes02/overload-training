@@ -24,9 +24,9 @@ import {
   PlannedCardioLine,
   type CardioDayDto,
 } from "@/components/plan/cardio-controls";
-import { formatPlanDate } from "@/lib/plan/calendar";
+import { formatPlanDate } from "@overload/shared/plan/calendar";
 import { NamedWeekdays } from "@/components/plan/named-weekdays";
-import { weekdaysFromNames } from "@/lib/plan/weekday-names";
+import { weekdaysFromNames } from "@overload/shared/plan/weekday-names";
 import {
   getMesocycleWeek,
   occupancyOf,

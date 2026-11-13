@@ -1,6 +1,6 @@
 import { getWhatsNewDialog } from "@/lib/release-notes/seen";
 import type { Account } from "@/lib/data/account";
-import type { ReleaseNoteEntry } from "@/lib/release-notes/types";
+import type { ReleaseNoteEntry } from "@overload/shared/release-notes/types";
 
 /**
  * What's New seen-state reads that must never take the app down (spec R23;

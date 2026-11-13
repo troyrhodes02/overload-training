@@ -5,7 +5,7 @@ import {
   FEEDBACK_DAILY_LIMIT,
   parseFeedbackInput,
   type FeedbackInput,
-} from "./validation";
+} from "@overload/shared/feedback/validation";
 
 /**
  * Sending feedback (Admin Center & Feedback, spec §11; R5, R19, R20). The

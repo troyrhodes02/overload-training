@@ -1,4 +1,4 @@
-import { addDays, isoDateInZone } from "@/lib/plan/calendar";
+import { addDays, isoDateInZone } from "@overload/shared/plan/calendar";
 import type { AdminOverviewDto, CohortRowDto } from "./types";
 
 /**

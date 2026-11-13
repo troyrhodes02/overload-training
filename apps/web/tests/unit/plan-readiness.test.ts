@@ -4,7 +4,7 @@ import {
   readinessIssueMessage,
   type ReadinessInput,
   type ReadinessSession,
-} from "@/lib/plan/readiness";
+} from "@overload/shared/plan/readiness";
 
 const slot = (id: string, name: string, extra = {}) => ({
   id,

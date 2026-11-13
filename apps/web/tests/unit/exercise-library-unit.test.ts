@@ -31,10 +31,8 @@ import {
   parseLibraryParams,
   searchTokens,
 } from "@/lib/exercises/library-params";
-import {
-  customExerciseInputFromFormData,
-  parseCustomExerciseInput,
-} from "@/lib/exercises/validation";
+import { parseCustomExerciseInput } from "@overload/shared/exercises/validation";
+import { customExerciseInputFromFormData } from "@/lib/exercises/form-data";
 
 /** The acting account the mocked requireAccount() resolves (Multi-User Foundation). */
 const TEST_ACCOUNT = { userId: "a0000000-0000-4000-8000-000000000001" };

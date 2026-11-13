@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { exerciseHistoryHref } from "@/lib/progression/history-format";
+import { exerciseHistoryHref } from "@/lib/progression/history-href";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Archive, CircleCheck } from "lucide-react";

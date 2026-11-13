@@ -14,7 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { ExerciseThumb } from "@/components/exercises/exercise-thumb";
-import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS } from "@/lib/exercises/taxonomy";
+import {
+  MUSCLE_GROUPS,
+  MUSCLE_GROUP_LABELS,
+} from "@overload/shared/exercises/taxonomy";
 import type { ExerciseListItemDto } from "@/lib/exercises/queries";
 import { searchImportLibraryAction } from "@/app/(app)/plan/import/actions";
 

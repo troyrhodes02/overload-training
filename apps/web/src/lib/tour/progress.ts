@@ -3,6 +3,7 @@ import { cache } from "react";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
+import { TOUR_OUTCOMES, type TourOutcomeValue } from "@overload/shared/enums";
 
 /**
  * The acting account's onboarding tour progress (Onboarding Tour, spec §11).
@@ -14,9 +15,10 @@ import type { AccountTx } from "@/lib/data/account-db";
  * so one account can never read, change, or detect another's.
  */
 
-export type TourOutcomeValue = "completed" | "skipped";
+// The Prisma enum `TourOutcome`, from the shared enum registry (Pitch 21b).
+export type { TourOutcomeValue } from "@overload/shared/enums";
 
-const OUTCOMES: readonly TourOutcomeValue[] = ["completed", "skipped"];
+const OUTCOMES: readonly TourOutcomeValue[] = TOUR_OUTCOMES;
 
 export function isTourOutcome(value: unknown): value is TourOutcomeValue {
   return (OUTCOMES as readonly unknown[]).includes(value);

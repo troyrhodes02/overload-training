@@ -3,7 +3,12 @@ import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb, AccountTx } from "@/lib/data/account-db";
 import { asUsernameConflict } from "./username-taken";
-import { parseProfileInput, type ProfileInput } from "./validation";
+import {
+  parseProfileInput,
+  type ProfileInput,
+} from "@overload/shared/accounts/validation";
+import type { SettingsProfile } from "@overload/shared/contracts/account";
+export type { SettingsProfile } from "@overload/shared/contracts/account";
 
 /**
  * The acting account's profile (Accounts spec §11; OVE-50): first name, last
@@ -12,14 +17,6 @@ import { parseProfileInput, type ProfileInput } from "./validation";
  * account's profile cannot be read or written from here. Email and password
  * live in Supabase Auth.
  */
-
-export type SettingsProfile = {
-  firstName: string;
-  lastName: string;
-  /** "" for an account made before usernames: it picks one in Settings. */
-  username: string;
-  timeZone: string;
-};
 
 export async function getSettingsProfile(
   account: Account,

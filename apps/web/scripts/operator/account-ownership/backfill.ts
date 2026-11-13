@@ -19,7 +19,7 @@
  * transaction rolls back.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { isValidTimeZone } from "@/lib/plan/calendar";
+import { isValidTimeZone } from "@overload/shared/plan/calendar";
 import { resolveAccountByEmail } from "../resolve-account";
 
 export const EXPAND_MIGRATION = "9_account_ownership_1_expand";

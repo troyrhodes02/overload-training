@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toggle } from "@/components/ui/toggle";
-import type { TrendDto } from "@/lib/progression/history-types";
+import type { TrendDto } from "@overload/shared/progression/history-types";
 import { TrendChart } from "./trend-chart";
 
 type View = {

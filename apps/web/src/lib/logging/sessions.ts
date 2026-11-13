@@ -7,8 +7,8 @@ import {
   parseIsoDate,
   todayIso,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import { authoredDate } from "./schedule";
+} from "@overload/shared/plan/calendar";
+import { authoredDate } from "@overload/shared/logging/schedule";
 
 /**
  * LoggedSession lifecycle for Guided Workout Logging. These functions create and

@@ -1,5 +1,5 @@
 import { submitFeedback } from "@/lib/feedback/feedback";
-import { FEEDBACK_DAILY_LIMIT } from "@/lib/feedback/validation";
+import { FEEDBACK_DAILY_LIMIT } from "@overload/shared/feedback/validation";
 import { DomainError } from "@/lib/actions/result";
 import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
