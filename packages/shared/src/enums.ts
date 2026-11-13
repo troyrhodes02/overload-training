@@ -45,6 +45,11 @@ export const MISSED_DAY_OUTCOMES = [
   "skipped",
 ] as const;
 export type MissedDayOutcomeValue = (typeof MISSED_DAY_OUTCOMES)[number];
+/** The outcomes a missed-day resolution records ("log it late" starts a workout instead). */
+export type ResolvableMissedDayOutcome = Exclude<
+  MissedDayOutcomeValue,
+  "logged_late"
+>;
 
 export const PLANS = ["free", "pro"] as const;
 export type PlanValue = (typeof PLANS)[number];

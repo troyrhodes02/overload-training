@@ -58,6 +58,12 @@ export type {
   LoggedWorkoutDetailDto,
 } from "@overload/shared/contracts/logging";
 
+/**
+ * Server-side reads for Guided Workout Logging. All reads go through Prisma on
+ * the server; the client never queries the database. Nothing here is derived
+ * progression state — only facts and the effective-schedule view.
+ */
+
 function scheme(sets: number, min: number, max: number): string {
   return `${sets} × ${formatRepTarget(min, max)}`;
 }

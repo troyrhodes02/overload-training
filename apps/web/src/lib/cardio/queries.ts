@@ -11,6 +11,12 @@ import { cardioWeekEntries } from "@overload/shared/cardio/schedule";
 import type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
 export type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
 
+/**
+ * Cardio reads for the dashboard and history (Cardio Logging spec §13). Facts
+ * and the effective-schedule view only — nothing here is derived performance:
+ * no trend, total, streak, or comparison beyond "differs from plan".
+ */
+
 /** The cardio entries of one week of the given (active) mesocycle. */
 export async function getCardioWeek(
   account: Account,

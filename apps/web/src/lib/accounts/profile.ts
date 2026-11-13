@@ -10,6 +10,14 @@ import {
 import type { SettingsProfile } from "@overload/shared/contracts/account";
 export type { SettingsProfile } from "@overload/shared/contracts/account";
 
+/**
+ * The acting account's profile (Accounts spec §11; OVE-50): first name, last
+ * name, username, and the IANA timezone that is the only authority for
+ * "today". Reached only through the account-scoped client, so another
+ * account's profile cannot be read or written from here. Email and password
+ * live in Supabase Auth.
+ */
+
 export async function getSettingsProfile(
   account: Account,
   db: AccountDb = account.db,

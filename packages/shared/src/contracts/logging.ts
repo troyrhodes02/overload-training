@@ -7,16 +7,10 @@
  */
 import type {
   LoggedSessionStatusValue as LoggedSessionStatus,
-  MissedDayOutcomeValue,
+  ResolvableMissedDayOutcome,
 } from "../enums";
 import type { MuscleGroupValue } from "../exercises/taxonomy";
 import type { CardioOccurrenceDto } from "./cardio";
-
-/**
- * Server-side reads for Guided Workout Logging. All reads go through Prisma on
- * the server; the client never queries the database. Nothing here is derived
- * progression state — only facts and the effective-schedule view.
- */
 
 export type DashboardExercisePreview = {
   name: string;
@@ -73,7 +67,7 @@ export type ExerciseCardDto = {
   performedExerciseName: string;
   plannedExerciseName: string;
   performedExerciseId: string;
-  plannedPrimaryMuscle: string;
+  plannedPrimaryMuscle: MuscleGroupValue;
   swapped: boolean;
   performedArchived: boolean;
   isGymVariable: boolean;
@@ -209,5 +203,5 @@ export type MissedDayResolutionDto = {
   id: string;
   missedOn: string;
   /** Shift or skip; "log it late" starts a workout instead. */
-  outcome: Exclude<MissedDayOutcomeValue, "logged_late">;
+  outcome: ResolvableMissedDayOutcome;
 };

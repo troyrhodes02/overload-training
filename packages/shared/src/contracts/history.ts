@@ -4,11 +4,17 @@
  * compiler holds the server's output to the contract). Wire conventions:
  * ./wire.ts.
  */
+import type { MesocycleStatusValue } from "../enums";
 import type { CardioOccurrenceDto } from "./cardio";
 import type { WeekDayDto } from "./logging";
 
 /** A mesocycle a history week refers to. */
-export type BlockRef = { mesocycleId: string; name: string; status: string };
+export type BlockRef = {
+  mesocycleId: string;
+  name: string;
+  /** "" when the workout belongs to no mesocycle (reserved for wing-it workouts; no current writer). */
+  status: MesocycleStatusValue | "";
+};
 
 export type LoggedHistoryDay = {
   dateIso: string;

@@ -5,11 +5,15 @@ import {
   type LoggedSessionStatusValue,
   type MesocycleStatusValue as RegistryMesocycleStatus,
   type MissedDayOutcomeValue,
+  type ResolvableMissedDayOutcome,
 } from "@overload/shared/enums";
 import { APPEARANCES } from "@overload/shared/appearance/appearance";
 import { FEEDBACK_CATEGORIES } from "@overload/shared/feedback/validation";
 import { SPLIT_TYPES } from "@overload/shared/plan/presets";
-import { RESOLVABLE_OUTCOMES } from "@/lib/logging/missed-days";
+import {
+  RESOLVABLE_OUTCOMES,
+  type ResolvableOutcome,
+} from "@/lib/logging/missed-days";
 import type { MesocycleStatusValue } from "@/lib/plan/queries";
 import type { LockedMesocycle } from "@/lib/data/locks";
 import type {
@@ -128,6 +132,16 @@ describe("the shared enum registry (Pitch 21b)", () => {
     const outcome: Equal<MissedDayOutcomeValue, $Enums.MissedDayOutcome> = true;
     const logged: Equal<LoggedSessionStatusValue, $Enums.LoggedSessionStatus> =
       true;
-    expect([status, plan, outcome, logged]).toEqual([true, true, true, true]);
+    // The write path's runtime list, the API request, and the resolution DTO
+    // share one type (shift or skip).
+    const resolvable: Equal<ResolvableOutcome, ResolvableMissedDayOutcome> =
+      true;
+    expect([status, plan, outcome, logged, resolvable]).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
   });
 });

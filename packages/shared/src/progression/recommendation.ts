@@ -63,9 +63,6 @@ export type RecommendationInput =
 const SCHEDULED_EVIDENCE =
   "Planned recovery, not a verdict. Calls resume next week.";
 
-// Loads are whole or half pounds; never print float noise.
-const lbs = formatWeightLbs;
-
 function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -147,7 +144,7 @@ export function buildRecommendation(
       tone: "quiet",
       action:
         input.externalLoad && input.deloadLoadLbs !== null
-          ? `Deload week: ${lbs(input.deloadLoadLbs)} lb (${pct}%)`
+          ? `Deload week: ${formatWeightLbs(input.deloadLoadLbs)} lb (${pct}%)`
           : "Deload week",
       evidence: SCHEDULED_EVIDENCE,
     };
@@ -180,7 +177,7 @@ export function buildRecommendation(
           : "the top of the range";
       action = `${When}, go past ${top} or make it harder`;
     } else if (ctx.progressLoadLbs !== null) {
-      action = `Try ${lbs(ctx.progressLoadLbs)} lb ${when} (+${PROGRESS_INCREMENT_LBS} lb)`;
+      action = `Try ${formatWeightLbs(ctx.progressLoadLbs)} lb ${when} (+${PROGRESS_INCREMENT_LBS} lb)`;
     } else {
       action = `Ready to add weight ${when}`;
     }
@@ -218,7 +215,7 @@ export function buildRecommendation(
     tone: "quiet",
     action:
       ctx.externalLoad && ctx.workingWeightLbs !== null
-        ? `Stay at ${lbs(ctx.workingWeightLbs)} lb ${when}`
+        ? `Stay at ${formatWeightLbs(ctx.workingWeightLbs)} lb ${when}`
         : `Hold steady ${when}`,
     evidence,
   };

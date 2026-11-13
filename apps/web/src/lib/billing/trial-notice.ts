@@ -9,6 +9,14 @@ import type { TrialNoticeData } from "@overload/shared/contracts/account";
 export type { TrialNoticeData } from "@overload/shared/contracts/account";
 
 /**
+ * Trial notices (OVE-112) — the acting account's one-time trial notice for
+ * the (app) layout, and the write that records it was shown. Reached only
+ * through the account-scoped client, so one account can never read, change,
+ * or detect another's notice state. The shown-at columns are presentation
+ * state on Profile; nothing here touches an entitlement.
+ */
+
+/**
  * The notice this account is due on this load, or null. Memoized per request.
  * A failed read means "no notice": a notice must never take a page down.
  */

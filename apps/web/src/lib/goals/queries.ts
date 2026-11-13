@@ -40,6 +40,16 @@ export type {
   ExerciseGoalsDto,
 } from "@overload/shared/contracts/goals";
 
+/**
+ * Goal reads (Goals spec §13). Every percentage and best value is derived here
+ * from Pitch 5's qualifying performances on each read — nothing is stored, so
+ * a corrected past set changes the next read with nothing to recompute.
+ * Read-only: no write of any kind lives in this module.
+ *
+ * Archived exercises and gyms are resolved WITHOUT a `deletedAt` filter so a
+ * goal's context stays readable after archival (R39–R41).
+ */
+
 /** Timestamp → "Oct 12, 2026", on the calendar of the lifter's time zone. */
 export function formatGoalDate(date: Date, timeZone = "UTC"): string {
   return new Intl.DateTimeFormat("en-US", {

@@ -23,6 +23,17 @@ export type {
   ExerciseList,
 } from "@overload/shared/contracts/exercises";
 
+/**
+ * Exercise reads for the library (spec "Reads"). Every SELECTION query filters
+ * `deletedAt: null`; `getExercise` deliberately does not, because history and
+ * direct links must still resolve an archived exercise (CLAUDE.md Layer 1).
+ * Data comes from Overload's own tables only — never the source dataset.
+ *
+ * Multi-User Foundation: the account sees the shared library plus its own
+ * custom exercises (the scoped client enforces it), and "favorite" means the
+ * acting account's ExerciseFavorite row, never a flag on the shared row.
+ */
+
 const listSelect = {
   id: true,
   name: true,

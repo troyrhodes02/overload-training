@@ -8,6 +8,7 @@ import {
   walkCode,
   walkTs,
 } from "../support/code-roots";
+import { nonNodeEnvProcessReads } from "../support/process-reads";
 
 /**
  * Pitch 21b — Shared Package & Contracts. The web consumes the shared package,
@@ -154,9 +155,11 @@ describe("the shared package holds no access control or server code", () => {
   });
 
   it("reads no environment variable except NODE_ENV", () => {
-    const env = /process\.env\.(?!NODE_ENV\b)\w+|process\.env\[/;
+    // Read from the syntax tree, not the text (rule B3e does the same).
     expect(
-      shared.filter((x) => env.test(x.src)).map((x) => relToWeb(x.f)),
+      shared
+        .map((x) => [relToWeb(x.f), nonNodeEnvProcessReads(x.f)] as const)
+        .filter(([, lines]) => lines.length > 0),
     ).toEqual([]);
   });
 });

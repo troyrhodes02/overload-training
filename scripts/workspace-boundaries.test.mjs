@@ -148,6 +148,10 @@ describe("workspace boundaries", () => {
       'const key = process.env["STRIPE_KEY"];',
       "const cwd = process.cwd();",
       "export const env = process.env;",
+      "export const all = { process };",
+      'const sep = "//"; const k = process.env.SECRET;',
+      'const glob = "src/*"; const k = process.env.SECRET; // */',
+      "const t = `${process.env.SECRET}`;",
     ]) {
       const r = repo();
       r.sharedSources.push({ file: "packages/shared/src/bad.ts", code });
@@ -156,7 +160,7 @@ describe("workspace boundaries", () => {
     const ok = repo();
     ok.sharedSources.push({
       file: "packages/shared/src/ok.ts",
-      code: '// process.env.SECRET in a comment is fine\nif (process.env.NODE_ENV !== "production") {}',
+      code: '// process.env.SECRET in a comment is fine\nif (process.env.NODE_ENV !== "production") {}\nconst body = "The import process now reads process.env.X";\nconst row = { process: 1 };\nrow.process;',
     });
     assert.deepEqual(checkBoundaries(ok), []);
   });

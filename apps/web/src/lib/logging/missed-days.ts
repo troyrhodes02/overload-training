@@ -11,6 +11,7 @@ import {
 import { effectiveWeekSchedule } from "@overload/shared/logging/schedule";
 import { loadScheduleContext } from "./schedule-context";
 import type { MissedDayResolutionDto } from "@overload/shared/contracts/logging";
+import type { ResolvableMissedDayOutcome } from "@overload/shared/enums";
 export type { MissedDayResolutionDto } from "@overload/shared/contracts/logging";
 
 /**
@@ -23,7 +24,10 @@ export type { MissedDayResolutionDto } from "@overload/shared/contracts/logging"
 type Db = AccountTx;
 
 /** The outcomes this write path records ("log it late" starts a workout). */
-export const RESOLVABLE_OUTCOMES = ["shifted", "skipped"] as const;
+export const RESOLVABLE_OUTCOMES = [
+  "shifted",
+  "skipped",
+] as const satisfies readonly ResolvableMissedDayOutcome[];
 export type ResolvableOutcome = (typeof RESOLVABLE_OUTCOMES)[number];
 
 function isResolvableOutcome(v: unknown): v is ResolvableOutcome {

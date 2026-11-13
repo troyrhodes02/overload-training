@@ -110,15 +110,12 @@ export function computeGoalProgress(
   };
 }
 
-/** Number without trailing zeros: 315 → "315", 102.5 → "102.5". */
-const formatLbs = formatWeightLbs;
-
 /** "315 lb × 1" — the lifter's own target, as typed. */
 export function formatGoalTarget(
   targetWeightLbs: number,
   targetReps: number,
 ): string {
-  return `${formatLbs(targetWeightLbs)} lb × ${targetReps}`;
+  return `${formatWeightLbs(targetWeightLbs)} lb × ${targetReps}`;
 }
 
 /** "315 × 1" — compact form for summary rows. */
@@ -126,5 +123,5 @@ export function formatGoalTargetCompact(
   targetWeightLbs: number,
   targetReps: number,
 ): string {
-  return `${formatLbs(targetWeightLbs)} × ${targetReps}`;
+  return `${formatWeightLbs(targetWeightLbs)} × ${targetReps}`;
 }

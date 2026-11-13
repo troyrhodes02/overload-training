@@ -6,8 +6,9 @@
  * else with `validation_error`.
  */
 import type { Appearance } from "../appearance/appearance";
+import type { EquipmentValue, MuscleGroupValue } from "../exercises/taxonomy";
 import type { FeedbackCategoryValue } from "../feedback/validation";
-import type { TourOutcomeValue } from "../enums";
+import type { ResolvableMissedDayOutcome, TourOutcomeValue } from "../enums";
 import type { IsoDate } from "./wire";
 
 /**
@@ -64,7 +65,7 @@ export type SetSkippedRequest = { skipped: boolean };
 export type EditPlannedSetsRequest = { plannedSets: number };
 
 /** `PUT /mesocycles/{mesocycleId}/missed-days/{missedOn}`. */
-export type ResolveMissedDayRequest = { outcome: "shifted" | "skipped" };
+export type ResolveMissedDayRequest = { outcome: ResolvableMissedDayOutcome };
 
 /** `PUT /mesocycles/{mesocycleId}/cardio-logs/{scheduledFor}`. */
 export type LogCardioRequest = { type: string; durationMin: number };
@@ -87,9 +88,9 @@ export type CreateGymRequest = { name: string; address: string | null };
 /** `POST /exercises` (with an `Idempotency-Key` header). */
 export type CreateCustomExerciseRequest = {
   name: string;
-  primaryMuscle: string;
-  equipmentType: string;
-  secondaryMuscles: string[];
+  primaryMuscle: MuscleGroupValue;
+  equipmentType: EquipmentValue;
+  secondaryMuscles: MuscleGroupValue[];
 };
 
 /** `PUT /exercises/{exerciseId}/favorite`. */

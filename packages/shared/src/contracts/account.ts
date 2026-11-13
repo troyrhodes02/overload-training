@@ -42,14 +42,7 @@ export type EmailVerificationDto = { email: string; verified: boolean };
 export type TrialNoticePhase =
   { phase: "ending"; endsToday: boolean } | { phase: "ended" };
 
-/**
- * Trial notices (OVE-112) — the acting account's one-time trial notice for
- * the (app) layout, and the write that records it was shown. Reached only
- * through the account-scoped client, so one account can never read, change,
- * or detect another's notice state. The shown-at columns are presentation
- * state on Profile; nothing here touches an entitlement.
- */
-
+/** The trial notice the shell is due to show (OVE-112), with Pro's capabilities in plain words. */
 export type TrialNoticeData = TrialNoticePhase & {
   /** Pro's capabilities in plain words, from the capability model. */
   highlights: string[];

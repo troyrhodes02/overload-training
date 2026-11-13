@@ -4,16 +4,6 @@
  * compiler holds the server's output to the contract). Wire conventions:
  * ./wire.ts.
  */
-/**
- * Goal reads (Goals spec §13). Every percentage and best value is derived here
- * from Pitch 5's qualifying performances on each read — nothing is stored, so
- * a corrected past set changes the next read with nothing to recompute.
- * Read-only: no write of any kind lives in this module.
- *
- * Archived exercises and gyms are resolved WITHOUT a `deletedAt` filter so a
- * goal's context stays readable after archival (R39–R41).
- */
-
 export type GoalContextDto = {
   goalId: string;
   exerciseId: string;

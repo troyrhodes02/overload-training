@@ -1,5 +1,6 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
+import type { MesocycleStatusValue } from "@overload/shared/enums";
 import {
   addDays,
   formatPlanDate,
@@ -178,7 +179,9 @@ async function loggedWeek(
     }),
   ]);
 
-  const ref = (m: { id: string; name: string; status: string } | null) => ({
+  const ref = (
+    m: { id: string; name: string; status: MesocycleStatusValue } | null,
+  ): BlockRef => ({
     mesocycleId: m?.id ?? "",
     name: m?.name ?? "",
     status: m?.status ?? "",

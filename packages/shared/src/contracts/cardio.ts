@@ -5,12 +5,6 @@
  */
 import type { CardioEntry } from "../cardio/schedule";
 
-/**
- * Cardio reads for the dashboard and history (Cardio Logging spec §13). Facts
- * and the effective-schedule view only — nothing here is derived performance:
- * no trend, total, streak, or comparison beyond "differs from plan".
- */
-
 export type CardioOccurrenceDto = CardioEntry & {
   mesocycleId: string;
   /** "Tue, Oct 13" — the effective date. */

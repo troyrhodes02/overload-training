@@ -797,7 +797,7 @@ describe("recommendations come from the engine, in one voice (Smarter & Explaina
     const offenders = walkCode()
       .filter((f) => /^src\/(app|components)\//.test(relPath(f)))
       .filter((f) =>
-        /@\/lib\/progression\/engine["']|evaluateReactive(Decision)?\s*\(/.test(
+        /(@\/lib|@overload\/shared)\/progression\/engine["']|evaluateReactive(Decision)?\s*\(/.test(
           read(f),
         ),
       )
