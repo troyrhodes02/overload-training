@@ -1,4 +1,4 @@
-import type { Capability, Plan } from "@/lib/billing/config";
+import type { Capability, Plan } from "../billing/plans";
 
 /** How the lifter's single plan line reads (UI only; never enforced). */
 export type DisplayState =

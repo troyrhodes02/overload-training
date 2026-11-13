@@ -1,4 +1,7 @@
-import { dashboardShowsGoals, type DashboardKind } from "@/lib/goals/dashboard";
+import {
+  dashboardShowsGoals,
+  type DashboardKind,
+} from "@overload/shared/goals/dashboard";
 
 describe("goals never displace the daily training loop (R42, R43)", () => {
   it.each<[DashboardKind, boolean]>([

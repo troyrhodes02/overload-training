@@ -11,7 +11,7 @@ import type {
   ScheduleResolution,
 } from "@overload/shared/logging/schedule";
 import type { DashboardDto } from "@/lib/logging/queries";
-import type { DashboardKind } from "@/lib/goals/dashboard";
+import type { DashboardKind } from "@overload/shared/goals/dashboard";
 
 /**
  * OVE-140 (mobile audit D-6): every hand-copied mirror of a Prisma enum (and

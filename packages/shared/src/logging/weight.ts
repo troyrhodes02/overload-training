@@ -48,3 +48,15 @@ export function checkWeightLbs(
   }
   return { ok: true, value };
 }
+
+/**
+ * The one way a weight in pounds is printed (Pitch 21b, mobile audit D-14):
+ * 185 → "185", 182.5 → "182.5", 102.25 → "102.25", with float noise rounded
+ * away (166.50000000000003 → "166.5"). Every stored weight and every engine
+ * load has at most two decimals, and for those this prints exactly what the
+ * four formatters it replaced printed (proved for every cent by
+ * apps/web/tests/unit/weight-format-consolidation.test.ts).
+ */
+export function formatWeightLbs(lbs: number): string {
+  return String(Math.round(lbs * 100) / 100);
+}

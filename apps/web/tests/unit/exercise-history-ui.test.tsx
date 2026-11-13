@@ -3,7 +3,10 @@ import { ExerciseRecords } from "@/components/exercises/history/exercise-records
 import { SessionHistoryList } from "@/components/exercises/history/session-history-list";
 import { ExerciseGoals } from "@/components/exercises/history/exercise-goals";
 import { ExerciseTrend } from "@/components/exercises/history/exercise-trend";
-import type { SessionRowDto, TrendDto } from "@/lib/progression/history-types";
+import type {
+  SessionRowDto,
+  TrendDto,
+} from "@overload/shared/progression/history-types";
 import type { ExerciseGoalsDto } from "@/lib/goals/queries";
 
 /**

@@ -5,7 +5,7 @@ import {
   gateSessionSummary,
 } from "@/lib/entitlements/gate";
 import { capabilitiesFor } from "@/lib/entitlements/resolve";
-import type { ResolvedEntitlement } from "@/lib/entitlements/types";
+import type { ResolvedEntitlement } from "@overload/shared/entitlements/types";
 
 /**
  * The pure Pro gate (spec RD-9). Withholds progression/history Pro fields when

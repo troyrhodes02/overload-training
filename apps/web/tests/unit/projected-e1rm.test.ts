@@ -1,11 +1,11 @@
-import { estimateOneRepMax } from "@/lib/progression/e1rm";
+import { estimateOneRepMax } from "@overload/shared/progression/e1rm";
 import { RIR_MAX } from "@overload/shared/logging/rir";
 import {
   e1rmPoints,
   projectedE1rmPoints,
   type HistoryRow,
-} from "@/lib/progression/history";
-import type { WorkingSet } from "@/lib/progression/engine";
+} from "@overload/shared/progression/history";
+import type { WorkingSet } from "@overload/shared/progression/engine";
 
 /**
  * Projected-RIR overlay (OVE-80): the speculative "what-if" e1RM series the

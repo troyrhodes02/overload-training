@@ -4,13 +4,13 @@ import {
   hasRepsToSpare,
   hasSetAtLimit,
   type Performance,
-} from "@/lib/progression/engine";
+} from "@overload/shared/progression/engine";
 import {
   RIR_AT_LIMIT,
   RIR_TO_SPARE_MIN,
   STALL_WINDOW_SESSIONS,
-} from "@/lib/progression/config";
-import { buildRecommendation } from "@/lib/progression/recommendation";
+} from "@overload/shared/progression/config";
+import { buildRecommendation } from "@overload/shared/progression/recommendation";
 
 /**
  * RIR-aware progression (RIR Logging & Autoregulation spec §6, §14.1;
