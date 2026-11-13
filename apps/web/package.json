@@ -20,7 +20,10 @@
     "ownership:backfill": "tsx --conditions=react-server scripts/operator/account-ownership/cli.ts",
     "founding-members:grant": "tsx --conditions=react-server scripts/operator/founding-members/cli.ts",
     "plan-import:cleanup": "tsx --conditions=react-server scripts/operator/plan-import-cleanup/cli.ts",
-    "demo:seed": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/demo/cli.ts"
+    "demo:seed": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/demo/cli.ts",
+    "qa:seed": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/qa-fixture/cli.ts seed",
+    "qa:reset": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/qa-fixture/cli.ts reset",
+    "qa:verify": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/qa-fixture/cli.ts verify"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.6.0",

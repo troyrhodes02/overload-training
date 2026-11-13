@@ -28,7 +28,10 @@
     "ownership:backfill": "npm run ownership:backfill -w @overload/web --",
     "founding-members:grant": "npm run founding-members:grant -w @overload/web --",
     "plan-import:cleanup": "npm run plan-import:cleanup -w @overload/web --",
-    "demo:seed": "npm run demo:seed -w @overload/web --"
+    "demo:seed": "npm run demo:seed -w @overload/web --",
+    "qa:seed": "npm run qa:seed -w @overload/web --",
+    "qa:reset": "npm run qa:reset -w @overload/web --",
+    "qa:verify": "npm run qa:verify -w @overload/web --"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
