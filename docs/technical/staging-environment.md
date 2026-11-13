@@ -128,6 +128,8 @@ npx tsx scripts/operator/provision-dev-test-user/cli.ts --confirm-ref vdxrmfadik
 
 Before connecting it requires `--confirm-ref vdxrmfadikwzodjljbdi`, checks all four variables name that project (a service-role key for Production or any other project is refused), refuses Production with no override, and verifies the database identity marker. The password is written to `~/.overload-dev/test-user.txt` (directory `0700`, file `0600`, outside the repo) and never printed; view it with `cat ~/.overload-dev/test-user.txt`. Save it in a password manager.
 
+To fill this account with a realistic, resettable baseline (plans, history, goals, cardio, Pro), see `docs/technical/qa-fixture-account.md` (`npm run qa:seed`, `qa:reset`, `qa:verify`).
+
 ### Idempotency and password resets
 
 A re-run reuses the existing account, fills in anything missing (profile, comp), and **never changes the password**. To reset it deliberately, open overload-dev in the Supabase dashboard → Authentication → Users, choose the user, and set a new password there (recovery email cannot reach the example.com address), then update the saved file by hand. The tool never deletes an account it did not create in the same run.
