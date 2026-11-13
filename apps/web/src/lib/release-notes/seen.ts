@@ -11,7 +11,7 @@ import {
   unseenSignificant,
   type ReleaseNoteEntry,
   type ReleaseNoteView,
-} from "./catalog";
+} from "@overload/shared/release-notes/catalog";
 
 /**
  * The acting account's What's New state (What's New spec §11; R9–R14). One

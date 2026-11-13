@@ -1,11 +1,14 @@
 /**
  * THE ONBOARDING TOUR REGISTRY (Onboarding Tour spec §13; R9). The tour's
- * steps live here and nowhere else: the mechanism (engine.ts, dom.ts,
- * src/components/tour/*) only walks this list.
+ * steps are defined in two halves and nowhere else: their words and order in
+ * the shared package (@overload/shared/tour/content, Pitch 21b, so the native
+ * tour reuses them) and their web placement here. The mechanism (engine.ts,
+ * dom.ts, src/components/tour/*) only walks TOUR_STEPS.
  *
  * Adding a step is a data change (the `overload-onboarding` skill describes
- * it): add an entry below, in the lifter's journey order, with a stable id;
- * if it points at a control that has no anchor yet, add the name to
+ * it): add its id, title, and body to TOUR_CONTENT, in the lifter's journey
+ * order, and its route and targets to PLACEMENT below (the type requires
+ * both); if it points at a control that has no anchor yet, add the name to
  * TOUR_ANCHORS and put `{...tourAnchor("name")}` on that element. Nothing in
  * the mechanism changes.
  *
@@ -17,6 +20,8 @@
  * verbatim, and a later pitch's added step is its design doc's "Tour steps
  * added" table (both pinned by tests/unit/tour-registry.test.ts).
  */
+
+import { TOUR_CONTENT, type TourStepId } from "@overload/shared/tour/content";
 
 export const TOUR_ANCHORS = [
   "today-heading",
@@ -69,16 +74,15 @@ export function tourAnchor(name: TourAnchor): { "data-tour": TourAnchor } {
 
 const RAIL = "right" as const;
 
-export const TOUR_STEPS: readonly TourStep[] = [
-  {
-    id: "today",
+/** Where each step lives on the web and what it can point at. */
+type TourPlacement = Pick<TourStep, "route" | "layout" | "targets">;
+
+const PLACEMENT: Record<TourStepId, TourPlacement> = {
+  today: {
     route: "/",
     targets: [{ anchor: "today-heading" }],
-    title: "Today",
-    body: "Each day starts here. When your plan has a workout today, it shows up below; rest days and finished days say so too.",
   },
-  {
-    id: "logging",
+  logging: {
     route: "/",
     targets: [
       { anchor: "today-start" },
@@ -87,88 +91,67 @@ export const TOUR_STEPS: readonly TourStep[] = [
         body: "When a workout is planned, it appears here with a Start button. Each exercise gets its own card where you enter the weight and reps you lifted, and Overload uses them to tell you when to progress, hold, or deload.",
       },
     ],
-    title: "Logging a workout",
-    body: "Start opens the workout one exercise at a time. On each card you enter the weight and reps you lifted, and Overload uses them to tell you when to progress, hold, or deload.",
   },
-  {
-    id: "navigation",
+  navigation: {
     route: "/",
     layout: "phone",
     targets: [{ anchor: "nav-menu" }],
-    title: "Getting around",
-    body: "Everything else is in this menu: Plan, History, Goals, Exercises, Gyms, and Settings.",
   },
-  {
-    id: "plan",
+  plan: {
     route: "/plan",
     targets: [{ anchor: "nav-plan", side: RAIL }, { anchor: "page-plan" }],
-    title: "Plan",
-    body: "Build your training here: a mesocycle of weeks, sessions on the days you train, and the sets and rep ranges for each exercise. Overload follows the plan you write.",
   },
-  {
-    // Workout Plan Import & Review (overload-onboarding, OVE-110): the Import
-    // existing plan action is easy to miss and is a Pro capability, so the tour
-    // points it out. The target renders only for a Pro account with import
-    // enabled; otherwise it is absent and the step is skipped. Copy is that
-    // design doc's "Tour steps added" table, verbatim.
-    id: "plan-import",
+  // The Import existing plan action is easy to miss and is a Pro
+  // capability, so the tour points it out. The target renders only for a Pro
+  // account with import enabled; otherwise it is absent and the step is
+  // skipped.
+  "plan-import": {
     route: "/plan",
     targets: [{ anchor: "plan-import" }],
-    title: "Import an existing plan",
-    body: "Already have a plan written down? Import it — paste it or upload a photo, review what we read, and nothing saves until you confirm.",
   },
-  {
-    id: "history",
+  history: {
     route: "/history",
     targets: [
       { anchor: "nav-history", side: RAIL },
       { anchor: "page-history" },
     ],
-    title: "History",
-    body: "Every workout you log is kept here, week by week. Open a day to see what you lifted or correct a set.",
   },
-  {
-    id: "goals",
+  goals: {
     route: "/goals",
     targets: [{ anchor: "nav-goals", side: RAIL }, { anchor: "page-goals" }],
-    title: "Goals",
-    body: "Set a weight-and-reps target for a lift and follow how close your best sets are getting.",
   },
-  {
-    // Exercise History & PR Intelligence (overload-onboarding, OVE-72): the
-    // history lives behind Exercises, which the tour didn't visit. Copy is
-    // that design doc's "Tour steps added" table, verbatim.
-    id: "exercises",
+  // The exercise history lives behind Exercises, which the tour didn't visit.
+  exercises: {
     route: "/exercises",
     targets: [
       { anchor: "nav-exercises", side: RAIL },
       { anchor: "page-exercises" },
     ],
-    title: "Exercises",
-    body: "Every exercise in the library, plus any you add. Open one to see its history: your sessions, best sets, the trend, and what to do next time.",
   },
-  {
-    id: "gyms",
+  gyms: {
     route: "/gyms",
     targets: [{ anchor: "nav-gyms", side: RAIL }, { anchor: "page-gyms" }],
-    title: "Gyms",
-    body: "Machines and cables vary from gym to gym, so Overload keeps their working weights per gym. Free weights count the same everywhere.",
   },
-  {
-    id: "plan-billing",
+  "plan-billing": {
     route: "/settings/billing",
     targets: [
       { anchor: "nav-billing", side: RAIL },
       { anchor: "page-billing" },
     ],
-    title: "Plan & Billing",
-    body: "Your plan lives here. New accounts get 14 days of Pro — after that you stay on Free with everything you've logged.",
   },
-  {
-    id: "settings",
+  settings: {
     route: "/settings",
     targets: [{ anchor: "settings-replay" }],
-    title: "Settings",
-    body: "Your name, timezone, and appearance live here, in the Account & app section of the navigation. Come back to replay this tour any time.",
   },
-];
+};
+
+/**
+ * The registry the tour walks: the shared words (@overload/shared/tour/content)
+ * joined to their web placement, in the shared journey order.
+ */
+export const TOUR_STEPS: readonly TourStep[] = TOUR_CONTENT.map((step) => ({
+  id: step.id,
+  ...PLACEMENT[step.id],
+  title: step.title,
+  body: step.body,
+}));

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { RELEASE_NOTES } from "@/lib/release-notes/entries";
+import { RELEASE_NOTES } from "@overload/shared/release-notes/entries";
+import { libFile, relToWeb, walkCode } from "../support/code-roots";
 
 /**
  * What's New — structural guards (spec §8, §14.1; R5, R21, R30).
@@ -15,34 +16,31 @@ import { RELEASE_NOTES } from "@/lib/release-notes/entries";
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
-const SRC = path.join(REPO_ROOT, "src");
 const read = (rel: string) =>
   fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
 
-function walk(dir: string, acc: string[] = []): string[] {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) walk(full, acc);
-    else if (/\.(ts|tsx)$/.test(entry.name)) acc.push(full);
-  }
-  return acc;
-}
 const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
 const importsOf = (src: string) =>
   [...src.matchAll(/(?:import|from)\s+["']([^"']+)["']/g)].map((m) => m[1]);
 
+// The release-note content and catalog live in the shared package since Pitch
+// 21b; libFile finds them there (and fails if they exist in both trees).
+const TYPES = relToWeb(libFile("release-notes/types.ts"));
+const ENTRIES = relToWeb(libFile("release-notes/entries.ts"));
+const CATALOG = relToWeb(libFile("release-notes/catalog.ts"));
+
 /** Modules a public (unauthenticated) changelog may import. */
 export const PUBLIC_SAFE = [
-  "src/lib/release-notes/types.ts",
-  "src/lib/release-notes/entries.ts",
-  "src/lib/release-notes/catalog.ts",
+  TYPES,
+  ENTRIES,
+  CATALOG,
   "src/components/release-notes/release-note.tsx",
 ];
 
 /** The What's New mechanism: none of it may name an entry. */
 export const MECHANISM = [
-  "src/lib/release-notes/types.ts",
-  "src/lib/release-notes/catalog.ts",
+  TYPES,
+  CATALOG,
   "src/lib/release-notes/seen.ts",
   "src/app/(app)/release-notes-actions.ts",
   "src/components/release-notes/release-note.tsx",
@@ -53,20 +51,15 @@ export const MECHANISM = [
 ];
 
 it("entries.ts imports only the entry type", () => {
-  expect(importsOf(read("src/lib/release-notes/entries.ts"))).toEqual([
-    "./types",
-  ]);
+  expect(importsOf(read(ENTRIES))).toEqual(["./types"]);
 });
 
 it("RELEASE_NOTES is read only by catalog.ts", () => {
-  const readers = walk(SRC)
+  const readers = walkCode()
     .filter((f) => /\bRELEASE_NOTES\b/.test(fs.readFileSync(f, "utf8")))
     .map(rel)
     .sort();
-  expect(readers).toEqual([
-    "src/lib/release-notes/catalog.ts",
-    "src/lib/release-notes/entries.ts",
-  ]);
+  expect(readers).toEqual([CATALOG, ENTRIES].sort());
 });
 
 it("the public-safe modules import nothing private", () => {
@@ -96,7 +89,7 @@ it("seen state stays server-only and is the only module that touches it", () => 
   expect(read("src/lib/release-notes/seen.ts")).toMatch(
     /^import "server-only";/,
   );
-  const touchers = walk(SRC)
+  const touchers = walkCode()
     .filter((f) => /\.releaseSeen\b/.test(fs.readFileSync(f, "utf8")))
     .map(rel)
     .sort();
@@ -143,7 +136,7 @@ it("nothing sends email or push", () => {
   // module is the only file allowed to name it; `resend` stays forbidden
   // everywhere else, and no email/push SDK is ever a dependency.
   const EMAIL_SENDER_EXEMPT = "src/lib/accounts/verification.ts";
-  const offenders = walk(SRC)
+  const offenders = walkCode()
     .filter((f) => rel(f) !== EMAIL_SENDER_EXEMPT)
     .filter((f) =>
       /\b(resend|nodemailer|web-push|PushManager|showNotification)\b/i.test(

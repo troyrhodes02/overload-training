@@ -4,11 +4,8 @@
  * date, note, e1RM, or percent can ever be submitted. Limits mirror LoggedSet
  * (weight > 0 and ≤ 9999.99 lb; reps a whole number 1–1000).
  */
-import { LOGGED_REPS_MAX } from "@overload/shared/logging/reps";
-import {
-  checkWeightLbs,
-  WEIGHT_LBS_MAX,
-} from "@overload/shared/logging/weight";
+import { LOGGED_REPS_MAX } from "../logging/reps";
+import { checkWeightLbs, WEIGHT_LBS_MAX } from "../logging/weight";
 
 /** Same storable limit as a logged set (one shared rule, OVE-135). */
 export const GOAL_WEIGHT_MAX_LBS = WEIGHT_LBS_MAX;
@@ -72,15 +69,5 @@ export function parseGoalInput(
   return {
     ok: true,
     value: { exerciseId, gymId, targetWeightLbs: weight, targetReps: reps },
-  };
-}
-
-/** Reads the goal form. Only these four fields are ever read. */
-export function goalInputFromFormData(formData: FormData): RawGoalInput {
-  return {
-    exerciseId: formData.get("exerciseId") ?? "",
-    gymId: formData.get("gymId") ?? "",
-    targetWeightLbs: formData.get("targetWeightLbs") ?? "",
-    targetReps: formData.get("targetReps") ?? "",
   };
 }

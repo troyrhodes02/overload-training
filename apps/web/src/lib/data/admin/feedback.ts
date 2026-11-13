@@ -8,7 +8,7 @@ import {
   type FeedbackRowDto,
   type FeedbackView,
 } from "@/lib/admin/types";
-import { isFeedbackCategory } from "@/lib/feedback/validation";
+import { isFeedbackCategory } from "@overload/shared/feedback/validation";
 import { adminDb, inAdminTx, type AdminDb } from "./db";
 import { recordAudit } from "./audit";
 import { auditLines } from "./audit-read";

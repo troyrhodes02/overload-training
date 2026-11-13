@@ -29,7 +29,7 @@ import {
   PASSWORDS_DIFFER,
   USERNAME_TAKEN,
   weakPasswordMessage,
-} from "./validation";
+} from "@overload/shared/accounts/validation";
 
 /**
  * Self-signup (OVE-50; extended by Public Accounts, spec §9, R1). Order

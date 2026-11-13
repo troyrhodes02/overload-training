@@ -1,4 +1,4 @@
-import { classifySignInError } from "@/lib/accounts/auth-errors";
+import { classifySignInError } from "@overload/shared/accounts/auth-errors";
 
 /** Pure input parsing for the login form, unit-testable without Supabase. */
 export type ParsedCredentials =

@@ -3,33 +3,19 @@
  * plain English; field-level problems go in `details`. Raw database or Prisma
  * errors never reach the client.
  */
-export type ErrorCode =
-  | "validation_error"
-  | "not_found"
-  | "invalid_state_transition"
-  | "conflict"
-  // Plans, Billing & Promo Codes: the capability that gates this operation is
-  // not part of the account's plan (api-conventions: 402). A Free account that
-  // reaches a Pro-only server action gets this; Pro read surfaces withhold in
-  // the query layer instead.
-  | "plan_required"
-  // Workout Plan Import & Review (Pitch 22, spec §11): the feature kill switch is
-  // off, the monthly budget is exhausted, or the provider is unconfigured — the
-  // import can't run right now. Distinct from plan_required (a capability gate).
-  | "import_unavailable"
-  // Workout Plan Import & Review: the per-account daily import quota is spent.
-  | "rate_limited"
-  | "unauthorized"
-  | "internal_error";
+import type {
+  ActionResult,
+  ErrorCode,
+} from "@overload/shared/contracts/errors";
 
-export type ActionError = {
-  code: ErrorCode;
-  message: string;
-  details?: Record<string, string>;
-};
-
-export type ActionResult<T> =
-  { ok: true; data: T } | { ok: false; error: ActionError };
+// The error codes and the result shape are the shared API contract (Pitch
+// 21b); re-exported so every server action keeps importing them from here.
+export type {
+  ActionError,
+  ActionResult,
+  ErrorCode,
+} from "@overload/shared/contracts/errors";
+export { isUuid } from "@overload/shared/ids";
 
 /** A failure the write modules raise deliberately, with a user-safe message. */
 export class DomainError extends Error {
@@ -71,13 +57,6 @@ export async function toActionResult<T>(
       error: { code: "internal_error", message: internalMessage },
     };
   }
-}
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export function isUuid(value: unknown): value is string {
-  return typeof value === "string" && UUID_RE.test(value);
 }
 
 /**

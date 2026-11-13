@@ -1,4 +1,4 @@
-import { isValidTimeZone } from "@overload/shared/plan/calendar";
+import { isValidTimeZone } from "../plan/calendar";
 
 /**
  * Pure input rules for account forms (Accounts spec §12). Shared by the

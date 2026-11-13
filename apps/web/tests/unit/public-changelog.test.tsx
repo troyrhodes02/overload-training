@@ -9,7 +9,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { RELEASE_NOTES } from "@/lib/release-notes/entries";
+import { RELEASE_NOTES } from "@overload/shared/release-notes/entries";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const read = (rel: string) =>
@@ -40,7 +40,7 @@ const FIXTURE = [
 
 afterEach(() => {
   jest.resetModules();
-  jest.dontMock("@/lib/release-notes/entries");
+  jest.dontMock("@overload/shared/release-notes/entries");
 });
 
 async function render(
@@ -48,7 +48,7 @@ async function render(
   entries?: readonly (typeof FIXTURE)[number][],
 ) {
   if (entries) {
-    jest.doMock("@/lib/release-notes/entries", () => ({
+    jest.doMock("@overload/shared/release-notes/entries", () => ({
       RELEASE_NOTES: entries,
     }));
   }
@@ -112,7 +112,8 @@ describe("reads nothing about the visitor", () => {
       [
         "@/components/release-notes/release-note",
         "@/lib/marketing/site",
-        "@/lib/release-notes/catalog",
+        // The catalog is shared content since Pitch 21b.
+        "@overload/shared/release-notes/catalog",
       ].sort(),
     );
     expect(read(CHANGELOG)).not.toMatch(

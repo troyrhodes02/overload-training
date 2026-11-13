@@ -34,7 +34,7 @@ import {
 import {
   EXERCISE_NAME_MAX,
   parseCustomExerciseInput,
-} from "@/lib/exercises/validation";
+} from "@overload/shared/exercises/validation";
 
 type Field = "name" | "primaryMuscle" | "equipmentType" | "secondaryMuscles";
 const FIELD_ORDER: Field[] = [

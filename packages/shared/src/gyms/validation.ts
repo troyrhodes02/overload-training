@@ -36,11 +36,3 @@ export function parseGymInput(
     value: { name, address: addressRaw.length > 0 ? addressRaw : null },
   };
 }
-
-/** Reads the gym form. Only these two fields are ever read. */
-export function gymInputFromFormData(formData: FormData): RawGymInput {
-  return {
-    name: formData.get("name") ?? "",
-    address: formData.get("address") ?? "",
-  };
-}

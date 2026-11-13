@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { GOAL_REPS_MAX } from "@/lib/goals/validation";
+import { GOAL_REPS_MAX } from "@overload/shared/goals/validation";
 import {
   checkLoggedReps,
   LOGGED_REPS_MAX,

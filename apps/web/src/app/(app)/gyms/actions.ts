@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { archiveGym, createGym, restoreGym } from "@/lib/gyms/gyms";
-import { gymInputFromFormData } from "@/lib/gyms/validation";
+import { gymInputFromFormData } from "@/lib/gyms/form-data";
 
 /*
  * Gym server actions. Each one re-checks the auth session FIRST, then calls

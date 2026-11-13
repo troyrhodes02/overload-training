@@ -28,7 +28,7 @@ import {
   USERNAME_HELP,
   USERNAME_MAX,
   type ProfileInput,
-} from "@/lib/accounts/validation";
+} from "@overload/shared/accounts/validation";
 
 type Props = ProfileInput & {
   email: string;

@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { checkEmail } from "@/lib/accounts/validation";
+import { checkEmail } from "@overload/shared/accounts/validation";
 
 const CHALLENGE_FAILED = "Couldn't verify you're human. Try again.";
 

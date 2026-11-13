@@ -1,7 +1,7 @@
 import {
   publicReleaseNotes,
   toReleaseNoteView,
-} from "@/lib/release-notes/catalog";
+} from "@overload/shared/release-notes/catalog";
 import { ReleaseNote } from "@/components/release-notes/release-note";
 import { publicPageMetadata } from "@/lib/marketing/site";
 

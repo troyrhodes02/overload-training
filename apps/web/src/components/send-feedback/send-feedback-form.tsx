@@ -11,7 +11,7 @@ import {
   FEEDBACK_CATEGORIES,
   FEEDBACK_CATEGORY_LABELS,
   FEEDBACK_MESSAGE_MAX,
-} from "@/lib/feedback/validation";
+} from "@overload/shared/feedback/validation";
 import { ScreenshotPicker } from "@/components/send-feedback/screenshot-picker";
 import { StickyActions } from "@/components/plan/plan-bits";
 import { Alert, AlertDescription } from "@/components/ui/alert";

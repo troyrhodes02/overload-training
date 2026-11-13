@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
-import { screenshotExtension } from "./attachment-validation";
+import { screenshotExtension } from "@overload/shared/feedback/attachment-validation";
 
 /**
  * Feedback screenshot Storage (Admin Center & Feedback). The ONE module besides

@@ -2,7 +2,7 @@ import {
   isNewer,
   unseenSignificant,
   type ReleaseNoteEntry,
-} from "@/lib/release-notes/catalog";
+} from "@overload/shared/release-notes/catalog";
 
 /**
  * What's New — which entries open the dialog (spec §11; R11, R12). Pure:
