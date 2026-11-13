@@ -70,7 +70,7 @@ On top of the moved modules the package gains four things that did not exist as 
 | **Contract** | A type under `src/contracts/` describing a mobile API request or response body. JSON-safe: strings, numbers, booleans, `null`, arrays, and plain objects only. Types only; no runtime code except the error-code tuple. |
 | **Wire date conventions** | `IsoDate` (`"YYYY-MM-DD"`, a calendar date in the account's time zone) and `IsoDateTime` (an ISO-8601 instant with offset, `Date.prototype.toISOString()` form). Both are `string` aliases that document intent. A field is one or the other, never both. |
 | **Missing vs zero** | `null` means not recorded or none (bodyweight weight, unrecorded RIR, no performance yet, no gym). Optional (`?`) is used only where the web DTO already omits the key. Zero is only a real zero. |
-| **Locked result** | A gated Pro DTO keeps the shape the web's gate produces: `locked: true` and the Pro fields `null`. Contracts never describe an unlocked shape the server did not choose. |
+| **Locked result** | A gated Pro DTO keeps the shape the web's gate produces: `locked` is the capability that withheld it (`Capability | null`), and the Pro fields are `null` when locked. Contracts never describe an unlocked shape the server did not choose. |
 | **Design tokens** | Plain values in `src/design/tokens.ts`. The web's `globals.css` stays the styling source; a test checks it matches the tokens. |
 
 ## 5. Module plan
@@ -162,7 +162,7 @@ Web-only enums, deliberately not shared: `SignupCampaign`, `EntitlementSource`, 
 
 | File | Contents |
 | --- | --- |
-| `wire.ts` | `IsoDate`, `IsoDateTime`, `JsonValue`, and the compile-time `JsonSafe<T>` check used by the contract tests. |
+| `wire.ts` | `IsoDate`, `IsoDateTime`, `JsonValue`, and the compile-time `IsJsonSafe<T>` check used by the contract tests (unions are checked member by member). |
 | `errors.ts` | `ERROR_CODES` tuple, `ErrorCode`, `ActionError`, `ActionResult<T>` (moved from `actions/result`), `API_ERROR_CODES` = the action codes plus `account_suspended` and `upgrade_required`, `ApiErrorCode`, `ApiError`, `ApiErrorBody = { error: ApiError }`. |
 | `app-config.ts` | `AppConfigDto`: `minimumAppVersion`, `latestAppVersion`, `killSwitches: { planImportEnabled, maintenance }`, `signupMode: "public" | "closed"` (never the invite code). |
 | `account.ts` | `EntitlementDto` (the wire form of `ResolvedEntitlement`: `capabilities: Capability[]`), `ProfileDto` (= `SettingsProfile`), `MeDto`, `MePlanDto` (read-only projection of the billing screen: no prices, no `canSubscribe`, no promo), `AccountInventoryDto`, `TourStateDto`, `TrialNoticeDto`. |
@@ -175,7 +175,8 @@ Web-only enums, deliberately not shared: `SignupCampaign`, `EntitlementSource`, 
 | `goals.ts` | `GoalContextDto`, `GoalBestDto`, `ActiveGoalDto`, `GoalHistoryDto`, `GoalReachedDto`, `GoalDetailDto`, `SessionGoalRowDto`, `GoalFormContextDto`, `ExerciseGoalsDto` (from `goals/queries.ts`). |
 | `gyms.ts` | `GymListItemDto` (from `gyms/queries.ts`). |
 | `release-notes.ts` | `ReleaseNoteView` re-export; `ReleaseNotesDto`. |
-| `requests.ts` | Request bodies for the audit's endpoints (§11): moved lib input types (`LogSetInput` and siblings) plus the bodies that have no lib type yet. |
+| `requests.ts` | Request bodies for the audit's endpoints (§11): moved lib input types (`LogSetInput`, `EditLoggedSetInput`) plus the bodies that have no lib type yet. |
+| `views.ts` | Composite responses 21c assembles from existing contracts: `TodayDto`, `WorkoutViewDto`, `LoggedWorkoutDetailViewDto`, `LoggedSetDto`. |
 
 Each web query module imports its DTO types from the contracts and re-exports them (`export type { … }`), so existing importers are unchanged and the function's declared return type is the contract.
 
@@ -255,7 +256,7 @@ export type IsoDate = string;
 export type IsoDateTime = string;
 
 /** Compile-time: T contains only JSON values (no Date, Set, Map, function, bigint, undefined-only key). */
-export type JsonSafe<T> = /* recursive conditional type */;
+export type IsJsonSafe<T> = /* recursive conditional type; true or false */;
 ```
 
 Rules every contract follows:
@@ -263,7 +264,7 @@ Rules every contract follows:
 1. No `Date`, `Set`, `Map`, `bigint`, class instance, or function. The web's `ResolvedEntitlement.capabilities` (`ReadonlySet`) is not a contract; `EntitlementDto.capabilities` is `Capability[]`.
 2. Calendar dates (`scheduledFor`, `missedOn`, `today`, week starts, `dateIso`, release dates) are `IsoDate`. Instants (`completedAt`, `createdAt` where exposed) are `IsoDateTime`. Human-readable labels the server already builds (`createdLabel`, `endsOn` "December 4, 2026") stay strings and are documented as display text.
 3. `null` = not recorded / none; `0` = zero. Weights in pounds, at most two decimals. RIR `0..4` or `null`.
-4. Gated DTOs keep `locked: boolean` and `null` Pro fields, exactly as `gatePlanned`/`gateOccurrence`/`gateSessionSummary`/`gateHistory` return them.
+4. Gated DTOs keep `locked` (the withholding `Capability`, or `null`) and `null` Pro fields when locked, exactly as `gatePlanned`/`gateOccurrence`/`gateSessionSummary`/`gateHistory` return them.
 5. Enum-valued fields use the registry unions, never `@prisma/client` types.
 6. Within API v1, contract changes are additive only (new optional fields, new union members only where clients handle unknowns). This is a 21c+ rule recorded here so contract edits follow it.
 
@@ -294,7 +295,7 @@ Time-zone-sensitive cases (`time-zone.test.ts`, `logging-schedule.test.ts`, `his
 | `tests/unit/reps-rule.test.ts` | `checkLoggedReps` accepts 1–1000 integers and refuses 0, negatives, fractions, 1001, `NaN`, non-numbers with "Enter reps above 0."; `logSet` validation and the card use it; `GOAL_REPS_MAX === LOGGED_REPS_MAX`. |
 | `tests/unit/enum-parity.test.ts` (extended) | Every registry tuple equals its `Prisma.$Enums` values; every Prisma enum is in the shared list or the web-only list; the former type mirrors equal the registry unions. |
 | `tests/unit/design-tokens.test.ts` | Each `globals.css` block (`:root`, `.dark`, and the dark media query) equals `colors.light`/`colors.dark`; `--radius` equals `radius.lg`; `THEME_COLORS` equals the token backgrounds. |
-| `tests/unit/mobile-contracts.test.ts` | Every exported contract is `JsonSafe`; date fields are `string`; gated DTOs carry `locked`; `ApiErrorBody` codes include every action `ErrorCode` plus the two API codes; the contract source contains no `Date` type. |
+| `tests/unit/mobile-contracts.test.ts` | Every exported contract is `IsJsonSafe` (compile-time); date fields are `string`; gated DTOs carry `locked`; `ApiErrorBody` codes include every action `ErrorCode` plus the two API codes; the contract source contains no `Date` type. |
 | `tests/unit/shared-package-guards.test.ts` | No moved module exists at its old web path; no web file defines a moved rule again (`estimateOneRepMax`, `isGymVariable`, `checkWeightLbs`, `WEIGHT_LBS_MAX`, the 1000 reps bound, a weight formatter body); the web declares and transpiles `@overload/shared`; web files import moved modules from `@overload/shared/…` only; the shared package has no API route code and no Prisma-reaching import. |
 | `scripts/workspace-boundaries.test.mjs` (extended) | B3e: `process.env.X` other than `NODE_ENV` in shared source fails; `NODE_ENV` passes. |
 
@@ -393,7 +394,9 @@ Spike on 2026-11-12 (moving `plan/calendar`): Jest (mapper), web `tsc` (bundler 
 | RD-22 | Tokens are values in `src/design/tokens.ts`; `globals.css` stays the web's styling source and a parity test keeps them equal; `THEME_COLORS` reads the tokens. Generating CSS from tokens is not done. | Pre-resolved 9 ("without replacing Tailwind"); the audit offers parity test or generation, and the test changes nothing visible. | Pre-resolved 9; audit §6 |
 | RD-23 | `greeting.ts`, `library-params.ts`, plan-import pure parts, `tour/engine.ts`, `gyms/baselines.ts` stay in the web. | Not needed by any planned mobile surface before 21c decides (greeting is server-built), or web-only, or server-only. | Audit §4; RD-3 |
 | RD-24 | No runbook action beyond staging verification: no migration, env change, Vercel change, Expo or TestFlight step. | Pre-resolved 10. | Pre-resolved 10 |
-| RD-25 | Tickets: four, in dependency order — (1) wiring + plan/logging/cardio/exercise rules, (2) progression engine, goals, and the formatter/reps consolidation, (3) validation splits, errors, plans/capabilities, content, appearance, tokens, (4) enum registry, contracts, final guards and runbook. | Grouped by module family and import dependency (progression imports plan and logging; contracts import everything). | Run prompt step 6 |
+| RD-25 | Tickets: four, in dependency order — OVE-168 (wiring + plan/logging/cardio/exercise rules), OVE-169 (progression engine, goals, and the formatter/reps consolidation), OVE-170 (validation splits, errors, content, appearance, tokens), OVE-171 (enum registry, contracts, final guards, runbook). | Grouped by module family and import dependency (progression imports plan and logging; contracts import everything). | Run prompt step 6 |
+| RD-26 | The hand-written enum mirrors found while building the registry also point at it: `MesocycleStatusValue` (plan queries, row locks), the schedule's outcome and status, `Plan`, `TourOutcomeValue` (tour progress), and `DashboardKind` (= `DashboardDto["kind"]`). Type-only; equal by the parity test. | Audit D-6: one definition per enum. | Pre-resolved 7 |
+| RD-27 | Contract count: 89 exported types across 14 contract files (the roadmap's "about 50" was an estimate). `BlockRef`, `WhatsNewDialogData`, `TrialNoticePhase`, `TrialNoticeData`, `EmailVerificationDto`, and `MissedDayResolutionDto` moved with the DTOs that reference them so every server-built shape has one definition. | The audit is authoritative for the inventory; the count is not a target. | Run prompt ("approximate DTO count") |
 
 ## Open questions
 

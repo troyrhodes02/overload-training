@@ -7,22 +7,8 @@ import {
   parseProfileInput,
   type ProfileInput,
 } from "@overload/shared/accounts/validation";
-
-/**
- * The acting account's profile (Accounts spec §11; OVE-50): first name, last
- * name, username, and the IANA timezone that is the only authority for
- * "today". Reached only through the account-scoped client, so another
- * account's profile cannot be read or written from here. Email and password
- * live in Supabase Auth.
- */
-
-export type SettingsProfile = {
-  firstName: string;
-  lastName: string;
-  /** "" for an account made before usernames: it picks one in Settings. */
-  username: string;
-  timeZone: string;
-};
+import type { SettingsProfile } from "@overload/shared/contracts/account";
+export type { SettingsProfile } from "@overload/shared/contracts/account";
 
 export async function getSettingsProfile(
   account: Account,

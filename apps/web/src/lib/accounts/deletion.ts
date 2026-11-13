@@ -9,6 +9,8 @@ import {
   type DeletionBillingDeps,
 } from "@/lib/billing/cancel-on-deletion";
 import { stripeDeletionDeps } from "@/lib/billing/stripe";
+import type { AccountInventoryDto } from "@overload/shared/contracts/account";
+export type { AccountInventoryDto } from "@overload/shared/contracts/account";
 
 /**
  * THE ACCOUNT-DELETION MODULE (CLAUDE.md first invariant; Accounts spec R12).
@@ -190,16 +192,6 @@ export async function deleteAccount(
   }
   return { deleted, identityRemoved };
 }
-
-export type AccountInventoryDto = {
-  mesocycles: number;
-  loggedSessions: number;
-  loggedSets: number;
-  goals: number;
-  gyms: number;
-  customExercises: number;
-  cardioLogs: number;
-};
 
 /** What deletion would destroy, counted on read (the delete page). */
 export async function accountInventory(

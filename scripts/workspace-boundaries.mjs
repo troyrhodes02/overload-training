@@ -9,6 +9,9 @@
  *   B2  the root has no runtime dependencies, only repository-wide tooling
  *   B3  packages/shared depends on and imports nothing server-, framework-,
  *       renderer- or Node-specific
+ *   B3e packages/shared reads no environment: `process` appears only as
+ *       `process.env.NODE_ENV` (a build-time constant every bundler inlines),
+ *       declared once in src/env.d.ts (Pitch 21b spec RD-7)
  *   B4  apps/mobile (once it has a manifest) depends on no server module
  *   B5  nothing depends on the web app
  *   B6  no manifest declares a scheduler or queue (CLAUDE.md: rejected infra)
@@ -220,6 +223,26 @@ export function checkBoundaries(repo) {
     }
   }
 
+  // B3e
+  for (const { file, code } of sharedSources) {
+    const stripped = stripComments(code);
+    if (file === SHARED_ENV_DECLARATION) {
+      if (
+        stripped.replace(/\s+/g, " ").trim() !== SHARED_ENV_DECLARATION_CODE
+      ) {
+        errors.push(
+          `B3e: ${file} may declare only \`${SHARED_ENV_DECLARATION_CODE}\`.`,
+        );
+      }
+      continue;
+    }
+    if (/\bprocess\b(?!\.env\.NODE_ENV\b)/.test(stripped)) {
+      errors.push(
+        `B3e: ${file} uses \`process\` other than process.env.NODE_ENV; shared code reads no environment (it also runs on Hermes).`,
+      );
+    }
+  }
+
   // B4
   const mobile = workspaces.find((w) => w.dir === "apps/mobile");
   if (mobile) {
@@ -294,6 +317,18 @@ export function checkBoundaries(repo) {
   }
 
   return errors;
+}
+
+/** B3e: the one ambient `process` declaration the shared package may hold. */
+export const SHARED_ENV_DECLARATION = "packages/shared/src/env.d.ts";
+export const SHARED_ENV_DECLARATION_CODE =
+  "declare const process: { readonly env: { readonly NODE_ENV?: string } };";
+
+/** Source without block or line comments (comments may name what they forbid). */
+export function stripComments(code) {
+  return code
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
 /**

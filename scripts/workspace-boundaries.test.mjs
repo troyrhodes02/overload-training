@@ -142,6 +142,40 @@ describe("workspace boundaries", () => {
     }
   });
 
+  it("B3e: shared source reads no environment except NODE_ENV", () => {
+    for (const code of [
+      "const url = process.env.NEXT_PUBLIC_SUPABASE_URL;",
+      'const key = process.env["STRIPE_KEY"];',
+      "const cwd = process.cwd();",
+      "export const env = process.env;",
+    ]) {
+      const r = repo();
+      r.sharedSources.push({ file: "packages/shared/src/bad.ts", code });
+      fails(r, "B3e");
+    }
+    const ok = repo();
+    ok.sharedSources.push({
+      file: "packages/shared/src/ok.ts",
+      code: '// process.env.SECRET in a comment is fine\nif (process.env.NODE_ENV !== "production") {}',
+    });
+    assert.deepEqual(checkBoundaries(ok), []);
+  });
+
+  it("B3e: the ambient declaration may declare NODE_ENV only", () => {
+    const ok = repo();
+    ok.sharedSources.push({
+      file: "packages/shared/src/env.d.ts",
+      code: "// why\ndeclare const process: { readonly env: { readonly NODE_ENV?: string } };\n",
+    });
+    assert.deepEqual(checkBoundaries(ok), []);
+    const wide = repo();
+    wide.sharedSources.push({
+      file: "packages/shared/src/env.d.ts",
+      code: "declare const process: { env: Record<string, string> };",
+    });
+    fails(wide, "B3e");
+  });
+
   it("B4: the mobile app may not depend on server modules", () => {
     for (const dep of [
       "@prisma/client",

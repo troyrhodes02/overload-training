@@ -9,7 +9,10 @@
  * this map to unlock anything.
  */
 
-export type Plan = "free" | "pro";
+import type { PlanValue } from "../enums";
+
+/** The plan names (Prisma enum `Plan`, via the shared enum registry). */
+export type Plan = PlanValue;
 
 /**
  * Named product capabilities (spec RD-1). Server code checks these, never a
