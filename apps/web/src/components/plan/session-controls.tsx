@@ -48,9 +48,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DAYS_OF_WEEK, dayName } from "@/lib/plan/calendar";
+import { DAYS_OF_WEEK, dayName } from "@overload/shared/plan/calendar";
 import type { DayOccupancyDto } from "@/lib/plan/queries";
-import { PLAN_NAME_MAX } from "@/lib/plan/validation";
+import { PLAN_NAME_MAX } from "@overload/shared/plan/validation";
 import { cn } from "@/lib/utils";
 
 export type SessionRef = {

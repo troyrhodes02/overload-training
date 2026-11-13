@@ -3,15 +3,16 @@ import { cache } from "react";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
-import { isoDateInZone } from "@/lib/plan/calendar";
+import { isoDateInZone } from "@overload/shared/plan/calendar";
 import {
   isNewer,
   orderedReleaseNotes,
   toReleaseNoteView,
   unseenSignificant,
   type ReleaseNoteEntry,
-  type ReleaseNoteView,
-} from "./catalog";
+} from "@overload/shared/release-notes/catalog";
+import type { WhatsNewDialogData } from "@overload/shared/contracts/release-notes";
+export type { WhatsNewDialogData } from "@overload/shared/contracts/release-notes";
 
 /**
  * The acting account's What's New state (What's New spec §11; R9–R14). One
@@ -21,14 +22,6 @@ import {
  * or detect another's. This module is server-only and is the one place seen
  * state lives: the content modules (catalog.ts, entries.ts) never import it.
  */
-
-/** What the shell's dialog needs: the unseen significant entries + the mark. */
-export type WhatsNewDialogData = {
-  /** At least one, newest first, significant only. */
-  entries: ReleaseNoteView[];
-  /** The catalog's newest entry id when the page rendered (R13). */
-  throughId: string;
-};
 
 /**
  * The acting account's dialog content, or null when nothing significant is

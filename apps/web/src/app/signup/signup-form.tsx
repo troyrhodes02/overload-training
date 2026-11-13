@@ -31,7 +31,7 @@ import {
   PROFILE_NAME_MAX,
   USERNAME_HELP,
   USERNAME_MAX,
-} from "@/lib/accounts/validation";
+} from "@overload/shared/accounts/validation";
 
 const initial: SignUpState = {
   status: "idle",

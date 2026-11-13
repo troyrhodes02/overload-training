@@ -39,8 +39,8 @@ import {
   CardioActivityInput,
   MinutesInput,
 } from "@/components/cardio/cardio-fields";
-import { DAYS_OF_WEEK, dayName } from "@/lib/plan/calendar";
-import { parseCardioEntry } from "@/lib/cardio/validation";
+import { DAYS_OF_WEEK, dayName } from "@overload/shared/plan/calendar";
+import { parseCardioEntry } from "@overload/shared/cardio/validation";
 import type { PlannedCardioDto } from "@/lib/plan/queries";
 import { CardioLineContent } from "./cardio-line";
 

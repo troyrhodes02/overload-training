@@ -9,6 +9,9 @@
  *   B2  the root has no runtime dependencies, only repository-wide tooling
  *   B3  packages/shared depends on and imports nothing server-, framework-,
  *       renderer- or Node-specific
+ *   B3e packages/shared reads no environment: `process` appears only as
+ *       `process.env.NODE_ENV` (a build-time constant every bundler inlines),
+ *       declared once in src/env.d.ts (Pitch 21b spec RD-7)
  *   B4  apps/mobile (once it has a manifest) depends on no server module
  *   B5  nothing depends on the web app
  *   B6  no manifest declares a scheduler or queue (CLAUDE.md: rejected infra)
@@ -16,7 +19,7 @@
  *       react / react-dom in the lockfile, so the install has one React runtime
  */
 import fs from "node:fs";
-import { builtinModules } from "node:module";
+import { builtinModules, createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -220,6 +223,11 @@ export function checkBoundaries(repo) {
     }
   }
 
+  // B3e
+  for (const { file, code } of sharedSources) {
+    errors.push(...envViolations(file, code).map((m) => `B3e: ${m}`));
+  }
+
   // B4
   const mobile = workspaces.find((w) => w.dir === "apps/mobile");
   if (mobile) {
@@ -294,6 +302,102 @@ export function checkBoundaries(repo) {
   }
 
   return errors;
+}
+
+/** B3e: the one ambient `process` declaration the shared package may hold. */
+export const SHARED_ENV_DECLARATION = "packages/shared/src/env.d.ts";
+export const SHARED_ENV_DECLARATION_CODE =
+  "declare const process: { readonly env: { readonly NODE_ENV?: string } };";
+
+/**
+ * TypeScript's parser, resolved from the shared package that declares it as a
+ * devDependency (this script itself has no dependencies). B3e reads the
+ * syntax tree, so the word "process" in a string or a comment never counts,
+ * and a comment-like sequence inside a string can never hide real code.
+ */
+let typescript;
+function ts() {
+  if (!typescript) {
+    const require = createRequire(
+      path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "packages",
+        "shared",
+        "package.json",
+      ),
+    );
+    typescript = require("typescript");
+  }
+  return typescript;
+}
+
+/**
+ * B3e: every reference to the `process` global in a shared source file that is
+ * not exactly `process.env.NODE_ENV`, as messages. The one ambient declaration
+ * (src/env.d.ts) must be exactly SHARED_ENV_DECLARATION_CODE.
+ */
+export function envViolations(file, code) {
+  const t = ts();
+  const source = t.createSourceFile(file, code, t.ScriptTarget.Latest, true);
+  if (file === SHARED_ENV_DECLARATION) {
+    const statements = source.statements.map((st) =>
+      st.getText(source).replace(/\s+/g, " ").trim(),
+    );
+    return statements.length === 1 &&
+      statements[0] === SHARED_ENV_DECLARATION_CODE
+      ? []
+      : [`${file} may declare only \`${SHARED_ENV_DECLARATION_CODE}\`.`];
+  }
+  const found = [];
+  const visit = (node) => {
+    if (
+      t.isIdentifier(node) &&
+      node.text === "process" &&
+      isReference(t, node)
+    ) {
+      const env = node.parent;
+      const ok =
+        t.isPropertyAccessExpression(env) &&
+        env.expression === node &&
+        env.name.text === "env" &&
+        t.isPropertyAccessExpression(env.parent) &&
+        env.parent.expression === env &&
+        env.parent.name.text === "NODE_ENV";
+      if (!ok) {
+        const { line } = source.getLineAndCharacterOfPosition(node.getStart());
+        found.push(
+          `${file}:${line + 1} uses \`process\` other than process.env.NODE_ENV; shared code reads no environment (it also runs on Hermes).`,
+        );
+      }
+    }
+    t.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
+/**
+ * Whether an identifier refers to a binding: not a property name (`x.process`)
+ * or a declared key (`{ process: 1 }`). A shorthand `{ process }` reads the
+ * binding, so it counts.
+ */
+function isReference(t, node) {
+  const p = node.parent;
+  if (!p) return true;
+  if (t.isPropertyAccessExpression(p) && p.name === node) return false;
+  if (t.isQualifiedName(p) && p.right === node) return false;
+  if (
+    (t.isPropertyAssignment(p) ||
+      t.isPropertySignature(p) ||
+      t.isPropertyDeclaration(p) ||
+      t.isMethodDeclaration(p) ||
+      t.isMethodSignature(p) ||
+      t.isEnumMember(p)) &&
+    p.name === node
+  )
+    return false;
+  return true;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/data/admin/identity";
 import { listAccounts, parseDirectoryQuery } from "@/lib/data/admin/accounts";
-import { todayIso } from "@/lib/plan/calendar";
+import { todayIso } from "@overload/shared/plan/calendar";
 import { AccountDirectory } from "@/components/admin/account-directory";
 
 type PageProps = {

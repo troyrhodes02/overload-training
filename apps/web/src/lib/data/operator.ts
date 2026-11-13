@@ -1,6 +1,6 @@
 import "server-only";
 import type { PrismaClient } from "@prisma/client";
-import { isValidTimeZone } from "@/lib/plan/calendar";
+import { isValidTimeZone } from "@overload/shared/plan/calendar";
 import { createAccountClient } from "./account-db";
 import type { Account } from "./account";
 

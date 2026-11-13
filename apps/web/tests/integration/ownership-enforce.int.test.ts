@@ -13,7 +13,7 @@ import { recordTourOutcome } from "@/lib/tour/progress";
 import { markReleaseNotesSeen } from "@/lib/release-notes/seen";
 import { RELEASE_NOTES_FIXTURE } from "./support/release-notes";
 import { listMesocyclesForHome } from "@/lib/plan/queries";
-import { addDays } from "@/lib/plan/calendar";
+import { addDays } from "@overload/shared/plan/calendar";
 import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 import {

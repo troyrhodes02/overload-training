@@ -2,9 +2,9 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
-import { parseCardioEntry } from "@/lib/cardio/validation";
-import { dayName } from "./calendar";
-import { parseDayOfWeek } from "./validation";
+import { parseCardioEntry } from "@overload/shared/cardio/validation";
+import { dayName } from "@overload/shared/plan/calendar";
+import { parseDayOfWeek } from "@overload/shared/plan/validation";
 import {
   inTx,
   invalid,

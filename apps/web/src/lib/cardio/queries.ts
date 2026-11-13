@@ -5,21 +5,17 @@ import {
   formatPlanDate,
   parseIsoDate,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import type { ScheduleContext } from "@/lib/logging/schedule";
-import { cardioWeekEntries, type CardioEntry } from "./schedule";
+} from "@overload/shared/plan/calendar";
+import type { ScheduleContext } from "@overload/shared/logging/schedule";
+import { cardioWeekEntries } from "@overload/shared/cardio/schedule";
+import type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
+export type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
 
 /**
  * Cardio reads for the dashboard and history (Cardio Logging spec §13). Facts
  * and the effective-schedule view only — nothing here is derived performance:
  * no trend, total, streak, or comparison beyond "differs from plan".
  */
-
-export type CardioOccurrenceDto = CardioEntry & {
-  mesocycleId: string;
-  /** "Tue, Oct 13" — the effective date. */
-  dateLabel: string;
-};
 
 /** The cardio entries of one week of the given (active) mesocycle. */
 export async function getCardioWeek(

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { libFile, relToWeb, walkCode } from "../support/code-roots";
 
 /**
  * Library & Gyms Setup — deliberate absences. This feature builds the exercise
@@ -9,20 +10,21 @@ import path from "node:path";
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const SRC = path.join(REPO_ROOT, "src");
 
-function walk(dir: string, acc: string[] = []): string[] {
-  if (!fs.existsSync(dir)) return acc;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) walk(full, acc);
-    else if (/\.(ts|tsx)$/.test(entry.name)) acc.push(full);
-  }
-  return acc;
-}
-
-const files = walk(SRC).map((f) => ({
+// The web app's source and the shared package (Pitch 21b), so a module moved
+// out of src/lib is still scanned. Shared files read
+// "../../packages/shared/src/<domain>/…" relative to apps/web.
+const files = walkCode().map((f) => ({
   rel: path.relative(REPO_ROOT, f).replace(/\\/g, "/"),
   src: fs.readFileSync(f, "utf8"),
 }));
+
+/** Whether a file belongs to a lib domain, in the web or the shared package. */
+function inLib(rel: string, domain: string): boolean {
+  return (
+    rel.startsWith(`src/lib/${domain}/`) ||
+    rel.startsWith(`../../packages/shared/src/${domain}/`)
+  );
+}
 
 function offenders(re: RegExp): string[] {
   return files.filter((f) => re.test(f.src)).map((f) => f.rel);
@@ -100,7 +102,7 @@ describe("no workout logging, plan building, or progression", () => {
 
   it("the plan modules never touch logged history, goals, baselines, or cardio", () => {
     const touched = files
-      .filter((f) => f.rel.startsWith("src/lib/plan/"))
+      .filter((f) => inLib(f.rel, "plan"))
       .filter((f) =>
         /\.\s*(loggedSession|loggedExercise|loggedSet|gymExerciseBaseline|goal|cardioLog)\s*\./.test(
           f.src,
@@ -163,7 +165,7 @@ describe("the plan carries no weights, gyms, or performance (Split & Mesocycle B
   it("plan code never chooses exercises for the lifter (no favorites, no generation)", () => {
     const planCode = files.filter(
       (f) =>
-        f.rel.startsWith("src/lib/plan/") ||
+        inLib(f.rel, "plan") ||
         f.rel.startsWith("src/app/(app)/plan/") ||
         f.rel.startsWith("src/components/plan/"),
     );
@@ -185,7 +187,7 @@ describe("the plan carries no weights, gyms, or performance (Split & Mesocycle B
     const planOffenders = files
       .filter(
         (f) =>
-          f.rel.startsWith("src/lib/plan/") ||
+          inLib(f.rel, "plan") ||
           f.rel.startsWith("src/app/(app)/plan/") ||
           f.rel.startsWith("src/components/plan/"),
       )
@@ -241,11 +243,11 @@ describe("no automatic personalization or recommendations", () => {
 
   it("a progression recommendation never lists, ranks, or picks exercises", () => {
     const builder = files.find(
-      (f) => f.rel === "src/lib/progression/recommendation.ts",
+      (f) => f.rel === relToWeb(libFile("progression/recommendation.ts")),
     );
     expect(builder).toBeDefined();
     expect(builder!.src).not.toMatch(
-      /@\/lib\/(exercises|library|plan\/actions|goals)|exerciseId|favorite/i,
+      /(@\/lib\/|@overload\/shared\/|\.\.\/)(exercises|library|plan\/actions|goals)|exerciseId|favorite/i,
     );
   });
 

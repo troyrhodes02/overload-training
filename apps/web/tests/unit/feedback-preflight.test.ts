@@ -16,7 +16,7 @@ import {
   uploadFeedbackScreenshots,
 } from "@/lib/feedback/screenshots";
 import { submitFeedbackAction } from "@/app/(app)/feedback/actions";
-import { FEEDBACK_DAILY_LIMIT } from "@/lib/feedback/validation";
+import { FEEDBACK_DAILY_LIMIT } from "@overload/shared/feedback/validation";
 
 /**
  * OVE-126 (mobile audit F-A8): validation and the daily limit are checked

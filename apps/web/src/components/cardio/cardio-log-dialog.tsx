@@ -20,7 +20,7 @@ import {
   MinutesInput,
 } from "@/components/cardio/cardio-fields";
 import type { CardioOccurrenceDto } from "@/lib/cardio/queries";
-import { parseCardioEntry } from "@/lib/cardio/validation";
+import { parseCardioEntry } from "@overload/shared/cardio/validation";
 import { cn } from "@/lib/utils";
 
 /**

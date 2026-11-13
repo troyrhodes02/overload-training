@@ -7,7 +7,7 @@ import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { Toaster } from "@/components/ui/sonner";
 import { TourProvider } from "@/components/tour/tour-provider";
 import { WhatsNewDialog } from "@/components/release-notes/whats-new-dialog";
-import type { Appearance } from "@/lib/appearance/appearance";
+import type { Appearance } from "@overload/shared/appearance/appearance";
 import type { WhatsNewDialogData } from "@/lib/release-notes/seen";
 import { TrialNoticeDialog } from "@/components/billing/trial-notice-dialog";
 import type { TrialNoticeData } from "@/lib/billing/trial-notice";

@@ -13,7 +13,7 @@
 import type {
   EquipmentValue,
   MuscleGroupValue,
-} from "../../../src/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 import type { SourceExercise } from "./source";
 
 /** free-exercise-db muscle → canonical MuscleGroup. Only lats + middle back merge. */

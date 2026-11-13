@@ -1,5 +1,6 @@
 import "server-only";
 import { isUuid } from "@/lib/actions/result";
+import type { MesocycleStatusValue } from "@overload/shared/enums";
 import type { Account } from "./account";
 import type { AccountTx } from "./account-db";
 
@@ -11,7 +12,7 @@ import type { AccountTx } from "./account-db";
 
 export type LockedMesocycle = {
   id: string;
-  status: "draft" | "active" | "archived";
+  status: MesocycleStatusValue;
 };
 
 /**

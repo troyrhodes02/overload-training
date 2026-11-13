@@ -1,14 +1,14 @@
 import "server-only";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
-import { dayName } from "./calendar";
+import { dayName } from "@overload/shared/plan/calendar";
 import {
   copyName,
   parseDayOfWeek,
   parseName,
   parsePlannedExercise,
   type PlannedExerciseInput,
-} from "./validation";
+} from "@overload/shared/plan/validation";
 import {
   inTx,
   invalid,

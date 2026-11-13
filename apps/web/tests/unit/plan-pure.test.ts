@@ -2,7 +2,7 @@ import {
   PRESET_STRUCTURES,
   SPLIT_TYPES,
   SPLIT_TYPE_LABELS,
-} from "@/lib/plan/presets";
+} from "@overload/shared/plan/presets";
 import {
   addDays,
   cloneDefaultStartDate,
@@ -11,7 +11,7 @@ import {
   mesocycleWeekForDate,
   parseIsoDate,
   plannedEndDate,
-} from "@/lib/plan/calendar";
+} from "@overload/shared/plan/calendar";
 import {
   DEFAULT_DELOAD_EVERY_WEEKS,
   DEFAULT_LENGTH_WEEKS,
@@ -20,9 +20,9 @@ import {
   parseMesocycleDetails,
   parsePlannedExercise,
   parseWholeNumber,
-} from "@/lib/plan/validation";
+} from "@overload/shared/plan/validation";
 import fs from "node:fs";
-import path from "node:path";
+import { libFile } from "../support/code-roots";
 
 const names = (t: keyof typeof PRESET_STRUCTURES) =>
   Array.from(
@@ -79,10 +79,7 @@ describe("preset structures (spec D8–D11)", () => {
       }
     }
     const src = fs
-      .readFileSync(
-        path.join(__dirname, "..", "..", "src", "lib", "plan", "presets.ts"),
-        "utf8",
-      )
+      .readFileSync(libFile("plan/presets.ts"), "utf8")
       // Code only: the module comment explains what presets must NOT contain.
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/\/\/.*$/gm, "");

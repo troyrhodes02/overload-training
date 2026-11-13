@@ -12,7 +12,7 @@ import { logSet } from "@/lib/logging/logged-sets";
 import { completeWorkout, startOrResumeWorkout } from "@/lib/logging/sessions";
 import { getLoggedWorkoutDetail, getWeekSchedule } from "@/lib/logging/queries";
 import { getHistoryWeek } from "@/lib/logging/history-week";
-import { addDays, isoWeekday, todayIso } from "@/lib/plan/calendar";
+import { addDays, isoWeekday, todayIso } from "@overload/shared/plan/calendar";
 
 /**
  * All-time history (OVE-141–145): any past week, every block, logged-only

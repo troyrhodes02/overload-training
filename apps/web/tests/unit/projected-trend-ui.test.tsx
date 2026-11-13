@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { ExerciseTrend } from "@/components/exercises/history/exercise-trend";
 import { TrendChart } from "@/components/exercises/history/trend-chart";
-import type { TrendDto, TrendPointDto } from "@/lib/progression/history-types";
+import type {
+  TrendDto,
+  TrendPointDto,
+} from "@overload/shared/progression/history-types";
 
 /**
  * Projected-RIR overlay (OVE-80) — rendering. The e1RM view offers the toggle

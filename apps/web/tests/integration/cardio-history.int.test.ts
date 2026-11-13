@@ -1,7 +1,11 @@
 import { editCardioLog, logCardio } from "@/lib/cardio/cardio-logs";
 import { getWeekSchedule } from "@/lib/logging/queries";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
-import { addDays, parseIsoDate, toIsoDate } from "@/lib/plan/calendar";
+import {
+  addDays,
+  parseIsoDate,
+  toIsoDate,
+} from "@overload/shared/plan/calendar";
 import { removePlannedCardio } from "@/lib/plan/cardio";
 import { getTestPrisma } from "./support/db";
 import {

@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { withDb } from "./representative-workout";
 import { E2E_ADMIN_ID } from "./admin-id";
-import { RELEASE_NOTES } from "../../../src/lib/release-notes/entries";
+import { RELEASE_NOTES } from "@overload/shared/release-notes/entries";
 
 export { E2E_ADMIN_ID };
 

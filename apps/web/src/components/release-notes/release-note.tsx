@@ -1,7 +1,7 @@
 import {
   formatReleaseDate,
   type ReleaseNoteView,
-} from "@/lib/release-notes/catalog";
+} from "@overload/shared/release-notes/catalog";
 
 /**
  * One release-note entry (What's New design doc §10, preview §06): date,

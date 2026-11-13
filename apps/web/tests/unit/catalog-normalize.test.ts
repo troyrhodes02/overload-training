@@ -4,7 +4,7 @@ import {
   EQUIPMENT_TYPES,
   isEquipment,
   isMuscleGroup,
-} from "@/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 import {
   SOURCE_EQUIPMENT_MAP,
   SOURCE_MUSCLE_MAP,

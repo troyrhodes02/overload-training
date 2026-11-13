@@ -18,8 +18,8 @@ import { ExerciseCard } from "@/components/logging/exercise-card";
 import {
   buildRecommendation,
   type RecommendationInput,
-} from "@/lib/progression/recommendation";
-import type { DecisionEvidence } from "@/lib/progression/types";
+} from "@overload/shared/progression/recommendation";
+import type { DecisionEvidence } from "@overload/shared/progression/types";
 
 /** A recommendation built by the real builder, as the read layer would. */
 const rec = (

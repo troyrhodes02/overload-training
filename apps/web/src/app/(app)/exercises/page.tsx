@@ -15,7 +15,7 @@ import {
   type LibraryFilters,
 } from "@/lib/exercises/library-params";
 import { listExercises, type ExerciseList } from "@/lib/exercises/queries";
-import { MUSCLE_GROUP_LABELS } from "@/lib/exercises/taxonomy";
+import { MUSCLE_GROUP_LABELS } from "@overload/shared/exercises/taxonomy";
 import { requireAccount } from "@/lib/data/account";
 
 export const metadata = { title: "Exercises · Overload" };

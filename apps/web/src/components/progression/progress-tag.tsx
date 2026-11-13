@@ -1,5 +1,5 @@
 import { TriangleAlert } from "lucide-react";
-import type { ProgressionTag } from "@/lib/progression/types";
+import type { ProgressionTag } from "@overload/shared/progression/types";
 
 /**
  * The computed progression tag (design §ProgressTag; spec §7). The single shared

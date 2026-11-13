@@ -4,7 +4,10 @@
  * Pure — used by the server page to query and by the client controls to
  * build URLs, so both always agree.
  */
-import { isMuscleGroup, type MuscleGroupValue } from "./taxonomy";
+import {
+  isMuscleGroup,
+  type MuscleGroupValue,
+} from "@overload/shared/exercises/taxonomy";
 
 export type LibraryView = "all" | "favorites";
 

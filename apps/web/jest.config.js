@@ -14,6 +14,10 @@ module.exports = {
     // `server-only` throws by design when loaded outside an RSC bundle; stub it.
     "^server-only$": "<rootDir>/tests/support/empty-module.js",
     "^@/(.*)$": "<rootDir>/src/$1",
+    // Pitch 21b: @overload/shared is source-only TypeScript in the workspace's
+    // packages/shared; map its subpath exports ("./*" -> "./src/*.ts") so ts-jest
+    // compiles it like the web's own source.
+    "^@overload/shared/(.*)$": "<rootDir>/../../packages/shared/src/$1",
   },
   transform: {
     "^.+\\.(ts|tsx)$": [

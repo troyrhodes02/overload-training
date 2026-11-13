@@ -12,7 +12,7 @@ import {
   THEME_COLORS,
   isAppearance,
   type Appearance,
-} from "@/lib/appearance/appearance";
+} from "@overload/shared/appearance/appearance";
 import { applyAppearance } from "@/lib/appearance/apply";
 import { APPEARANCE_BOOT_SCRIPT } from "@/lib/appearance/boot-script";
 

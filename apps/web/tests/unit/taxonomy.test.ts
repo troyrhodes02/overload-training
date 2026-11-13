@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import path from "node:path";
+import { libFile } from "../support/code-roots";
 import { Equipment, MuscleGroup } from "@prisma/client";
 import {
   EQUIPMENT_LABELS,
@@ -8,7 +8,7 @@ import {
   MUSCLE_GROUP_LABELS,
   isEquipment,
   isMuscleGroup,
-} from "@/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 
 describe("canonical exercise taxonomy", () => {
   it("muscle groups match the Prisma MuscleGroup enum exactly", () => {
@@ -49,10 +49,7 @@ describe("canonical exercise taxonomy", () => {
   });
 
   it("the taxonomy module stays client-safe (no Prisma or server import)", () => {
-    const source = fs.readFileSync(
-      path.resolve(__dirname, "..", "..", "src/lib/exercises/taxonomy.ts"),
-      "utf8",
-    );
+    const source = fs.readFileSync(libFile("exercises/taxonomy.ts"), "utf8");
     expect(source).not.toMatch(/from\s+["'](@prisma\/client|server-only)/);
     expect(source).not.toMatch(/@\/lib\/db/);
   });

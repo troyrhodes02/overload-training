@@ -1,4 +1,4 @@
-import type { EntitlementSourceKind } from "@/lib/entitlements/types";
+import type { EntitlementSourceKind } from "@overload/shared/entitlements/types";
 import type { MembershipValue } from "./types";
 
 /**

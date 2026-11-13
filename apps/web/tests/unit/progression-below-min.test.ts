@@ -4,13 +4,13 @@ import {
   hasBelowMin,
   shortFailureSinceLastCounted,
   type Performance,
-} from "@/lib/progression/engine";
-import { DELOAD_CONSECUTIVE_SESSIONS } from "@/lib/progression/config";
+} from "@overload/shared/progression/engine";
+import { DELOAD_CONSECUTIVE_SESSIONS } from "@overload/shared/progression/config";
 import {
   buildRecommendation,
   type RecommendationInput,
-} from "@/lib/progression/recommendation";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+} from "@overload/shared/progression/recommendation";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 
 /**
  * Workout Logging Refinements (spec §6, §13; RD-1–RD-5, RD-8). The reported

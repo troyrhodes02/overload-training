@@ -3,12 +3,12 @@ import {
   hasBelowMin,
   type Performance,
   type WorkingSet,
-} from "@/lib/progression/engine";
+} from "@overload/shared/progression/engine";
 import {
   estimateOneRepMax,
   sessionE1rm,
   loadedSets,
-} from "@/lib/progression/e1rm";
+} from "@overload/shared/progression/e1rm";
 import {
   callsBySession,
   computeRecords,
@@ -21,8 +21,8 @@ import {
   REP_RECORDS_MAX,
   type HistoryRow,
   type LoadedRecordSet,
-} from "@/lib/progression/history";
-import { bestPerformance } from "@/lib/goals/progress";
+} from "@overload/shared/progression/history";
+import { bestPerformance } from "@overload/shared/goals/progress";
 
 /** Counted: finished, every planned set, outside a scheduled-deload week. */
 const counted = (x: HistoryRow): boolean =>

@@ -3,9 +3,12 @@ import { ProgressTag } from "@/components/progression/progress-tag";
 import type {
   SessionCallKind,
   SessionRowDto,
-} from "@/lib/progression/history-types";
-import { RECENT_SESSIONS } from "@/lib/progression/history";
-import { formatRirLine, formatSetLine } from "@/lib/progression/history-format";
+} from "@overload/shared/progression/history-types";
+import { RECENT_SESSIONS } from "@overload/shared/progression/history";
+import {
+  formatRirLine,
+  formatSetLine,
+} from "@overload/shared/progression/history-format";
 
 /** The muted words for every call that isn't one of the engine's tags (spec §6). */
 const MUTED_CALL: Partial<Record<SessionCallKind, string>> = {

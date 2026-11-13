@@ -1,5 +1,7 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
+import type { GymListItemDto } from "@overload/shared/contracts/gyms";
+export type { GymListItemDto } from "@overload/shared/contracts/gyms";
 
 /**
  * Gym reads. The selection list filters `deletedAt: null`; history views (a
@@ -7,11 +9,6 @@ import type { Account } from "@/lib/data/account";
  * resolve in past workouts. The address is personal location data and is
  * returned only here (spec UI Data Contracts).
  */
-export type GymListItemDto = {
-  id: string;
-  name: string;
-  address: string | null;
-};
 
 export async function listActiveGyms(
   account: Account,

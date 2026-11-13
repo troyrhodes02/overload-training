@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
-import { classifySignInError } from "./auth-errors";
+import { classifySignInError } from "@overload/shared/accounts/auth-errors";
 
 /**
  * Re-checks the signed-in lifter's password before account deletion

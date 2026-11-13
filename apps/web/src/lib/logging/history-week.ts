@@ -1,5 +1,6 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
+import type { MesocycleStatusValue } from "@overload/shared/enums";
 import {
   addDays,
   formatPlanDate,
@@ -7,10 +8,22 @@ import {
   isoWeekday,
   todayIso,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import type { CardioOccurrenceDto } from "@/lib/cardio/queries";
-import { getWeekSchedule, type WeekDayDto } from "./queries";
+} from "@overload/shared/plan/calendar";
+import { getWeekSchedule } from "./queries";
 import { resolveRequestedWeek, weekStartFor } from "./history-week-math";
+import type {
+  BlockRef,
+  LoggedHistoryDay,
+  EarlierBlock,
+  HistoryWeekView,
+  HistoryWeekDto,
+} from "@overload/shared/contracts/history";
+export type {
+  LoggedHistoryDay,
+  EarlierBlock,
+  HistoryWeekView,
+  HistoryWeekDto,
+} from "@overload/shared/contracts/history";
 
 /**
  * All-time history, one week at a time (OVE-141–145). Free on every plan.
@@ -32,60 +45,6 @@ import { resolveRequestedWeek, weekStartFor } from "./history-week-math";
  * (or the active block's first week, if earlier); forward stops at this week,
  * or the active block's last week.
  */
-
-type BlockRef = { mesocycleId: string; name: string; status: string };
-
-export type LoggedHistoryDay = {
-  dateIso: string;
-  dayLabel: string;
-  workouts: (BlockRef & {
-    loggedSessionId: string;
-    sessionName: string;
-    state: "complete" | "in_progress";
-  })[];
-  cardio: (BlockRef & {
-    cardioLogId: string;
-    type: string;
-    durationMin: number;
-  })[];
-};
-
-export type EarlierBlock = BlockRef & {
-  /** The week to open: the week of the block's first logged day. */
-  weekStart: string;
-  rangeLabel: string;
-};
-
-export type HistoryWeekView =
-  | {
-      kind: "active";
-      blockName: string;
-      weekNumber: number;
-      lengthWeeks: number;
-      days: WeekDayDto[];
-      cardio: CardioOccurrenceDto[];
-    }
-  | {
-      kind: "logged";
-      /** The blocks whose logged work appears this week (none for a gap). */
-      blocks: BlockRef[];
-      days: LoggedHistoryDay[];
-    };
-
-export type HistoryWeekDto = {
-  weekStart: string;
-  weekEnd: string;
-  rangeLabel: string;
-  thisWeekStart: string;
-  isThisWeek: boolean;
-  prevWeekStart: string | null;
-  nextWeekStart: string | null;
-  view: HistoryWeekView;
-  /** Blocks other than the active one that hold logged work, newest first. */
-  earlierBlocks: EarlierBlock[];
-  /** False when nothing has ever been logged and there is no active block. */
-  hasAnyHistory: boolean;
-};
 
 const maxIso = (a: string, b: string) => (a > b ? a : b);
 const minIso = (a: string, b: string) => (a < b ? a : b);
@@ -220,7 +179,9 @@ async function loggedWeek(
     }),
   ]);
 
-  const ref = (m: { id: string; name: string; status: string } | null) => ({
+  const ref = (
+    m: { id: string; name: string; status: MesocycleStatusValue } | null,
+  ): BlockRef => ({
     mesocycleId: m?.id ?? "",
     name: m?.name ?? "",
     status: m?.status ?? "",

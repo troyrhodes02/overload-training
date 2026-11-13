@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { THEME_COLORS } from "@/lib/appearance/appearance";
+import { THEME_COLORS } from "@overload/shared/appearance/appearance";
 import { APPEARANCE_BOOT_SCRIPT } from "@/lib/appearance/boot-script";
 import { SITE_DESCRIPTION } from "@/lib/marketing/site";
 

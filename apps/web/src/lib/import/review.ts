@@ -3,7 +3,10 @@ import type { ImportSession } from "@prisma/client";
 import { IMPORT_EXPIRED_MESSAGE } from "./errors";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
-import { isEquipment, isMuscleGroup } from "@/lib/exercises/taxonomy";
+import {
+  isEquipment,
+  isMuscleGroup,
+} from "@overload/shared/exercises/taxonomy";
 import { deriveBlockers } from "./draft/build";
 import type {
   DraftExercise,
