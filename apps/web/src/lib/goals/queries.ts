@@ -17,7 +17,7 @@ import {
   formatGoalTarget,
   formatGoalTargetCompact,
   type GoalProgress,
-} from "./progress";
+} from "@overload/shared/goals/progress";
 
 /**
  * Goal reads (Goals spec §13). Every percentage and best value is derived here

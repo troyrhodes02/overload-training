@@ -1,7 +1,7 @@
 import {
   isScheduledDeloadWeek,
   scheduledDeloadLoad,
-} from "@/lib/progression/deload";
+} from "@overload/shared/progression/deload";
 
 describe("isScheduledDeloadWeek (R33, R41)", () => {
   it("fires on every Nth week (weeks N, 2N, 3N…)", () => {

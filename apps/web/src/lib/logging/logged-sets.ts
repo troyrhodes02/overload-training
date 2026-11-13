@@ -6,6 +6,7 @@ import type { AccountTx } from "@/lib/data/account-db";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import type { EquipmentValue } from "@overload/shared/exercises/taxonomy";
+import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { isRir } from "@overload/shared/logging/rir";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
 
@@ -77,14 +78,9 @@ function validateValues(
   } else if (weightLbs !== null && weightLbs !== undefined) {
     details.weightLbs = "This is a bodyweight exercise — log reps only.";
   }
-  if (
-    typeof reps !== "number" ||
-    !Number.isInteger(reps) ||
-    reps <= 0 ||
-    reps > 1000
-  ) {
-    details.reps = "Enter reps above 0.";
-  }
+  // One shared rule: a whole number from 1 to 1,000 (Pitch 21b, audit D-13).
+  const checkedReps = checkLoggedReps(reps);
+  if (!checkedReps.ok) details.reps = checkedReps.message;
   if (rir !== undefined && rir !== null && !isRir(rir)) {
     details.rir = "Choose an RIR from 0 to 4+.";
   }

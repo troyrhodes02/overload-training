@@ -2,7 +2,7 @@ import {
   bestWorkingSet,
   estimateOneRepMax,
   sessionE1rm,
-} from "@/lib/progression/e1rm";
+} from "@overload/shared/progression/e1rm";
 
 describe("estimateOneRepMax (Epley, R17)", () => {
   it("returns the weight exactly for a single rep", () => {

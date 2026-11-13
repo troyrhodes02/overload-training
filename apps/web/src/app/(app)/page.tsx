@@ -18,7 +18,7 @@ import { UpgradeNote } from "@/components/billing/upgrade-note";
 import { DashboardGoals } from "@/components/goals/dashboard-goals";
 import { SessionGoalRows } from "@/components/goals/session-goal-rows";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
-import { dashboardShowsGoals } from "@/lib/goals/dashboard";
+import { dashboardShowsGoals } from "@overload/shared/goals/dashboard";
 import { CardioCards, CardioFocal } from "@/components/cardio/cardio-today";
 import { accountToday, requireAccount } from "@/lib/data/account";
 import { composeGreeting } from "@/lib/personalization/greeting";

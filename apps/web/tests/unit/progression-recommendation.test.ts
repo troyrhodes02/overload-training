@@ -1,13 +1,13 @@
 import {
   evaluateReactiveDecision,
   type Performance,
-} from "@/lib/progression/engine";
+} from "@overload/shared/progression/engine";
 import {
   buildRecommendation,
   insufficientNote,
   type RecommendationInput,
-} from "@/lib/progression/recommendation";
-import type { DecisionEvidence } from "@/lib/progression/types";
+} from "@overload/shared/progression/recommendation";
+import type { DecisionEvidence } from "@overload/shared/progression/types";
 
 /**
  * The recommendation copy catalog (Smarter & Explainable Progression design

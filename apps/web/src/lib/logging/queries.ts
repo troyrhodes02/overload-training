@@ -11,8 +11,8 @@ import {
 } from "@overload/shared/plan/calendar";
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
-import { isScheduledDeloadWeek } from "@/lib/progression/deload";
-import { exerciseHistoryHref } from "@/lib/progression/history-format";
+import { isScheduledDeloadWeek } from "@overload/shared/progression/deload";
+import { exerciseHistoryHref } from "@/lib/progression/history-href";
 import {
   isMuscleGroup,
   muscleGroupLabel,

@@ -2,7 +2,7 @@ import {
   evaluateReactive,
   evaluateReactiveDecision,
   type Performance,
-} from "@/lib/progression/engine";
+} from "@overload/shared/progression/engine";
 import {
   DELOAD_CONSECUTIVE_SESSIONS,
   MIN_QUALIFYING_SESSIONS,
@@ -10,7 +10,7 @@ import {
   RIR_AT_LIMIT,
   RIR_TO_SPARE_MIN,
   STALL_WINDOW_SESSIONS,
-} from "@/lib/progression/config";
+} from "@overload/shared/progression/config";
 
 /**
  * The evidence the deciding branch returns with the call (Smarter &

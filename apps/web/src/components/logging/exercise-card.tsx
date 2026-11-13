@@ -1,5 +1,6 @@
 "use client";
 
+import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
@@ -27,7 +28,7 @@ import { rirSpoken, rirSuffix } from "@overload/shared/logging/rir";
 import type {
   ProgressionTag,
   RecommendationDto,
-} from "@/lib/progression/types";
+} from "@overload/shared/progression/types";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { Recommendation } from "@/components/progression/recommendation";
 import { UpgradeNote } from "@/components/billing/upgrade-note";
@@ -295,8 +296,11 @@ export function ExerciseCard({
         return;
       }
     }
-    if (!draft.reps || !Number.isInteger(reps) || reps <= 0) {
-      fail(n, { message: "Enter reps above 0.", field: "reps" });
+    // The same rule the server applies (@overload/shared/logging/reps). An
+    // empty field reads as 0 and is refused with the same message.
+    const checkedReps = checkLoggedReps(draft.reps ? reps : 0);
+    if (!checkedReps.ok) {
+      fail(n, { message: checkedReps.message, field: "reps" });
       return;
     }
     setErrors((e) => {

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { RecommendationDto } from "@/lib/progression/types";
+import type { RecommendationDto } from "@overload/shared/progression/types";
 
 /**
  * A progression call's two lines: what to do, then the evidence for it

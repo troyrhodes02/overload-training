@@ -20,8 +20,9 @@
  * Exercise History & PR Intelligence reuses this module for "the current
  * recommendation and why" (method note "Recommendation and evidence").
  */
-import { formatMonthDay } from "@overload/shared/plan/calendar";
-import { formatRepTarget } from "@overload/shared/plan/rep-target";
+import { formatMonthDay } from "../plan/calendar";
+import { formatRepTarget } from "../plan/rep-target";
+import { formatWeightLbs } from "../logging/weight";
 import { PROGRESS_INCREMENT_LBS, SCHEDULED_DELOAD_FACTOR } from "./config";
 import type { DecisionEvidence, RecommendationDto, RirEffect } from "./types";
 
@@ -62,10 +63,8 @@ export type RecommendationInput =
 const SCHEDULED_EVIDENCE =
   "Planned recovery, not a verdict. Calls resume next week.";
 
-function lbs(n: number): string {
-  // Loads are whole or half pounds; never print float noise.
-  return String(Math.round(n * 100) / 100);
-}
+// Loads are whole or half pounds; never print float noise.
+const lbs = formatWeightLbs;
 
 function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);

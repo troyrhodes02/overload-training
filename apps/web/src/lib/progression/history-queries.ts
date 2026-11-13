@@ -5,7 +5,7 @@ import { isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import { formatMonthDay } from "@overload/shared/plan/calendar";
-import { byDate } from "./engine";
+import { byDate } from "@overload/shared/progression/engine";
 import {
   callsBySession,
   computeRecords,
@@ -18,8 +18,8 @@ import {
   type HistoryRow,
   type RecordSet,
   type TrendPoint,
-} from "./history";
-import { formatSetLine } from "./history-format";
+} from "@overload/shared/progression/history";
+import { formatSetLine } from "@overload/shared/progression/history-format";
 import { describeScope, gatherRows, type PerformanceRow } from "./queries";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
 import { gateHistory } from "@/lib/entitlements/gate";
@@ -30,7 +30,7 @@ import type {
   HistoryScopeDto,
   RecordSetDto,
   TrendDto,
-} from "./history-types";
+} from "@overload/shared/progression/history-types";
 
 /**
  * Exercise History & PR Intelligence — the page's one read (spec §11.2).
@@ -55,7 +55,7 @@ export type {
   SessionRowDto,
   TrendDto,
   TrendPointDto,
-} from "./history-types";
+} from "@overload/shared/progression/history-types";
 
 const GLOBAL = "global";
 const NO_GYM = "none";

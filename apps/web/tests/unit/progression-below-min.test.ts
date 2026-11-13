@@ -4,12 +4,12 @@ import {
   hasBelowMin,
   shortFailureSinceLastCounted,
   type Performance,
-} from "@/lib/progression/engine";
-import { DELOAD_CONSECUTIVE_SESSIONS } from "@/lib/progression/config";
+} from "@overload/shared/progression/engine";
+import { DELOAD_CONSECUTIVE_SESSIONS } from "@overload/shared/progression/config";
 import {
   buildRecommendation,
   type RecommendationInput,
-} from "@/lib/progression/recommendation";
+} from "@overload/shared/progression/recommendation";
 import { formatRepTarget } from "@overload/shared/plan/rep-target";
 
 /**

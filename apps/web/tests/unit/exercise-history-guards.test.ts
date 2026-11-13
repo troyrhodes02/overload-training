@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { libFile, relToWeb } from "../support/code-roots";
 
 /**
  * Exercise History & PR Intelligence — static guards (spec §14.1). The page
@@ -22,10 +23,13 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+// The pure history modules, wherever they live (the shared package since
+// Pitch 21b), plus the web-only link helper split out of history-format.
 const PURE = [
-  "src/lib/progression/history.ts",
-  "src/lib/progression/history-format.ts",
-  "src/lib/progression/history-types.ts",
+  relToWeb(libFile("progression/history.ts")),
+  relToWeb(libFile("progression/history-format.ts")),
+  relToWeb(libFile("progression/history-types.ts")),
+  "src/lib/progression/history-href.ts",
 ];
 const READ_ONLY = [
   ...PURE,
@@ -68,7 +72,9 @@ describe("exercise history static guards", () => {
   });
 
   it("there is no second e1RM formula: history uses the canonical estimator", () => {
-    const src = stripComments(read("src/lib/progression/history.ts"));
+    const src = stripComments(
+      read(relToWeb(libFile("progression/history.ts"))),
+    );
     expect(src).toMatch(/estimateOneRepMax/);
     expect(src).not.toMatch(/\/\s*30\b/);
     expect(src).not.toMatch(/\breps\s*\/|\/\s*reps\b/);

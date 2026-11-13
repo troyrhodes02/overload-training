@@ -3,7 +3,7 @@
  * Declared in a pure module so client islands (the trend chart) can import
  * them without pulling in the server-only read layer (history-queries.ts).
  */
-import type { Capability } from "@/lib/billing/config";
+import type { Capability } from "../billing/plans";
 import type { SessionCallKind } from "./history";
 import type { ProgressionTag, RecommendationDto } from "./types";
 

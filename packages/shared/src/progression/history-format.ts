@@ -5,14 +5,13 @@
  * inferred (an unrecorded RIR is "–", never 0), and a reps-only set never
  * shows a load.
  */
-import { formatRir } from "@overload/shared/logging/rir";
+import { formatRir } from "../logging/rir";
+import { formatWeightLbs } from "../logging/weight";
 
 type PrintedSet = { weightLbs: number | null; reps: number };
 
 /** A load without float noise: 185 → "185", 102.5 → "102.5". */
-export function formatLoad(lbs: number): string {
-  return String(Math.round(lbs * 100) / 100);
-}
+export const formatLoad: (lbs: number) => string = formatWeightLbs;
 
 function groupByLoad(sets: PrintedSet[]): string {
   if (sets.length === 0) return "";
@@ -55,18 +54,4 @@ export function formatRirLine(
 ): string | null {
   if (!workingSets.some((s) => s.rir !== null)) return null;
   return `RIR ${workingSets.map((s) => (s.rir === null ? "–" : formatRir(s.rir))).join(" · ")}`;
-}
-
-/**
- * Where an exercise's history lives. A machine or cable opens on the scope it
- * was trained in — its gym, or the legacy "no gym recorded" rows (`none`) —
- * because its history is kept per gym (Exercise History & PR Intelligence
- * R5); anything else has one history and needs no scope.
- */
-export function exerciseHistoryHref(
-  exerciseId: string,
-  machine: { gymId: string | null } | null = null,
-): string {
-  if (!machine) return `/exercises/${exerciseId}`;
-  return `/exercises/${exerciseId}?gym=${machine.gymId ?? "none"}`;
 }

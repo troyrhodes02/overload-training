@@ -2,7 +2,7 @@ import type { Account } from "@/lib/data/account";
 import type { Capability } from "@/lib/billing/config";
 import { DomainError } from "@/lib/actions/result";
 import { can, resolveEntitlement } from "@/lib/entitlements/resolve";
-import type { ResolvedEntitlement } from "@/lib/entitlements/types";
+import type { ResolvedEntitlement } from "@overload/shared/entitlements/types";
 
 /**
  * Server-side Pro gate for a dedicated Pro server action (spec RD-9). Throws

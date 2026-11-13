@@ -5,8 +5,11 @@ import {
 } from "@overload/shared/exercises/loading-mode";
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { EQUIPMENT_TYPES } from "@overload/shared/exercises/taxonomy";
-import { evaluateReactive, type Performance } from "@/lib/progression/engine";
-import { loadedSets, sessionE1rm } from "@/lib/progression/e1rm";
+import {
+  evaluateReactive,
+  type Performance,
+} from "@overload/shared/progression/engine";
+import { loadedSets, sessionE1rm } from "@overload/shared/progression/e1rm";
 import { libFile, relToWeb, walkCode } from "../support/code-roots";
 
 /**

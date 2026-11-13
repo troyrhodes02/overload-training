@@ -1,4 +1,5 @@
 import { formatMonthDay } from "../plan/calendar";
+import { formatWeightLbs } from "./weight";
 
 /**
  * Set-entry rules for the exercise logging card (Faster Logging UX spec §5,
@@ -94,9 +95,7 @@ export function offerCaption(offer: Offer): string {
 }
 
 /** A weight as the lifter writes it: 185, 182.5 (no trailing zeros). */
-export function formatWeight(weightLbs: number): string {
-  return String(weightLbs);
-}
+export const formatWeight: (weightLbs: number) => string = formatWeightLbs;
 
 /**
  * "185 × 8, 8, 7" when every set used one weight; "185 × 8, 190 × 6, 190 × 5"

@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
-import { computeGoalProgress } from "./progress";
+import { computeGoalProgress } from "@overload/shared/goals/progress";
 import { goalPerformances } from "./queries";
 import { parseGoalInput, type RawGoalInput } from "./validation";
 

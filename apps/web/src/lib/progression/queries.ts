@@ -13,7 +13,7 @@ import {
   currentWorkingWeightLbs,
   type WorkingWeightOptions,
 } from "@/lib/logging/queries";
-import { PROGRESS_INCREMENT_LBS } from "./config";
+import { PROGRESS_INCREMENT_LBS } from "@overload/shared/progression/config";
 import type { Capability } from "@/lib/billing/config";
 import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import {
@@ -21,7 +21,10 @@ import {
   gatePlanned,
   gateSessionSummary,
 } from "@/lib/entitlements/gate";
-import { isScheduledDeloadWeek, scheduledDeloadLoad } from "./deload";
+import {
+  isScheduledDeloadWeek,
+  scheduledDeloadLoad,
+} from "@overload/shared/progression/deload";
 import {
   byDate,
   evaluateReactiveDecision,
@@ -29,17 +32,24 @@ import {
   type Performance,
   type ReactiveDecision,
   type ReactiveState,
-} from "./engine";
-import { bestWorkingSet, loadedSets, sessionE1rm } from "./e1rm";
-import { exerciseHistoryHref } from "./history-format";
-import { buildRecommendation, insufficientNote } from "./recommendation";
+} from "@overload/shared/progression/engine";
+import {
+  bestWorkingSet,
+  loadedSets,
+  sessionE1rm,
+} from "@overload/shared/progression/e1rm";
+import { exerciseHistoryHref } from "./history-href";
+import {
+  buildRecommendation,
+  insufficientNote,
+} from "@overload/shared/progression/recommendation";
 import type {
   E1rmPointDto,
   ProgressionTag,
   RecommendationDto,
   RirEffect,
   SuggestedLoadDto,
-} from "./types";
+} from "@overload/shared/progression/types";
 
 /**
  * Server-side read layer for the Progressive Overload Engine (spec §11, §11a,
@@ -67,7 +77,7 @@ export type {
   E1rmPointDto,
   RecommendationDto,
   RirEffect,
-} from "./types";
+} from "@overload/shared/progression/types";
 
 export type ExerciseProgressionDto = {
   exerciseId: string;

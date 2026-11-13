@@ -7,7 +7,8 @@
  * formula. No Prisma, React, or server-only import, so this stays unit-testable
  * and safe for any server caller.
  */
-import { estimateOneRepMax } from "@/lib/progression/e1rm";
+import { formatWeightLbs } from "../logging/weight";
+import { estimateOneRepMax } from "../progression/e1rm";
 
 /**
  * Float tolerance for the reached comparison and percent flooring. The same
@@ -110,9 +111,7 @@ export function computeGoalProgress(
 }
 
 /** Number without trailing zeros: 315 → "315", 102.5 → "102.5". */
-function formatLbs(lbs: number): string {
-  return Number.isInteger(lbs) ? String(lbs) : String(Number(lbs.toFixed(2)));
-}
+const formatLbs = formatWeightLbs;
 
 /** "315 lb × 1" — the lifter's own target, as typed. */
 export function formatGoalTarget(

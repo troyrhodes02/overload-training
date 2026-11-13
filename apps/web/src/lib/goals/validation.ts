@@ -4,6 +4,7 @@
  * date, note, e1RM, or percent can ever be submitted. Limits mirror LoggedSet
  * (weight > 0 and ≤ 9999.99 lb; reps a whole number 1–1000).
  */
+import { LOGGED_REPS_MAX } from "@overload/shared/logging/reps";
 import {
   checkWeightLbs,
   WEIGHT_LBS_MAX,
@@ -11,7 +12,8 @@ import {
 
 /** Same storable limit as a logged set (one shared rule, OVE-135). */
 export const GOAL_WEIGHT_MAX_LBS = WEIGHT_LBS_MAX;
-export const GOAL_REPS_MAX = 1000;
+/** The same upper bound as a logged set's reps (one rule, Pitch 21b). */
+export const GOAL_REPS_MAX = LOGGED_REPS_MAX;
 
 export type GoalInput = {
   exerciseId: string;

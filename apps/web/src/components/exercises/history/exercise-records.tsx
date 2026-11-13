@@ -1,8 +1,8 @@
 import type {
   ExerciseRecordsDto,
   RecordSetDto,
-} from "@/lib/progression/history-types";
-import { formatLoad } from "@/lib/progression/history-format";
+} from "@overload/shared/progression/history-types";
+import { formatLoad } from "@overload/shared/progression/history-format";
 
 /**
  * The records of one scope (design doc §4.3, Screen 1; preview §02): one

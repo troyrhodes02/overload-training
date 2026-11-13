@@ -8,41 +8,17 @@
  * runtime (test mode); the strings below are display-only.
  */
 
-export type Plan = "free" | "pro";
-
-/**
- * Named product capabilities (spec RD-1). Server code checks these, never a
- * plan name. Free grants none; Pro grants all. Capabilities grant features,
- * never permissions or admin.
- */
-export type Capability =
-  | "progression_insights" // progress/hold/deload call, evidence, suggested load, stall gate, RIR qualifiers
-  | "e1rm_trends" // e1RM/weight trend + best-e1RM record
-  | "exercise_history_intelligence" // per-session calls + rep-record frontier
-  | "plan_import"; // Workout Plan Import & Review (Pitch 22), behind its kill switch
-
-export const ALL_CAPABILITIES: readonly Capability[] = [
-  "progression_insights",
-  "e1rm_trends",
-  "exercise_history_intelligence",
-  "plan_import",
-];
-
-/** Which capabilities each plan grants. Later Pro additions are Pro by default. */
-export const PLAN_CAPABILITIES: Record<Plan, readonly Capability[]> = {
-  free: [],
-  pro: ALL_CAPABILITIES,
-};
-
-/** 14-day card-free trial from signup (pitch decision #3, owner-confirmed). */
-export const TRIAL_DURATION_DAYS = 14;
-
-/**
- * Failed-payment grace (pitch 4.13 / RD-5): a configurable default the owner
- * confirms before live billing. During grace a past_due subscription still
- * grants Pro.
- */
-export const GRACE_PERIOD_DAYS = 7;
+// Plan names, capabilities, the plan-capability map, and the trial and grace
+// lengths live in the shared package (Pitch 21b); re-exported here so existing
+// importers are unchanged. The rest of this module is web- or server-only.
+export {
+  ALL_CAPABILITIES,
+  GRACE_PERIOD_DAYS,
+  PLAN_CAPABILITIES,
+  TRIAL_DURATION_DAYS,
+  type Capability,
+  type Plan,
+} from "@overload/shared/billing/plans";
 
 /** Display-only price strings (RD-8). Authoritative amounts live in Stripe. */
 export const PRICE_DISPLAY = {
