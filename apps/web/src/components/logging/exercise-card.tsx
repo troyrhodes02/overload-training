@@ -1,7 +1,7 @@
 "use client";
 
-import { checkWeightLbs } from "@/lib/logging/weight";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+import { checkWeightLbs } from "@overload/shared/logging/weight";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -22,8 +22,8 @@ import {
   loggedRowLabel,
   offerCaption,
   offerFor,
-} from "@/lib/logging/set-entry";
-import { rirSpoken, rirSuffix } from "@/lib/logging/rir";
+} from "@overload/shared/logging/set-entry";
+import { rirSpoken, rirSuffix } from "@overload/shared/logging/rir";
 import type {
   ProgressionTag,
   RecommendationDto,

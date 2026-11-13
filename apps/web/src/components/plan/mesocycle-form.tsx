@@ -25,19 +25,19 @@ import {
   formatPlanDate,
   parseIsoDate,
   plannedEndDate,
-} from "@/lib/plan/calendar";
+} from "@overload/shared/plan/calendar";
 import {
   PRESET_STRUCTURES,
   SPLIT_TYPES,
   SPLIT_TYPE_LABELS,
-} from "@/lib/plan/presets";
+} from "@overload/shared/plan/presets";
 import {
   deloadCadenceMessage,
   LENGTH_WEEKS_MAX,
   parseMesocycleDetails,
   parseSplitType,
   PLAN_NAME_MAX,
-} from "@/lib/plan/validation";
+} from "@overload/shared/plan/validation";
 import { cn } from "@/lib/utils";
 
 type Variant = "create" | "clone" | "details";

@@ -3,7 +3,11 @@
 import { ToggleGroup as ToggleGroupPrimitive } from "radix-ui";
 import { toggleVariants } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
-import { RIR_VALUES, formatRir, rirAccessibleName } from "@/lib/logging/rir";
+import {
+  RIR_VALUES,
+  formatRir,
+  rirAccessibleName,
+} from "@overload/shared/logging/rir";
 
 /**
  * The optional reps-in-reserve choice (RIR Logging & Autoregulation design

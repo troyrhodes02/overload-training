@@ -9,7 +9,7 @@
  *
  * Pure module: the dialogs run the same checks before submitting.
  */
-import { parseWholeNumber, type Parsed } from "@/lib/plan/validation";
+import { parseWholeNumber, type Parsed } from "../plan/validation";
 
 export const CARDIO_TYPE_MAX = 40;
 export const CARDIO_MINUTES_MAX = 600;

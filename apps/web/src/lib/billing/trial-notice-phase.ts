@@ -1,7 +1,7 @@
 import type { BillingAccount, Entitlement } from "@prisma/client";
 import { MS_PER_DAY } from "@/lib/billing/config";
 import { computeEntitlement } from "@/lib/entitlements/resolve";
-import { addDays, isoDateInZone } from "@/lib/plan/calendar";
+import { addDays, isoDateInZone } from "@overload/shared/plan/calendar";
 
 /**
  * Trial notices (OVE-112) — which one-time notice, if any, an account is due.

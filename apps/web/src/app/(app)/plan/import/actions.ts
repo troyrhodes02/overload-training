@@ -39,7 +39,7 @@ import {
   listExercises,
   type ExerciseListItemDto,
 } from "@/lib/exercises/queries";
-import { isMuscleGroup } from "@/lib/exercises/taxonomy";
+import { isMuscleGroup } from "@overload/shared/exercises/taxonomy";
 import type { ImportDraftDto, ImportStatusDto } from "@/lib/import/draft/types";
 
 /**

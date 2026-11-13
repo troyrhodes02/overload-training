@@ -1,4 +1,4 @@
-import { parseIsoDate } from "@/lib/plan/calendar";
+import { parseIsoDate } from "@overload/shared/plan/calendar";
 import { RELEASE_NOTES } from "./entries";
 import type { ReleaseNoteEntry, ReleaseNoteView } from "./types";
 

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { libFile, relToWeb, walkCode, walkLib } from "../support/code-roots";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const SRC = path.join(REPO_ROOT, "src");
@@ -31,7 +32,7 @@ describe("logged-history write guard", () => {
       /\.\s*loggedSet\s*\.\s*(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\b/;
     const createOrUpdateRe =
       /\.\s*loggedSet\s*\.\s*(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert)\b/;
-    for (const file of walk(SRC)) {
+    for (const file of walkCode()) {
       const rel = relPath(file);
       if (rel === "src/lib/logging/logged-sets.ts") continue;
       const contents = fs.readFileSync(file, "utf8");
@@ -59,7 +60,7 @@ describe("logged-history write guard", () => {
     // library un-starring a favorite, are their own reviewed paths.)
     const del =
       /\.\s*(profile|loggedExercise|loggedSession|missedDayResolution|gymExerciseBaseline|mesocycle)\s*\.\s*(delete|deleteMany)\s*\(/;
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter(notDeletion)
       .filter((f) => del.test(fs.readFileSync(f, "utf8")))
       .map(relPath);
@@ -70,7 +71,6 @@ describe("logged-history write guard", () => {
 describe("progression is derived, never stored (Progressive Overload Engine)", () => {
   const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
   const read = (f: string) => fs.readFileSync(f, "utf8");
-  const PROGRESSION = path.join(SRC, "lib", "progression");
 
   it("schema.prisma declares no progression-tag / e1RM / recommendation column", () => {
     // Strip comment lines first — the schema legitimately *mentions* these names
@@ -90,31 +90,31 @@ describe("progression is derived, never stored (Progressive Overload Engine)", (
   });
 
   it("defines estimateOneRepMax exactly once (no second e1RM formula)", () => {
-    const defs = walk(SRC).filter((f) =>
+    const defs = walkCode().filter((f) =>
       /export function estimateOneRepMax/.test(read(f)),
     );
-    expect(defs.map(rel)).toEqual(["src/lib/progression/e1rm.ts"]);
+    const E1RM = relToWeb(libFile("progression/e1rm.ts"));
+    expect(defs.map(rel)).toEqual([E1RM]);
     // No Epley arithmetic (`reps / 30`) anywhere else.
-    const epley = walk(SRC)
-      .filter((f) => rel(f) !== "src/lib/progression/e1rm.ts")
+    const epley = walkCode()
+      .filter((f) => rel(f) !== E1RM)
       .filter((f) => /\breps\s*\/\s*30\b/.test(read(f)));
     expect(epley.map(rel)).toEqual([]);
   });
 
   it("the e1RM module has no Prisma/React/chart/server-only import (Goals reuse)", () => {
-    const src = read(path.join(PROGRESSION, "e1rm.ts"));
+    const src = read(libFile("progression/e1rm.ts"));
     expect(src).not.toMatch(
       /from\s+["'](@prisma\/client|react|recharts|@\/lib\/db|server-only)/,
     );
   });
 
   it("progression modules never write the database (engine is read-only)", () => {
-    if (!fs.existsSync(PROGRESSION)) return;
     const writeRe =
       /\b(prisma|tx|t)\s*\.\s*\w+\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/;
     const baselineWrite =
       /gymExerciseBaseline\s*\.\s*(create|update|upsert|delete)/;
-    const offenders = walk(PROGRESSION).filter((f) => {
+    const offenders = walkLib("progression").filter((f) => {
       const src = read(f);
       return writeRe.test(src) || baselineWrite.test(src);
     });
@@ -143,7 +143,7 @@ describe("exercise and gym write guards (Library & Gyms Setup)", () => {
 
   it("never hard-deletes an Exercise or Gym outside the account-deletion module", () => {
     const hardDelete = /\.\s*(exercise|gym)\s*\.\s*(delete|deleteMany)\s*\(/;
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter(notDeletion)
       .filter((f) => hardDelete.test(fs.readFileSync(f, "utf8")));
     expect(offenders.map(rel)).toEqual([]);
@@ -152,7 +152,7 @@ describe("exercise and gym write guards (Library & Gyms Setup)", () => {
   it("writes Exercise rows only through src/lib/exercises/exercises.ts", () => {
     const write =
       /\.\s*exercise\s*\.\s*(create|createMany|update|updateMany|upsert)\s*\(/;
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter((f) => rel(f) !== "src/lib/exercises/exercises.ts")
       .filter((f) => write.test(fs.readFileSync(f, "utf8")));
     expect(offenders.map(rel)).toEqual([]);
@@ -165,7 +165,7 @@ describe("secret hygiene", () => {
 
   it("references no NEXT_PUBLIC_ database/service-role secret in source", () => {
     const offenders: string[] = [];
-    for (const file of walk(SRC)) {
+    for (const file of walkCode()) {
       const contents = fs.readFileSync(file, "utf8");
       if (dbSecretRe.test(contents))
         offenders.push(path.relative(REPO_ROOT, file));
@@ -219,7 +219,7 @@ describe("seed imports the exercise catalog only (spec D37)", () => {
 
 describe("free-exercise-db is an ingest dependency, never a runtime one", () => {
   it("no application source references the source dataset or its host", () => {
-    const offenders = walk(SRC).filter((f) =>
+    const offenders = walkCode().filter((f) =>
       /raw\.githubusercontent|yuhonas|from\s+["'][^"']*(prisma\/seed|exercises\.json)/.test(
         fs.readFileSync(f, "utf8"),
       ),
@@ -235,7 +235,7 @@ describe("free-exercise-db is an ingest dependency, never a runtime one", () => 
     // & Review needs it to write and sign the private plan-import-sources bucket
     // (same posture: service-role only, deny-all, no public URL). The Supabase
     // client is for auth and Storage only. Each is one server-only module.
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter((f) =>
         /SUPABASE_SERVICE_ROLE_KEY|service_role|serviceRole/.test(
           fs.readFileSync(f, "utf8"),
@@ -268,7 +268,7 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
   });
 
   it("the admin facade is imported only by signup, account deletion, and the admin account directory", () => {
-    const importers = walk(SRC)
+    const importers = walkCode()
       .filter((f) => /["']@\/lib\/supabase\/admin["']/.test(read(f)))
       .map(rel)
       .sort();
@@ -284,14 +284,14 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
   });
 
   it("only the signup gate reads the signup mode (and its deprecated alias)", () => {
-    const readers = walk(SRC)
+    const readers = walkCode()
       .filter((f) => /OVERLOAD_SIGNUP_MODE|OVERLOAD_SIGNUP_OPEN/.test(read(f)))
       .map(rel);
     expect(readers).toEqual([GATE]);
   });
 
   it("only the signup gate reads the invite code (Public Accounts, R1)", () => {
-    const readers = walk(SRC)
+    const readers = walkCode()
       .filter((f) => /OVERLOAD_INVITE_CODE/.test(read(f)))
       .map(rel);
     expect(readers).toEqual([GATE]);
@@ -306,7 +306,7 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       "src/app/signup/actions.ts",
       "src/app/signup/signup-form.tsx",
     ];
-    const mentioners = walk(SRC)
+    const mentioners = walkCode()
       .filter((f) => rel(f) !== GATE)
       .filter((f) => /\binviteCode\b/.test(read(f)))
       .map(rel)
@@ -315,7 +315,7 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
   });
 
   it("only signup asks whether a username is free (the one cross-account question)", () => {
-    const callers = walk(SRC)
+    const callers = walkCode()
       .filter((f) => rel(f) !== USERNAMES)
       .filter((f) =>
         /isUsernameAvailable|@\/lib\/data\/usernames/.test(read(f)),
@@ -325,7 +325,7 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
   });
 
   it("only signup establishes a new account's profile", () => {
-    const callers = walk(SRC)
+    const callers = walkCode()
       .filter((f) => !rel(f).startsWith("src/lib/data/"))
       .filter((f) => /\bestablishProfile\b/.test(read(f)))
       .map(rel);
@@ -333,7 +333,7 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
   });
 
   it("no client component imports the admin facade or the signup gate", () => {
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter((f) => /^["']use client["']/m.test(read(f)))
       .filter((f) =>
         /@\/lib\/(supabase\/admin|accounts\/(signup-gate|signup|deletion))["']/.test(
@@ -374,7 +374,7 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       // show the verify-before-checkout step. It never gates a Free feature.
       "src/lib/billing/screen.ts",
     ];
-    const referrers = walk(SRC)
+    const referrers = walkCode()
       .filter((f) => /\bemailVerifiedAt\b/.test(read(f)))
       .map(rel)
       .sort();
@@ -473,7 +473,6 @@ describe("migration safety (every migration after 0_init)", () => {
 describe("goals measure, never program (Goals, Pitch 6)", () => {
   const rel = (f: string) => path.relative(REPO_ROOT, f).replace(/\\/g, "/");
   const read = (f: string) => fs.readFileSync(f, "utf8");
-  const GOALS = path.join(SRC, "lib", "goals");
   const goalModel = () => {
     const schema = read(path.join(REPO_ROOT, "prisma", "schema.prisma"))
       .split("\n")
@@ -486,7 +485,7 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
   it("writes Goal rows only in src/lib/goals/goals.ts", () => {
     const write =
       /\.\s*goal\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/;
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter((f) => rel(f) !== "src/lib/goals/goals.ts")
       .filter(notDeletion)
       .filter((f) => write.test(read(f)));
@@ -496,7 +495,7 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
   it("never deletes a goal outside account deletion (archive only)", () => {
     const del = /\.\s*goal\s*\.\s*(delete|deleteMany)\s*\(/;
     expect(
-      walk(SRC)
+      walkCode()
         .filter(notDeletion)
         .filter((f) => del.test(read(f)))
         .map(rel),
@@ -507,7 +506,7 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
     const write =
       /\.\s*(loggedSet|loggedExercise|loggedSession|gymExerciseBaseline|session|sessionExercise|mesocycle|exercise|gym|missedDayResolution|cardioLog)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/;
     const goalCode = [
-      ...walk(GOALS),
+      ...walkLib("goals"),
       ...walk(path.join(SRC, "app", "(app)", "goals")),
       ...walk(path.join(SRC, "components", "goals")),
     ];
@@ -516,7 +515,7 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
   });
 
   it("goal progress never reads gym baselines (a baseline is not demonstrated strength)", () => {
-    const offenders = walk(GOALS).filter((f) =>
+    const offenders = walkLib("goals").filter((f) =>
       /gymExerciseBaseline|lib\/gyms\/baselines|currentWorkingWeight/.test(
         read(f),
       ),
@@ -525,11 +524,13 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
   });
 
   it("goal math reuses the canonical estimator and defines no formula of its own", () => {
-    const progress = read(path.join(GOALS, "progress.ts"));
+    const progress = read(libFile("goals/progress.ts"));
+    // The canonical module, by its web alias, its shared package path, or the
+    // relative path between the two shared folders (Pitch 21b).
     expect(progress).toMatch(
-      /import\s*\{[^}]*estimateOneRepMax[^}]*\}\s*from\s*["']@\/lib\/progression\/e1rm["']/,
+      /import\s*\{[^}]*estimateOneRepMax[^}]*\}\s*from\s*["'](@\/lib\/progression\/e1rm|@overload\/shared\/progression\/e1rm|\.\.\/progression\/e1rm)["']/,
     );
-    for (const f of walk(GOALS)) {
+    for (const f of walkLib("goals")) {
       expect(read(f)).not.toMatch(
         /\breps\s*\/\s*30\b|\/\s*30\s*\)|1\s*\+\s*\w+\s*\/\s*30/,
       );
@@ -564,7 +565,7 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
 
   it("goal code carries no dates, pacing, feasibility, gamification, or cardio", () => {
     const goalCode = [
-      ...walk(GOALS),
+      ...walkLib("goals"),
       ...walk(path.join(SRC, "app", "(app)", "goals")),
       ...walk(path.join(SRC, "components", "goals")),
     ];
@@ -583,11 +584,11 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
   it("no goal is ever created except by the lifter's create action", () => {
     // The only goal.create call is inside createGoal, which only the
     // createGoalAction server action calls — completion never spawns a goal.
-    const creators = walk(SRC).filter((f) =>
+    const creators = walkCode().filter((f) =>
       /\.\s*goal\s*\.\s*(create|createMany|upsert)\s*\(/.test(read(f)),
     );
     expect(creators.map(rel)).toEqual(["src/lib/goals/goals.ts"]);
-    const callers = walk(SRC).filter(
+    const callers = walkCode().filter(
       (f) =>
         rel(f) !== "src/lib/goals/goals.ts" && /\bcreateGoal\(/.test(read(f)),
     );
@@ -622,7 +623,7 @@ describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () =
   it("never deletes a cardio log outside account deletion (correction only, R33)", () => {
     const del = /\.\s*cardioLog\s*\.\s*(delete|deleteMany)\s*\(/;
     expect(
-      walk(SRC)
+      walkCode()
         .filter(notDeletion)
         .filter((f) => del.test(read(f)))
         .map(rel),
@@ -649,7 +650,7 @@ describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () =
 
   it("cardio code never reaches progression, e1RM, goals, gym baselines, or strength history", () => {
     const cardioCode = [
-      ...walk(path.join(SRC, "lib", "cardio")),
+      ...walkLib("cardio"),
       ...walk(path.join(SRC, "components", "cardio")),
     ];
     expect(cardioCode.length).toBeGreaterThan(3);
@@ -666,13 +667,13 @@ describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () =
 
   it("the strength engine and goals never know cardio exists (R42–R45)", () => {
     const strength = [
-      ...walk(path.join(SRC, "lib", "progression")),
+      ...walkLib("progression"),
       ...walk(path.join(SRC, "components", "progression")),
-      ...walk(path.join(SRC, "lib", "goals")),
-      ...walk(path.join(SRC, "lib", "gyms")),
-      path.join(SRC, "lib", "logging", "logged-sets.ts"),
-      path.join(SRC, "lib", "logging", "schedule.ts"),
-      path.join(SRC, "lib", "logging", "missed-days.ts"),
+      ...walkLib("goals"),
+      ...walkLib("gyms"),
+      libFile("logging/logged-sets.ts"),
+      libFile("logging/schedule.ts"),
+      libFile("logging/missed-days.ts"),
     ];
     expect(strength.filter((f) => /cardio/i.test(read(f))).map(rel)).toEqual(
       [],
@@ -683,7 +684,7 @@ describe("cardio is recorded, never interpreted (Cardio Logging, Pitch 7)", () =
     const write =
       /\.\s*cardioLog\s*\.\s*(create|createMany|update|updateMany|upsert)\s*\(/;
     expect(
-      walk(SRC)
+      walkCode()
         .filter((f) => write.test(read(f)))
         .map(rel),
     ).toEqual(["src/lib/cardio/cardio-logs.ts"]);
@@ -708,10 +709,10 @@ describe("RIR is a recorded fact, never a load or a rep (RIR Logging & Autoregul
 
   it("e1RM, gym baselines, goals, and the weight offer never read RIR (R16)", () => {
     const files = [
-      path.join(SRC, "lib", "progression", "e1rm.ts"),
-      path.join(SRC, "lib", "gyms", "baselines.ts"),
-      path.join(SRC, "lib", "logging", "set-entry.ts"),
-      ...walk(path.join(SRC, "lib", "goals")),
+      libFile("progression/e1rm.ts"),
+      libFile("gyms/baselines.ts"),
+      libFile("logging/set-entry.ts"),
+      ...walkLib("goals"),
     ];
     for (const f of files) expect(fs.existsSync(f)).toBe(true);
     expect(files.filter((f) => /\brir\b/i.test(read(f))).map(rel)).toEqual([]);
@@ -731,7 +732,7 @@ describe("RIR is a recorded fact, never a load or a rep (RIR Logging & Autoregul
       /\breps\s*\+\s*[\w.?()\s]*\brir\b|\brir\b\s*\+\s*[\w.?()\s]*\breps\b/i;
     const SANCTION = "reps-to-failure-ok";
     const offenders = new Set<string>();
-    for (const f of walk(SRC)) {
+    for (const f of walkCode()) {
       const lines = read(f).split("\n");
       lines.forEach((line, i) => {
         if (!sum.test(line)) return;
@@ -748,12 +749,12 @@ describe("RIR is a recorded fact, never a load or a rep (RIR Logging & Autoregul
     // it is what lets R16 be narrowed safely. The read/DTO layer (history.ts,
     // history-queries.ts) is its only caller.
     const forbidden = [
-      path.join(SRC, "lib", "progression", "e1rm.ts"),
-      path.join(SRC, "lib", "progression", "engine.ts"),
-      path.join(SRC, "lib", "progression", "recommendation.ts"),
-      path.join(SRC, "lib", "gyms", "baselines.ts"),
-      path.join(SRC, "lib", "logging", "set-entry.ts"),
-      ...walk(path.join(SRC, "lib", "goals")),
+      libFile("progression/e1rm.ts"),
+      libFile("progression/engine.ts"),
+      libFile("progression/recommendation.ts"),
+      libFile("gyms/baselines.ts"),
+      libFile("logging/set-entry.ts"),
+      ...walkLib("goals"),
     ];
     for (const f of forbidden) expect(fs.existsSync(f)).toBe(true);
     expect(
@@ -788,12 +789,12 @@ describe("RIR is a recorded fact, never a load or a rep (RIR Logging & Autoregul
 
 describe("recommendations come from the engine, in one voice (Smarter & Explainable Progression)", () => {
   const read = (f: string) => fs.readFileSync(f, "utf8");
-  const BUILDER = "src/lib/progression/recommendation.ts";
+  const BUILDER = relToWeb(libFile("progression/recommendation.ts"));
   const stripComments = (s: string) =>
     s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
   it("no page or component evaluates history: the engine is reached only through the read layer (R3)", () => {
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter((f) => /^src\/(app|components)\//.test(relPath(f)))
       .filter((f) =>
         /@\/lib\/progression\/engine["']|evaluateReactive(Decision)?\s*\(/.test(
@@ -807,7 +808,7 @@ describe("recommendations come from the engine, in one voice (Smarter & Explaina
   it("every recommendation sentence lives only in the builder (R4)", () => {
     const phrases =
       /go past|Stay at \$?\{?|Lower the weight|Back off |Hold steady|sessions running|Ready to add weight|hasn't risen/;
-    const offenders = walk(SRC)
+    const offenders = walkCode()
       .filter((f) => relPath(f) !== BUILDER)
       .filter((f) => phrases.test(stripComments(read(f))))
       .map(relPath);
@@ -859,7 +860,15 @@ describe("recommendations come from the engine, in one voice (Smarter & Explaina
       fs.existsSync(path.join(REPO_ROOT, "src/lib/progression/rir-copy.ts")),
     ).toBe(false);
     expect(
-      walk(SRC)
+      fs.existsSync(
+        path.join(
+          REPO_ROOT,
+          "../../packages/shared/src/progression/rir-copy.ts",
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      walkCode()
         .filter((f) => /rir-copy|rirReason/.test(read(f)))
         .map(relPath),
     ).toEqual([]);

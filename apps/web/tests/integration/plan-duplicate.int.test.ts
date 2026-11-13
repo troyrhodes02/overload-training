@@ -9,7 +9,7 @@ import {
   renameSession,
   updateSessionExercise,
 } from "@/lib/plan/sessions";
-import { copyName } from "@/lib/plan/validation";
+import { copyName } from "@overload/shared/plan/validation";
 import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,

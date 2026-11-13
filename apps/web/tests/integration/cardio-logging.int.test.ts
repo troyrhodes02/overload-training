@@ -6,7 +6,11 @@ import { loadScheduleContext } from "@/lib/logging/schedule-context";
 import { logSet } from "@/lib/logging/logged-sets";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { completeWorkout, startOrResumeWorkout } from "@/lib/logging/sessions";
-import { addDays, parseIsoDate, toIsoDate } from "@/lib/plan/calendar";
+import {
+  addDays,
+  parseIsoDate,
+  toIsoDate,
+} from "@overload/shared/plan/calendar";
 import { updatePlannedCardio } from "@/lib/plan/cardio";
 import { getTestPrisma } from "./support/db";
 import {

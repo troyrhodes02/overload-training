@@ -34,8 +34,8 @@ import {
   submittedReps,
   switchRepMode,
   type RepMode,
-} from "@/lib/plan/rep-target";
-import { parsePlannedExercise } from "@/lib/plan/validation";
+} from "@overload/shared/plan/rep-target";
+import { parsePlannedExercise } from "@overload/shared/plan/validation";
 
 export type ExerciseLabel = {
   name: string;

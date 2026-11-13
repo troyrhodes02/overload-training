@@ -108,7 +108,7 @@ async function main() {
     import("@prisma/adapter-pg"),
   ]);
   const { accountFor } = await import("@/lib/data/operator");
-  const { todayIso } = await import("@/lib/plan/calendar");
+  const { todayIso } = await import("@overload/shared/plan/calendar");
   const { DEMO_FIXTURE_VERSION } = await import("./fixture");
   const { executeDemoSeed, formatInspection, inspectDemoTarget } =
     await import("./seed");

@@ -24,8 +24,8 @@ import {
   getOccurrenceProgression,
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
-import { WEIGHT_MESSAGES } from "@/lib/logging/weight";
-import { addDays, isoWeekday, todayIso } from "@/lib/plan/calendar";
+import { WEIGHT_MESSAGES } from "@overload/shared/logging/weight";
+import { addDays, isoWeekday, todayIso } from "@overload/shared/plan/calendar";
 
 /**
  * Pre-mobile logging correctness (PR C): OVE-129 (no sets on a finished

@@ -6,7 +6,7 @@ import { addPlannedCardio } from "@/lib/plan/cardio";
 import { createGym } from "@/lib/gyms/gyms";
 import { createCustomExercise } from "@/lib/exercises/exercises";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
-import { addDays, todayIso } from "@/lib/plan/calendar";
+import { addDays, todayIso } from "@overload/shared/plan/calendar";
 import { getTestPrisma } from "../support/db";
 
 /**

@@ -40,7 +40,7 @@ import {
   MUSCLE_GROUP_LABELS,
   EQUIPMENT_TYPES,
   EQUIPMENT_LABELS,
-} from "@/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 import type {
   DraftExercise,
   DraftField,

@@ -4,7 +4,7 @@ import {
   occurrenceOnDate,
   oldestUnresolvedMissedDay,
   type ScheduleContext,
-} from "@/lib/logging/schedule";
+} from "@overload/shared/logging/schedule";
 
 /**
  * Effective-schedule derivation (Resolved Decisions 2, 30, 36–38, A1, A4).

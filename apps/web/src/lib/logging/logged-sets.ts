@@ -4,10 +4,10 @@ import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
-import type { EquipmentValue } from "@/lib/exercises/taxonomy";
-import { isRir } from "@/lib/logging/rir";
-import { checkWeightLbs } from "@/lib/logging/weight";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
+import type { EquipmentValue } from "@overload/shared/exercises/taxonomy";
+import { isRir } from "@overload/shared/logging/rir";
+import { checkWeightLbs } from "@overload/shared/logging/weight";
 
 /**
  * The ONLY path that writes a LoggedSet (CLAUDE.md Layer 1; Resolved Decision 9).

@@ -7,7 +7,7 @@ import {
   isoWeekday,
   todayIso,
   toIsoDate,
-} from "@/lib/plan/calendar";
+} from "@overload/shared/plan/calendar";
 import type { CardioOccurrenceDto } from "@/lib/cardio/queries";
 import { getWeekSchedule, type WeekDayDto } from "./queries";
 import { resolveRequestedWeek, weekStartFor } from "./history-week-math";

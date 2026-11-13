@@ -1,5 +1,5 @@
 import { estimateOneRepMax } from "@/lib/progression/e1rm";
-import { RIR_MAX } from "@/lib/logging/rir";
+import { RIR_MAX } from "@overload/shared/logging/rir";
 import {
   e1rmPoints,
   projectedE1rmPoints,

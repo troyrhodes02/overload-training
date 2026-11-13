@@ -1,4 +1,4 @@
-import { addDays, isoWeekday, mesocycleWeekForDate } from "@/lib/plan/calendar";
+import { addDays, isoWeekday, mesocycleWeekForDate } from "../plan/calendar";
 
 /** Mesocycle week for a date, defaulting to week 1 before the start. */
 export function mesocycleWeek(startDate: string, dateIso: string): number {

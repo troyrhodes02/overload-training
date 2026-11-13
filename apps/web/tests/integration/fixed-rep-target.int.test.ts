@@ -2,7 +2,7 @@ import { startOrResumeWorkout } from "@/lib/logging/sessions";
 import { getWorkout } from "@/lib/logging/queries";
 import { getSessionDetail } from "@/lib/plan/queries";
 import { addSessionExercise, updateSessionExercise } from "@/lib/plan/sessions";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { getTestPrisma } from "./support/db";
 import {
   createTestExercise,

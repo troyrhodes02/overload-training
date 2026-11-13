@@ -23,6 +23,9 @@ const PDFJS_DIR = path
   .join("/");
 
 const nextConfig: NextConfig = {
+  // Pitch 21b: @overload/shared ships TypeScript source (no build step), so
+  // Next compiles it like the app's own code.
+  transpilePackages: ["@overload/shared"],
   cacheComponents: true,
   partialPrefetching: true,
   // Plan-import image normalization (OVE-108) runs server-only in

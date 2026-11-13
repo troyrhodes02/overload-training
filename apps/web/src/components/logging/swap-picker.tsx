@@ -14,7 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { swapExerciseAction } from "@/app/(app)/log/actions";
-import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS } from "@/lib/exercises/taxonomy";
+import {
+  MUSCLE_GROUPS,
+  MUSCLE_GROUP_LABELS,
+} from "@overload/shared/exercises/taxonomy";
 import type { SwapContextDto } from "@/lib/logging/queries";
 import { cn } from "@/lib/utils";
 

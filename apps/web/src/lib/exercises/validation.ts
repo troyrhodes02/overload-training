@@ -9,7 +9,7 @@ import {
   isMuscleGroup,
   type EquipmentValue,
   type MuscleGroupValue,
-} from "./taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 
 export const EXERCISE_NAME_MAX = 100;
 export const SECONDARY_MUSCLES_MAX = 15;

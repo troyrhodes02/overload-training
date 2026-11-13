@@ -27,7 +27,7 @@ import {
   loadedSets,
   sessionE1rm,
 } from "./e1rm";
-import { RIR_MAX } from "@/lib/logging/rir";
+import { RIR_MAX } from "@overload/shared/logging/rir";
 
 /** Rows shown in Sessions before "View all" (R16). Display constant, Bucket C. */
 export const RECENT_SESSIONS = 10;

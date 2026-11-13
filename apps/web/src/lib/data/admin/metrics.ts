@@ -1,5 +1,5 @@
 import "server-only";
-import { toIsoDate, todayIso } from "@/lib/plan/calendar";
+import { toIsoDate, todayIso } from "@overload/shared/plan/calendar";
 import type { AdminOverviewDto } from "@/lib/admin/types";
 import { computeOverview } from "@/lib/admin/overview";
 import { adminDb } from "./db";

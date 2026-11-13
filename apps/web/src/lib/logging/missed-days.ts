@@ -7,8 +7,8 @@ import {
   parseIsoDate,
   todayIso,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import { effectiveWeekSchedule } from "./schedule";
+} from "@overload/shared/plan/calendar";
+import { effectiveWeekSchedule } from "@overload/shared/logging/schedule";
 import { loadScheduleContext } from "./schedule-context";
 
 /**

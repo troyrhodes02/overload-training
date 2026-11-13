@@ -8,7 +8,7 @@ import {
   SectionHeading,
   StickyActions,
 } from "@/components/plan/plan-bits";
-import { formatPlanRange } from "@/lib/plan/calendar";
+import { formatPlanRange } from "@overload/shared/plan/calendar";
 import {
   hasCloneSource,
   listMesocyclesForHome,

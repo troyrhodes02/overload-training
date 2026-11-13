@@ -4,7 +4,10 @@
  * date, note, e1RM, or percent can ever be submitted. Limits mirror LoggedSet
  * (weight > 0 and ≤ 9999.99 lb; reps a whole number 1–1000).
  */
-import { checkWeightLbs, WEIGHT_LBS_MAX } from "@/lib/logging/weight";
+import {
+  checkWeightLbs,
+  WEIGHT_LBS_MAX,
+} from "@overload/shared/logging/weight";
 
 /** Same storable limit as a logged set (one shared rule, OVE-135). */
 export const GOAL_WEIGHT_MAX_LBS = WEIGHT_LBS_MAX;

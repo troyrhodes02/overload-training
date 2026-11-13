@@ -1,4 +1,8 @@
-import { addDays, isoWeekday, parseIsoDate } from "@/lib/plan/calendar";
+import {
+  addDays,
+  isoWeekday,
+  parseIsoDate,
+} from "@overload/shared/plan/calendar";
 
 /**
  * Week math for all-time history (OVE-141). Pure: no database, framework, or

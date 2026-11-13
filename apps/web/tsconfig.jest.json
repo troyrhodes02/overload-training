@@ -8,7 +8,14 @@
     "isolatedModules": false,
     "verbatimModuleSyntax": false,
     "noEmit": false,
-    "types": ["node", "jest"]
+    "types": ["node", "jest"],
+    // Node10 resolution cannot read package "exports", so the shared package's
+    // subpaths are spelled out (Pitch 21b). `paths` replaces the base config's
+    // map, so the web alias is repeated.
+    "paths": {
+      "@/*": ["./src/*"],
+      "@overload/shared/*": ["../../packages/shared/src/*"]
+    }
   },
   "ts-node": {
     "transpileOnly": true

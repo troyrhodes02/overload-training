@@ -1,4 +1,4 @@
-import { todayIso } from "@/lib/plan/calendar";
+import { todayIso } from "@overload/shared/plan/calendar";
 import { getExerciseProgression } from "@/lib/progression/queries";
 import type { Account } from "@/lib/data/account";
 import {

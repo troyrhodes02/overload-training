@@ -1,6 +1,6 @@
 "use client";
 
-import { checkWeightLbs } from "@/lib/logging/weight";
+import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";

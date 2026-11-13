@@ -101,9 +101,13 @@ it("every admin data module except the pure gate is server-only", () => {
 
 it("admin pages and components import no training module and no deletion path", () => {
   const FORBIDDEN =
-    /^@\/lib\/(plan|logging|progression|goals|cardio|gyms|exercises|tour|release-notes)(\/|$)|^@\/lib\/accounts\/deletion$|^@\/lib\/data\/(account-db|operator|scope)$|^@\/lib\/db$/;
-  // The one exception: the pure calendar-date helpers (no data access).
-  const ALLOWED = new Set(["@/lib/plan/calendar"]);
+    /^(@\/lib|@overload\/shared)\/(plan|logging|progression|goals|cardio|gyms|exercises|tour|release-notes)(\/|$)|^@\/lib\/accounts\/deletion$|^@\/lib\/data\/(account-db|operator|scope)$|^@\/lib\/db$/;
+  // The one exception: the pure calendar-date helpers (no data access), at
+  // their web path or, since Pitch 21b, in the shared package.
+  const ALLOWED = new Set([
+    "@/lib/plan/calendar",
+    "@overload/shared/plan/calendar",
+  ]);
   const offenders = adminSurface().flatMap((f) =>
     importsOf(f)
       .filter((i) => FORBIDDEN.test(i) && !ALLOWED.has(i))

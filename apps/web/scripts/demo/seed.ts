@@ -1,5 +1,5 @@
 import type { Account } from "@/lib/data/account";
-import { addDays, isoWeekday } from "@/lib/plan/calendar";
+import { addDays, isoWeekday } from "@overload/shared/plan/calendar";
 import { createGym } from "@/lib/gyms/gyms";
 import { activateMesocycle, createMesocycle } from "@/lib/plan/mesocycles";
 import { addSession, addSessionExercise } from "@/lib/plan/sessions";

@@ -6,8 +6,8 @@ import {
   rirAccessibleName,
   rirSpoken,
   rirSuffix,
-} from "@/lib/logging/rir";
-import { loggedRowLabel } from "@/lib/logging/set-entry";
+} from "@overload/shared/logging/rir";
+import { loggedRowLabel } from "@overload/shared/logging/set-entry";
 
 /** The one RIR scale (RIR Logging & Autoregulation §11.1; R3, R4). */
 describe("RIR scale", () => {

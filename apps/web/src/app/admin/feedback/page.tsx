@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/data/admin/identity";
 import { listFeedback, parseInboxQuery } from "@/lib/data/admin/feedback";
-import { todayIso } from "@/lib/plan/calendar";
+import { todayIso } from "@overload/shared/plan/calendar";
 import { FeedbackInbox } from "@/components/admin/feedback-inbox";
 
 type PageProps = {

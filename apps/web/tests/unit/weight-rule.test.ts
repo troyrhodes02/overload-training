@@ -3,7 +3,7 @@ import {
   hasAtMostDecimals,
   WEIGHT_LBS_MAX,
   WEIGHT_MESSAGES,
-} from "@/lib/logging/weight";
+} from "@overload/shared/logging/weight";
 import { parseGoalInput } from "@/lib/goals/validation";
 
 /** OVE-135 (mobile audit F-D3): one weight rule with named limits. */

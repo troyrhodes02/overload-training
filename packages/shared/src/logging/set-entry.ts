@@ -1,4 +1,4 @@
-import { formatMonthDay } from "@/lib/plan/calendar";
+import { formatMonthDay } from "../plan/calendar";
 
 /**
  * Set-entry rules for the exercise logging card (Faster Logging UX spec §5,
