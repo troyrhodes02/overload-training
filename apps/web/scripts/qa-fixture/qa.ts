@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
+import { ACCOUNT_DELETION_STEPS } from "@/lib/accounts/deletion";
 import { updateAppearance } from "@/lib/accounts/appearance";
 import { updateProfile } from "@/lib/accounts/profile";
 import { logCardio } from "@/lib/cardio/cardio-logs";
@@ -50,6 +52,7 @@ import {
   assertQaTestEmail,
   isQaTestEmail,
 } from "./rules";
+import { QA_BASELINE_HASHES } from "./baseline";
 
 export {
   QA_PRESERVED_MODELS,
@@ -68,15 +71,15 @@ export {
  *    only from logSet, each set and its gym-baseline correction commit
  *    together, nothing derived is stored, and a failure leaves nothing behind.
  *  - The reset is the one deliberate exception to "only account deletion
- *    destroys logged history" (CLAUDE.md): it deletes the designated QA
- *    account's TRAINING rows through its account-scoped client (so another
- *    account and the shared library are unreachable), in the deletion module's
- *    own dependency order, and re-seeds in the same transaction. It runs only
- *    on the development project (cli.ts) and only for an account whose email
- *    is on a reserved test domain (assertQaTestEmail), so a real lifter's
- *    account can never be its target. tests/unit/qa-fixture-guards.test.ts
- *    pins it as the only destroyer of logged history outside the deletion
- *    module.
+ *    destroys logged history" (CLAUDE.md): it removes the designated QA
+ *    account's TRAINING rows with the account-deletion module's own removal
+ *    steps (ACCOUNT_DELETION_STEPS, through the account-scoped client, so
+ *    another account and the shared library are unreachable), in that
+ *    module's order, and re-seeds in the same transaction. It runs only on the
+ *    development project (cli.ts) and only for an account whose email is on a
+ *    reserved test domain (assertQaTestEmail), so a real lifter's account can
+ *    never be its target. tests/unit/qa-fixture.test.ts pins it as the only
+ *    other user of those steps.
  */
 
 // ---------------------------------------------------------------------------
@@ -234,11 +237,21 @@ async function writeBaseline(
   // Pro through Overload's own comp entitlement (reason "tester"), the same
   // mechanism the dev-tester provisioner and the founding-member grant use:
   // no Stripe customer, subscription, or invoice. Kept when already active.
-  const comp = await tx.entitlement.findFirst({
+  // An unrevoked comp counts only while the resolver would honour it (started,
+  // and no end date or one still ahead); an expired one is revoked and
+  // replaced, so the account is never left on Free (the one-active-comp index
+  // allows one unrevoked comp).
+  const unrevoked = await tx.entitlement.findMany({
     where: { source: "comp", revokedAt: null },
-    select: { id: true },
+    select: { startedAt: true, endsAt: true },
   });
-  if (!comp) {
+  if (!unrevoked.some((e) => compIsActive(e, now))) {
+    if (unrevoked.length > 0) {
+      await tx.entitlement.updateMany({
+        where: { source: "comp", revokedAt: null },
+        data: { revokedAt: now },
+      });
+    }
     await tx.entitlement.create({
       data: {
         userId: account.userId,
@@ -434,29 +447,20 @@ async function writeBaseline(
   }
 }
 
-/** Deletes one training model's rows, through the scoped transaction (acting account only). */
-const DELETE_TRAINING: Record<
-  (typeof QA_RESET_MODELS)[number],
-  (tx: AccountTx) => Promise<{ count: number }>
-> = {
-  LoggedSet: (tx) => tx.loggedSet.deleteMany({}),
-  LoggedExercise: (tx) => tx.loggedExercise.deleteMany({}),
-  GymExerciseBaseline: (tx) => tx.gymExerciseBaseline.deleteMany({}),
-  Goal: (tx) => tx.goal.deleteMany({}),
-  CardioLog: (tx) => tx.cardioLog.deleteMany({}),
-  MissedDayResolution: (tx) => tx.missedDayResolution.deleteMany({}),
-  LoggedSession: (tx) => tx.loggedSession.deleteMany({}),
-  PlannedCardio: (tx) => tx.plannedCardio.deleteMany({}),
-  SessionExercise: (tx) => tx.sessionExercise.deleteMany({}),
-  Session: (tx) => tx.session.deleteMany({}),
-  Mesocycle: (tx) => tx.mesocycle.deleteMany({}),
-  ExerciseFavorite: (tx) => tx.exerciseFavorite.deleteMany({}),
-  // Custom exercises only; the scoped client cannot reach the shared library.
-  Exercise: (tx) => tx.exercise.deleteMany({ where: { isCustom: true } }),
-  Gym: (tx) => tx.gym.deleteMany({}),
-};
+// Thousands of sequential writes over the hosted pooler: allow ten minutes.
+// A timeout rolls the whole transaction back, leaving the account unchanged.
+/** The entitlement resolver's comp rule (src/lib/entitlements/resolve.ts compActive). */
+function compIsActive(
+  e: { startedAt: Date; endsAt: Date | null },
+  now: Date,
+): boolean {
+  return (
+    e.startedAt.getTime() <= now.getTime() &&
+    (e.endsAt === null || now.getTime() < e.endsAt.getTime())
+  );
+}
 
-const TX_OPTIONS = { timeout: 300_000, maxWait: 20_000 } as const;
+const TX_OPTIONS = { timeout: 600_000, maxWait: 20_000 } as const;
 
 export type QaWriteResult = {
   anchorIso: string;
@@ -477,6 +481,7 @@ export async function executeQaSeed(
   const acting = inFixtureZone(account);
   const anchorIso = opts.anchorIso ?? todayIso(QA_TIME_ZONE);
   const now = opts.now ?? new Date();
+  let created: QaCounts | undefined;
   await account.db.$transaction(async (tx) => {
     const counts = await countsOf(tx);
     if (total(counts) !== 0) {
@@ -485,8 +490,9 @@ export async function executeQaSeed(
       );
     }
     await writeBaseline(acting, tx, anchorIso, now);
+    created = await countsOf(tx);
   }, TX_OPTIONS);
-  return { anchorIso, deleted: null, created: await countsOf(account.db) };
+  return { anchorIso, deleted: null, created: created! };
 }
 
 /**
@@ -504,6 +510,7 @@ export async function executeQaReset(
   const anchorIso = opts.anchorIso ?? todayIso(QA_TIME_ZONE);
   const now = opts.now ?? new Date();
   let deleted: QaCounts | null = null;
+  let created: QaCounts | undefined;
   await account.db.$transaction(async (tx) => {
     const blocking = await tx.importSession.count({
       where: { mesocycleId: { not: null } },
@@ -514,11 +521,15 @@ export async function executeQaReset(
       );
     }
     deleted = await countsOf(tx);
-    for (const model of QA_RESET_MODELS) await DELETE_TRAINING[model](tx);
+    // The deletion module's own removal steps (one definition), scoped to
+    // this account, for the training models only.
+    for (const model of QA_RESET_MODELS)
+      await ACCOUNT_DELETION_STEPS[model](tx);
     if (opts.afterDelete) await opts.afterDelete(tx);
     await writeBaseline(acting, tx, anchorIso, now);
+    created = await countsOf(tx);
   }, TX_OPTIONS);
-  return { anchorIso, deleted, created: await countsOf(account.db) };
+  return { anchorIso, deleted, created: created! };
 }
 
 // ---------------------------------------------------------------------------
@@ -615,10 +626,16 @@ export async function verifyQaFixture(
     "What's New caught up",
     seen?.lastSeenReleaseId === orderedReleaseNotes()[0].id,
   );
-  const comp = await db.entitlement.count({
+  const comps = await db.entitlement.findMany({
     where: { source: "comp", revokedAt: null },
+    select: { startedAt: true, endsAt: true },
   });
-  check("comp Pro is active", comp === 1, `found ${comp}`);
+  const activeComps = comps.filter((e) => compIsActive(e, now)).length;
+  check(
+    "comp Pro is active",
+    activeComps === 1,
+    `found ${activeComps} active comp(s)`,
+  );
 
   if (anchorIso) {
     const anchorWorkout = await db.loggedSession.count({
@@ -643,6 +660,19 @@ export async function verifyQaFixture(
   });
   check("one missed day resolved as skipped", skipped === 1);
 
+  // Values, not just counts: each fingerprint section against the committed
+  // baseline (an edited set, goal, gym, or preference shows up here).
+  if (active) {
+    const hashes = fingerprintHashes(await qaFingerprint(account));
+    for (const section of Object.keys(QA_BASELINE_HASHES)) {
+      check(
+        `values: ${section} match the ${QA_FIXTURE_VERSION} baseline`,
+        hashes[section] === QA_BASELINE_HASHES[section],
+        "changed since the last reset",
+      );
+    }
+  }
+
   const matches = checks.every((c) => c.ok);
   return {
     status: !matches ? "drifted" : anchorIso === today ? "baseline" : "stale",
@@ -654,12 +684,55 @@ export async function verifyQaFixture(
   };
 }
 
+const exerciseKey = (e: { name: string; sourceId: string | null }) =>
+  e.sourceId ?? e.name;
+
+/** Replaces every `{ name, sourceId }` exercise object with its stable key. */
+function keyExercises(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(keyExercises);
+  if (value && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    const keys = Object.keys(o).sort();
+    if (keys.length === 2 && keys[0] === "name" && keys[1] === "sourceId") {
+      return exerciseKey(o as { name: string; sourceId: string | null });
+    }
+    return Object.fromEntries(keys.map((k) => [k, keyExercises(o[k])]));
+  }
+  return value;
+}
+
+/** One SHA-256 per fingerprint section, over canonical (key-sorted) JSON. */
+export function fingerprintHashes(
+  fingerprint: Record<string, unknown>,
+): Record<string, string> {
+  const canonical = (v: unknown): string =>
+    JSON.stringify(v, (_k, x) =>
+      x && typeof x === "object" && !Array.isArray(x)
+        ? Object.fromEntries(
+            Object.keys(x)
+              .sort()
+              .map((k) => [k, (x as Record<string, unknown>)[k]]),
+          )
+        : x,
+    );
+  return Object.fromEntries(
+    Object.keys(fingerprint)
+      .sort()
+      .map((k) => [
+        k,
+        createHash("sha256").update(canonical(fingerprint[k])).digest("hex"),
+      ]),
+  );
+}
+
 /**
  * A canonical, id-free projection of everything the fixture writes, with every
  * date expressed relative to the anchor. Two resets — on the same day or on
  * different days — produce the same fingerprint. Used by the tests.
  */
-export async function qaFingerprint(account: Account): Promise<unknown> {
+export async function qaFingerprint(
+  account: Account,
+): Promise<Record<string, unknown>> {
   const db = account.db;
   const active = await db.mesocycle.findFirst({
     where: { status: "active" },
@@ -680,6 +753,9 @@ export async function qaFingerprint(account: Account): Promise<unknown> {
   const relDay = (dow: number | null) =>
     dow === null ? null : (((dow - isoWeekday(anchor)) % 7) + 7) % 7;
   const name = { select: { name: true } } as const;
+  // Exercises by their stable library source id (custom ones by name), so the
+  // fingerprint does not depend on how a catalog import spelled a name.
+  const ex = { select: { name: true, sourceId: true } } as const;
   const sortBy = <T>(rows: T[]) =>
     rows
       .map((r) => JSON.stringify(r))
@@ -706,7 +782,7 @@ export async function qaFingerprint(account: Account): Promise<unknown> {
         where: { isCustom: true },
         select: { name: true, primaryMuscle: true, equipmentType: true },
       }),
-      db.exerciseFavorite.findMany({ select: { exercise: name } }),
+      db.exerciseFavorite.findMany({ select: { exercise: ex } }),
       db.mesocycle.findMany({
         select: {
           name: true,
@@ -724,7 +800,7 @@ export async function qaFingerprint(account: Account): Promise<unknown> {
                   plannedSets: true,
                   targetRepMin: true,
                   targetRepMax: true,
-                  exercise: name,
+                  exercise: ex,
                 },
               },
             },
@@ -746,7 +822,7 @@ export async function qaFingerprint(account: Account): Promise<unknown> {
             position: true,
             plannedSets: true,
             skippedAt: true,
-            exercise: name,
+            exercise: ex,
             gym: name,
             sets: {
               select: {
@@ -761,7 +837,7 @@ export async function qaFingerprint(account: Account): Promise<unknown> {
       },
     }),
     db.gymExerciseBaseline.findMany({
-      select: { weightLbs: true, gym: name, exercise: name },
+      select: { weightLbs: true, gym: name, exercise: ex },
     }),
     db.missedDayResolution.findMany({
       select: { missedOn: true, outcome: true },
@@ -775,19 +851,19 @@ export async function qaFingerprint(account: Account): Promise<unknown> {
         targetReps: true,
         status: true,
         archiveReason: true,
-        exercise: name,
+        exercise: ex,
         gym: name,
       },
     }),
   ]);
 
-  return {
+  return keyExercises({
     version: QA_FIXTURE_VERSION,
     profile,
     tour,
     gyms: sortBy(gyms),
     custom: sortBy(custom),
-    favorites: sortBy(favorites.map((f) => f.exercise.name)),
+    favorites: sortBy(favorites.map((f) => exerciseKey(f.exercise))),
     mesocycles: sortBy(
       mesocycles.map((m) => ({
         ...m,
@@ -834,7 +910,7 @@ export async function qaFingerprint(account: Account): Promise<unknown> {
     goals: sortBy(
       goals.map((g) => ({ ...g, targetWeightLbs: Number(g.targetWeightLbs) })),
     ),
-  };
+  }) as Record<string, unknown>;
 }
 
 /** Plain-text report lines for the CLI. */

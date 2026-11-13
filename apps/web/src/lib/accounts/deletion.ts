@@ -75,9 +75,15 @@ export const ACCOUNT_DELETION_ORDER = [
 
 export type AccountDeletionModel = (typeof ACCOUNT_DELETION_ORDER)[number];
 
-const DELETE: Record<
-  AccountDeletionModel,
-  (tx: AccountTx) => Promise<{ count: number }>
+/**
+ * How each owned model's rows are removed, through the scoped transaction (the
+ * acting account's rows only). Exported for exactly one other caller, the
+ * development-only QA fixture reset (scripts/qa-fixture/qa.ts, OVE-173), so
+ * there is one definition of how a row is removed; a guard test pins the
+ * importers.
+ */
+export const ACCOUNT_DELETION_STEPS: Readonly<
+  Record<AccountDeletionModel, (tx: AccountTx) => Promise<{ count: number }>>
 > = {
   LoggedSet: (tx) => tx.loggedSet.deleteMany({}),
   LoggedExercise: (tx) => tx.loggedExercise.deleteMany({}),
@@ -153,7 +159,7 @@ export async function deleteAccount(
     async (tx) => {
       const counts = {} as Record<AccountDeletionModel, number>;
       for (const model of ACCOUNT_DELETION_ORDER) {
-        counts[model] = (await DELETE[model](tx)).count;
+        counts[model] = (await ACCOUNT_DELETION_STEPS[model](tx)).count;
       }
       return counts;
     },

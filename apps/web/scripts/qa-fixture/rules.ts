@@ -55,7 +55,7 @@ export const QA_RESET_MODELS = [
 export const QA_PRESERVED_MODELS = [
   "Profile (row kept; names, time zone, and appearance rewritten)",
   "TourProgress and ReleaseSeen (rewritten to finished and caught up)",
-  "Entitlement (trial, comp, and revoked rows kept; a comp is added only when none is active)",
+  "Entitlement (trial and revoked rows kept; an active comp is kept, an expired one is revoked and replaced so the account stays Pro)",
   "BillingAccount and PromoRedemption (the Stripe mirror; never written)",
   "Feedback and FeedbackAttachment",
   "ImportSession, ImportSourcePart, ImportUsageDay (plan import)",

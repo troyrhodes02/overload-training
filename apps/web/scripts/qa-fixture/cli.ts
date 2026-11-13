@@ -136,9 +136,11 @@ export function assertQaEnvironment(
   return target;
 }
 
+/** A refusal: printed, exit code 1, after the database connection is closed. */
+class CliRefusal extends Error {}
+
 function fail(message: string): never {
-  console.error(message);
-  process.exit(1);
+  throw new CliRefusal(message);
 }
 
 async function main() {
@@ -177,7 +179,7 @@ async function main() {
       );
     }
     const userId = args.userId!;
-    const rows = await base.$queryRawUnsafe<{ email: string }[]>(
+    const rows = await base.$queryRawUnsafe<{ email: string | null }[]>(
       `SELECT email::text AS email FROM auth.users WHERE id = $1::uuid`,
       userId,
     );
@@ -186,6 +188,10 @@ async function main() {
         "Refusing: no auth user has that id on this project. Create the QA account first (docs/technical/qa-fixture-account.md §1). Nothing was read or written.",
       );
     const email = rows[0].email;
+    if (!email)
+      fail(
+        "Refusing: that auth user has no email, so it cannot be a designated test account. Nothing was written.",
+      );
     if (args.email && args.email.trim().toLowerCase() !== email.toLowerCase())
       fail(
         "Refusing: --email does not match that account. Nothing was written.",
@@ -267,6 +273,8 @@ async function main() {
     console.log(
       `\n${command === "seed" ? "Seeded" : "Reset"} in one transaction. Baseline date: ${result.anchorIso}.`,
     );
+    if (result.deleted)
+      console.log(qa.formatCounts("  training rows deleted:", result.deleted));
     console.log(qa.formatCounts("  training rows now:", result.created));
     console.log("\nNot seeded, by design:");
     for (const line of fixture.QA_NOT_SEEDED) console.log(`  - ${line}`);
@@ -278,6 +286,6 @@ async function main() {
 if (require.main === module) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }

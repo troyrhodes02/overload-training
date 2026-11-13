@@ -38,7 +38,7 @@ Run every command from the repository root.
 npm run qa:verify -- --user-id "$QA_USER" --confirm-ref vdxrmfadikwzodjljbdi
 ```
 
-Reports `EMPTY` (no training data), `BASELINE` (matches, anchored today), `STALE` (matches, but reset on an earlier day, so today's workout no longer lines up), or `DRIFTED` (differs; each failed check is listed, exit code 2). It writes nothing.
+Reports `EMPTY` (no training data), `BASELINE` (matches, anchored today), `STALE` (matches, but reset on an earlier day, so today's workout no longer lines up), or `DRIFTED` (differs; each failed check is listed, exit code 2). It checks row counts, the profile, onboarding, an active comp (by the same rule the entitlement resolver uses), and the values of every seeded section (plans, history, sets, goals, gyms, cardio, favorites, preferences) against the committed baseline fingerprint, so an edited past set reads as drift. It writes nothing.
 
 ## 4. Seed (empty account only)
 
@@ -56,17 +56,17 @@ npm run qa:reset -- --user-id "$QA_USER" --confirm-ref vdxrmfadikwzodjljbdi     
 npm run qa:reset -- --user-id "$QA_USER" --confirm-ref vdxrmfadikwzodjljbdi --execute --confirm-destroy "$QA_USER"  # delete and restore
 ```
 
-**This deletes the test account's training data.** It runs in one transaction: the deletes and the new baseline commit together, and any failure leaves the account exactly as it was. There is no `--force`; the only confirmation is `--confirm-destroy` repeating the same account id.
+**This deletes the test account's training data.** Expect it to take a minute or two over the pooler (several thousand writes; the transaction allows ten minutes). It runs in one transaction: the deletes and the new baseline commit together, and any failure leaves the account exactly as it was. There is no `--force`; the only confirmation is `--confirm-destroy` repeating the same account id.
 
 ### What a reset deletes (this account only)
 
-`LoggedSet`, `LoggedExercise`, `GymExerciseBaseline`, `Goal`, `CardioLog`, `MissedDayResolution`, `LoggedSession`, `PlannedCardio`, `SessionExercise`, `Session`, `Mesocycle`, `ExerciseFavorite`, the account's **custom** `Exercise` rows, and `Gym`. Every delete goes through the account-scoped client, in the account-deletion module's own order, so another account and the shared library cannot be reached.
+`LoggedSet`, `LoggedExercise`, `GymExerciseBaseline`, `Goal`, `CardioLog`, `MissedDayResolution`, `LoggedSession`, `PlannedCardio`, `SessionExercise`, `Session`, `Mesocycle`, `ExerciseFavorite`, the account's **custom** `Exercise` rows, and `Gym`. Every delete uses the account-deletion module's own removal steps, through the account-scoped client and in that module's order, so another account and the shared library cannot be reached.
 
 ### What a reset keeps
 
 - The Supabase Auth user (never deleted or recreated) and the `Profile` row. The profile's first and last name, time zone (`America/Chicago`), and appearance are rewritten to the baseline; the username is kept.
 - `TourProgress` and `ReleaseSeen`, rewritten to "tour finished" and "What's New caught up".
-- `Entitlement` rows: trial, comp, and revoked rows are kept; a comp (reason `tester`) is added only when none is active.
+- `Entitlement` rows: trial and revoked rows are kept, and an active comp is kept. If the comp has expired (or there is none), the reset revokes the expired one and adds a fresh comp (reason `tester`, no end date), so the account is always Pro after a reset.
 - `BillingAccount` and `PromoRedemption` (the Stripe mirror; never written), `Feedback` and attachments, and plan-import data (`ImportSession`, `ImportSourcePart`, `ImportUsageDay`).
 - The shared exercise library, global configuration, and every other account.
 
@@ -105,4 +105,4 @@ Not seeded, by design: a Free-plan state (revoke the comp in Admin, or use a sec
 | Cardio | Today on a rest day; History | Planned and logged cardio; the unlogged bike shown as missed |
 | Pro visibility | Settings → Plan & Billing | Comped Pro; no purchase needed. For the Free view, revoke the comp in Admin, then reset to restore it |
 
-After a session, reset to start the next one from the same baseline. Changing `scripts/qa-fixture/fixture.ts` changes the baseline: bump `QA_FIXTURE_VERSION`.
+After a session, reset to start the next one from the same baseline. Changing `scripts/qa-fixture/fixture.ts` changes the baseline: bump `QA_FIXTURE_VERSION` and update `scripts/qa-fixture/baseline.ts` (the integration test prints the new section hashes).

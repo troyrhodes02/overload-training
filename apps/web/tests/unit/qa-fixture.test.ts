@@ -286,12 +286,20 @@ describe("the reset is the only other destroyer of logged history", () => {
     ...walk(path.join(WEB, "prisma")),
   ];
 
-  it("deletes LoggedSet rows only in the deletion module and the QA reset", () => {
+  it("deletes LoggedSet rows only in the deletion module (the QA reset reuses its steps)", () => {
     const destroyers = files
       .filter((f) => /\.\s*loggedSet\s*\.\s*delete(Many)?\s*\(/.test(code(f)))
       .map(rel)
       .sort();
-    expect(destroyers).toEqual(
+    expect(destroyers).toEqual(["src/lib/accounts/deletion.ts"]);
+  });
+
+  it("the deletion module's removal steps are used only by it and the QA reset", () => {
+    const users = files
+      .filter((f) => /\bACCOUNT_DELETION_STEPS\b/.test(code(f)))
+      .map(rel)
+      .sort();
+    expect(users).toEqual(
       ["scripts/qa-fixture/qa.ts", "src/lib/accounts/deletion.ts"].sort(),
     );
   });

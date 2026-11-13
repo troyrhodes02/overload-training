@@ -16,11 +16,13 @@ import {
 import {
   QaFixtureRefused,
   executeQaReset,
+  fingerprintHashes,
   executeQaSeed,
   inspectQaTarget,
   qaFingerprint,
   verifyQaFixture,
 } from "../../scripts/qa-fixture/qa";
+import { QA_BASELINE_HASHES } from "../../scripts/qa-fixture/baseline";
 import { getTestPrisma } from "./support/db";
 import { createTestAccount } from "./support/accounts";
 
@@ -506,5 +508,56 @@ describe("a missing designated account", () => {
     expect(await getTestPrisma().profile.count({ where: { userId: id } })).toBe(
       0,
     );
+  });
+});
+
+describe("the value baseline", () => {
+  it("a fresh seed matches the committed baseline hashes (scripts/qa-fixture/baseline.ts)", async () => {
+    const account = await seeded();
+    const actual = fingerprintHashes(await qaFingerprint(account));
+    expect(Object.keys(QA_BASELINE_HASHES).length).toBeGreaterThan(0);
+    // On a deliberate baseline change, copy these values into baseline.ts.
+    expect(actual).toEqual(QA_BASELINE_HASHES);
+  });
+
+  it("an edited past set is drift even though no count changed", async () => {
+    const account = await seeded();
+    const db = getTestPrisma();
+    const set = await db.loggedSet.findFirstOrThrow({
+      where: { userId: account.userId, weightLbs: { not: null } },
+    });
+    await db.loggedSet.update({
+      where: { id: set.id },
+      data: { reps: set.reps + 1 },
+    });
+    const v = await verifyQaFixture(account);
+    expect(v.status).toBe("drifted");
+    expect(v.counts).toEqual(expectedCounts());
+    expect(v.checks.filter((c) => !c.ok).map((c) => c.name)).toEqual([
+      "values: logged match the qa-v1 baseline",
+    ]);
+  });
+
+  it("an expired comp is replaced, so the account is never left on Free", async () => {
+    const account = await seeded();
+    const db = getTestPrisma();
+    await db.entitlement.updateMany({
+      where: { userId: account.userId, source: "comp" },
+      data: { endsAt: new Date(Date.now() - 86_400_000) },
+    });
+    expect(
+      (await verifyQaFixture(account)).checks.find(
+        (c) => c.name === "comp Pro is active",
+      )!.ok,
+    ).toBe(false);
+    await executeQaReset(account, QA_EMAIL, { anchorIso: anchor });
+    const comps = await db.entitlement.findMany({
+      where: { userId: account.userId, source: "comp" },
+    });
+    expect(comps).toHaveLength(2);
+    expect(
+      comps.filter((c) => c.revokedAt === null && c.endsAt === null),
+    ).toHaveLength(1);
+    expect((await verifyQaFixture(account)).status).toBe("baseline");
   });
 });
