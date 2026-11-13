@@ -13,7 +13,7 @@ import {
   muscleGroupLabel,
   type EquipmentValue,
   type MuscleGroupValue,
-} from "./taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 
 /**
  * Exercise reads for the library (spec "Reads"). Every SELECTION query filters

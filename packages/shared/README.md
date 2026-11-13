@@ -2,7 +2,9 @@
 
 Source-only, platform-independent TypeScript shared by the web app (`apps/web`) and the iPhone app (`apps/mobile`). There is no build step: consumers compile it from `src/`.
 
-**Status:** empty and fenced (Pitch 21a). Slice **21b — Shared Package & Contracts** fills it and makes the web consume it (`transpilePackages`). Until then nothing imports it.
+**Status:** filled by slice **21b — Shared Package & Contracts**; the web consumes it (`transpilePackages`). Import a module by its subpath: `@overload/shared/<domain>/<name>`, which is the web's old `@/lib/<domain>/<name>` path (spec `docs/pitches/mvp-5b-mobile-app/21b-shared-package-contracts/spec.md` §5). There is no barrel export.
+
+Tests for this package live in the web's unit project (`apps/web/tests/unit`), which compiles it through a Jest mapper; `npm test` from the root runs them.
 
 ## What belongs here (21b and later)
 

@@ -5,9 +5,14 @@ jest.mock("@/lib/auth", () => ({ requireUser: jest.fn() }));
 
 import fs from "node:fs";
 import path from "node:path";
-import { isoDateInZone, isValidTimeZone, todayIso } from "@/lib/plan/calendar";
+import {
+  isoDateInZone,
+  isValidTimeZone,
+  todayIso,
+} from "@overload/shared/plan/calendar";
 import { accountToday, type Account } from "@/lib/data/account";
 import { formatGoalDate } from "@/lib/goals/queries";
+import { SHARED_SRC } from "../support/code-roots";
 
 /**
  * "Today" follows the ACCOUNT's stored time zone (Profile.timeZone —
@@ -81,7 +86,12 @@ describe("today is the account's stored time zone (server)", () => {
         .flatMap((e) =>
           e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)],
         );
-    const offenders = walk(path.join(root, "src")).filter((f) =>
+    // The web source and the shared package, where the calendar math lives
+    // since Pitch 21b.
+    const offenders = [
+      ...walk(path.join(root, "src")),
+      ...walk(SHARED_SRC),
+    ].filter((f) =>
       /overload-tz|lifterToday|lifterTimeZone|TimeZoneSync/.test(
         fs.readFileSync(f, "utf8"),
       ),

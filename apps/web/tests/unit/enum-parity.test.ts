@@ -1,7 +1,7 @@
 import { $Enums } from "@prisma/client";
 import { APPEARANCES } from "@/lib/appearance/appearance";
 import { FEEDBACK_CATEGORIES } from "@/lib/feedback/validation";
-import { SPLIT_TYPES } from "@/lib/plan/presets";
+import { SPLIT_TYPES } from "@overload/shared/plan/presets";
 import { RESOLVABLE_OUTCOMES } from "@/lib/logging/missed-days";
 import type { MesocycleStatusValue } from "@/lib/plan/queries";
 import type { LockedMesocycle } from "@/lib/data/locks";
@@ -9,7 +9,7 @@ import type {
   EffectiveOccurrence,
   ScheduleLoggedSession,
   ScheduleResolution,
-} from "@/lib/logging/schedule";
+} from "@overload/shared/logging/schedule";
 import type { DashboardDto } from "@/lib/logging/queries";
 import type { DashboardKind } from "@/lib/goals/dashboard";
 

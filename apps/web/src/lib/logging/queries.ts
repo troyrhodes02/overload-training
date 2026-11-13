@@ -1,6 +1,6 @@
 import "server-only";
 import { isUuid } from "@/lib/actions/result";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { accountToday, type Account } from "@/lib/data/account";
 import type { LoggedSessionStatus } from "@prisma/client";
 import {
@@ -8,16 +8,16 @@ import {
   formatPlanDate,
   formatPlanRange,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
+} from "@overload/shared/plan/calendar";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import { isScheduledDeloadWeek } from "@/lib/progression/deload";
 import { exerciseHistoryHref } from "@/lib/progression/history-format";
 import {
   isMuscleGroup,
   muscleGroupLabel,
   type MuscleGroupValue,
-} from "@/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 import { favoriteExerciseIds } from "@/lib/exercises/queries";
 import { getCardioWeek, type CardioOccurrenceDto } from "@/lib/cardio/queries";
 import { loadScheduleContext } from "./schedule-context";
@@ -28,7 +28,7 @@ import {
   mesocycleWeek,
   type EffectiveOccurrence,
   type ScheduleContext,
-} from "./schedule";
+} from "@overload/shared/logging/schedule";
 
 /**
  * Server-side reads for Guided Workout Logging. All reads go through Prisma on

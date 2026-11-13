@@ -17,7 +17,7 @@ jest.mock("next/navigation", () => ({
 import { getAuthUser, requireUser } from "@/lib/auth";
 import { createAccountClient } from "@/lib/data/account-db";
 import { getAccessState, requireAccount } from "@/lib/data/account";
-import { todayIso } from "@/lib/plan/calendar";
+import { todayIso } from "@overload/shared/plan/calendar";
 
 /**
  * Suspension and last-active in the per-request chokepoint (Admin Center &

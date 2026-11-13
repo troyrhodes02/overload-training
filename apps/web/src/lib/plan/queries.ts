@@ -2,11 +2,23 @@ import "server-only";
 import type { Account } from "@/lib/data/account";
 import { isUuid } from "@/lib/actions/result";
 import { exerciseImageUrl } from "@/lib/exercises/images";
-import { equipmentLabel, muscleGroupLabel } from "@/lib/exercises/taxonomy";
-import { cloneDefaultStartDate, plannedEndDate } from "./calendar";
-import { copyName } from "./validation";
-import { SPLIT_TYPE_LABELS, type SplitTypeValue } from "./presets";
-import { evaluateReadiness, type Readiness } from "./readiness";
+import {
+  equipmentLabel,
+  muscleGroupLabel,
+} from "@overload/shared/exercises/taxonomy";
+import {
+  cloneDefaultStartDate,
+  plannedEndDate,
+} from "@overload/shared/plan/calendar";
+import { copyName } from "@overload/shared/plan/validation";
+import {
+  SPLIT_TYPE_LABELS,
+  type SplitTypeValue,
+} from "@overload/shared/plan/presets";
+import {
+  evaluateReadiness,
+  type Readiness,
+} from "@overload/shared/plan/readiness";
 import {
   planInclude,
   startDateIso,

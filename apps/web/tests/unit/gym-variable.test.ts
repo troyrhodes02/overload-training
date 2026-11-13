@@ -1,8 +1,8 @@
 import {
   isGymVariable,
   GYM_VARIABLE_EQUIPMENT,
-} from "@/lib/exercises/gym-variable";
-import { EQUIPMENT_TYPES } from "@/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/gym-variable";
+import { EQUIPMENT_TYPES } from "@overload/shared/exercises/taxonomy";
 
 /**
  * The single gym-variable authority (Resolved Decisions 40–41): machine and

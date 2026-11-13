@@ -1,4 +1,4 @@
-import { WEIGHT_MESSAGES } from "@/lib/logging/weight";
+import { WEIGHT_MESSAGES } from "@overload/shared/logging/weight";
 import {
   GOAL_FIELD_ERRORS,
   goalInputFromFormData,

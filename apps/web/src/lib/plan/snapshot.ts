@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
-import { toIsoDate } from "./calendar";
-import type { ReadinessInput } from "./readiness";
+import { toIsoDate } from "@overload/shared/plan/calendar";
+import type { ReadinessInput } from "@overload/shared/plan/readiness";
 
 /**
  * The one shape a whole plan is read in: a mesocycle, its sessions, and each

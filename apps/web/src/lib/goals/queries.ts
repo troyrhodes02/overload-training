@@ -3,11 +3,11 @@ import type { Account } from "@/lib/data/account";
 import type { AccountDb } from "@/lib/data/account-db";
 import type { Equipment, Prisma } from "@prisma/client";
 import { isUuid } from "@/lib/actions/result";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import { getExercise } from "@/lib/exercises/queries";
 import { listActiveGyms } from "@/lib/gyms/queries";
-import { formatPlanDate } from "@/lib/plan/calendar";
+import { formatPlanDate } from "@overload/shared/plan/calendar";
 import {
   getQualifyingSessionE1rms,
   type QualifyingE1rm,

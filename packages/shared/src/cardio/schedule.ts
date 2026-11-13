@@ -1,10 +1,10 @@
-import { addDays } from "@/lib/plan/calendar";
+import { addDays } from "../plan/calendar";
 import {
   authoredDate,
   effectiveWeekSchedule,
   type EffectiveOccurrence,
   type ScheduleContext,
-} from "@/lib/logging/schedule";
+} from "../logging/schedule";
 
 /**
  * Cardio occurrences (Cardio Logging spec §11b, R38–R40, R54–R57). Pure

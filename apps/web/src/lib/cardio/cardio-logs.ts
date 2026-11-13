@@ -6,11 +6,11 @@ import {
   mesocycleWeekForDate,
   parseIsoDate,
   toIsoDate,
-} from "@/lib/plan/calendar";
+} from "@overload/shared/plan/calendar";
 import { isUniqueViolation } from "@/lib/plan/write-support";
 import { loadScheduleContext } from "@/lib/logging/schedule-context";
-import { cardioWeekOccurrences } from "./schedule";
-import { parseCardioEntry } from "./validation";
+import { cardioWeekOccurrences } from "@overload/shared/cardio/schedule";
+import { parseCardioEntry } from "@overload/shared/cardio/validation";
 
 /**
  * The CardioLog write module (Cardio Logging spec §11c–§11d). CardioLog rows

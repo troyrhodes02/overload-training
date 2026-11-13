@@ -29,7 +29,7 @@ import {
   MUSCLE_GROUPS,
   MUSCLE_GROUP_LABELS,
   isMuscleGroup,
-} from "@/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 import { cn } from "@/lib/utils";
 
 const ANY_MUSCLE = "any";

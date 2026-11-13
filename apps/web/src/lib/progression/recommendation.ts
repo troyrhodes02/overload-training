@@ -20,8 +20,8 @@
  * Exercise History & PR Intelligence reuses this module for "the current
  * recommendation and why" (method note "Recommendation and evidence").
  */
-import { formatMonthDay } from "@/lib/plan/calendar";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+import { formatMonthDay } from "@overload/shared/plan/calendar";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { PROGRESS_INCREMENT_LBS, SCHEDULED_DELOAD_FACTOR } from "./config";
 import type { DecisionEvidence, RecommendationDto, RirEffect } from "./types";
 

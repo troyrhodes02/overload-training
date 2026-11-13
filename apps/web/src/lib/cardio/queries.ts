@@ -5,9 +5,12 @@ import {
   formatPlanDate,
   parseIsoDate,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import type { ScheduleContext } from "@/lib/logging/schedule";
-import { cardioWeekEntries, type CardioEntry } from "./schedule";
+} from "@overload/shared/plan/calendar";
+import type { ScheduleContext } from "@overload/shared/logging/schedule";
+import {
+  cardioWeekEntries,
+  type CardioEntry,
+} from "@overload/shared/cardio/schedule";
 
 /**
  * Cardio reads for the dashboard and history (Cardio Logging spec §13). Facts

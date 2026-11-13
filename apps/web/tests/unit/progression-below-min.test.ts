@@ -10,7 +10,7 @@ import {
   buildRecommendation,
   type RecommendationInput,
 } from "@/lib/progression/recommendation";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 
 /**
  * Workout Logging Refinements (spec §6, §13; RD-1–RD-5, RD-8). The reported

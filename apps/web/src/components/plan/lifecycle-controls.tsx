@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatPlanDate } from "@/lib/plan/calendar";
+import { formatPlanDate } from "@overload/shared/plan/calendar";
 
 /**
  * Activate: the one gate from draft to live (spec D1–D3, D48). Disabled until

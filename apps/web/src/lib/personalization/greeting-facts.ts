@@ -1,6 +1,10 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
-import { isoDateInZone, isValidTimeZone, todayIso } from "@/lib/plan/calendar";
+import {
+  isoDateInZone,
+  isValidTimeZone,
+  todayIso,
+} from "@overload/shared/plan/calendar";
 
 /**
  * What the Today greeting needs beyond the dashboard (Personalization &

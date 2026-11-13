@@ -6,9 +6,9 @@ import {
   formatPlanDate,
   mesocycleWeekForDate,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
+} from "@overload/shared/plan/calendar";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import {
   currentWorkingWeightLbs,
   type WorkingWeightOptions,

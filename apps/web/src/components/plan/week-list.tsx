@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { DAYS_OF_WEEK } from "@/lib/plan/calendar";
+import { DAYS_OF_WEEK } from "@overload/shared/plan/calendar";
 import type { PlannedCardioDto, SessionSummaryDto } from "@/lib/plan/queries";
 import { CardioLineContent } from "./cardio-line";
 

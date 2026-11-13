@@ -2,8 +2,8 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 
 /**
  * Gym-specific weight baselines (Guided Workout Logging, Resolved Decisions

@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { BackLink, MesocycleStatusBadge } from "@/components/plan/plan-bits";
-import { formatPlanRange } from "@/lib/plan/calendar";
+import { formatPlanRange } from "@overload/shared/plan/calendar";
 import { listCloneSources } from "@/lib/plan/queries";
 import { requireAccount } from "@/lib/data/account";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { formatPlanDate } from "@/lib/plan/calendar";
+import { formatPlanDate } from "@overload/shared/plan/calendar";
 import { MissedDayPrompt } from "@/components/logging/missed-day-prompt";
 import {
   getTodayDashboard,

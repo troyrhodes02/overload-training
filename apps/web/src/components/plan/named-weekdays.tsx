@@ -3,8 +3,8 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { moveSessionAction } from "@/app/(app)/plan/actions";
-import { dayName } from "@/lib/plan/calendar";
-import type { NamedWeekday } from "@/lib/plan/weekday-names";
+import { dayName } from "@overload/shared/plan/calendar";
+import type { NamedWeekday } from "@overload/shared/plan/weekday-names";
 
 /**
  * A quiet offer on a draft plan whose session names lead with weekdays (as an

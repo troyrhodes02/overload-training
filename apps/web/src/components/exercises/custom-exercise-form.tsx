@@ -30,7 +30,7 @@ import {
   MUSCLE_GROUP_LABELS,
   isMuscleGroup,
   type MuscleGroupValue,
-} from "@/lib/exercises/taxonomy";
+} from "@overload/shared/exercises/taxonomy";
 import {
   EXERCISE_NAME_MAX,
   parseCustomExerciseInput,

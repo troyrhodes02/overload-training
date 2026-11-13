@@ -1,5 +1,5 @@
 import "server-only";
-import { isValidTimeZone } from "@/lib/plan/calendar";
+import { isValidTimeZone } from "@overload/shared/plan/calendar";
 import {
   DEFAULT_PROFILE_TIME_ZONE,
   establishProfile,

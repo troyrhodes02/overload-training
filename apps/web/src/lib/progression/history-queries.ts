@@ -2,9 +2,9 @@ import "server-only";
 import type { Account } from "@/lib/data/account";
 import { accountToday } from "@/lib/data/account";
 import { isUuid } from "@/lib/actions/result";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
-import { formatMonthDay } from "@/lib/plan/calendar";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
+import { formatMonthDay } from "@overload/shared/plan/calendar";
 import { byDate } from "./engine";
 import {
   callsBySession,

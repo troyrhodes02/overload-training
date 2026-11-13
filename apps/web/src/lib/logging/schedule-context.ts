@@ -1,7 +1,7 @@
 import "server-only";
 import type { AccountDb } from "@/lib/data/account-db";
-import { isoDateInZone, toIsoDate } from "@/lib/plan/calendar";
-import type { ScheduleContext } from "./schedule";
+import { isoDateInZone, toIsoDate } from "@overload/shared/plan/calendar";
+import type { ScheduleContext } from "@overload/shared/logging/schedule";
 
 /**
  * Loads the inputs of the effective schedule (Guided Workout Logging, spec

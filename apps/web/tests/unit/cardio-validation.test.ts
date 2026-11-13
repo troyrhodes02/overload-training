@@ -6,7 +6,7 @@ import {
   parseCardioEntry,
   parseCardioMinutes,
   parseCardioType,
-} from "@/lib/cardio/validation";
+} from "@overload/shared/cardio/validation";
 
 /** Cardio Logging spec §12 — type + whole minutes, the same for plan and log. */
 describe("cardio type", () => {

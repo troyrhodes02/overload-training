@@ -5,7 +5,7 @@
  * inferred (an unrecorded RIR is "–", never 0), and a reps-only set never
  * shows a load.
  */
-import { formatRir } from "@/lib/logging/rir";
+import { formatRir } from "@overload/shared/logging/rir";
 
 type PrintedSet = { weightLbs: number | null; reps: number };
 

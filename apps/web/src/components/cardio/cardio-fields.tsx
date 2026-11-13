@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import {
   CARDIO_TYPE_MAX,
   CARDIO_TYPE_SUGGESTIONS,
-} from "@/lib/cardio/validation";
+} from "@overload/shared/cardio/validation";
 
 /**
  * The two cardio fields (Cardio Logging design §10): an activity and whole

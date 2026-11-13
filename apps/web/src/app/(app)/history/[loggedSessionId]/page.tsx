@@ -5,7 +5,7 @@ import { getLoggedWorkoutDetail } from "@/lib/logging/queries";
 import { EditSetDialog } from "@/components/logging/edit-set-dialog";
 import { EditPlannedSetsDialog } from "@/components/logging/edit-planned-sets-dialog";
 import { requireAccount } from "@/lib/data/account";
-import { rirSuffix } from "@/lib/logging/rir";
+import { rirSuffix } from "@overload/shared/logging/rir";
 
 export const metadata = { title: "Workout · Overload" };
 
