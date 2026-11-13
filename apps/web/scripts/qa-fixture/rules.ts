@@ -58,6 +58,6 @@ export const QA_PRESERVED_MODELS = [
   "Entitlement (trial and revoked rows kept; an active comp is kept, an expired one is revoked and replaced so the account stays Pro)",
   "BillingAccount and PromoRedemption (the Stripe mirror; never written)",
   "Feedback and FeedbackAttachment",
-  "ImportSession, ImportSourcePart, ImportUsageDay (plan import)",
+  "ImportSession, ImportSourcePart, ImportUsageDay (plan import; an import that points at one of the account's blocks is unlinked from it, the record kept)",
   "The Supabase Auth user, the shared exercise library, and every other account",
 ] as const;

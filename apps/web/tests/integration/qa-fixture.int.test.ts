@@ -88,6 +88,7 @@ async function snapshot(userId: string) {
     cardio: await db.cardioLog.findMany({ where, ...by }),
     entitlements: await db.entitlement.findMany({ where, ...by }),
     feedback: await db.feedback.findMany({ where, ...by }),
+    imports: await db.importSession.findMany({ where, ...by }),
   };
 }
 
@@ -414,25 +415,80 @@ describe("reset", () => {
     }
   });
 
-  it("refuses, changing nothing, when a plan import points at a block", async () => {
+  /** A confirmed plan import of `userId` pointing at one of its blocks. */
+  async function confirmedImport(userId: string, mesocycleId: string) {
+    return getTestPrisma().importSession.create({
+      data: {
+        userId,
+        status: "confirmed" as never,
+        sourceKind: "text",
+        expiresAt: new Date(Date.now() + 86_400_000),
+        mesocycleId,
+      },
+    });
+  }
+
+  it("unlinks only this account's confirmed plan imports from its blocks, keeping the records (OVE-174)", async () => {
+    const account = await seeded();
+    const other = await seeded();
+    const db = getTestPrisma();
+    const blocks = await db.mesocycle.findMany({
+      where: { userId: account.userId },
+    });
+    expect(blocks).toHaveLength(2);
+    const ours = await Promise.all(
+      blocks.map((b) => confirmedImport(account.userId, b.id)),
+    );
+    const otherBlock = await db.mesocycle.findFirstOrThrow({
+      where: { userId: other.userId, status: "active" },
+    });
+    await confirmedImport(other.userId, otherBlock.id);
+    const otherBefore = await snapshot(other.userId);
+
+    expect((await inspectQaTarget(account)).importsHoldingABlock).toBe(2);
+    const result = await executeQaReset(account, QA_EMAIL, {
+      anchorIso: anchor,
+    });
+    expect(result.importsUnlinked).toBe(2);
+
+    // The records survive, confirmed, with no linked plan.
+    const after = await db.importSession.findMany({
+      where: { id: { in: ours.map((i) => i.id) } },
+    });
+    expect(after).toHaveLength(2);
+    for (const row of after) {
+      expect(row.status).toBe("confirmed");
+      expect(row.mesocycleId).toBeNull();
+    }
+    // The old blocks are gone; the baseline is back.
+    expect(
+      await db.mesocycle.count({
+        where: { id: { in: blocks.map((b) => b.id) } },
+      }),
+    ).toBe(0);
+    const v = await verifyQaFixture(await accountFor(account.userId));
+    expect(v.status).toBe("baseline");
+    expect(v.checks.filter((c) => !c.ok)).toEqual([]);
+    // Another account's import (and everything else it owns) is untouched.
+    expect(await snapshot(other.userId)).toEqual(otherBefore);
+  });
+
+  it("restores the plan-import links when the reset fails after unlinking", async () => {
     const account = await seeded();
     const db = getTestPrisma();
     const block = await db.mesocycle.findFirstOrThrow({
       where: { userId: account.userId, status: "active" },
     });
-    await db.importSession.create({
-      data: {
-        userId: account.userId,
-        status: "confirmed" as never,
-        sourceKind: "text",
-        expiresAt: new Date(Date.now() + 86_400_000),
-        mesocycleId: block.id,
-      },
-    });
+    await confirmedImport(account.userId, block.id);
     const before = await snapshot(account.userId);
     await expect(
-      executeQaReset(account, QA_EMAIL, { anchorIso: anchor }),
-    ).rejects.toThrow(/plan-import session/);
+      executeQaReset(account, QA_EMAIL, {
+        anchorIso: anchor,
+        afterDelete: async () => {
+          throw new Error("boom after unlink");
+        },
+      }),
+    ).rejects.toThrow("boom after unlink");
     expect(await snapshot(account.userId)).toEqual(before);
   });
 
