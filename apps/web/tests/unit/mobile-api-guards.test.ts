@@ -1,5 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  endpointKey,
+  MOBILE_ENDPOINTS,
+  PUBLIC_MOBILE_ROUTES,
+} from "../support/mobile-endpoints";
 
 /**
  * Pitch 21c static guards (spec §10, §17.1).
@@ -102,5 +107,90 @@ describe("goal reconciliation after a write (Pitch 21c RD-4)", () => {
         "src/lib/views/today.ts",
       ].sort(),
     );
+  });
+});
+
+describe("mobile API routes (Pitch 21c RD-13)", () => {
+  const API = path.join(SRC, "app", "api", "mobile");
+  const routes = walk(API).filter((f) => path.basename(f) === "route.ts");
+  const routeDir = (f: string) =>
+    path.relative(path.join(SRC, "app"), path.dirname(f)).replace(/\\/g, "/");
+  const exportedMethods = (f: string) =>
+    [
+      ...code(f).matchAll(
+        /export\s+(?:const|async\s+function|function)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g,
+      ),
+    ].map((m) => m[1]);
+
+  it("finds the routes", () => {
+    expect(routes.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("the endpoint registry lists exactly the exported route methods", () => {
+    const found = routes
+      .flatMap((f) =>
+        exportedMethods(f).map((method) => `${method} ${routeDir(f)}`),
+      )
+      .sort();
+    expect(found).toEqual(MOBILE_ENDPOINTS.map(endpointKey).sort());
+  });
+
+  it("every route is built with the request pipeline; only the sanctioned routes are public", () => {
+    for (const f of routes) {
+      const src = code(f);
+      // No hand-written handler: every method comes from a pipeline wrapper.
+      expect([routeDir(f), /export\s+(async\s+)?function\b/.test(src)]).toEqual(
+        [routeDir(f), false],
+      );
+      const authenticated = /\bmobileRoute\s*[<(]/.test(src);
+      const isPublic = /\bpublicMobileRoute\s*[<(]/.test(src);
+      expect([routeDir(f), authenticated || isPublic]).toEqual([
+        routeDir(f),
+        true,
+      ]);
+      if (isPublic) expect(PUBLIC_MOBILE_ROUTES).toContain(routeDir(f));
+      for (const e of MOBILE_ENDPOINTS.filter((e) => e.route === routeDir(f))) {
+        expect([endpointKey(e), e.auth]).toEqual([
+          endpointKey(e),
+          isPublic ? "public" : "account",
+        ]);
+      }
+    }
+  });
+
+  it("route files never reach the database, cookie auth, redirects, or web-only writes", () => {
+    const FORBIDDEN =
+      /@\/lib\/db\b|@prisma\/client|@\/lib\/data\/account-db|@\/lib\/data\/account["']|@\/lib\/data\/operator|@\/lib\/data\/admin|@\/lib\/auth["']|@\/lib\/supabase\/server|next\/navigation|next\/headers|@\/lib\/billing\/(sync|checkout|stripe)|@\/lib\/import\/|@\/lib\/admin\/|\brequireAccount\w*\b|\bcurrentUser\b|\bredirect\(|\bnotFound\(|\brefresh\(|\bformData\(/;
+    expect(routes.filter((f) => FORBIDDEN.test(code(f))).map(rel)).toEqual([]);
+  });
+
+  it("route files never take an account id from the request", () => {
+    expect(
+      routes
+        .filter((f) => /\b(userId|accountId|ownerId|tenantId)\b/.test(code(f)))
+        .map(rel),
+    ).toEqual([]);
+  });
+
+  it("only the pipeline authenticates a mobile request", () => {
+    const importers = walk(SRC)
+      .filter((f) => /\bauthenticateMobileRequest\b/.test(code(f)))
+      .map(rel)
+      .sort();
+    expect(importers).toEqual([
+      "src/lib/api/mobile/pipeline.ts",
+      "src/lib/data/mobile-auth.ts",
+    ]);
+  });
+
+  it("the token verifier is reached only through the mobile auth step", () => {
+    const importers = walk(SRC)
+      .filter((f) => /\bverifyAccessToken\b/.test(code(f)))
+      .map(rel)
+      .sort();
+    expect(importers).toEqual([
+      "src/lib/data/access-token.ts",
+      "src/lib/data/mobile-auth.ts",
+    ]);
   });
 });
