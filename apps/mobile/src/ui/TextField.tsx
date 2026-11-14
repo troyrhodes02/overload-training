@@ -4,11 +4,14 @@ import { fontFamily, textSize } from "./theme";
 import { Text } from "./Text";
 import { useTheme } from "./ThemeProvider";
 
+/** The handle a TextField ref receives (focus, blur). */
+export type TextInputHandle = ComponentRef<typeof TextInput>;
+
 export type TextFieldProps = Omit<TextInputProps, "ref"> & {
   label: string;
   error?: string | null;
   hint?: string;
-  ref?: Ref<ComponentRef<typeof TextInput>>;
+  ref?: Ref<TextInputHandle>;
 };
 
 /**

@@ -1,9 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Stack } from "expo-router";
 import * as Updates from "expo-updates";
 import { APP_VERSION, ENV } from "../../../config/env";
 import { runHermesChecks } from "../../../diagnostics/hermes-checks";
+import {
+  readStagingKey,
+  removeStagingKey,
+  stagingAccessAllowed,
+} from "../../../staging-access/key";
 import { Button } from "../../../ui/Button";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
 import { Text } from "../../../ui/Text";
@@ -17,6 +22,10 @@ import { useTheme } from "../../../ui/ThemeProvider";
 export default function DiagnosticsScreen() {
   const { colors, spacing } = useTheme();
   const [results, setResults] = useState(runHermesChecks);
+  const [keyStored, setKeyStored] = useState<boolean | null>(null);
+  useEffect(() => {
+    void readStagingKey().then((k) => setKeyStored(k !== null));
+  }, []);
   const passed = results.filter((r) => r.ok).length;
   const host = ENV.ok ? ENV.config.apiOrigin.replace(/^https?:\/\//, "") : "—";
   const update = Updates.isEmbeddedLaunch
@@ -48,6 +57,28 @@ export default function DiagnosticsScreen() {
           <ListRow title="App version" value={APP_VERSION} />
           <ListRow title="JavaScript engine" value={engine} />
         </GroupedList>
+        {stagingAccessAllowed() ? (
+          <GroupedList
+            header="Staging access"
+            footer="The key lives only in this iPhone's Keychain. Removing it brings back the staging access screen."
+          >
+            <ListRow
+              title="Access key"
+              value={
+                keyStored === null ? "…" : keyStored ? "Stored" : "Not stored"
+              }
+            />
+            {keyStored ? (
+              <ListRow
+                title="Remove access key"
+                tone="destructive"
+                onPress={() => {
+                  void removeStagingKey().then(() => setKeyStored(false));
+                }}
+              />
+            ) : null}
+          </GroupedList>
+        ) : null}
         <GroupedList header="Updates">
           <ListRow title="Channel" value={Updates.channel ?? "—"} />
           <ListRow

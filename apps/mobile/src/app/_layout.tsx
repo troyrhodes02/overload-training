@@ -20,6 +20,7 @@ import {
 import { decideGate, type Gate, type Loadable } from "../app-state/gate";
 import { SessionProvider, useSession } from "../auth/session";
 import { APP_VERSION, ENV } from "../config/env";
+import { runHermesChecks } from "../diagnostics/hermes-checks";
 import {
   MaintenanceGate,
   MisconfiguredGate,
@@ -32,6 +33,20 @@ import { LaunchingScreen } from "../ui/StateView";
 import { ThemeProvider, useThemeContext } from "../ui/ThemeProvider";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Development bundles report the Hermes date and time-zone spike (spec §12)
+// once at launch, so a simulator run records it in Metro's log.
+if (__DEV__) {
+  const results = runHermesChecks();
+  const failed = results.filter((r) => !r.ok);
+  console.log(
+    `[hermes-checks] ${results.length - failed.length}/${results.length} passed` +
+      `${(globalThis as { HermesInternal?: unknown }).HermesInternal ? " on Hermes" : ""}` +
+      failed
+        .map((f) => `\n  FAIL ${f.id}: got ${f.actual}, expected ${f.expected}`)
+        .join(""),
+  );
+}
 
 /**
  * The root (spec §5, §9): fonts bundled with the app, the theme, the query
