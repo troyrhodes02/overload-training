@@ -23,8 +23,13 @@ import { prisma } from "@/lib/db";
  * decision reveals nothing about any address and the stored row is opaque.
  */
 
-/** Which pre-auth endpoint an attempt counts against. Mirrors the DB enum. */
-export type ThrottleAction = "signup" | "password_reset_request";
+/**
+ * What an attempt counts against. Mirrors the DB enum. The two pre-auth doors
+ * key on a request fingerprint or an email; the mobile API (Pitch 21c) keys on
+ * the verified account id — never an IP, which carrier networks share.
+ */
+export type ThrottleAction =
+  "signup" | "password_reset_request" | "mobile_api_request";
 
 /**
  * Fixed-window length, in seconds. Attempts are bucketed by `floor(now /
@@ -39,10 +44,32 @@ export const THROTTLE_WINDOW_SECONDS = 60;
  */
 export const THROTTLE_LIMIT = 10;
 
+/**
+ * The mobile API's per-account limit (Pitch 21c spec §11, RD-8): 120 requests
+ * a minute — far above a real workout, low enough to stop a runaway client.
+ */
+export const MOBILE_API_RATE_LIMIT = 120;
+export const MOBILE_API_RATE_WINDOW_SECONDS = 60;
+
+/** Each action's fixed window and limit. The pre-auth doors are unchanged. */
+export const THROTTLE_POLICIES: Readonly<
+  Record<ThrottleAction, { limit: number; windowSeconds: number }>
+> = {
+  signup: { limit: THROTTLE_LIMIT, windowSeconds: THROTTLE_WINDOW_SECONDS },
+  password_reset_request: {
+    limit: THROTTLE_LIMIT,
+    windowSeconds: THROTTLE_WINDOW_SECONDS,
+  },
+  mobile_api_request: {
+    limit: MOBILE_API_RATE_LIMIT,
+    windowSeconds: MOBILE_API_RATE_WINDOW_SECONDS,
+  },
+};
+
 /** The start of the current fixed window, as epoch seconds. */
-function currentWindowStart(nowMs: number): number {
+function currentWindowStart(nowMs: number, windowSeconds: number): number {
   const nowSeconds = Math.floor(nowMs / 1000);
-  return nowSeconds - (nowSeconds % THROTTLE_WINDOW_SECONDS);
+  return nowSeconds - (nowSeconds % windowSeconds);
 }
 
 /**
@@ -52,6 +79,20 @@ function currentWindowStart(nowMs: number): number {
  */
 function hashKey(action: ThrottleAction, rawKey: string): string {
   return createHash("sha256").update(`${action}:${rawKey}`).digest("hex");
+}
+
+/**
+ * Atomically record one attempt for `(action, rawKey)` and report whether it
+ * is within the limit (the pre-auth doors' interface, unchanged). See
+ * throttleRequest for the full behavior.
+ */
+export async function checkAndIncrement(
+  action: ThrottleAction,
+  rawKey: string,
+  now: () => number = Date.now,
+): Promise<{ allowed: boolean }> {
+  const { allowed } = await throttleRequest(action, rawKey, now);
+  return { allowed };
 }
 
 /**
@@ -72,13 +113,20 @@ function hashKey(action: ThrottleAction, rawKey: string): string {
  * closed on an abuse limiter is the safe default: a transient blip throttles
  * briefly rather than opening the pre-auth door.
  */
-export async function checkAndIncrement(
+export async function throttleRequest(
   action: ThrottleAction,
   rawKey: string,
   now: () => number = Date.now,
-): Promise<{ allowed: boolean }> {
+): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+  const { limit, windowSeconds } = THROTTLE_POLICIES[action];
   const keyHash = hashKey(action, rawKey);
-  const windowStart = currentWindowStart(now());
+  const nowMs = now();
+  const windowStart = currentWindowStart(nowMs, windowSeconds);
+  // Whole seconds until this window closes (at least 1).
+  const retryAfterSeconds = Math.max(
+    1,
+    windowStart + windowSeconds - Math.floor(nowMs / 1000),
+  );
 
   try {
     // Single-statement atomic upsert. ON CONFLICT on the composite primary key
@@ -92,13 +140,13 @@ export async function checkAndIncrement(
       DO UPDATE SET "count" = "auth_throttle"."count" + 1, "updated_at" = now()
       RETURNING "count"`;
 
-    const count = Number(rows[0]?.count ?? THROTTLE_LIMIT + 1);
-    return { allowed: count <= THROTTLE_LIMIT };
+    const count = Number(rows[0]?.count ?? limit + 1);
+    return { allowed: count <= limit, retryAfterSeconds };
   } catch {
     // The limiter could not reach the database. Refuse rather than let the
     // error escape (never logging the raw key or any address). Callers treat a
     // refusal identically to a tripped limit.
-    return { allowed: false };
+    return { allowed: false, retryAfterSeconds };
   }
 }
 

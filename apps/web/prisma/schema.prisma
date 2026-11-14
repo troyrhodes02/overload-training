@@ -533,46 +533,46 @@ enum SignupCampaign {
 }
 
 model Profile {
-  userId       String        @id @map("user_id") @db.Uuid
-  firstName    String?       @map("first_name")
-  lastName     String?       @map("last_name")
+  userId              String          @id @map("user_id") @db.Uuid
+  firstName           String?         @map("first_name")
+  lastName            String?         @map("last_name")
   /// Unique handle, stored lowercase (so uniqueness ignores case) and
   /// checked by a database CHECK constraint (^[a-z0-9_]{3,20}$). Nullable only
   /// because accounts created before usernames have none; signup requires it.
-  username     String?       @unique
+  username            String?         @unique
   /// IANA zone name (e.g. "America/Chicago"), validated by isValidTimeZone on write.
-  timeZone     String        @map("time_zone")
+  timeZone            String          @map("time_zone")
   /// Appearance preference (Personalization & Navigation Polish); the only
   /// authority — the browser's first-paint mirror is a copy.
-  appearance   Appearance    @default(system)
+  appearance          Appearance      @default(system)
   /// Admin Center & Feedback: whether the account may use Overload. Changed
   /// only by the admin suspend/reactivate operations (each audited); enforced
   /// by requireAccount() on every authenticated request.
-  status       AccountStatus @default(active)
+  status              AccountStatus   @default(active)
   /// The last calendar day (in the account's own timezone) it made an
   /// authenticated request while active. Date only; written at most once a
   /// day; NULL until its first request after this shipped.
-  lastActiveOn DateTime?     @map("last_active_on") @db.Date
+  lastActiveOn        DateTime?       @map("last_active_on") @db.Date
   /// Public Accounts: when this account proved it owns its email (app-level,
   /// because createConfirmedUser sets Supabase email_confirm=true at signup so
   /// Supabase's own email_confirmed_at is always set and useless as our signal).
   /// NULL = unverified. Gates NOTHING in this build; recorded for a future
   /// first-checkout gate (Billing) to read. Set only by the verification flow,
   /// scoped to the acting account; never cleared in this pitch.
-  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz
+  emailVerifiedAt     DateTime?       @map("email_verified_at") @db.Timestamptz
   /// Public Landing Page & Changelog: the allowlisted campaign this account
   /// signed up from (a first-party cookie set by /blizzy, validated on the
   /// server), or NULL. Written once by signup's profile creation and never
   /// updated by any path. Exported with the profile; deleted with the account.
-  signupCampaign SignupCampaign? @map("signup_campaign")
+  signupCampaign      SignupCampaign? @map("signup_campaign")
   /// Trial notices (OVE-112): when the "trial ends tomorrow" and "trial has
   /// ended" notices were shown to this account, so each appears once per
   /// account across browsers and the app. Presentation state only: never read
   /// by entitlement resolution, never an entitlement change. NULL = not shown.
-  trialEndingNoticeAt DateTime? @map("trial_ending_notice_at") @db.Timestamptz
-  trialEndedNoticeAt  DateTime? @map("trial_ended_notice_at") @db.Timestamptz
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  trialEndingNoticeAt DateTime?       @map("trial_ending_notice_at") @db.Timestamptz
+  trialEndedNoticeAt  DateTime?       @map("trial_ended_notice_at") @db.Timestamptz
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
   mesocycles           Mesocycle[]
   sessions             Session[]
@@ -589,6 +589,7 @@ model Profile {
   plannedCardio        PlannedCardio[]
   cardioLogs           CardioLog[]
   tourProgress         TourProgress?
+  apiIdempotencyKeys   ApiIdempotencyKey[]
   releaseSeen          ReleaseSeen?
   feedback             Feedback[]
   feedbackAttachments  FeedbackAttachment[]
@@ -857,19 +858,19 @@ model Feedback {
 /// table); this row holds only the object path and metadata. Deleted with the
 /// account, and before its Feedback parent, by the deletion module.
 model FeedbackAttachment {
-  id         String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
   /// Owning account (the sender), stamped by the account-scoped client.
-  userId     String   @map("user_id") @db.Uuid
-  feedbackId String   @map("feedback_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  feedbackId  String   @map("feedback_id") @db.Uuid
   /// Object path within the feedback-screenshots bucket (owner-prefixed).
-  objectPath String   @map("object_path")
+  objectPath  String   @map("object_path")
   /// image/png, image/jpeg, or image/webp (CHECK).
-  contentType String  @map("content_type")
+  contentType String   @map("content_type")
   /// Stored byte size, 1..3,000,000 (CHECK).
-  sizeBytes  Int      @map("size_bytes")
+  sizeBytes   Int      @map("size_bytes")
   /// Display order within the message, 0..3 (CHECK).
-  position   Int
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  position    Int
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   profile  Profile  @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
@@ -968,6 +969,8 @@ model AuthThrottle {
 enum AuthThrottleAction {
   signup
   password_reset_request
+  /// Pitch 21c: the mobile API's per-account rate limit (key = hashed account id).
+  mobile_api_request
 
   @@map("auth_throttle_action")
 }
@@ -1008,33 +1011,33 @@ enum ImportSourceKind {
 }
 
 model ImportSession {
-  id             String           @id @default(uuid()) @db.Uuid
+  id              String           @id @default(uuid()) @db.Uuid
   /// Owning account (Multi-User Foundation). Required, immutable (DB trigger).
-  userId         String           @map("user_id") @db.Uuid
-  status         ImportStatus     @default(created)
-  sourceKind     ImportSourceKind @map("source_kind")
+  userId          String           @map("user_id") @db.Uuid
+  status          ImportStatus     @default(created)
+  sourceKind      ImportSourceKind @map("source_kind")
   /// The staged, versioned ImportDraft (observed fields + user edits + issues).
   /// Validated-shape JSON; never a stored progression/e1RM value.
-  draft          Json?
-  draftVersion   Int              @default(0) @map("draft_version")
+  draft           Json?
+  draftVersion    Int              @default(0) @map("draft_version")
   /// Sanitized model accounting — NEVER prompt bodies or source content.
-  modelId        String?          @map("model_id")
-  promptVersion  String?          @map("prompt_version")
-  inputTokens    Int?             @map("input_tokens")
-  outputTokens   Int?             @map("output_tokens")
+  modelId         String?          @map("model_id")
+  promptVersion   String?          @map("prompt_version")
+  inputTokens     Int?             @map("input_tokens")
+  outputTokens    Int?             @map("output_tokens")
   /// Count of STARTED provider attempts for this session (quota accounting).
-  attemptCount   Int              @default(0) @map("attempt_count")
+  attemptCount    Int              @default(0) @map("attempt_count")
   /// Extraction lease: the request that owns the running extraction, and when
   /// its claim expires. A stale lease is reclaimable via compare-and-set.
-  leaseToken     String?          @map("lease_token")
-  leaseExpiresAt DateTime?        @map("lease_expires_at") @db.Timestamptz
+  leaseToken      String?          @map("lease_token")
+  leaseExpiresAt  DateTime?        @map("lease_expires_at") @db.Timestamptz
   /// Safe error CATEGORY only (e.g. "provider_timeout"); never raw errors.
-  errorCode      String?          @map("error_code")
+  errorCode       String?          @map("error_code")
   /// The created draft mesocycle after confirm. Null until confirmed. Unique so
   /// a retried confirm returns the same plan instead of creating a second.
-  mesocycleId    String?          @unique @map("mesocycle_id") @db.Uuid
+  mesocycleId     String?          @unique @map("mesocycle_id") @db.Uuid
   /// Retention clock: at-most-24h from creation for unconfirmed content.
-  expiresAt      DateTime         @map("expires_at") @db.Timestamptz
+  expiresAt       DateTime         @map("expires_at") @db.Timestamptz
   /// Retriable blob-delete tombstone (OVE-109). Null means the stored source
   /// objects for this session still need removing (a terminal session whose
   /// blob delete has not yet fully succeeded is an OBSERVABLE, RETRIABLE
@@ -1042,9 +1045,9 @@ model ImportSession {
   /// (terminal)`). Set to the completion instant only when every object is gone.
   /// A failed blob delete NEVER undoes a confirmed plan — it only leaves this
   /// null so the lazy sweep / operator script retry it later.
-  sourcesPurgedAt DateTime?       @map("sources_purged_at") @db.Timestamptz
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  sourcesPurgedAt DateTime?        @map("sources_purged_at") @db.Timestamptz
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz
 
   profile   Profile            @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
   mesocycle Mesocycle?         @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
@@ -1124,4 +1127,33 @@ model ImportSpendLedger {
 
   @@unique([monthKey])
   @@map("import_spend_ledger")
+}
+
+/// Mobile API idempotency (Pitch 21c, OVE-178). One row per (account,
+/// Idempotency-Key): the request's scope and hash and the first successful
+/// response to a create, replayed for a retry of the same request. OWNED:
+/// reached only through account.db; removed with the account; part of its
+/// export. Written only by src/lib/api/mobile/idempotency.ts. The key is unique
+/// per account only, so no client value can collide with another account's
+/// row (no client-supplied primary key anywhere).
+model ApiIdempotencyKey {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  /// Client-generated, 8..255 chars of [A-Za-z0-9._:-].
+  key            String
+  /// "METHOD /v1/path-template", e.g. "POST /v1/gyms".
+  scope          String
+  /// SHA-256 hex of the scope and the canonical JSON body.
+  requestHash    String   @map("request_hash")
+  /// Set in the same transaction that claims the key; never committed null.
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@map("api_idempotency_keys")
 }

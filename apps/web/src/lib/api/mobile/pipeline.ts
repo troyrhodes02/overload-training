@@ -7,6 +7,7 @@ import {
   type MobileAuthDeps,
 } from "@/lib/data/mobile-auth";
 import { apiErrorResponse, ApiFailure, toApiFailure } from "./errors";
+import { checkMobileRateLimit } from "./rate-limit";
 import {
   APP_VERSION_HEADER,
   checkAppVersion,
@@ -66,6 +67,10 @@ export function mobileRoute<P = Record<string, never>>(
 
       const auth = await authenticateMobileRequest(request, deps);
       if (!auth.ok) return apiErrorResponse(auth.failure);
+
+      // Per ACCOUNT, after authentication (spec §11, RD-8): never per IP.
+      const limited = await checkMobileRateLimit(auth.account);
+      if (limited) return apiErrorResponse(limited);
 
       const params = (await route?.params) ?? ({} as P);
       return handler(
