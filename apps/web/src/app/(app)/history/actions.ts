@@ -3,9 +3,10 @@
 import { refresh } from "next/cache";
 import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
-import { editLoggedSet } from "@/lib/logging/logged-sets";
-import { editPlannedSets } from "@/lib/logging/sessions";
-import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
+import {
+  editLoggedSetAndReconcile,
+  editPlannedSetsAndReconcile,
+} from "@/lib/logging/workflows";
 import { editCardioLog } from "@/lib/cardio/cardio-logs";
 
 /*
@@ -25,13 +26,10 @@ export async function editLoggedSetAction(input: {
 }): Promise<ActionResult<{ ok: true }>> {
   const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await editLoggedSet(account, input);
+    await editLoggedSetAndReconcile(account, input);
     return { ok: true as const };
   }, "Couldn't update the set.");
-  if (result.ok) {
-    await reconcileGoalCompletionsSafely(account);
-    refresh();
-  }
+  if (result.ok) refresh();
   return result;
 }
 
@@ -49,13 +47,10 @@ export async function editPlannedSetsAction(input: {
 }): Promise<ActionResult<{ ok: true }>> {
   const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await editPlannedSets(account, input);
+    await editPlannedSetsAndReconcile(account, input);
     return { ok: true as const };
   }, "Couldn't update the planned sets.");
-  if (result.ok) {
-    await reconcileGoalCompletionsSafely(account);
-    refresh();
-  }
+  if (result.ok) refresh();
   return result;
 }
 

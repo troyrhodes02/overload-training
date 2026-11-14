@@ -31,6 +31,7 @@ const READ_OPS = [
 ];
 
 const OWNED = [
+  "ApiIdempotencyKey", // Pitch 21c: mobile API retry records
   "BillingAccount",
   "CardioLog",
   "Entitlement",

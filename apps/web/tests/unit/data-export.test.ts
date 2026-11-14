@@ -59,6 +59,7 @@ function fakeAccount(): {
     importSession: { findMany: list("importSession") },
     importSourcePart: { findMany: list("importSourcePart") },
     importUsageDay: { findMany: list("importUsageDay") },
+    apiIdempotencyKey: { findMany: list("apiIdempotencyKey") },
   };
   const account = {
     userId: "11111111-1111-1111-1111-111111111111",
@@ -127,6 +128,10 @@ const OWNED_MODEL_EXPORT: Record<
     dbModel: "importSourcePart",
   },
   ImportUsageDay: { exportKey: "importUsageDays", dbModel: "importUsageDay" },
+  ApiIdempotencyKey: {
+    exportKey: "apiIdempotencyKeys",
+    dbModel: "apiIdempotencyKey",
+  },
 };
 
 /** The owned models the export must cover: deletion order minus the Profile. */

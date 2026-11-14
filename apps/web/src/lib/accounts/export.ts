@@ -96,6 +96,8 @@ export type AccountExport = {
   importSessions: unknown[];
   importSourceParts: unknown[];
   importUsageDays: unknown[];
+  /** Mobile API retry records (Pitch 21c): the account's own stored responses. */
+  apiIdempotencyKeys: unknown[];
 };
 
 /**
@@ -136,6 +138,7 @@ export async function buildAccountExport(
     importSessions,
     importSourceParts,
     importUsageDays,
+    apiIdempotencyKeys,
   ] = await Promise.all([
     db.profile.findUnique({ where: { userId: account.userId } }),
     db.mesocycle.findMany(),
@@ -187,6 +190,7 @@ export async function buildAccountExport(
     // Source-part metadata only (no bytes — the stored file is never inlined).
     db.importSourcePart.findMany(),
     db.importUsageDay.findMany(),
+    db.apiIdempotencyKey.findMany(),
   ]);
 
   return {
@@ -219,6 +223,7 @@ export async function buildAccountExport(
     importSessions,
     importSourceParts,
     importUsageDays,
+    apiIdempotencyKeys,
   };
 }
 

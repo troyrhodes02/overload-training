@@ -5,14 +5,16 @@ import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import {
   changeGym,
-  completeWorkout,
   setExerciseSkipped,
   startOrResumeWorkout,
   swapExercise,
 } from "@/lib/logging/sessions";
-import { logSet, type LogSetInput } from "@/lib/logging/logged-sets";
+import { type LogSetInput } from "@/lib/logging/logged-sets";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
-import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
+import {
+  completeWorkoutAndReconcile,
+  logSetAndReconcile,
+} from "@/lib/logging/workflows";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 
 /*
@@ -57,13 +59,10 @@ export async function logSetAction(
 ): Promise<ActionResult<{ setId: string }>> {
   const account = await requireAccount();
   const result = await toActionResult(
-    async () => ({ setId: (await logSet(account, input)).id }),
+    async () => ({ setId: (await logSetAndReconcile(account, input)).id }),
     "Couldn't save. Your numbers are still here.",
   );
-  if (result.ok) {
-    await reconcileGoalCompletionsSafely(account);
-    refresh();
-  }
+  if (result.ok) refresh();
   return result;
 }
 
@@ -99,13 +98,10 @@ export async function completeWorkoutAction(input: {
 }): Promise<ActionResult<{ ok: true }>> {
   const account = await requireAccount();
   const result = await toActionResult(async () => {
-    await completeWorkout(account, input);
+    await completeWorkoutAndReconcile(account, input);
     return { ok: true as const };
   }, "Couldn't finish the workout.");
-  if (result.ok) {
-    await reconcileGoalCompletionsSafely(account);
-    refresh();
-  }
+  if (result.ok) refresh();
   return result;
 }
 

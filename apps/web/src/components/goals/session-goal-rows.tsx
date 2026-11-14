@@ -1,22 +1,16 @@
 import Link from "next/link";
 import { CircleCheck } from "lucide-react";
-import { getSessionGoalSummary } from "@/lib/goals/queries";
-import { requireAccount } from "@/lib/data/account";
+import type { SessionGoalRowDto } from "@overload/shared/contracts/goals";
 
 /**
  * The goals a completed workout actually moved (design Screen 8; R44, R45).
  * Only goals this session contributed a qualifying performance to appear —
  * the performed exercise, and for a machine goal, at its gym. Nothing renders
  * when the workout touched no goal. Percentages are independent of the
- * progression tags shown above them.
+ * progression tags shown above them. The rows come from the Today view
+ * (Pitch 21c), the same composition the mobile API returns.
  */
-export async function SessionGoalRows({
-  loggedSessionId,
-}: {
-  loggedSessionId: string;
-}) {
-  const account = await requireAccount();
-  const rows = await getSessionGoalSummary(account, loggedSessionId);
+export function SessionGoalRows({ rows }: { rows: SessionGoalRowDto[] }) {
   if (rows.length === 0) return null;
 
   return (

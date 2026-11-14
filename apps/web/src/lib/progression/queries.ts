@@ -14,7 +14,11 @@ import {
   type WorkingWeightOptions,
 } from "@/lib/logging/queries";
 import { PROGRESS_INCREMENT_LBS } from "@overload/shared/progression/config";
-import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
+import {
+  can,
+  entitlementFor,
+  type RequestEntitlement,
+} from "@/lib/entitlements/resolve";
 import {
   gateOccurrence,
   gatePlanned,
@@ -644,10 +648,12 @@ export function gymsWithFinishedHistory(
 export async function getPlannedProgression(
   account: Account,
   exerciseId: string,
-  opts: { scheduledDeloadWeek: boolean },
+  opts: { scheduledDeloadWeek: boolean; entitlement?: RequestEntitlement },
 ): Promise<PlannedProgressionDto> {
   const dto = await computePlannedProgression(account, exerciseId, opts);
-  const resolved = await resolveEntitlement(account);
+  // A view that already resolved this account's entitlement for the request
+  // passes it in (Pitch 21c RD-16); one for any other account is ignored.
+  const resolved = await entitlementFor(account, opts.entitlement);
   return gatePlanned(dto, can(resolved, "progression_insights"));
 }
 
@@ -715,12 +721,13 @@ async function computePlannedProgression(
 export async function getOccurrenceProgression(
   account: Account,
   loggedExerciseId: string,
+  opts: { entitlement?: RequestEntitlement } = {},
 ): Promise<OccurrenceProgressionDto | null> {
   // A malformed id is simply not found (OVE-136 / audit F-T10).
   if (!isUuid(loggedExerciseId)) return null;
   const dto = await computeOccurrenceProgression(account, loggedExerciseId);
   if (!dto) return null;
-  const resolved = await resolveEntitlement(account);
+  const resolved = await entitlementFor(account, opts.entitlement);
   return gateOccurrence(dto, can(resolved, "progression_insights"));
 }
 
@@ -842,12 +849,13 @@ async function computeOccurrenceProgression(
 export async function getSessionProgressionSummary(
   account: Account,
   loggedSessionId: string,
+  opts: { entitlement?: RequestEntitlement } = {},
 ): Promise<SessionProgressionSummaryDto | null> {
   // A malformed id is simply not found (OVE-136 / audit F-T10).
   if (!isUuid(loggedSessionId)) return null;
   const dto = await computeSessionProgressionSummary(account, loggedSessionId);
   if (!dto) return null;
-  const resolved = await resolveEntitlement(account);
+  const resolved = await entitlementFor(account, opts.entitlement);
   return gateSessionSummary(dto, can(resolved, "progression_insights"));
 }
 

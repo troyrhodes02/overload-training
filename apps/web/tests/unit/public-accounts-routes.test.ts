@@ -77,7 +77,16 @@ describe("public paths (PA3 / R9)", () => {
 
   it("exports exactly the expected public path set", () => {
     expect([...PUBLIC_PATHS].sort()).toEqual(
-      ["/login", "/signup", ...newDoors, ...webhooks, ...marketing].sort(),
+      [
+        "/login",
+        "/signup",
+        ...newDoors,
+        ...webhooks,
+        ...marketing,
+        // Pitch 21c: the mobile API authenticates by bearer token in its own
+        // pipeline (mobile-api-proxy.test.ts), never by the cookie redirect.
+        "/api/mobile",
+      ].sort(),
     );
   });
 

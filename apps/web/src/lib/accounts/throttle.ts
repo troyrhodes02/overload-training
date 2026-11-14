@@ -23,8 +23,13 @@ import { prisma } from "@/lib/db";
  * decision reveals nothing about any address and the stored row is opaque.
  */
 
-/** Which pre-auth endpoint an attempt counts against. Mirrors the DB enum. */
-export type ThrottleAction = "signup" | "password_reset_request";
+/**
+ * What an attempt counts against. Mirrors the DB enum. The two pre-auth doors
+ * key on a request fingerprint or an email; the mobile API (Pitch 21c) keys on
+ * the verified account id — never an IP, which carrier networks share.
+ */
+export type ThrottleAction =
+  "signup" | "password_reset_request" | "mobile_api_request";
 
 /**
  * Fixed-window length, in seconds. Attempts are bucketed by `floor(now /
@@ -39,10 +44,32 @@ export const THROTTLE_WINDOW_SECONDS = 60;
  */
 export const THROTTLE_LIMIT = 10;
 
+/**
+ * The mobile API's per-account limit (Pitch 21c spec §11, RD-8): 120 requests
+ * a minute — far above a real workout, low enough to stop a runaway client.
+ */
+export const MOBILE_API_RATE_LIMIT = 120;
+export const MOBILE_API_RATE_WINDOW_SECONDS = 60;
+
+/** Each action's fixed window and limit. The pre-auth doors are unchanged. */
+export const THROTTLE_POLICIES: Readonly<
+  Record<ThrottleAction, { limit: number; windowSeconds: number }>
+> = {
+  signup: { limit: THROTTLE_LIMIT, windowSeconds: THROTTLE_WINDOW_SECONDS },
+  password_reset_request: {
+    limit: THROTTLE_LIMIT,
+    windowSeconds: THROTTLE_WINDOW_SECONDS,
+  },
+  mobile_api_request: {
+    limit: MOBILE_API_RATE_LIMIT,
+    windowSeconds: MOBILE_API_RATE_WINDOW_SECONDS,
+  },
+};
+
 /** The start of the current fixed window, as epoch seconds. */
-function currentWindowStart(nowMs: number): number {
+function currentWindowStart(nowMs: number, windowSeconds: number): number {
   const nowSeconds = Math.floor(nowMs / 1000);
-  return nowSeconds - (nowSeconds % THROTTLE_WINDOW_SECONDS);
+  return nowSeconds - (nowSeconds % windowSeconds);
 }
 
 /**
@@ -52,6 +79,20 @@ function currentWindowStart(nowMs: number): number {
  */
 function hashKey(action: ThrottleAction, rawKey: string): string {
   return createHash("sha256").update(`${action}:${rawKey}`).digest("hex");
+}
+
+/**
+ * Atomically record one attempt for `(action, rawKey)` and report whether it
+ * is within the limit (the pre-auth doors' interface, unchanged). See
+ * throttleRequest for the full behavior.
+ */
+export async function checkAndIncrement(
+  action: ThrottleAction,
+  rawKey: string,
+  now: () => number = Date.now,
+): Promise<{ allowed: boolean }> {
+  const { allowed } = await throttleRequest(action, rawKey, now);
+  return { allowed };
 }
 
 /**
@@ -72,33 +113,79 @@ function hashKey(action: ThrottleAction, rawKey: string): string {
  * closed on an abuse limiter is the safe default: a transient blip throttles
  * briefly rather than opening the pre-auth door.
  */
-export async function checkAndIncrement(
+export async function throttleRequest(
   action: ThrottleAction,
   rawKey: string,
   now: () => number = Date.now,
-): Promise<{ allowed: boolean }> {
+): Promise<{ allowed: boolean; retryAfterSeconds: number; failed?: true }> {
+  const { limit, windowSeconds } = THROTTLE_POLICIES[action];
   const keyHash = hashKey(action, rawKey);
-  const windowStart = currentWindowStart(now());
+  const nowMs = now();
+  const windowStart = currentWindowStart(nowMs, windowSeconds);
+  // Whole seconds until this window closes (at least 1).
+  const retryAfterSeconds = Math.max(
+    1,
+    windowStart + windowSeconds - Math.floor(nowMs / 1000),
+  );
 
   try {
     // Single-statement atomic upsert. ON CONFLICT on the composite primary key
     // (key_hash, action, window_start) increments in place; the RETURNING
     // clause hands back the post-increment count so the decision needs no
     // second read.
+    //
+    // The mobile API counts every authenticated request, so in the same
+    // statement it drops this key's EARLIER windows: at most one row per
+    // account ever exists, and the table cannot grow with use (there is no
+    // scheduler to prune it; review audit #2). The pre-auth doors keep their
+    // rows exactly as before.
+    const prune = action === "mobile_api_request";
     const rows = await prisma.$queryRaw<{ count: number }[]>`
+      WITH "pruned" AS (
+        DELETE FROM "auth_throttle"
+        WHERE ${prune}::boolean
+          AND "key_hash" = ${keyHash}
+          AND "action" = ${action}::"auth_throttle_action"
+          AND "window_start" < ${windowStart}
+      )
       INSERT INTO "auth_throttle" ("key_hash", "action", "window_start", "count", "created_at", "updated_at")
       VALUES (${keyHash}, ${action}::"auth_throttle_action", ${windowStart}, 1, now(), now())
       ON CONFLICT ("key_hash", "action", "window_start")
       DO UPDATE SET "count" = "auth_throttle"."count" + 1, "updated_at" = now()
       RETURNING "count"`;
 
-    const count = Number(rows[0]?.count ?? THROTTLE_LIMIT + 1);
-    return { allowed: count <= THROTTLE_LIMIT };
+    const count = Number(rows[0]?.count ?? limit + 1);
+    return { allowed: count <= limit, retryAfterSeconds };
   } catch {
     // The limiter could not reach the database. Refuse rather than let the
     // error escape (never logging the raw key or any address). Callers treat a
     // refusal identically to a tripped limit.
-    return { allowed: false };
+    // `failed` lets a caller tell an outage from a tripped limit (the mobile
+    // API answers 503 for it; release review #2). The pre-auth doors ignore it.
+    return { allowed: false, retryAfterSeconds, failed: true };
+  }
+}
+
+/**
+ * Forget a key's counts for one action (review audit #3). Account deletion
+ * calls this for the mobile API's per-account key, so nothing derived from a
+ * deleted account's id stays in the table. Best effort: a failure is logged
+ * by error name only and never fails the caller.
+ */
+export async function clearThrottle(
+  action: ThrottleAction,
+  rawKey: string,
+): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      DELETE FROM "auth_throttle"
+      WHERE "key_hash" = ${hashKey(action, rawKey)}
+        AND "action" = ${action}::"auth_throttle_action"`;
+  } catch (error) {
+    console.error(
+      "throttle: could not clear a key",
+      error instanceof Error ? error.name : "unknown",
+    );
   }
 }
 
