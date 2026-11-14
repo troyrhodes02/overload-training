@@ -1,7 +1,7 @@
 # Release record: Pitch 21c — Mobile API & Auth Foundation (to Production)
 
 **Release branch:** `release/21c-mobile-api-auth-foundation`, cut from `main` at `b6bc857` (the 21b release).
-**Content:** one cherry-pick of the staging squash commit `b36a9cc` (feature PR #206, tickets OVE-176..180 and the review audit), plus this record. The release tree before this record is byte-identical to `staging` at `b36a9cc` (`4480cc2`).
+**Content:** two cherry-picks from `staging`: `b36a9cc` (feature PR #206, tickets OVE-176..180 and the review audit) and `be4a102` (OVE-181, #213, fixes from this release's review). Plus this record. Apart from this record, the release tree is byte-identical to `staging` at `be4a102`.
 
 Nothing below has been done to Production. Every step is yours.
 
