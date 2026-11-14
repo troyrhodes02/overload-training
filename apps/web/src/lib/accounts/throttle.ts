@@ -117,7 +117,7 @@ export async function throttleRequest(
   action: ThrottleAction,
   rawKey: string,
   now: () => number = Date.now,
-): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+): Promise<{ allowed: boolean; retryAfterSeconds: number; failed?: true }> {
   const { limit, windowSeconds } = THROTTLE_POLICIES[action];
   const keyHash = hashKey(action, rawKey);
   const nowMs = now();
@@ -160,7 +160,9 @@ export async function throttleRequest(
     // The limiter could not reach the database. Refuse rather than let the
     // error escape (never logging the raw key or any address). Callers treat a
     // refusal identically to a tripped limit.
-    return { allowed: false, retryAfterSeconds };
+    // `failed` lets a caller tell an outage from a tripped limit (the mobile
+    // API answers 503 for it; release review #2). The pre-auth doors ignore it.
+    return { allowed: false, retryAfterSeconds, failed: true };
   }
 }
 

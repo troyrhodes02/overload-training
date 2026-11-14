@@ -129,15 +129,19 @@ export async function withIdempotency<T extends IdempotentBody>(
     );
     return apiJson(result.body, { status: result.status });
   } catch (error) {
-    const stored = await account.db.apiIdempotencyKey.findFirst({
-      where: { key: args.key },
-      select: {
-        scope: true,
-        requestHash: true,
-        responseStatus: true,
-        responseBody: true,
-      },
-    });
+    // If this lookup fails too (say, the same exhausted pool), answer with the
+    // ORIGINAL failure, never the lookup's (release review #6).
+    const stored = await account.db.apiIdempotencyKey
+      .findFirst({
+        where: { key: args.key },
+        select: {
+          scope: true,
+          requestHash: true,
+          responseStatus: true,
+          responseBody: true,
+        },
+      })
+      .catch(() => null);
     if (stored && stored.responseStatus !== null) {
       if (stored.scope === args.scope && stored.requestHash === requestHash) {
         return apiJson(stored.responseBody, {

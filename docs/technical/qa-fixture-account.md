@@ -60,7 +60,7 @@ npm run qa:reset -- --user-id "$QA_USER" --confirm-ref vdxrmfadikwzodjljbdi --ex
 
 ### What a reset deletes (this account only)
 
-`LoggedSet`, `LoggedExercise`, `GymExerciseBaseline`, `Goal`, `CardioLog`, `MissedDayResolution`, `LoggedSession`, `PlannedCardio`, `SessionExercise`, `Session`, `Mesocycle`, `ExerciseFavorite`, the account's **custom** `Exercise` rows, and `Gym`. Every delete uses the account-deletion module's own removal steps, through the account-scoped client and in that module's order, so another account and the shared library cannot be reached.
+`LoggedSet`, `LoggedExercise`, `GymExerciseBaseline`, `Goal`, `CardioLog`, `MissedDayResolution`, `LoggedSession`, `PlannedCardio`, `SessionExercise`, `Session`, `Mesocycle`, `ExerciseFavorite`, the account's **custom** `Exercise` rows, `Gym`, and the mobile API's retry records (`ApiIdempotencyKey`). Every delete uses the account-deletion module's own removal steps, through the account-scoped client and in that module's order, so another account and the shared library cannot be reached.
 
 ### What a reset keeps
 

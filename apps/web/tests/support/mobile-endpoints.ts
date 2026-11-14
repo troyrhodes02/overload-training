@@ -15,7 +15,7 @@ export type MobileEndpoint = {
   auth: "public" | "account";
 };
 
-const CATCH_ALL = "api/mobile/[...path]";
+const CATCH_ALL = "api/mobile/[[...path]]";
 
 export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   { method: "GET", route: "api/mobile/v1/app-config", auth: "public" },
