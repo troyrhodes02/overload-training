@@ -14,3 +14,9 @@ docs/pitches/**/preview.html
 # pitch-4 run prompt), still a design-handoff artifact and not part of the app.
 docs/pitches/**/preview.tsx
 .claude/skills/**/*.html
+# The Expo app's generated native projects and build output (Pitch 21d):
+# produced by `expo prebuild` / `expo export`, never committed.
+apps/mobile/ios
+apps/mobile/android
+apps/mobile/.expo
+apps/mobile/dist
