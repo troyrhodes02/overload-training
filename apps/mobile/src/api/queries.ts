@@ -26,10 +26,13 @@ export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
+        // The client's one definition of "temporary" (review #6); staging
+        // protection is temporary for the session but retrying won't help.
         retry: (count, error) =>
           count < 2 &&
           error instanceof ApiError &&
-          (error.code === "network" || error.code === "unavailable"),
+          error.temporary &&
+          error.code !== "staging_protected",
         retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
       },
       mutations: { retry: false },
@@ -76,19 +79,27 @@ export function useMe(enabled: boolean) {
   });
 }
 
+/**
+ * Save the appearance. The caller (More → Appearance) serializes saves and
+ * writes the `me` cache only for the last choice, so a superseded response can
+ * never overwrite a newer one (review #2).
+ */
 export function useUpdateAppearance() {
   const api = useApi();
-  const client = useQueryClient();
   return useMutation<UpdateAppearanceResponseDto, ApiError, Appearance>({
     mutationFn: (appearance) =>
       api.request<UpdateAppearanceResponseDto>("/me/appearance", {
         method: "PUT",
         body: { appearance },
       }),
-    onSuccess: (result) => {
-      client.setQueryData<MeDto>(QUERY_KEYS.me, (me) =>
-        me ? { ...me, appearance: result.appearance } : me,
-      );
-    },
   });
+}
+
+export function setCachedAppearance(
+  client: ReturnType<typeof useQueryClient>,
+  appearance: Appearance,
+): void {
+  client.setQueryData<MeDto>(QUERY_KEYS.me, (me) =>
+    me ? { ...me, appearance } : me,
+  );
 }

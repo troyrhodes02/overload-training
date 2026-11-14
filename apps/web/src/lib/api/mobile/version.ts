@@ -6,6 +6,12 @@ import type {
 import { isPlanImportEnabled } from "@/lib/import/config";
 import { signupMode } from "@/lib/accounts/signup-gate";
 import { isTurnstileBypassEnabled } from "@/lib/accounts/turnstile-bypass";
+import {
+  compareAppVersions,
+  formatAppVersion,
+  parseAppVersion,
+  type AppVersion,
+} from "@overload/shared/mobile/app-version";
 import { ApiFailure } from "./errors";
 
 /**
@@ -20,37 +26,16 @@ import { ApiFailure } from "./errors";
  * per process — never the value — so a typo can never brick installed apps.
  */
 
-export type AppVersion = readonly [number, number, number];
+// The parser and comparator are shared with the app (Pitch 21d review audit).
+export {
+  compareAppVersions,
+  formatAppVersion,
+  parseAppVersion,
+  type AppVersion,
+} from "@overload/shared/mobile/app-version";
 
 /** The request header every app build sends. */
 export const APP_VERSION_HEADER = "X-Overload-App-Version";
-
-const MAX_PART = 999_999;
-// Canonical non-negative integers only: no leading zeros, sign, or suffix.
-const VERSION = /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/;
-
-/** Strict MAJOR.MINOR.PATCH, or null. */
-export function parseAppVersion(
-  raw: string | null | undefined,
-): AppVersion | null {
-  if (typeof raw !== "string") return null;
-  const m = VERSION.exec(raw.trim());
-  if (!m) return null;
-  const parts = [Number(m[1]), Number(m[2]), Number(m[3])] as const;
-  return parts.every((p) => p <= MAX_PART) ? parts : null;
-}
-
-export function compareAppVersions(a: AppVersion, b: AppVersion): -1 | 0 | 1 {
-  for (let i = 0; i < 3; i++) {
-    if (a[i] < b[i]) return -1;
-    if (a[i] > b[i]) return 1;
-  }
-  return 0;
-}
-
-export function formatAppVersion(v: AppVersion): string {
-  return v.join(".");
-}
 
 const DEFAULT_MINIMUM: AppVersion = [0, 0, 0];
 const warned = new Set<string>();

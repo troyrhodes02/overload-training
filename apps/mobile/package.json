@@ -8,7 +8,7 @@
     "ios": "expo run:ios",
     "bundle:ios": "expo export --platform ios --output-dir dist",
     "doctor": "expo-doctor",
-    "update:staging": "eas update --channel staging --environment development",
+    "update:staging": "EAS_UPDATE_CHANNEL=staging eas update --channel staging --environment development",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "jest"

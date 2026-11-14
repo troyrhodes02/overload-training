@@ -6,10 +6,11 @@ import * as SecureStore from "expo-secure-store";
  * (boundary rule B8).
  *
  * A Supabase session can exceed SecureStore's recommended 2 KB per value, so
- * values are split into chunks under `${key}.${i}` with a `${key}.n` count.
- * The writes go chunks first and count last, and a read with any chunk
- * missing returns null, so a partial write reads as signed out, never as
- * corrupt JSON.
+ * values are split into chunks under `${key}.${i}` with a `${key}.n` record
+ * of "count:length". The writes go chunks first and the record last, and a
+ * read whose chunks are missing or don't add up to the recorded length returns
+ * null. So a write interrupted part-way (old record, some new chunks) reads as
+ * signed out, never as a truncated or spliced session (review #3).
  */
 
 export const CHUNK_SIZE = 1800;
@@ -44,11 +45,17 @@ export function createChunkedStorage(store: KeyValueStore = SecureStore) {
     if (!SAFE_KEY.test(key)) throw new Error("Unsupported storage key");
   };
 
-  async function count(key: string): Promise<number> {
+  async function record(key: string): Promise<{ n: number; length: number }> {
     const raw = await store.getItemAsync(countKey(key), OPTIONS);
-    const n = raw === null ? 0 : Number(raw);
-    return Number.isInteger(n) && n > 0 ? n : 0;
+    const [n, length] = (raw ?? "").split(":").map(Number);
+    return Number.isInteger(n) &&
+      n > 0 &&
+      Number.isInteger(length) &&
+      length >= 0
+      ? { n, length }
+      : { n: 0, length: 0 };
   }
+  const count = async (key: string) => (await record(key)).n;
 
   async function removeItem(key: string): Promise<void> {
     check(key);
@@ -62,7 +69,7 @@ export function createChunkedStorage(store: KeyValueStore = SecureStore) {
   return {
     async getItem(key: string): Promise<string | null> {
       check(key);
-      const n = await count(key);
+      const { n, length } = await record(key);
       if (n === 0) return null;
       const parts: string[] = [];
       for (let i = 0; i < n; i++) {
@@ -70,7 +77,8 @@ export function createChunkedStorage(store: KeyValueStore = SecureStore) {
         if (part === null) return null;
         parts.push(part);
       }
-      return parts.join("");
+      const value = parts.join("");
+      return value.length === length ? value : null;
     },
     async setItem(key: string, value: string): Promise<void> {
       check(key);
@@ -83,7 +91,11 @@ export function createChunkedStorage(store: KeyValueStore = SecureStore) {
           OPTIONS,
         );
       }
-      await store.setItemAsync(countKey(key), String(chunks), OPTIONS);
+      await store.setItemAsync(
+        countKey(key),
+        `${chunks}:${value.length}`,
+        OPTIONS,
+      );
       for (let i = chunks; i < previous; i++) {
         await store.deleteItemAsync(chunkKey(key, i), OPTIONS);
       }

@@ -123,10 +123,13 @@ export default function SignUpScreen() {
       if (await adoptSession(result.session)) {
         haptic.success();
       } else {
-        // The account exists; signing in again is the safe recovery.
-        setFormError({
-          message: "Your account was created. Sign in to continue.",
-          signIn: true,
+        // The account exists, and its challenge token is spent: send the
+        // lifter to sign in with the email filled in, never back to a form
+        // that would fail the challenge (review #4).
+        setToken(null);
+        router.replace({
+          pathname: "/sign-in",
+          params: { email: body.email },
         });
       }
     } catch (error) {
@@ -235,6 +238,19 @@ export default function SignUpScreen() {
           <Banner message="Signup isn't available in the app right now. Try again later or sign up on the web." />
         ) : null}
         {formError ? <Banner message={formError.message} /> : null}
+        {formError?.signIn ? (
+          <Button
+            label="Sign in"
+            variant="secondary"
+            size="md"
+            onPress={() =>
+              router.replace({
+                pathname: "/sign-in",
+                params: { email: values.email.trim() },
+              })
+            }
+          />
+        ) : null}
         <Button
           label="Create account"
           onPress={submit}

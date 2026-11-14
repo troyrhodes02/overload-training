@@ -1,4 +1,8 @@
 import type { AppConfigDto } from "@overload/shared/contracts/app-config";
+import {
+  compareAppVersions,
+  parseAppVersion,
+} from "@overload/shared/mobile/app-version";
 import type { MeDto } from "@overload/shared/contracts/account";
 import type { ApiError } from "../api/errors";
 import type { SessionStatus } from "../auth/session";
@@ -32,19 +36,17 @@ export type GateInput = {
   upgradeRequiredSeen: boolean;
 };
 
-/** Strict MAJOR.MINOR.PATCH comparison; an unparsable version sorts lowest. */
+/**
+ * The API's own version rule (shared, review #10): -1 when `a` is older than
+ * `b`. An unparsable app version counts as older than any minimum, which is
+ * also what the API answers (it refuses a malformed header).
+ */
 export function compareVersions(a: string, b: string): -1 | 0 | 1 {
-  const parse = (v: string) => {
-    const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v.trim());
-    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [-1, -1, -1];
-  };
-  const x = parse(a);
-  const y = parse(b);
-  for (let i = 0; i < 3; i++) {
-    if (x[i] < y[i]) return -1;
-    if (x[i] > y[i]) return 1;
-  }
-  return 0;
+  const x = parseAppVersion(a);
+  const y = parseAppVersion(b);
+  if (!x) return y ? -1 : 0;
+  if (!y) return 1;
+  return compareAppVersions(x, y);
 }
 
 export function decideGate(i: GateInput): Gate {

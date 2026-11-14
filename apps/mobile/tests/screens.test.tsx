@@ -211,6 +211,37 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
   });
 
+  it("M2 serializes saves: a tap during a save is queued and the last choice wins", async () => {
+    const resolvers: Array<(v: unknown) => void> = [];
+    mockApi.request.mockImplementation(
+      (_path: string, opts: { body: { appearance: string } }) =>
+        new Promise((resolve) =>
+          resolvers.push(() => resolve({ appearance: opts.body.appearance })),
+        ),
+    );
+    await render(
+      <Providers>
+        <AppearanceScreen />
+      </Providers>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Dark" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Light" }));
+    await fireEvent.press(screen.getByRole("button", { name: "System" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Light" }));
+    // Only one save in flight; the newest queued choice goes next.
+    expect(mockApi.request).toHaveBeenCalledTimes(1);
+    resolvers[0](undefined);
+    await waitFor(() => expect(mockApi.request).toHaveBeenCalledTimes(2));
+    expect(mockApi.request.mock.calls[1][1]).toEqual({
+      method: "PUT",
+      body: { appearance: "light" },
+    });
+    resolvers[1](undefined);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Light" })).toBeSelected(),
+    );
+  });
+
   it("M2 applies a choice and returns the saved one when the save fails", async () => {
     mockApi.request.mockRejectedValue(new ApiError("network", "offline"));
     await render(

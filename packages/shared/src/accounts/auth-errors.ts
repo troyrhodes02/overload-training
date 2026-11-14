@@ -46,3 +46,6 @@ export function signInErrorMessage(error: {
   if (kind === "wrong") return WRONG_CREDENTIALS;
   return SIGN_IN_UNAVAILABLE;
 }
+
+/** A failed bot challenge, on signup and the reset request (web and app). */
+export const CHALLENGE_FAILED = "Couldn't verify you're human. Try again.";

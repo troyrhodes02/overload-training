@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Appearance as RNAppearance, useColorScheme } from "react-native";
 import * as SystemUI from "expo-system-ui";
 import {
@@ -56,17 +63,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     SystemUI.setBackgroundColorAsync(theme.colors.background).catch(() => {});
   }, [theme.colors.background]);
 
+  // Stable, so effects that apply the account's value don't re-run (and
+  // undo a fresh choice) every time the preference changes (review #1).
+  const setPreference = useCallback((next: Appearance) => {
+    setPreferenceState(next);
+    writeAppearanceMirror(next);
+  }, []);
   const value = useMemo<ThemeContextValue>(
-    () => ({
-      theme,
-      preference,
-      ready,
-      setPreference: (next) => {
-        setPreferenceState(next);
-        writeAppearanceMirror(next);
-      },
-    }),
-    [theme, preference, ready],
+    () => ({ theme, preference, ready, setPreference }),
+    [theme, preference, ready, setPreference],
   );
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

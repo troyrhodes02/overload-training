@@ -25,7 +25,7 @@ describe("chunked secure storage", () => {
     const s = createChunkedStorage(store);
     const value = "x".repeat(CHUNK_SIZE * 2 + 17);
     await s.setItem("overload.auth", value);
-    expect(map.get("overload.auth.n")).toBe("3");
+    expect(map.get("overload.auth.n")).toBe(`3:${value.length}`);
     expect(await s.getItem("overload.auth")).toBe(value);
     await s.removeItem("overload.auth");
     expect([...map.keys()]).toEqual([]);
@@ -47,6 +47,16 @@ describe("chunked secure storage", () => {
     map.delete("k.1");
     expect(await s.getItem("k")).toBeNull();
     expect(await s.getItem("never-set")).toBeNull();
+  });
+
+  it("a write interrupted before its record reads as signed out, never as a spliced session", async () => {
+    const { map, store } = memory();
+    const s = createChunkedStorage(store);
+    await s.setItem("k", "a".repeat(CHUNK_SIZE * 2));
+    // Simulate a kill after the new chunks 0 and 1 but before the new record.
+    map.set("k.0", "b".repeat(CHUNK_SIZE));
+    map.set("k.1", "b".repeat(CHUNK_SIZE - 10));
+    expect(await s.getItem("k")).toBeNull();
   });
 
   it("refuses keys the Keychain can't hold", async () => {

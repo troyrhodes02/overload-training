@@ -4,6 +4,10 @@ import type {
   PasswordResetResponseDto,
   SignUpResponseDto,
 } from "@overload/shared/contracts/account";
+import {
+  CHALLENGE_FAILED,
+  TOO_MANY_ATTEMPTS,
+} from "@overload/shared/accounts/auth-errors";
 import { requestFingerprint } from "@/lib/accounts/request-fingerprint";
 import {
   requestPasswordReset,
@@ -41,10 +45,8 @@ export const SIGNUP_BODY_LIMIT = 16 * 1024;
 export const RESET_BODY_LIMIT = 4 * 1024;
 
 export const SIGNUP_CLOSED = "Signup isn't open right now.";
-export const SIGNUP_RATE_LIMITED =
-  "Too many attempts. Wait a minute and try again.";
-export const SIGNUP_CHALLENGE_FAILED =
-  "Couldn't verify you're human. Try again.";
+export const SIGNUP_RATE_LIMITED = TOO_MANY_ATTEMPTS;
+export const SIGNUP_CHALLENGE_FAILED = CHALLENGE_FAILED;
 export const SIGNUP_INVALID = "Check the highlighted fields.";
 export const SIGNUP_EMAIL_TAKEN = "An account with this email already exists.";
 export const SIGNUP_UNEXPECTED =

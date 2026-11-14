@@ -160,10 +160,16 @@ export function SessionProvider({
         const { error } = await auth.signOut({ scope: "local" });
         // Offline: supabase-js keeps the stored session when the revoke call
         // fails, so remove it here. The user asked to sign out.
-        if (error) await secureStorage.removeItem(AUTH_STORAGE_KEY);
+        if (error) {
+          // Stop the refresh timer first, so no in-flight refresh can write
+          // the session back after it is removed (review #3).
+          auth.stopAutoRefresh();
+          await secureStorage.removeItem(AUTH_STORAGE_KEY);
+        }
         markNone();
       },
       async forgetSession() {
+        auth.stopAutoRefresh();
         await secureStorage.removeItem(AUTH_STORAGE_KEY);
         markNone();
       },

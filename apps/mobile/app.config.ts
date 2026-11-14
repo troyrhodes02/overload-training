@@ -19,7 +19,10 @@ import { colors } from "../../packages/shared/src/design/tokens.ts";
  *   - an environment other than staging;
  *   - a Production Supabase key or reference in any public value;
  *   - an EAS build profile other than development / development-simulator;
- *   - an update channel other than staging.
+ *   - an update channel other than staging, when EAS_UPDATE_CHANNEL is set
+ *     (`npm run update:staging` sets it; eas-cli itself may not). The fence
+ *     that always holds is in eas.json: every build listens to `staging`
+ *     only, so an update published to any other channel reaches no build.
  * Problems name the variable, never its value.
  */
 

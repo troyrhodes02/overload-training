@@ -6,6 +6,7 @@ import {
   weakPasswordMessage,
   PASSWORD_ERRORS,
 } from "@overload/shared/accounts/validation";
+import { CHALLENGE_FAILED } from "@overload/shared/accounts/auth-errors";
 import { checkAndIncrement } from "./throttle";
 import { verifyChallenge } from "./turnstile";
 
@@ -154,7 +155,6 @@ export async function requestPasswordReset(
     };
   }
 
-  const CHALLENGE_FAILED = "Couldn't verify you're human. Try again.";
   if (!(await verifyChallenge(input.challengeToken))) {
     return {
       ok: false,

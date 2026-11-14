@@ -5,7 +5,8 @@ import {
   APPEARANCES,
   type Appearance,
 } from "@overload/shared/appearance/appearance";
-import { useUpdateAppearance } from "../../../api/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { setCachedAppearance, useUpdateAppearance } from "../../../api/queries";
 import { Banner } from "../../../ui/Banner";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
 import { useTheme, useThemeContext } from "../../../ui/ThemeProvider";
@@ -18,34 +19,48 @@ const LABEL: Record<Appearance, string> = {
 
 /**
  * M2 Appearance (design §6; RD-10). The choice applies at once and saves to
- * the account, so the web follows. Concurrent taps are ordered so the last
- * choice wins (the web's createChoiceTracker rule); a failed save returns the
- * last saved choice.
+ * the account, so the web follows. Saves run one at a time: a tap during a
+ * save is queued, and only the newest queued choice is sent next, so the last
+ * choice wins on the screen and on the server (review #2). A failed save
+ * returns the last saved choice.
  */
 export default function AppearanceScreen() {
   const { colors, spacing } = useTheme();
   const { preference, setPreference } = useThemeContext();
+  const client = useQueryClient();
   const update = useUpdateAppearance();
   const [error, setError] = useState<string | null>(null);
-  const latest = useRef(0);
   const saved = useRef<Appearance>(preference);
+  const inFlight = useRef(false);
+  const queued = useRef<Appearance | null>(null);
+
+  const save = (value: Appearance) => {
+    inFlight.current = true;
+    update.mutate(value, {
+      onSuccess: (result) => {
+        saved.current = result.appearance;
+      },
+      onSettled: (result, failure) => {
+        inFlight.current = false;
+        const next = queued.current;
+        queued.current = null;
+        if (next !== null && next !== saved.current) return save(next);
+        if (failure) {
+          setPreference(saved.current);
+          setError("Couldn't save your appearance. Try again.");
+        } else if (result) {
+          setCachedAppearance(client, result.appearance);
+        }
+      },
+    });
+  };
 
   const choose = (next: Appearance) => {
     if (next === preference) return;
-    const ticket = ++latest.current;
     setError(null);
     setPreference(next);
-    update.mutate(next, {
-      onSuccess: (result) => {
-        if (ticket !== latest.current) return;
-        saved.current = result.appearance;
-      },
-      onError: () => {
-        if (ticket !== latest.current) return;
-        setPreference(saved.current);
-        setError("Couldn't save your appearance. Try again.");
-      },
-    });
+    if (inFlight.current) queued.current = next;
+    else save(next);
   };
 
   return (
