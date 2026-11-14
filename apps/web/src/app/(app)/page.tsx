@@ -2,14 +2,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatPlanDate } from "@overload/shared/plan/calendar";
 import { MissedDayPrompt } from "@/components/logging/missed-day-prompt";
-import {
-  getTodayDashboard,
-  type DashboardTodayDto,
-} from "@/lib/logging/queries";
-import {
-  getPlannedProgression,
-  getSessionProgressionSummary,
+import type { DashboardTodayDto } from "@/lib/logging/queries";
+import type {
+  PlannedProgressionDto,
+  SessionProgressionSummaryDto,
 } from "@/lib/progression/queries";
+import type { SessionGoalRowDto } from "@overload/shared/contracts/goals";
+import type { TodayDto } from "@overload/shared/contracts/views";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { Recommendation } from "@/components/progression/recommendation";
 import { SuggestedLoad } from "@/components/progression/suggested-load";
@@ -17,12 +16,10 @@ import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload
 import { UpgradeNote } from "@/components/billing/upgrade-note";
 import { DashboardGoals } from "@/components/goals/dashboard-goals";
 import { SessionGoalRows } from "@/components/goals/session-goal-rows";
-import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import { dashboardShowsGoals } from "@overload/shared/goals/dashboard";
 import { CardioCards, CardioFocal } from "@/components/cardio/cardio-today";
-import { accountToday, requireAccount } from "@/lib/data/account";
-import { composeGreeting } from "@/lib/personalization/greeting";
-import { getGreetingFacts } from "@/lib/personalization/greeting-facts";
+import { requireAccount } from "@/lib/data/account";
+import { getTodayView } from "@/lib/views/today";
 import { tourAnchor } from "@/lib/tour/steps";
 
 export const metadata = { title: "Today · Overload" };
@@ -32,11 +29,15 @@ export const metadata = { title: "Today · Overload" };
  * Each lift done today says what to do next time and why (Smarter &
  * Explainable Progression, design Screen 3; spec R24).
  */
-async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
-  const account = await requireAccount();
-  const summary = state.loggedSessionId
-    ? await getSessionProgressionSummary(account, state.loggedSessionId)
-    : null;
+function CompleteBlock({
+  state,
+  summary,
+  sessionGoals,
+}: {
+  state: DashboardTodayDto;
+  summary: SessionProgressionSummaryDto | null;
+  sessionGoals: SessionGoalRowDto[];
+}) {
   return (
     <div
       className="rounded-lg border border-border bg-card p-6"
@@ -88,9 +89,7 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
           message="What to do next time on each lift, and why, is part of Pro."
         />
       ) : null}
-      {state.loggedSessionId ? (
-        <SessionGoalRows loggedSessionId={state.loggedSessionId} />
-      ) : null}
+      {state.loggedSessionId ? <SessionGoalRows rows={sessionGoals} /> : null}
       <div className="mt-4 flex items-center gap-4 text-sm">
         {state.loggedSessionId ? (
           <Button asChild variant="secondary" size="sm">
@@ -105,12 +104,21 @@ async function CompleteBlock({ state }: { state: DashboardTodayDto }) {
   );
 }
 
-async function TodayBlock({ state }: { state: DashboardTodayDto }) {
-  const account = await requireAccount();
+function TodayBlock({
+  state,
+  view,
+}: {
+  state: DashboardTodayDto;
+  view: TodayDto;
+}) {
   if (state.kind === "complete") {
     return (
       <div className="space-y-4">
-        <CompleteBlock state={state} />
+        <CompleteBlock
+          state={state}
+          summary={view.sessionSummary}
+          sessionGoals={view.sessionGoals}
+        />
         <CardioCards entries={state.cardio} />
       </div>
     );
@@ -121,16 +129,13 @@ async function TodayBlock({ state }: { state: DashboardTodayDto }) {
     ? `/log/${state.loggedSessionId}`
     : `/log/start?sessionId=${state.sessionId}&scheduledFor=${state.scheduledFor}`;
 
-  // Derived tags for the planned list (OVE-28). Free-weight exercises show their
-  // global call now; gym-variable exercises defer until the workout gym is chosen
+  // Derived tags for the planned list (OVE-28), one per exercise in list order
+  // (the Today view, Pitch 21c). Free-weight exercises show their global call
+  // now; gym-variable exercises defer until the workout gym is chosen
   // (R14/R15). During a scheduled-deload week reactive tags are suppressed and
   // the 90% load is shown instead (R37).
-  const progression = await Promise.all(
-    state.exercises.map((e) =>
-      getPlannedProgression(account, e.exerciseId, {
-        scheduledDeloadWeek: state.scheduledDeloadWeek,
-      }),
-    ),
+  const progression: PlannedProgressionDto[] = view.plannedProgression.map(
+    (p) => p.progression,
   );
 
   return (
@@ -218,35 +223,21 @@ function TodayHeader({ greeting, today }: { greeting: string; today: string }) {
 
 export default async function TodayPage() {
   const account = await requireAccount();
-  // One instant for the greeting's clock (read after the auth session, which
-  // makes this render request-time).
-  const now = new Date();
-  const [dash, facts] = await Promise.all([
-    getTodayDashboard(account),
-    getGreetingFacts(account, now),
-  ]);
-  const today = formatPlanDate(accountToday(account));
+  // The one Today composition (Pitch 21c): the greeting, the dashboard, each
+  // exercise's call, the summary, and the goals — reconciled before goals are
+  // read (Goals R54) — exactly what GET /api/mobile/v1/today returns.
+  const view = await getTodayView(account);
+  const dash = view.dashboard;
+  const today = formatPlanDate(view.today);
   // Server-rendered text, deterministic per account + local date + situation:
   // it cannot change between renders or between server and browser.
-  const header = (
-    <TodayHeader
-      today={today}
-      greeting={composeGreeting({
-        dashboard: dash,
-        firstName: facts.firstName,
-        timeZone: facts.timeZoneValid ? account.timeZone : null,
-        firstVisit: facts.firstVisit,
-        accountKey: account.userId,
-        now,
-      })}
-    />
-  );
+  const header = <TodayHeader today={today} greeting={view.greeting} />;
 
   // Goals fill the dashboard ONLY when no training action is pending (Goals
-  // R42, R43). Completion is reconciled first (spec §11b, R54) so a just-met
-  // goal shows its card and the summary can say "Goal reached".
+  // R42, R43).
   const showGoals = dashboardShowsGoals(dash.kind);
-  if (showGoals) await reconcileGoalCompletionsSafely(account);
+  const goals =
+    showGoals && view.goals ? <DashboardGoals goals={view.goals} /> : null;
 
   if (dash.kind === "no_plan") {
     return (
@@ -264,7 +255,7 @@ export default async function TodayPage() {
             </Link>
           </p>
         </div>
-        <DashboardGoals />
+        {goals}
       </section>
     );
   }
@@ -277,7 +268,7 @@ export default async function TodayPage() {
         <div {...tourAnchor("today-day")}>
           <CardioFocal entries={dash.cardio} week={dash.week} />
         </div>
-        <DashboardGoals />
+        {goals}
       </section>
     );
   }
@@ -298,7 +289,7 @@ export default async function TodayPage() {
             </Link>
           </p>
         </div>
-        <DashboardGoals />
+        {goals}
       </section>
     );
   }
@@ -312,7 +303,7 @@ export default async function TodayPage() {
         </div>
         {dash.below ? (
           <div inert className="opacity-50">
-            <TodayBlock state={dash.below} />
+            <TodayBlock state={dash.below} view={view} />
           </div>
         ) : dash.cardio.length > 0 ? (
           // Cardio never prompts; it waits, dimmed, until the lifting
@@ -328,8 +319,8 @@ export default async function TodayPage() {
   return (
     <section className="space-y-6">
       {header}
-      <TodayBlock state={dash} />
-      {showGoals ? <DashboardGoals /> : null}
+      <TodayBlock state={dash} view={view} />
+      {goals}
     </section>
   );
 }
