@@ -9,3 +9,9 @@ export type GymListItemDto = {
   name: string;
   address: string | null;
 };
+
+/**
+ * `GET /gyms` (Pitch 21c): the account's active gyms, alphabetical. An object,
+ * not a bare array, so v1 can grow additively (spec RD-12).
+ */
+export type GymsResponseDto = { gyms: GymListItemDto[] };

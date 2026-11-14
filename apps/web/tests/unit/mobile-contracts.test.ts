@@ -68,6 +68,7 @@ const CONTRACTS = [
   jsonSafe<goals.GoalFormContextDto>("goals.GoalFormContextDto"),
   jsonSafe<goals.ExerciseGoalsDto>("goals.ExerciseGoalsDto"),
   jsonSafe<gyms.GymListItemDto>("gyms.GymListItemDto"),
+  jsonSafe<gyms.GymsResponseDto>("gyms.GymsResponseDto"),
   jsonSafe<history.BlockRef>("history.BlockRef"),
   jsonSafe<history.LoggedHistoryDay>("history.LoggedHistoryDay"),
   jsonSafe<history.EarlierBlock>("history.EarlierBlock"),
@@ -143,6 +144,7 @@ const CONTRACTS = [
   jsonSafe<requests.FeedbackRequest>("requests.FeedbackRequest"),
   jsonSafe<requests.DeleteAccountRequest>("requests.DeleteAccountRequest"),
   jsonSafe<views.TodayDto>("views.TodayDto"),
+  jsonSafe<views.TodayGoalsDto>("views.TodayGoalsDto"),
   jsonSafe<views.WorkoutViewDto>("views.WorkoutViewDto"),
   jsonSafe<views.LoggedWorkoutDetailViewDto>(
     "views.LoggedWorkoutDetailViewDto",
@@ -158,7 +160,7 @@ type Equal<A, B> =
 
 describe("mobile API contracts (Pitch 21b)", () => {
   it("every contract is JSON-safe", () => {
-    expect(CONTRACTS).toHaveLength(94);
+    expect(CONTRACTS).toHaveLength(96);
   });
 
   it("the JSON-safety check refuses what JSON cannot carry", () => {

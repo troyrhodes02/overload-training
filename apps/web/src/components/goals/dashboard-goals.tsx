@@ -1,31 +1,20 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import {
-  countActiveGoals,
-  listActiveGoals,
-  listUnacknowledgedCompletions,
-} from "@/lib/goals/queries";
+import type { TodayGoalsDto } from "@overload/shared/contracts/views";
 import { GoalList } from "./goal-list";
 import { GoalReachedCard } from "./goal-reached-card";
-import { requireAccount } from "@/lib/data/account";
-
-/** How many active goals the dashboard surfaces before "All goals" (R64). */
-export const DASHBOARD_GOAL_LIMIT = 3;
 
 /**
  * Goals on the dashboard's alternate state (design Screen 7; R42, R43). The
  * caller renders this ONLY when no training action is pending (day complete,
  * rest day, no plan) — a pending or in-progress workout and the missed-day
  * prompt never share the screen with goal content. Concise: unacknowledged
- * "Goal reached" cards, then at most three active goals.
+ * "Goal reached" cards, then at most three active goals (DASHBOARD_GOAL_LIMIT
+ * in src/lib/views/today.ts). The rows come from the Today view (Pitch 21c),
+ * the same composition the mobile API returns.
  */
-export async function DashboardGoals() {
-  const account = await requireAccount();
-  const [reached, goals, total] = await Promise.all([
-    listUnacknowledgedCompletions(account),
-    listActiveGoals(account, { take: DASHBOARD_GOAL_LIMIT }),
-    countActiveGoals(account),
-  ]);
+export function DashboardGoals({ goals: data }: { goals: TodayGoalsDto }) {
+  const { reached, active: goals, activeTotal: total } = data;
 
   return (
     <div className="space-y-4">
