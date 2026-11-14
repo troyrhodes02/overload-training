@@ -33,6 +33,8 @@ describe("ownership backfill coverage", () => {
       "import_sessions",
       "import_source_parts",
       "import_usage_days",
+      // Mobile API & Auth Foundation (9p): born owned, never pre-ownership.
+      "api_idempotency_keys",
     ];
     expect([...LEGACY_OWNED_TABLES].sort()).toEqual(
       owned

@@ -146,7 +146,7 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
     const offenders = walk(SRC)
       .filter((f) => !rel(f).startsWith(DATA_LAYER))
       .filter((f) =>
-        /@\/lib\/data\/operator|\bcreateAccountClient\b|\bresolveAccount(State)?\b|\btouchLastActive\b|\baccountFor\b/.test(
+        /@\/lib\/data\/operator|\bcreateAccountClient\b|\bresolveAccount(State)?\b|\bresolveExistingAccountState\b|\btouchLastActive\b|\baccountFor\b/.test(
           code(f),
         ),
       );

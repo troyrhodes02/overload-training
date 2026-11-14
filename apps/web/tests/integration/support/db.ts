@@ -50,6 +50,9 @@ export const APP_TABLES = [
   // Signup hardening 2a: the un-owned one-trial-per-person claims (no FK to
   // profiles, so it must be truncated explicitly).
   "trial_claims",
+  // Mobile API (Pitch 21c): owned retry records (reachable via the profiles
+  // CASCADE, listed for clarity).
+  "api_idempotency_keys",
 ] as const;
 
 /** Tables that belong to no account (spec 17 R11): no owner column at all. */
