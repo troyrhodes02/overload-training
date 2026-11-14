@@ -39,7 +39,7 @@ The slice ships four endpoints from the audit's foundation inventory: public `GE
 ### In scope
 
 1. The request pipeline (`src/lib/api/mobile/`), the error-to-status map, the JSON 404 for unknown API paths.
-2. Bearer-token authentication (`src/lib/data/mobile-auth.ts`, `src/lib/supabase/token.ts`) and a no-create account resolver.
+2. Bearer-token authentication (`src/lib/data/mobile-auth.ts`, `src/lib/data/access-token.ts`) and a no-create account resolver.
 3. The proxy exemption for `/api/mobile`.
 4. App config and the version gate (server-only env vars, safe defaults).
 5. `GET /app-config`, `GET /me`, `GET /today`, `GET /gyms`.
@@ -138,7 +138,7 @@ export function publicMobileRoute<P>(handler: (request: Request, params: P) => P
 ### 7.1 Token verification
 
 ```ts
-// src/lib/supabase/token.ts  (server-only; AUTH ONLY, never an application table)
+// src/lib/data/access-token.ts  (server-only; AUTH ONLY, never an application table)
 export type TokenVerdict =
   | { kind: "user"; userId: string; email: string }
   | { kind: "rejected" }       // Auth answered: the token is not valid now
