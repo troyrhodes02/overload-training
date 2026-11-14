@@ -118,3 +118,31 @@ export type FeedbackRequest = {
 
 /** `POST /me/delete`: confirmed with the current password (the web form's field). */
 export type DeleteAccountRequest = { password: string };
+
+/**
+ * `POST /api/mobile/v1/accounts` (Pitch 21d, public and version-gated): the
+ * web signup's fields, with no invite code. The server runs the same signUp
+ * module and every one of its defenses. `challengeToken` is the Turnstile
+ * token when app config asks for a challenge. `timeZone` is the device's IANA
+ * zone; an invalid one falls back to the server default.
+ */
+export type SignUpRequest = {
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  timeZone: string;
+  challengeToken?: string | null;
+};
+
+/**
+ * `POST /api/mobile/v1/password-reset` (Pitch 21d, public and version-gated).
+ * Every well-formed request that passes the challenge gets the identical
+ * answer, whether or not the email has an account.
+ */
+export type PasswordResetRequest = {
+  email: string;
+  challengeToken?: string | null;
+};

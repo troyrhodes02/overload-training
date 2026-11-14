@@ -1,7 +1,11 @@
 import "server-only";
-import type { AppConfigDto } from "@overload/shared/contracts/app-config";
+import type {
+  AppConfigDto,
+  BotChallengeDto,
+} from "@overload/shared/contracts/app-config";
 import { isPlanImportEnabled } from "@/lib/import/config";
 import { signupMode } from "@/lib/accounts/signup-gate";
+import { isTurnstileBypassEnabled } from "@/lib/accounts/turnstile-bypass";
 import { ApiFailure } from "./errors";
 
 /**
@@ -99,7 +103,42 @@ export function mobileAppConfig(
       maintenance: env.MOBILE_MAINTENANCE === "true",
     },
     signupMode: signupMode(env) === "public" ? "public" : "closed",
+    botChallenge: mobileBotChallenge(env),
   };
+}
+
+/**
+ * The bot challenge native signup and the reset request must pass (Pitch 21d
+ * RD-6). It uses the same decision the web's signup and forgot-password pages
+ * use: null exactly under the development / Preview bypass, when the web
+ * hides its widget. Otherwise it carries the PUBLIC widget key and the public
+ * web origin the widget runs on, never the secret. A missing value is null,
+ * and the app then shows signup as unavailable instead of skipping the check.
+ */
+export function mobileBotChallenge(
+  env: Record<string, string | undefined> = process.env,
+): BotChallengeDto | null {
+  if (isTurnstileBypassEnabled(env)) return null;
+  return {
+    provider: "turnstile",
+    siteKey: env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null,
+    origin: publicWebOrigin(env.NEXT_PUBLIC_APP_URL),
+  };
+}
+
+/** The origin of the canonical public web URL, or null when it isn't one. */
+function publicWebOrigin(raw: string | undefined): string | null {
+  if (!raw?.trim()) return null;
+  try {
+    const url = new URL(raw.trim());
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (url.protocol !== "https:" && !(local && url.protocol === "http:")) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
 
 /**

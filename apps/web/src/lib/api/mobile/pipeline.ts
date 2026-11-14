@@ -85,6 +85,29 @@ export function mobileRoute<P = Record<string, never>>(
     });
 }
 
+export type PublicMobileContext = {
+  request: Request;
+  appVersion: AppVersion;
+};
+
+/**
+ * A public, version-gated endpoint (Pitch 21d spec §10.2): no token and no
+ * per-account rate limit, but the version gate runs first. Only native signup
+ * and the native reset request use it (a static guard pins that list). Their
+ * own modules apply the per-fingerprint throttle.
+ */
+export function publicVersionedMobileRoute<P = Record<string, never>>(
+  handler: (ctx: PublicMobileContext, params: P) => Promise<Response>,
+): (request: Request, route: RouteArgs<P>) => Promise<Response> {
+  return (request, route) =>
+    run(async () => {
+      const version = checkAppVersion(request.headers.get(APP_VERSION_HEADER));
+      if (version instanceof ApiFailure) return apiErrorResponse(version);
+      const params = (await route?.params) ?? ({} as P);
+      return handler({ request, appVersion: version }, params);
+    });
+}
+
 /**
  * A public endpoint: no token, no version gate, no rate limit. Only app config
  * (an old app must still be able to read it) and the unknown-path 404 use it;

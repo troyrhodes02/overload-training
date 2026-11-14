@@ -4,6 +4,7 @@ import {
   endpointKey,
   MOBILE_ENDPOINTS,
   PUBLIC_MOBILE_ROUTES,
+  PUBLIC_VERSIONED_MOBILE_ROUTES,
 } from "../support/mobile-endpoints";
 
 /**
@@ -144,15 +145,20 @@ describe("mobile API routes (Pitch 21c RD-13)", () => {
       );
       const authenticated = /\bmobileRoute\s*[<(]/.test(src);
       const isPublic = /\bpublicMobileRoute\s*[<(]/.test(src);
-      expect([routeDir(f), authenticated || isPublic]).toEqual([
+      const isVersionedPublic = /\bpublicVersionedMobileRoute\s*[<(]/.test(src);
+      // Exactly one wrapper per route file.
+      expect([
         routeDir(f),
-        true,
-      ]);
+        [authenticated, isPublic, isVersionedPublic].filter(Boolean).length,
+      ]).toEqual([routeDir(f), 1]);
       if (isPublic) expect(PUBLIC_MOBILE_ROUTES).toContain(routeDir(f));
+      if (isVersionedPublic) {
+        expect(PUBLIC_VERSIONED_MOBILE_ROUTES).toContain(routeDir(f));
+      }
       for (const e of MOBILE_ENDPOINTS.filter((e) => e.route === routeDir(f))) {
         expect([endpointKey(e), e.auth]).toEqual([
           endpointKey(e),
-          isPublic ? "public" : "account",
+          isPublic || isVersionedPublic ? "public" : "account",
         ]);
       }
     }
@@ -162,6 +168,20 @@ describe("mobile API routes (Pitch 21c RD-13)", () => {
     const FORBIDDEN =
       /@\/lib\/db\b|@prisma\/client|@\/lib\/data\/account-db|@\/lib\/data\/account["']|@\/lib\/data\/operator|@\/lib\/data\/admin|@\/lib\/auth["']|@\/lib\/supabase\/server|next\/navigation|next\/headers|@\/lib\/billing\/(sync|checkout|stripe)|@\/lib\/import\/|@\/lib\/admin\/|\brequireAccount\w*\b|\bcurrentUser\b|\bredirect\(|\bnotFound\(|\brefresh\(|\bformData\(/;
     expect(routes.filter((f) => FORBIDDEN.test(code(f))).map(rel)).toEqual([]);
+  });
+
+  it("the version-gated public wrapper is used only by signup and the reset request", () => {
+    const users = routes
+      .filter((f) => /\bpublicVersionedMobileRoute\s*[<(]/.test(code(f)))
+      .map((f) => routeDir(f))
+      .sort();
+    expect(users).toEqual([...PUBLIC_VERSIONED_MOBILE_ROUTES].sort());
+    // Outside the route files, only the pipeline that defines it names it.
+    const elsewhere = walk(SRC)
+      .filter((f) => !routes.includes(f))
+      .filter((f) => /\bpublicVersionedMobileRoute\b/.test(code(f)))
+      .map(rel);
+    expect(elsewhere).toEqual(["src/lib/api/mobile/pipeline.ts"]);
   });
 
   it("route files never take an account id from the request", () => {

@@ -105,3 +105,26 @@ export type MePlanDto = {
   /** The subscription's period end as display text, or null. */
   endsOn: string | null;
 };
+
+/**
+ * The auth session a successful native signup returns (Pitch 21d RD-7). The
+ * server signed the new account in once, and the app adopts this session
+ * (Supabase `setSession`) instead of signing in a second time. The tokens are
+ * the account's own; the app keeps them only in the device keychain.
+ */
+export type MobileSessionDto = {
+  accessToken: string;
+  refreshToken: string;
+  /** Seconds since the epoch, as Supabase reports it. */
+  expiresAt: number;
+  tokenType: "bearer";
+};
+
+/** `POST /api/mobile/v1/accounts` → 201. */
+export type SignUpResponseDto = { session: MobileSessionDto };
+
+/** `POST /api/mobile/v1/password-reset` → 200, identical for every address. */
+export type PasswordResetResponseDto = { sent: true };
+
+/** `PUT /api/mobile/v1/me/appearance` → 200. */
+export type UpdateAppearanceResponseDto = { appearance: Appearance };
