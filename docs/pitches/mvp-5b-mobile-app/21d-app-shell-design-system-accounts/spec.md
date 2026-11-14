@@ -393,6 +393,7 @@ No logging, Today plan list, history, plan, goals, library, or gyms screens. No 
 | RD-19 | `me.tour`, `me.whatsNew`, and `me.trialNotice` are fetched but not rendered. | Their native surfaces are 21j and 21k. Rendering a trial dialog now would anticipate those designs. | Roadmap 21j, 21k |
 | RD-20 | The request fingerprint moves to `src/lib/accounts/request-fingerprint.ts`, shared by the web actions and the mobile routes, with its behavior unchanged. | One throttle-key rule for both clients. | CLAUDE.md signup defenses |
 | RD-21 | The sign-in error messages move to `@overload/shared/accounts/auth-errors`, and the web re-exports them. | One copy of the copy, so the web and the app can't drift. | 21b principle |
+| RD-22 | `billingCopy` (the plan labels) moves to `@overload/shared/billing/copy`, and the web re-exports it unchanged. The app's read-only plan row uses its `shortLabel`. | The app shows the server's plan state in the web's words without copying them. It is display only; access stays enforced from capabilities on the server. | 21b principle; pitch §4 plan placement |
 
 ## Open Questions
 
