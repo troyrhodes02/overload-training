@@ -104,6 +104,36 @@ export async function resolveAccountState(
   };
 }
 
+/**
+ * Like resolveAccountState, but NEVER creates a profile: null when the user id
+ * has none (Pitch 21c spec §7.3, RD-1). The mobile API resolves accounts only
+ * through this, so a token that still verifies in the moment between an
+ * account's deletion transaction and the removal of its auth identity can
+ * never bring an orphan profile back. Every real account has a profile from
+ * signup (establishProfile). A static guard keeps it inside src/lib/data.
+ */
+export async function resolveExistingAccountState(
+  userId: string,
+): Promise<ResolvedAccount | null> {
+  const db = createAccountClient(userId);
+  const profile = await db.profile.findUnique({
+    where: { userId },
+    select: PROFILE_STATE,
+  });
+  if (!profile) return null;
+  return {
+    account: {
+      userId,
+      timeZone: isValidTimeZone(profile.timeZone)
+        ? profile.timeZone
+        : DEFAULT_PROFILE_TIME_ZONE,
+      db,
+    },
+    status: profile.status,
+    lastActiveOn: isoDate(profile.lastActiveOn),
+  };
+}
+
 /** The Account alone (operator-style callers that enforce nothing else). */
 export async function resolveAccount(userId: string): Promise<Account> {
   return (await resolveAccountState(userId)).account;

@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAdminPath, routeRedirect, routeRewrite } from "@/lib/auth-routes";
+import {
+  isAdminPath,
+  isMobileApiPath,
+  routeRedirect,
+  routeRewrite,
+} from "@/lib/auth-routes";
 import { isAdminUserId } from "@/lib/admin/allowlist";
 
 /** A path no route answers: rewriting to it renders the ordinary 404. */
@@ -19,6 +24,11 @@ const NOT_FOUND_PATH = "/_not-found-overload";
  */
 
 export async function proxy(request: NextRequest) {
+  // The mobile API authenticates with a bearer token in its own request
+  // pipeline (Pitch 21c spec §15): no cookie to refresh, no redirect, and no
+  // second Auth call here. Every other path is handled exactly as before.
+  if (isMobileApiPath(request.nextUrl.pathname)) return NextResponse.next();
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
