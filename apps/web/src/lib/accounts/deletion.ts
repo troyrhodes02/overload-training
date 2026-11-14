@@ -70,6 +70,7 @@ export const ACCOUNT_DELETION_ORDER = [
   "BillingAccount", // Plans, Billing: the Stripe mirror; references only the profile
   "Entitlement", // Plans, Billing: trial/comp records; references only the profile
   "ImportUsageDay", // Plan Import: the per-account daily quota counter; references only the profile
+  "ApiIdempotencyKey", // Mobile API (Pitch 21c): retry records; references only the profile
   "Profile",
 ] as const;
 
@@ -109,6 +110,7 @@ export const ACCOUNT_DELETION_STEPS: Readonly<
   ImportSourcePart: (tx) => tx.importSourcePart.deleteMany({}),
   ImportSession: (tx) => tx.importSession.deleteMany({}),
   ImportUsageDay: (tx) => tx.importUsageDay.deleteMany({}),
+  ApiIdempotencyKey: (tx) => tx.apiIdempotencyKey.deleteMany({}),
   Profile: (tx) => tx.profile.deleteMany({}),
 };
 

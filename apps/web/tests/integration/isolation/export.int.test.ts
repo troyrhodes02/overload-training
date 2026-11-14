@@ -150,6 +150,17 @@ async function populate(account: Account, lib: Lib, label: string) {
   await account.db.importUsageDay.create({
     data: { userId: account.userId, dayKey: "2026-11-07", count: 1 },
   });
+  // Mobile API (Pitch 21c): a stored retry record.
+  await account.db.apiIdempotencyKey.create({
+    data: {
+      userId: account.userId,
+      key: `${label}-key-0001`,
+      scope: "POST /v1/gyms",
+      requestHash: "0".repeat(64),
+      responseStatus: 201,
+      responseBody: { id: oldGym.id },
+    },
+  });
   return { plan, oldGym, oldExercise };
 }
 
@@ -196,6 +207,7 @@ const LIST_SECTION_KEY: Record<
   ImportSession: "importSessions",
   ImportSourcePart: "importSourceParts",
   ImportUsageDay: "importUsageDays",
+  ApiIdempotencyKey: "apiIdempotencyKeys",
 };
 
 const LIST_SECTIONS = ACCOUNT_DELETION_ORDER.filter(

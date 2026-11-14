@@ -37,6 +37,10 @@
  * must NOT appear in this registry; public-accounts.int.test.ts instead proves
  * it has deny-all RLS, holds no personal data, and is unreachable from
  * account.db.
+ * Mobile API & Auth Foundation (Pitch 21c): ApiIdempotencyKey is owned;
+ * mobile-idempotency.int.test.ts proves another account's key is invisible
+ * (B replaying A's key gets B's own result and A's row is untouched), and
+ * isolation/mobile-api.int.test.ts covers every mobile endpoint.
  * Trial notices (OVE-112): Profile.trialEndingNoticeAt / trialEndedNoticeAt
  * ride the Profile coverage; trial-notices.int.test.ts proves one account's
  * notice state is never read, moved, or revealed by another.
@@ -89,4 +93,8 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
   ImportSession: ["plan-import.int.test.ts", "account-deletion.int.test.ts"],
   ImportSourcePart: ["plan-import.int.test.ts", "account-deletion.int.test.ts"],
   ImportUsageDay: ["plan-import.int.test.ts", "account-deletion.int.test.ts"],
+  ApiIdempotencyKey: [
+    "mobile-idempotency.int.test.ts",
+    "account-deletion.int.test.ts",
+  ],
 };

@@ -13,13 +13,17 @@ jest.mock("@/lib/data/account", () => ({
     resolveExistingAccountState(...a),
   touchLastActive: (...a: unknown[]) => touchLastActive(...a),
 }));
+const checkMobileRateLimit = jest.fn();
+jest.mock("@/lib/api/mobile/rate-limit", () => ({
+  checkMobileRateLimit: (...a: unknown[]) => checkMobileRateLimit(...a),
+}));
 const verifyAccessToken = jest.fn();
 jest.mock("@/lib/data/access-token", () => ({
   verifyAccessToken: (...a: unknown[]) => verifyAccessToken(...a),
 }));
 
 import { mobileRoute } from "@/lib/api/mobile/pipeline";
-import { apiJson } from "@/lib/api/mobile/errors";
+import { apiJson, ApiFailure } from "@/lib/api/mobile/errors";
 import { DomainError } from "@/lib/actions/result";
 import { GET as appConfig } from "@/app/api/mobile/v1/app-config/route";
 import * as catchAll from "@/app/api/mobile/[...path]/route";
@@ -52,6 +56,7 @@ beforeEach(() => {
     lastActiveOn: null,
   });
   touchLastActive.mockReset();
+  checkMobileRateLimit.mockReset().mockResolvedValue(null);
   verifyAccessToken
     .mockReset()
     .mockResolvedValue({ kind: "user", userId: USER_ID, email: "a@x.test" });
@@ -132,6 +137,30 @@ describe("mobileRoute", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("over the per-account limit is 429 with Retry-After, counted after authentication", async () => {
+    checkMobileRateLimit.mockResolvedValueOnce(
+      new ApiFailure(
+        "rate_limited",
+        "Too many requests.",
+        undefined,
+        undefined,
+        {
+          "Retry-After": "17",
+        },
+      ),
+    );
+    const res = await GET(req(), ctx);
+    expect(res.headers.get("retry-after")).toBe("17");
+    await expectError(res, 429, "rate_limited");
+    expect(checkMobileRateLimit).toHaveBeenCalledWith(account);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("an unauthenticated request is never counted", async () => {
+    await GET(req({ token: null }), ctx);
+    expect(checkMobileRateLimit).not.toHaveBeenCalled();
+  });
+
   it("a DomainError from the handler keeps its code; anything else is a safe 500", async () => {
     const spy = jest.spyOn(console, "error").mockImplementation(() => {});
     const notFound = mobileRoute(async () => {
@@ -159,6 +188,7 @@ describe("GET /api/mobile/v1/app-config", () => {
       killSwitches: { maintenance: expect.any(Boolean) },
     });
     expect(verifyAccessToken).not.toHaveBeenCalled();
+    expect(checkMobileRateLimit).not.toHaveBeenCalled();
   });
 });
 
