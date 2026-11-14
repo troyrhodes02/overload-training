@@ -154,7 +154,7 @@ Problems name the variable, never its value.
 - **Appearance resolution:** `resolveScheme(preference, system)` maps `system` to the device `useColorScheme()`. `light` and `dark` override. Signed out uses `system`.
 - **Applied everywhere:** `Appearance.setColorScheme` is applied so native surfaces (the tab bar, alerts, keyboards, the status bar) follow, and `expo-system-ui` sets the root background so no white flash shows behind transitions.
 - **First-paint mirror:** the last applied preference is stored in SecureStore under `overload.appearance`. It is a value, not a secret, but SecureStore avoids adding AsyncStorage for one key. It is read before first render and never authoritative (design §3).
-- **Fonts:** Inter 400, 500, and 600 from `@expo-google-fonts/inter` (OFL), embedded at build time through the `expo-font` config plugin, with no runtime download. Font family names are `Inter_400Regular`, `Inter_500Medium`, and `Inter_600SemiBold`. A `Text` primitive maps `weight` to family, so no screen passes `fontWeight` with Inter, which iOS would synthesize.
+- **Fonts:** Inter 400, 500, and 600 from `@expo-google-fonts/inter` (OFL), bundled as app assets and loaded with `useFonts` before the splash hides (no network: the files ship in the build and in every update). The font family names are `Inter_400Regular`, `Inter_500Medium`, and `Inter_600SemiBold`. A `Text` primitive maps `weight` to family, so no screen passes `fontWeight` with Inter, which iOS would synthesize.
 - **Icons:** SF Symbols through `expo-symbols`. They are what the native tab bar uses, and they need no SVG runtime.
 - **Primitives (design §10):** `Text`, `Button`, `TextField`, `FormScreen`, `Banner`, `GroupedList`, `ListRow`, `StateView`, `GateScreen`, `BotChallenge`, and `EnvironmentBadge`. No other kit and no styling library. Plain `StyleSheet` with theme values. Web Tailwind and shadcn are untouched.
 - **Parity test:** `apps/mobile/tests/theme.test.ts` proves every color in the native theme is the shared token, so no native hex literal exists outside `theme.ts`. A guard scans `src/**` for `#[0-9a-f]{3,8}`, and only `theme.ts` may use one (and only for the transparent overlay token).
@@ -282,6 +282,7 @@ The gates (G1–G6) are components rendered by the root layout in place of the `
 - **ESLint:** `eslint-config-expo/flat` plus the workspace's restricted imports (no `@/` web alias, no server modules).
 - **Jest:** the `jest-expo/ios` preset. Its tests live in `apps/mobile/tests`. The root `npm test` runs it through the workspace `test` script.
 - **Format:** Prettier from the root, with `apps/mobile/ios`, `apps/mobile/android`, `.expo`, and `dist` ignored.
+- **Config loading:** `app.config.ts` imports the shared environment module and tokens by their explicit `.ts` paths, which Node (>= 22.18) type-strips natively. `eas.json` pins the build Node to 22.23.5, and `tsconfig` sets `allowImportingTsExtensions`. The production markers appear in the bundle only as the guard's own refusal list.
 - **Native folders are generated:** `apps/mobile/ios` is produced by `expo prebuild` (Continuous Native Generation) and gitignored. Config plugins hold every native setting.
 - **App identity (development):**
   - name "Overload Dev", slug `overload`, owner `wtrhodes` (the authenticated Expo account), scheme `overload-dev`;

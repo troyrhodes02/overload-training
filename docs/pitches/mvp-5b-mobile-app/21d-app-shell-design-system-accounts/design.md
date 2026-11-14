@@ -117,7 +117,7 @@ Each native screen's layout is in §15. This section gives purpose, behavior, an
 - **Purpose:** The signed-out landing. One sentence of what Overload is, and two ways in.
 - **Trigger:** No stored session, or after sign-out.
 - **Behavior:** "Sign in" pushes S2. "Create an account" pushes S3, and is replaced by the line "New accounts can't be created right now." when app-config says `signupMode: "closed"`. Non-production builds show an environment badge ("Staging") under the lockup.
-- **States:** If app-config fails, the buttons still work. Sign-in does not need app-config. Signup then shows its own unreachable notice.
+- **States:** Welcome is reached only once app-config has answered. With no session and no config, the gate shows Unreachable (G4), because signup and the reset request both need the API.
 
 ### Screen S2: Sign in
 - **Fields:** Email (`emailAddress` keyboard, `textContentType="username"`, autocomplete `email`, no autocapitalize), Password (`secureTextEntry`, `textContentType="password"`). Return on email moves to password, and return on password submits.

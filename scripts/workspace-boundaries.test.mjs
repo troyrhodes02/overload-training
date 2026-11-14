@@ -200,6 +200,39 @@ describe("workspace boundaries", () => {
     }
   });
 
+  it("B8: the mobile app may not keep tokens outside the Keychain", () => {
+    for (const dep of [
+      "@react-native-async-storage/async-storage",
+      "react-native-mmkv",
+    ]) {
+      const r = repo();
+      r.workspaces.push({
+        dir: "apps/mobile",
+        manifest: {
+          name: "@overload/mobile",
+          dependencies: { [dep]: "1.0.0" },
+        },
+      });
+      fails(r, "B8");
+    }
+  });
+
+  it("B9: only the auth module imports supabase-js in the mobile app", () => {
+    const r = repo();
+    r.mobileSources = [
+      {
+        file: "apps/mobile/src/auth/supabase.ts",
+        code: 'import { createClient } from "@supabase/supabase-js";',
+      },
+    ];
+    assert.deepEqual(checkBoundaries(r), []);
+    r.mobileSources.push({
+      file: "apps/mobile/src/screens/today.tsx",
+      code: 'import { createClient } from "@supabase/supabase-js";',
+    });
+    fails(r, "B9");
+  });
+
   it("B5: nothing may depend on the web app", () => {
     const r = repo();
     r.workspaces[1].manifest.devDependencies["@overload/web"] = "*";
