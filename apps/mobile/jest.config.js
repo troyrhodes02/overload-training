@@ -6,6 +6,6 @@ module.exports = {
   // React Native and Expo ship untranspiled ESM; the workspace's shared
   // package is TypeScript source.
   transformIgnorePatterns: [
-    "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|expo-router|@supabase/.*|@tanstack/.*))",
+    "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|expo-router|@supabase/.*|@tanstack/.*|standard-navigation))",
   ],
 };

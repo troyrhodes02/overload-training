@@ -80,16 +80,25 @@ export function SessionProvider({
   children: React.ReactNode;
   onSignedOut: () => void;
 }) {
-  const [status, setStatus] = useState<SessionStatus>("restoring");
+  const [status, setStatusState] = useState<SessionStatus>("restoring");
+  const statusRef = useRef<SessionStatus>("restoring");
+  const setStatus = useCallback((next: SessionStatus) => {
+    statusRef.current = next;
+    setStatusState(next);
+  }, []);
   const onSignedOutRef = useRef(onSignedOut);
   useEffect(() => {
     onSignedOutRef.current = onSignedOut;
   }, [onSignedOut]);
 
+  // One sign-out runs this twice (Supabase's SIGNED_OUT event, then the
+  // sign-out call returning), so the cache is cleared only on the transition
+  // from a present session.
   const markNone = useCallback(() => {
+    const wasPresent = statusRef.current === "present";
     setStatus("none");
-    onSignedOutRef.current();
-  }, []);
+    if (wasPresent) onSignedOutRef.current();
+  }, [setStatus]);
 
   useEffect(() => {
     let live = true;
@@ -128,7 +137,7 @@ export function SessionProvider({
       appState.remove();
       auth.stopAutoRefresh();
     };
-  }, [markNone]);
+  }, [markNone, setStatus]);
 
   const value = useMemo<SessionContextValue>(
     () => ({
@@ -174,7 +183,7 @@ export function SessionProvider({
         markNone();
       },
     }),
-    [status, markNone],
+    [status, markNone, setStatus],
   );
 
   return (

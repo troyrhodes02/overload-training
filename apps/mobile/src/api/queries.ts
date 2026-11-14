@@ -59,6 +59,21 @@ export const QUERY_KEYS = {
   me: ["me"] as const,
 };
 
+/**
+ * Forget every account's cached data on sign-out (RD-5), and keep the app
+ * config, which is the same for everyone and is what the signed-out gate needs.
+ *
+ * Never `queryClient.clear()` here: it removes the app-config query too, and
+ * TanStack silently cancels a removed query that is mid-fetch, which leaves
+ * its mounted observer pending forever (the "Opening Overload" hang after
+ * sign-out, because the gate waits for the config).
+ */
+export function clearAccountQueries(client: QueryClient): void {
+  client.removeQueries({
+    predicate: (query) => query.queryKey[0] !== QUERY_KEYS.appConfig[0],
+  });
+}
+
 export function useAppConfig() {
   const api = useApi();
   return useQuery<AppConfigDto, ApiError>({

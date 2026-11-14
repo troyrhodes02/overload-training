@@ -27,6 +27,19 @@ export type Loadable<T> =
   | { status: "error"; error: ApiError; data?: T }
   | { status: "success"; data: T; error?: undefined };
 
+/** A TanStack query result as the gate machine reads it. */
+export function toLoadable<T>(q: {
+  status: "pending" | "error" | "success";
+  data: T | undefined;
+  error: unknown;
+}): Loadable<T> {
+  if (q.status === "success" && q.data !== undefined)
+    return { status: "success", data: q.data };
+  if (q.status === "error")
+    return { status: "error", error: q.error as ApiError, data: q.data };
+  return { status: "loading" };
+}
+
 export type GateInput = {
   envOk: boolean;
   config: Loadable<AppConfigDto>;

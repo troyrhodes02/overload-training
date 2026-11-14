@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -12,12 +11,14 @@ import {
 } from "@expo-google-fonts/inter";
 import { ApiProvider } from "../api/ApiProvider";
 import {
+  clearAccountQueries,
   connectQueryManagers,
   createQueryClient,
   useAppConfig,
   useMe,
 } from "../api/queries";
-import { decideGate, type Gate, type Loadable } from "../app-state/gate";
+import { decideGate, toLoadable, type Gate } from "../app-state/gate";
+import { RootNavigator } from "../app-state/RootNavigator";
 import { SessionProvider, useSession } from "../auth/session";
 import { APP_VERSION, ENV } from "../config/env";
 import { runHermesChecks } from "../diagnostics/hermes-checks";
@@ -52,7 +53,7 @@ if (__DEV__) {
  * The root (spec §5, §9): fonts bundled with the app, the theme, the query
  * layer, the auth session, and the API client, then the gate machine. Gates
  * render in place of the navigator, so no deep link reaches behind one, and
- * Stack.Protected keeps signed-out and signed-in routes apart.
+ * RootNavigator keeps signed-out and signed-in routes apart.
  */
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -63,7 +64,10 @@ export default function RootLayout() {
   const [queryClient] = useState(createQueryClient);
   useEffect(() => connectQueryManagers(), []);
   // Another account never sees this account's cached data (RD-5).
-  const clearCache = useCallback(() => queryClient.clear(), [queryClient]);
+  const clearCache = useCallback(
+    () => clearAccountQueries(queryClient),
+    [queryClient],
+  );
   return (
     <SafeAreaProvider>
       <ThemeProvider>
@@ -88,18 +92,6 @@ function Root({ fontsLoaded }: { fontsLoaded: boolean }) {
       />
     </ApiProvider>
   );
-}
-
-function toLoadable<T>(q: {
-  status: "pending" | "error" | "success";
-  data: T | undefined;
-  error: unknown;
-}): Loadable<T> {
-  if (q.status === "success" && q.data !== undefined)
-    return { status: "success", data: q.data };
-  if (q.status === "error")
-    return { status: "error", error: q.error as never, data: q.data };
-  return { status: "loading" };
 }
 
 function Gatekeeper({
@@ -170,19 +162,10 @@ function Gatekeeper({
         return <SuspendedGate onSignOut={() => void session.signOut()} />;
       default:
         return (
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: theme.colors.background },
-            }}
-          >
-            <Stack.Protected guard={gate === "signed_in"}>
-              <Stack.Screen name="(tabs)" />
-            </Stack.Protected>
-            <Stack.Protected guard={gate === "signed_out"}>
-              <Stack.Screen name="(auth)" />
-            </Stack.Protected>
-          </Stack>
+          <RootNavigator
+            signedIn={gate === "signed_in"}
+            background={theme.colors.background}
+          />
         );
     }
   })();
