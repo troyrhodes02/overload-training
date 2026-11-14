@@ -17,7 +17,7 @@
  * (CLAUDE.md → Operator tasks; Multi-User Foundation R19).
  */
 import "dotenv/config";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { BLOCKS, SESSIONS } from "./plan";
 import {
   CONFIRM_HOST_RETIRED,

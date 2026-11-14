@@ -10,7 +10,7 @@ import { SessionHistoryList } from "@/components/exercises/history/session-histo
 import type {
   ExerciseRecordsDto,
   SessionRowDto,
-} from "@/lib/progression/history-types";
+} from "@overload/shared/progression/history-types";
 
 /**
  * Entitlement Audit — the upgrade invitation and the Free exercise-history

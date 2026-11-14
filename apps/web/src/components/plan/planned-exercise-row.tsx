@@ -2,7 +2,7 @@ import { TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ExerciseThumb } from "@/components/exercises/exercise-thumb";
 import type { PlannedExerciseDto } from "@/lib/plan/queries";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 
 /** "3 sets · 6–8 reps"; a fixed target reads "4 sets · 5 reps". */
 export function prescription(

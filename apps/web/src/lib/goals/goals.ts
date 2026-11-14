@@ -3,11 +3,15 @@ import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
 import { Prisma } from "@prisma/client";
 import { DomainError, isUuid } from "@/lib/actions/result";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
-import { computeGoalProgress } from "./progress";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
+import { computeGoalProgress } from "@overload/shared/goals/progress";
 import { goalPerformances } from "./queries";
-import { parseGoalInput, type RawGoalInput } from "./validation";
+import {
+  parseGoalInput,
+  type GoalInput,
+  type RawGoalInput,
+} from "@overload/shared/goals/validation";
 
 /**
  * The Goal write module (Goals spec §11b–§11c) — the ONLY place Goal rows are
@@ -108,6 +112,7 @@ export async function createGoal(
   account: Account,
   raw: RawGoalInput,
   now: Date = new Date(),
+  tx?: Db,
 ): Promise<CreateGoalResult> {
   const parsed = parseGoalInput(raw);
   if (!parsed.ok) {
@@ -119,106 +124,14 @@ export async function createGoal(
   }
   const input = parsed.value;
 
+  // Composes with a caller's scoped transaction (CLAUDE.md: every write
+  // function accepts one). Inside it, a duplicate simply fails the caller's
+  // transaction; the friendly duplicate answer below is for the standalone call.
+  if (tx) return createGoalInTx(account, input, now, tx);
   try {
-    return await account.db.$transaction(async (tx) => {
-      const exercise = isUuid(input.exerciseId)
-        ? await tx.exercise.findUnique({
-            where: { id: input.exerciseId },
-            select: {
-              id: true,
-              name: true,
-              equipmentType: true,
-              deletedAt: true,
-            },
-          })
-        : null;
-      if (!exercise || exercise.deletedAt) {
-        throw new DomainError(
-          "validation_error",
-          "Check the highlighted fields.",
-          { exerciseId: "Pick an active exercise." },
-        );
-      }
-      // Goal progress is e1RM from weight × reps; a bodyweight lift logs no
-      // external weight, so there is nothing valid to measure it against.
-      if (!requiresExternalWeight(exercise)) {
-        throw new DomainError(
-          "validation_error",
-          "Check the highlighted fields.",
-          {
-            exerciseId:
-              "Goals need an external weight. Bodyweight-only lifts can't have one.",
-          },
-        );
-      }
-
-      if (isGymVariable(exercise)) {
-        if (!input.gymId) {
-          throw new DomainError(
-            "validation_error",
-            "Check the highlighted fields.",
-            { gymId: "Choose the gym this goal is measured at." },
-          );
-        }
-        const gym = isUuid(input.gymId)
-          ? await tx.gym.findUnique({
-              where: { id: input.gymId },
-              select: { deletedAt: true },
-            })
-          : null;
-        if (!gym) {
-          throw new DomainError(
-            "validation_error",
-            "Check the highlighted fields.",
-            { gymId: "Choose the gym this goal is measured at." },
-          );
-        }
-        if (gym.deletedAt) {
-          throw new DomainError(
-            "validation_error",
-            "Check the highlighted fields.",
-            { gymId: "That gym is archived. Choose an active gym." },
-          );
-        }
-      } else if (input.gymId) {
-        throw new DomainError(
-          "validation_error",
-          "Check the highlighted fields.",
-          { gymId: "This lift isn't measured per gym." },
-        );
-      }
-
-      const existing = await tx.goal.findFirst({
-        where: { exerciseId: exercise.id, status: "active" },
-        select: { id: true },
-      });
-      if (existing) throw duplicate(exercise.name, existing.id);
-
-      const goal = await tx.goal.create({
-        data: {
-          userId: account.userId,
-          exerciseId: exercise.id,
-          gymId: isGymVariable(exercise) ? input.gymId : null,
-          targetWeightLbs: new Prisma.Decimal(input.targetWeightLbs),
-          targetReps: input.targetReps,
-          createdAt: now,
-        },
-        select: { id: true },
-      });
-
-      // Same transaction AND same `now`: an already-reached goal lands with
-      // archivedAt === createdAt, which is how the read layer recognizes
-      // "Already reached" (R57). Keep the shared timestamp if this changes.
-      const completed = await reconcileGoalCompletions(
-        account,
-        { goalIds: [goal.id], now },
-        tx,
-      );
-      return {
-        id: goal.id,
-        outcome: completed.includes(goal.id) ? "completed" : "active",
-      };
-    });
+    return await account.db.$transaction((t) =>
+      createGoalInTx(account, input, now, t),
+    );
   } catch (error) {
     // A concurrent create racing past the pre-check hits the partial unique
     // index goals_one_active_per_exercise_per_user: same answer, never a replacement.
@@ -236,6 +149,103 @@ export async function createGoal(
   }
 }
 
+async function createGoalInTx(
+  account: Account,
+  input: GoalInput,
+  now: Date,
+  tx: Db,
+): Promise<CreateGoalResult> {
+  const exercise = isUuid(input.exerciseId)
+    ? await tx.exercise.findUnique({
+        where: { id: input.exerciseId },
+        select: {
+          id: true,
+          name: true,
+          equipmentType: true,
+          deletedAt: true,
+        },
+      })
+    : null;
+  if (!exercise || exercise.deletedAt) {
+    throw new DomainError("validation_error", "Check the highlighted fields.", {
+      exerciseId: "Pick an active exercise.",
+    });
+  }
+  // Goal progress is e1RM from weight × reps; a bodyweight lift logs no
+  // external weight, so there is nothing valid to measure it against.
+  if (!requiresExternalWeight(exercise)) {
+    throw new DomainError("validation_error", "Check the highlighted fields.", {
+      exerciseId:
+        "Goals need an external weight. Bodyweight-only lifts can't have one.",
+    });
+  }
+
+  if (isGymVariable(exercise)) {
+    if (!input.gymId) {
+      throw new DomainError(
+        "validation_error",
+        "Check the highlighted fields.",
+        { gymId: "Choose the gym this goal is measured at." },
+      );
+    }
+    const gym = isUuid(input.gymId)
+      ? await tx.gym.findUnique({
+          where: { id: input.gymId },
+          select: { deletedAt: true },
+        })
+      : null;
+    if (!gym) {
+      throw new DomainError(
+        "validation_error",
+        "Check the highlighted fields.",
+        { gymId: "Choose the gym this goal is measured at." },
+      );
+    }
+    if (gym.deletedAt) {
+      throw new DomainError(
+        "validation_error",
+        "Check the highlighted fields.",
+        { gymId: "That gym is archived. Choose an active gym." },
+      );
+    }
+  } else if (input.gymId) {
+    throw new DomainError("validation_error", "Check the highlighted fields.", {
+      gymId: "This lift isn't measured per gym.",
+    });
+  }
+
+  const existing = await tx.goal.findFirst({
+    where: { exerciseId: exercise.id, status: "active" },
+    select: { id: true },
+  });
+  if (existing) throw duplicate(exercise.name, existing.id);
+
+  const goal = await tx.goal.create({
+    data: {
+      userId: account.userId,
+      exerciseId: exercise.id,
+      gymId: isGymVariable(exercise) ? input.gymId : null,
+      targetWeightLbs: new Prisma.Decimal(input.targetWeightLbs),
+      targetReps: input.targetReps,
+      createdAt: now,
+    },
+    select: { id: true },
+  });
+
+  // Same transaction AND same `now`: an already-reached goal lands with
+  // archivedAt === createdAt, which is how the read layer recognizes
+  // "Already reached" (R57). Keep the shared timestamp if this changes.
+  const completed = await reconcileGoalCompletions(
+    account,
+    { goalIds: [goal.id], now },
+    tx,
+  );
+  return {
+    id: goal.id,
+    outcome: completed.includes(goal.id) ? "completed" : "active",
+  };
+}
+
 function duplicate(exerciseName: string, existingGoalId?: string) {
   return new DomainError(
     "conflict",
@@ -249,16 +259,18 @@ export async function archiveGoal(
   account: Account,
   input: { goalId: string },
   now: Date = new Date(),
+  tx?: Db,
 ): Promise<{ id: string }> {
+  const db = tx ?? account.db;
   const { count } = isUuid(input.goalId)
-    ? await account.db.goal.updateMany({
+    ? await db.goal.updateMany({
         where: { id: input.goalId, status: "active" },
         data: { status: "archived", archiveReason: "manual", archivedAt: now },
       })
     : { count: 0 };
   if (count === 1) return { id: input.goalId };
   const exists = isUuid(input.goalId)
-    ? await account.db.goal.findUnique({
+    ? await db.goal.findUnique({
         where: { id: input.goalId },
         select: { id: true },
       })

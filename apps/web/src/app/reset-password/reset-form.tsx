@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import {
   PASSWORD_ERRORS,
   PASSWORD_MIN_LENGTH,
-} from "@/lib/accounts/validation";
+} from "@overload/shared/accounts/validation";
 
 /** Set a new password (Public Accounts design Screen 5). */
 export function ResetPasswordForm({ email }: { email: string }) {

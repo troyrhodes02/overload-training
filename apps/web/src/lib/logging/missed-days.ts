@@ -7,9 +7,12 @@ import {
   parseIsoDate,
   todayIso,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import { effectiveWeekSchedule } from "./schedule";
+} from "@overload/shared/plan/calendar";
+import { effectiveWeekSchedule } from "@overload/shared/logging/schedule";
 import { loadScheduleContext } from "./schedule-context";
+import type { MissedDayResolutionDto } from "@overload/shared/contracts/logging";
+import type { ResolvableMissedDayOutcome } from "@overload/shared/enums";
+export type { MissedDayResolutionDto } from "@overload/shared/contracts/logging";
 
 /**
  * Missed-day resolution (Resolved Decisions 30–39). A resolution is a dated
@@ -21,18 +24,15 @@ import { loadScheduleContext } from "./schedule-context";
 type Db = AccountTx;
 
 /** The outcomes this write path records ("log it late" starts a workout). */
-export const RESOLVABLE_OUTCOMES = ["shifted", "skipped"] as const;
+export const RESOLVABLE_OUTCOMES = [
+  "shifted",
+  "skipped",
+] as const satisfies readonly ResolvableMissedDayOutcome[];
 export type ResolvableOutcome = (typeof RESOLVABLE_OUTCOMES)[number];
 
 function isResolvableOutcome(v: unknown): v is ResolvableOutcome {
   return (RESOLVABLE_OUTCOMES as readonly unknown[]).includes(v);
 }
-
-export type MissedDayResolutionDto = {
-  id: string;
-  missedOn: string;
-  outcome: ResolvableOutcome;
-};
 
 /**
  * Resolve a genuinely missed planned day as shifted or skipped (OVE-132 /

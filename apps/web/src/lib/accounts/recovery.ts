@@ -1,7 +1,11 @@
 import "server-only";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { type ActionResult } from "@/lib/actions/result";
-import { checkEmail, weakPasswordMessage, PASSWORD_ERRORS } from "./validation";
+import {
+  checkEmail,
+  weakPasswordMessage,
+  PASSWORD_ERRORS,
+} from "@overload/shared/accounts/validation";
 import { checkAndIncrement } from "./throttle";
 import { verifyChallenge } from "./turnstile";
 

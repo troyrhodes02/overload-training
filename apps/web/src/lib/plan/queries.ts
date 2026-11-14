@@ -2,17 +2,46 @@ import "server-only";
 import type { Account } from "@/lib/data/account";
 import { isUuid } from "@/lib/actions/result";
 import { exerciseImageUrl } from "@/lib/exercises/images";
-import { equipmentLabel, muscleGroupLabel } from "@/lib/exercises/taxonomy";
-import { cloneDefaultStartDate, plannedEndDate } from "./calendar";
-import { copyName } from "./validation";
-import { SPLIT_TYPE_LABELS, type SplitTypeValue } from "./presets";
-import { evaluateReadiness, type Readiness } from "./readiness";
+import {
+  equipmentLabel,
+  muscleGroupLabel,
+} from "@overload/shared/exercises/taxonomy";
+import {
+  cloneDefaultStartDate,
+  plannedEndDate,
+} from "@overload/shared/plan/calendar";
+import { copyName } from "@overload/shared/plan/validation";
+import { SPLIT_TYPE_LABELS } from "@overload/shared/plan/presets";
+import {
+  evaluateReadiness,
+  type Readiness,
+} from "@overload/shared/plan/readiness";
 import {
   planInclude,
   startDateIso,
   toReadinessInput,
   type PlanRow,
 } from "./snapshot";
+import type {
+  MesocycleSummaryDto,
+  SessionSummaryDto,
+  PlannedExerciseDto,
+  PlannedCardioDto,
+  MesocycleWeekDto,
+  MesocycleHomeDto,
+  DayOccupancyDto,
+  SessionDetailDto,
+} from "@overload/shared/contracts/plan";
+export type {
+  MesocycleSummaryDto,
+  SessionSummaryDto,
+  PlannedExerciseDto,
+  PlannedCardioDto,
+  MesocycleWeekDto,
+  MesocycleHomeDto,
+  DayOccupancyDto,
+  SessionDetailDto,
+} from "@overload/shared/contracts/plan";
 
 /**
  * Plan reads for server components. Readiness, "needs attention", and the
@@ -21,69 +50,8 @@ import {
  * resolve inside an existing plan.
  */
 
-export type MesocycleStatusValue = "draft" | "active" | "archived";
-
-export type MesocycleSummaryDto = {
-  id: string;
-  name: string;
-  status: MesocycleStatusValue;
-  splitType: SplitTypeValue;
-  splitLabel: string;
-  startDate: string | null;
-  endDate: string | null;
-  lengthWeeks: number;
-  deloadEveryWeeks: number;
-  sessionCount: number;
-  issueCount: number;
-};
-
-export type SessionSummaryDto = {
-  id: string;
-  name: string;
-  dayOfWeek: number | null;
-  exerciseCount: number;
-  archivedCount: number;
-};
-
-export type PlannedExerciseDto = {
-  id: string;
-  exerciseId: string;
-  exerciseName: string;
-  primaryMuscleLabel: string;
-  equipmentLabel: string;
-  isCustom: boolean;
-  imageUrl: string | null;
-  isArchived: boolean;
-  plannedSets: number;
-  targetRepMin: number;
-  targetRepMax: number;
-  position: number;
-};
-
-/** One planned cardio item on a weekday (Cardio Logging). */
-export type PlannedCardioDto = {
-  id: string;
-  dayOfWeek: number;
-  type: string;
-  durationMin: number;
-};
-
-export type MesocycleWeekDto = MesocycleSummaryDto & {
-  /** Index 0 = Monday … 6 = Sunday. */
-  week: (SessionSummaryDto | null)[];
-  /** The day's planned cardio, same indexing as `week` (zero or one per day). */
-  cardio: (PlannedCardioDto | null)[];
-  unscheduled: SessionSummaryDto[];
-  readiness: Readiness;
-  /** The currently active block, when it is not this one. */
-  activeOther: { id: string; name: string } | null;
-};
-
-export type MesocycleHomeDto = {
-  active: MesocycleSummaryDto | null;
-  drafts: MesocycleSummaryDto[];
-  previous: MesocycleSummaryDto[];
-};
+// The Prisma enum `MesocycleStatus`, from the shared enum registry (Pitch 21b).
+export type { MesocycleStatusValue } from "@overload/shared/enums";
 
 function toSummary(row: PlanRow, readiness: Readiness): MesocycleSummaryDto {
   const startDate = startDateIso(row);
@@ -208,22 +176,6 @@ export async function getMesocycleWeek(
     activeOther: active && active.id !== row.id ? active : null,
   };
 }
-
-/** Which session (if any) sits on each weekday — for the day pickers. */
-export type DayOccupancyDto = {
-  dayOfWeek: number;
-  sessionId: string | null;
-  sessionName: string | null;
-};
-
-export type SessionDetailDto = {
-  id: string;
-  name: string;
-  dayOfWeek: number | null;
-  mesocycle: { id: string; name: string; status: MesocycleStatusValue };
-  exercises: PlannedExerciseDto[];
-  occupancy: DayOccupancyDto[];
-};
 
 export function occupancyOf(
   sessions: { id: string; name: string; dayOfWeek: number | null }[],

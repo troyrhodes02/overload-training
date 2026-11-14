@@ -7,7 +7,7 @@ import {
   readinessIssueHref,
   readinessIssueMessage,
   type ReadinessIssue,
-} from "@/lib/plan/readiness";
+} from "@overload/shared/plan/readiness";
 import type { MesocycleStatusValue } from "@/lib/plan/queries";
 import { cn } from "@/lib/utils";
 

@@ -1,17 +1,28 @@
 import { $Enums } from "@prisma/client";
-import { APPEARANCES } from "@/lib/appearance/appearance";
-import { FEEDBACK_CATEGORIES } from "@/lib/feedback/validation";
-import { SPLIT_TYPES } from "@/lib/plan/presets";
-import { RESOLVABLE_OUTCOMES } from "@/lib/logging/missed-days";
+import type { Plan } from "@overload/shared/billing/plans";
+import {
+  SHARED_ENUMS,
+  type LoggedSessionStatusValue,
+  type MesocycleStatusValue as RegistryMesocycleStatus,
+  type MissedDayOutcomeValue,
+  type ResolvableMissedDayOutcome,
+} from "@overload/shared/enums";
+import { APPEARANCES } from "@overload/shared/appearance/appearance";
+import { FEEDBACK_CATEGORIES } from "@overload/shared/feedback/validation";
+import { SPLIT_TYPES } from "@overload/shared/plan/presets";
+import {
+  RESOLVABLE_OUTCOMES,
+  type ResolvableOutcome,
+} from "@/lib/logging/missed-days";
 import type { MesocycleStatusValue } from "@/lib/plan/queries";
 import type { LockedMesocycle } from "@/lib/data/locks";
 import type {
   EffectiveOccurrence,
   ScheduleLoggedSession,
   ScheduleResolution,
-} from "@/lib/logging/schedule";
+} from "@overload/shared/logging/schedule";
 import type { DashboardDto } from "@/lib/logging/queries";
-import type { DashboardKind } from "@/lib/goals/dashboard";
+import type { DashboardKind } from "@overload/shared/goals/dashboard";
 
 /**
  * OVE-140 (mobile audit D-6): every hand-copied mirror of a Prisma enum (and
@@ -81,5 +92,56 @@ describe("type-only enum mirrors match Prisma.$Enums", () => {
   it("dashboard kind (goals/dashboard.ts mirrors DashboardDto)", () => {
     const kind: Equal<DashboardKind, DashboardDto["kind"]> = true;
     expect(kind).toBe(true);
+  });
+});
+
+/**
+ * Pitch 21b: the shared enum registry. Every tuple a client can use equals its
+ * Prisma enum, and every Prisma enum is classified: shared, or deliberately
+ * web-only. A new Prisma enum fails here until someone decides which.
+ */
+const WEB_ONLY_ENUMS = [
+  "SignupCampaign", // marketing attribution, admin only
+  "EntitlementSource", // entitlement resolution stays on the server
+  "CompReason", // admin comp grants
+  "SubscriptionStatus", // the Stripe mirror; clients see DisplayState
+  "BillingInterval", // the Stripe mirror
+  "AdminAuditAction", // admin audit log
+  "AuthThrottleAction", // signup and recovery throttle
+  "ImportStatus", // plan import is web-only for the beta
+  "ImportSourceKind", // plan import is web-only for the beta
+] as const;
+
+describe("the shared enum registry (Pitch 21b)", () => {
+  it.each(Object.entries(SHARED_ENUMS))("%s", (name, tuple) => {
+    const source = ($Enums as Record<string, Record<string, string>>)[name];
+    expect(source).toBeDefined();
+    expect(sorted(tuple)).toEqual(sorted(Object.values(source)));
+  });
+
+  it("classifies every Prisma enum as shared or web-only, never both", () => {
+    const shared = Object.keys(SHARED_ENUMS);
+    const webOnly: readonly string[] = WEB_ONLY_ENUMS;
+    expect(shared.filter((n) => webOnly.includes(n))).toEqual([]);
+    expect(Object.keys($Enums).sort()).toEqual([...shared, ...webOnly].sort());
+  });
+
+  it("the former type mirrors are the registry's unions", () => {
+    const status: Equal<RegistryMesocycleStatus, $Enums.MesocycleStatus> = true;
+    const plan: Equal<Plan, $Enums.Plan> = true;
+    const outcome: Equal<MissedDayOutcomeValue, $Enums.MissedDayOutcome> = true;
+    const logged: Equal<LoggedSessionStatusValue, $Enums.LoggedSessionStatus> =
+      true;
+    // The write path's runtime list, the API request, and the resolution DTO
+    // share one type (shift or skip).
+    const resolvable: Equal<ResolvableOutcome, ResolvableMissedDayOutcome> =
+      true;
+    expect([status, plan, outcome, logged, resolvable]).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
   });
 });

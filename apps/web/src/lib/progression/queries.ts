@@ -6,22 +6,24 @@ import {
   formatPlanDate,
   mesocycleWeekForDate,
   toIsoDate,
-} from "@/lib/plan/calendar";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { requiresExternalWeight } from "@/lib/exercises/loading-mode";
+} from "@overload/shared/plan/calendar";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import {
   currentWorkingWeightLbs,
   type WorkingWeightOptions,
 } from "@/lib/logging/queries";
-import { PROGRESS_INCREMENT_LBS } from "./config";
-import type { Capability } from "@/lib/billing/config";
+import { PROGRESS_INCREMENT_LBS } from "@overload/shared/progression/config";
 import { resolveEntitlement, can } from "@/lib/entitlements/resolve";
 import {
   gateOccurrence,
   gatePlanned,
   gateSessionSummary,
 } from "@/lib/entitlements/gate";
-import { isScheduledDeloadWeek, scheduledDeloadLoad } from "./deload";
+import {
+  isScheduledDeloadWeek,
+  scheduledDeloadLoad,
+} from "@overload/shared/progression/deload";
 import {
   byDate,
   evaluateReactiveDecision,
@@ -29,17 +31,34 @@ import {
   type Performance,
   type ReactiveDecision,
   type ReactiveState,
-} from "./engine";
-import { bestWorkingSet, loadedSets, sessionE1rm } from "./e1rm";
-import { exerciseHistoryHref } from "./history-format";
-import { buildRecommendation, insufficientNote } from "./recommendation";
+} from "@overload/shared/progression/engine";
+import {
+  bestWorkingSet,
+  loadedSets,
+  sessionE1rm,
+} from "@overload/shared/progression/e1rm";
+import { exerciseHistoryHref } from "./history-href";
+import {
+  buildRecommendation,
+  insufficientNote,
+} from "@overload/shared/progression/recommendation";
 import type {
   E1rmPointDto,
   ProgressionTag,
   RecommendationDto,
   RirEffect,
   SuggestedLoadDto,
-} from "./types";
+} from "@overload/shared/progression/types";
+import type {
+  OccurrenceProgressionDto,
+  SessionProgressionSummaryDto,
+  PlannedProgressionDto,
+} from "@overload/shared/contracts/progression";
+export type {
+  OccurrenceProgressionDto,
+  SessionProgressionSummaryDto,
+  PlannedProgressionDto,
+} from "@overload/shared/contracts/progression";
 
 /**
  * Server-side read layer for the Progressive Overload Engine (spec §11, §11a,
@@ -67,7 +86,7 @@ export type {
   E1rmPointDto,
   RecommendationDto,
   RirEffect,
-} from "./types";
+} from "@overload/shared/progression/types";
 
 export type ExerciseProgressionDto = {
   exerciseId: string;
@@ -91,49 +110,6 @@ export type ExerciseProgressionDto = {
   currentE1rm: number | null;
   qualifyingCount: number;
   points: E1rmPointDto[];
-};
-
-export type OccurrenceProgressionDto = {
-  loggedExerciseId: string;
-  scheduledDeloadWeek: boolean;
-  tag: ProgressionTag | null;
-  /** Null in a scheduled-deload week and whenever RIR didn't change the call. */
-  rirEffect: RirEffect;
-  suggestion: SuggestedLoadDto;
-  /**
-   * Where this exercise's history lives (Exercise History & PR Intelligence
-   * R4): set once the occurrence's scope has a finished workout, any loading
-   * mode; a machine/cable link opens on this occurrence's gym.
-   */
-  historyHref: string | null;
-  /** Today's advice while the session is in progress, next time's once complete. */
-  recommendation: RecommendationDto | null;
-  /** Plans, Billing: the Pro capability withheld on a Free account (RD-9). */
-  locked: Capability | null;
-};
-
-export type SessionProgressionSummaryDto = {
-  loggedSessionId: string;
-  scheduledDeloadWeek: boolean;
-  /** Plans, Billing: the Pro capability withheld on a Free account (RD-9). */
-  locked: Capability | null;
-  exercises: {
-    performedExerciseId: string;
-    performedExerciseName: string;
-    tag: ProgressionTag | null;
-    rirEffect: RirEffect;
-    suggestion: SuggestedLoadDto;
-    historyHref: string | null;
-    recommendation: RecommendationDto | null;
-    /** The plan's set count for this occurrence (its preserved snapshot). */
-    plannedSets: number;
-    /**
-     * Working sets actually logged (setNumber 1..plannedSets). When this is
-     * below plannedSets the session is complete but fell short of the plan: it
-     * feeds the strength trend and goals, but not the progress/hold/deload tag.
-     */
-    loggedWorkingSets: number;
-  }[];
 };
 
 /** Hold and insufficient history both render as no tag (R7, R53). */
@@ -657,24 +633,6 @@ export function gymsWithFinishedHistory(
     .sort((a, b) => (a[1].dateIso > b[1].dateIso ? -1 : 1))
     .map(([id, v]) => ({ id, name: v.name }));
 }
-
-export type PlannedProgressionDto = {
-  tag: ProgressionTag | null;
-  /** Carried for consistency; the planned list renders only the recommendation's evidence. */
-  rirEffect: RirEffect;
-  gymVariable: boolean;
-  suggestion: SuggestedLoadDto;
-  hasTrend: boolean;
-  /** Null for gym-variable exercises (no gym yet) and in a scheduled-deload week. */
-  recommendation: RecommendationDto | null;
-  /**
-   * Plans, Billing: the Pro capability this result was withheld for on a Free
-   * account (null for a Pro account). Non-null means the surface renders one
-   * upgrade note in place of the withheld call. Set in the query layer, never
-   * the UI (spec RD-9).
-   */
-  locked: Capability | null;
-};
 
 /**
  * Progression for a planned exercise on the dashboard, BEFORE the workout gym is

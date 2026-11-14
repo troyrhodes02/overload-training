@@ -10,7 +10,7 @@ import {
   restoreExercise,
   setExerciseFavorite,
 } from "@/lib/exercises/exercises";
-import { customExerciseInputFromFormData } from "@/lib/exercises/validation";
+import { customExerciseInputFromFormData } from "@/lib/exercises/form-data";
 
 /*
  * Exercise Library server actions. Each one re-checks the auth session FIRST

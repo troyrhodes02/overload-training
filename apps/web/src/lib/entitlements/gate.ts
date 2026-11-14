@@ -23,8 +23,8 @@ import type {
 import type {
   ExerciseHistoryDto,
   SessionCallKind,
-} from "@/lib/progression/history-types";
-import type { ResolvedEntitlement } from "@/lib/entitlements/types";
+} from "@overload/shared/progression/history-types";
+import type { ResolvedEntitlement } from "@overload/shared/entitlements/types";
 
 const INSIGHTS: Capability = "progression_insights";
 

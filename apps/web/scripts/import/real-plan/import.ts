@@ -4,7 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb } from "@/lib/data/account-db";
 import { resolveAccountByEmail } from "../../operator/resolve-account";
-import { toIsoDate } from "@/lib/plan/calendar";
+import { toIsoDate } from "@overload/shared/plan/calendar";
 import { createGym } from "@/lib/gyms/gyms";
 import { createCustomExercise } from "@/lib/exercises/exercises";
 import {

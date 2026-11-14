@@ -1,4 +1,4 @@
-import { estimateOneRepMax } from "@/lib/progression/e1rm";
+import { estimateOneRepMax } from "@overload/shared/progression/e1rm";
 import {
   bestPerformance,
   computeGoalProgress,
@@ -7,7 +7,7 @@ import {
   formatGoalTargetCompact,
   goalTargetE1rm,
   type GoalPerformance,
-} from "@/lib/goals/progress";
+} from "@overload/shared/goals/progress";
 
 /** A qualifying performance whose session e1RM comes from one working set. */
 function perf(

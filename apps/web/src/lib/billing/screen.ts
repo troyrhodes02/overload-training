@@ -2,7 +2,7 @@ import "server-only";
 import type { Account } from "@/lib/data/account";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
 import { BLIZZY, PRICE_DISPLAY, isCheckoutEnabled } from "@/lib/billing/config";
-import type { DisplayState } from "@/lib/entitlements/types";
+import type { DisplayState } from "@overload/shared/entitlements/types";
 
 /**
  * Plans, Billing & Promo Codes — the Plan & Billing screen DTO (spec §13,

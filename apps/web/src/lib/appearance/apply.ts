@@ -2,7 +2,7 @@ import {
   APPEARANCE_STORAGE_KEY,
   THEME_COLORS,
   type Appearance,
-} from "./appearance";
+} from "@overload/shared/appearance/appearance";
 
 /**
  * Applies an appearance to the document (spec §7.3). `light`/`dark` put that

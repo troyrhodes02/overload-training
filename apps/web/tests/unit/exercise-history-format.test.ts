@@ -1,9 +1,9 @@
 import {
-  exerciseHistoryHref,
   formatLoad,
   formatRirLine,
   formatSetLine,
-} from "@/lib/progression/history-format";
+} from "@overload/shared/progression/history-format";
+import { exerciseHistoryHref } from "@/lib/progression/history-href";
 
 /** How a session's sets print on the exercise history (spec §13). */
 describe("formatSetLine", () => {

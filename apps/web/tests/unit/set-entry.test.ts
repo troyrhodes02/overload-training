@@ -6,8 +6,8 @@ import {
   offerCaption,
   offerFor,
   type CardSet,
-} from "@/lib/logging/set-entry";
-import { formatMonthDay } from "@/lib/plan/calendar";
+} from "@overload/shared/logging/set-entry";
+import { formatMonthDay } from "@overload/shared/plan/calendar";
 
 /**
  * Faster Logging UX set-entry rules (spec §11.4, §14.1; R4–R7, R11–R12). Pure:

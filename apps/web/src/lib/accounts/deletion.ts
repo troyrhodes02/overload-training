@@ -9,6 +9,8 @@ import {
   type DeletionBillingDeps,
 } from "@/lib/billing/cancel-on-deletion";
 import { stripeDeletionDeps } from "@/lib/billing/stripe";
+import type { AccountInventoryDto } from "@overload/shared/contracts/account";
+export type { AccountInventoryDto } from "@overload/shared/contracts/account";
 
 /**
  * THE ACCOUNT-DELETION MODULE (CLAUDE.md first invariant; Accounts spec R12).
@@ -73,9 +75,15 @@ export const ACCOUNT_DELETION_ORDER = [
 
 export type AccountDeletionModel = (typeof ACCOUNT_DELETION_ORDER)[number];
 
-const DELETE: Record<
-  AccountDeletionModel,
-  (tx: AccountTx) => Promise<{ count: number }>
+/**
+ * How each owned model's rows are removed, through the scoped transaction (the
+ * acting account's rows only). Exported for exactly one other caller, the
+ * development-only QA fixture reset (scripts/qa-fixture/qa.ts, OVE-173), so
+ * there is one definition of how a row is removed; a guard test pins the
+ * importers.
+ */
+export const ACCOUNT_DELETION_STEPS: Readonly<
+  Record<AccountDeletionModel, (tx: AccountTx) => Promise<{ count: number }>>
 > = {
   LoggedSet: (tx) => tx.loggedSet.deleteMany({}),
   LoggedExercise: (tx) => tx.loggedExercise.deleteMany({}),
@@ -151,7 +159,7 @@ export async function deleteAccount(
     async (tx) => {
       const counts = {} as Record<AccountDeletionModel, number>;
       for (const model of ACCOUNT_DELETION_ORDER) {
-        counts[model] = (await DELETE[model](tx)).count;
+        counts[model] = (await ACCOUNT_DELETION_STEPS[model](tx)).count;
       }
       return counts;
     },
@@ -190,16 +198,6 @@ export async function deleteAccount(
   }
   return { deleted, identityRemoved };
 }
-
-export type AccountInventoryDto = {
-  mesocycles: number;
-  loggedSessions: number;
-  loggedSets: number;
-  goals: number;
-  gyms: number;
-  customExercises: number;
-  cardioLogs: number;
-};
 
 /** What deletion would destroy, counted on read (the delete page). */
 export async function accountInventory(

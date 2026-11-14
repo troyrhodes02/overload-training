@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 import { requireAccount } from "@/lib/data/account";
 import { DomainError } from "@/lib/actions/result";
 import { assertFeedbackAllowed, submitFeedback } from "@/lib/feedback/feedback";
-import type { FeedbackFieldErrors } from "@/lib/feedback/validation";
-import { validateScreenshots } from "@/lib/feedback/attachment-validation";
+import type { FeedbackFieldErrors } from "@overload/shared/feedback/validation";
+import { validateScreenshots } from "@overload/shared/feedback/attachment-validation";
 import {
   removeFeedbackScreenshots,
   uploadFeedbackScreenshots,

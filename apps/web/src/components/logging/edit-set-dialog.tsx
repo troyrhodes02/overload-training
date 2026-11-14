@@ -1,6 +1,7 @@
 "use client";
 
-import { checkWeightLbs } from "@/lib/logging/weight";
+import { REPS_MESSAGES } from "@overload/shared/logging/reps";
+import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -85,7 +86,7 @@ export function EditSetDialog({
       }
     }
     if (!repsValue || !Number.isInteger(r) || r <= 0) {
-      setError("Enter reps above 0.");
+      setError(REPS_MESSAGES.required);
       return;
     }
     setError(null);

@@ -25,7 +25,7 @@ import {
  * mocked with the fixture for the default (no-argument) paths, and newer
  * catalogs are passed explicitly — the mechanism never changes between them.
  */
-jest.mock("@/lib/release-notes/entries", () => ({
+jest.mock("@overload/shared/release-notes/entries", () => ({
   RELEASE_NOTES: jest.requireActual("./support/release-notes")
     .RELEASE_NOTES_FIXTURE,
 }));

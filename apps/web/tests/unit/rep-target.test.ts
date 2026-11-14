@@ -3,8 +3,8 @@ import {
   repModeFor,
   submittedReps,
   switchRepMode,
-} from "@/lib/plan/rep-target";
-import { parsePlannedExercise } from "@/lib/plan/validation";
+} from "@overload/shared/plan/rep-target";
+import { parsePlannedExercise } from "@overload/shared/plan/validation";
 
 /**
  * Workout Logging Refinements — single rep targets (spec §3.2, §7; RD-7). A

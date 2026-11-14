@@ -1,6 +1,6 @@
 import "server-only";
 import { DomainError, isUuid } from "@/lib/actions/result";
-import { isoDateInZone, toIsoDate } from "@/lib/plan/calendar";
+import { isoDateInZone, toIsoDate } from "@overload/shared/plan/calendar";
 import { signupDay } from "@/lib/admin/overview";
 import {
   personName,

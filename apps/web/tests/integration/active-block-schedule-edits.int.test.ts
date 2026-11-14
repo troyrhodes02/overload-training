@@ -13,7 +13,7 @@ import { completeWorkout, startOrResumeWorkout } from "@/lib/logging/sessions";
 import { getTodayDashboard, getWeekSchedule } from "@/lib/logging/queries";
 import { addSession, moveSession } from "@/lib/plan/sessions";
 import { updateMesocycleDetails } from "@/lib/plan/mesocycles";
-import { addDays, isoWeekday, todayIso } from "@/lib/plan/calendar";
+import { addDays, isoWeekday, todayIso } from "@overload/shared/plan/calendar";
 
 /**
  * OVE-138 (mobile audit F-T5): does editing the schedule of an ACTIVE block

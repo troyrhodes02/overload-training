@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { resolveMissedDayAction } from "@/app/(app)/log/actions";
-import { formatPlanDate } from "@/lib/plan/calendar";
+import { formatPlanDate } from "@overload/shared/plan/calendar";
 import type { MissedDayInfo } from "@/lib/logging/queries";
 
 /**

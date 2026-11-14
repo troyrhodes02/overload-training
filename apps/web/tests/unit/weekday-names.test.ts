@@ -1,4 +1,7 @@
-import { weekdaysFromNames, weekdayFromName } from "@/lib/plan/weekday-names";
+import {
+  weekdaysFromNames,
+  weekdayFromName,
+} from "@overload/shared/plan/weekday-names";
 
 const s = (id: string, name: string, dayOfWeek: number | null = null) => ({
   id,

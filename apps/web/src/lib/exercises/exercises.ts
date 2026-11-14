@@ -6,7 +6,7 @@ import type { AccountTx } from "@/lib/data/account-db";
 import {
   parseCustomExerciseInput,
   type RawCustomExerciseInput,
-} from "./validation";
+} from "@overload/shared/exercises/validation";
 
 /**
  * The Exercise write module (Library & Gyms Setup; Multi-User Foundation).

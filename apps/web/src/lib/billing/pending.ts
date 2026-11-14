@@ -1,4 +1,4 @@
-import type { DisplayState } from "@/lib/entitlements/types";
+import type { DisplayState } from "@overload/shared/entitlements/types";
 
 /**
  * Plans, Billing & Promo Codes — the checkout-return "finishing up" indicator

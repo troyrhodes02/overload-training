@@ -3,7 +3,10 @@ import type { Gym } from "@prisma/client";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
-import { parseGymInput, type RawGymInput } from "./validation";
+import {
+  parseGymInput,
+  type RawGymInput,
+} from "@overload/shared/gyms/validation";
 
 /**
  * The Gym write module (Library & Gyms Setup).

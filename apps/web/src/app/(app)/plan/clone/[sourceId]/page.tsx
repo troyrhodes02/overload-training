@@ -4,7 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { BackLink } from "@/components/plan/plan-bits";
 import { MesocycleForm } from "@/components/plan/mesocycle-form";
-import { formatPlanDate } from "@/lib/plan/calendar";
+import { formatPlanDate } from "@overload/shared/plan/calendar";
 import { getCloneSetup } from "@/lib/plan/queries";
 import { cloneMesocycleAction } from "../../actions";
 import { requireAccount } from "@/lib/data/account";

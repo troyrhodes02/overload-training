@@ -4,10 +4,10 @@ import { refresh } from "next/cache";
 import { requireAccount } from "@/lib/data/account";
 import { toActionResult, type ActionResult } from "@/lib/actions/result";
 import { updateProfile } from "@/lib/accounts/profile";
-import type { ProfileInput } from "@/lib/accounts/validation";
+import type { ProfileInput } from "@overload/shared/accounts/validation";
 import { updateAppearance } from "@/lib/accounts/appearance";
 import { sendVerificationEmail } from "@/lib/accounts/verification";
-import type { Appearance } from "@/lib/appearance/appearance";
+import type { Appearance } from "@overload/shared/appearance/appearance";
 
 /*
  * Settings server actions (Accounts spec §11). The acting account comes from

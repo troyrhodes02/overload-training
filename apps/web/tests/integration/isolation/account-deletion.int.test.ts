@@ -15,7 +15,7 @@ import { logCardio } from "@/lib/cardio/cardio-logs";
 import { createGoal } from "@/lib/goals/goals";
 import { markTourOffered, recordTourOutcome } from "@/lib/tour/progress";
 import { markReleaseNotesSeen } from "@/lib/release-notes/seen";
-import { addDays } from "@/lib/plan/calendar";
+import { addDays } from "@overload/shared/plan/calendar";
 import { getTestPrisma } from "../support/db";
 import { createTestAccount } from "../support/accounts";
 import { activePlan, library, startToday, today, type Lib } from "./fixtures";

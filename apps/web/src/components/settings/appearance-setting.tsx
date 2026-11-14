@@ -6,8 +6,11 @@ import { updateAppearanceAction } from "@/app/(app)/settings/actions";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { applyAppearance } from "@/lib/appearance/apply";
-import { isAppearance, type Appearance } from "@/lib/appearance/appearance";
-import { createChoiceTracker } from "@/lib/appearance/choices";
+import {
+  isAppearance,
+  type Appearance,
+} from "@overload/shared/appearance/appearance";
+import { createChoiceTracker } from "@overload/shared/appearance/choices";
 import { cn } from "@/lib/utils";
 
 const OPTIONS: { value: Appearance; label: string; icon: typeof Sun }[] = [

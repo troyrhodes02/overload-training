@@ -4,7 +4,7 @@ import {
   isAllTop,
   hasBelowMin,
   type Performance,
-} from "@/lib/progression/engine";
+} from "@overload/shared/progression/engine";
 
 let seq = 0;
 

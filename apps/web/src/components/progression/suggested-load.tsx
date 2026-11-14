@@ -1,4 +1,4 @@
-import type { SuggestedLoadDto } from "@/lib/progression/types";
+import type { SuggestedLoadDto } from "@overload/shared/progression/types";
 
 /**
  * The display-only suggested working load (spec §7; design §SuggestedLoad). A

@@ -1,13 +1,16 @@
 import fs from "node:fs";
-import path from "node:path";
 import {
   loadingMode,
   requiresExternalWeight,
-} from "@/lib/exercises/loading-mode";
-import { isGymVariable } from "@/lib/exercises/gym-variable";
-import { EQUIPMENT_TYPES } from "@/lib/exercises/taxonomy";
-import { evaluateReactive, type Performance } from "@/lib/progression/engine";
-import { loadedSets, sessionE1rm } from "@/lib/progression/e1rm";
+} from "@overload/shared/exercises/loading-mode";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
+import { EQUIPMENT_TYPES } from "@overload/shared/exercises/taxonomy";
+import {
+  evaluateReactive,
+  type Performance,
+} from "@overload/shared/progression/engine";
+import { loadedSets, sessionE1rm } from "@overload/shared/progression/e1rm";
+import { libFile, relToWeb, walkCode } from "../support/code-roots";
 
 /**
  * Bodyweight logging: the single loading-mode authority, and the pure engine /
@@ -116,23 +119,17 @@ describe("engine bodyweight branch (e1rmApplicable: false)", () => {
 
 describe("one authority for loading mode (no scattered checks)", () => {
   it("only loading-mode.ts compares equipmentType to bodyweight", () => {
-    const root = path.resolve(__dirname, "..", "..");
-    const walk = (dir: string, acc: string[] = []): string[] => {
-      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) walk(full, acc);
-        else if (/\.(ts|tsx)$/.test(e.name)) acc.push(full);
-      }
-      return acc;
-    };
-    const offenders = walk(path.join(root, "src"))
-      .map((f) => path.relative(root, f).replace(/\\/g, "/"))
-      .filter((rel) => rel !== "src/lib/exercises/loading-mode.ts")
-      .filter((rel) =>
+    // The web source and the shared package (Pitch 21b), where loading-mode
+    // now lives.
+    const authority = libFile("exercises/loading-mode.ts");
+    const offenders = walkCode()
+      .filter((f) => f !== authority)
+      .filter((f) =>
         /equipmentType\s*[!=]==?\s*["']bodyweight["']/.test(
-          fs.readFileSync(path.join(root, rel), "utf8"),
+          fs.readFileSync(f, "utf8"),
         ),
-      );
+      )
+      .map(relToWeb);
     expect(offenders).toEqual([]);
   });
 });

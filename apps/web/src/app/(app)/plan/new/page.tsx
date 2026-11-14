@@ -3,7 +3,7 @@ import { MesocycleForm } from "@/components/plan/mesocycle-form";
 import {
   DEFAULT_DELOAD_EVERY_WEEKS,
   DEFAULT_LENGTH_WEEKS,
-} from "@/lib/plan/validation";
+} from "@overload/shared/plan/validation";
 import { createMesocycleAction } from "../actions";
 
 export const metadata = { title: "New mesocycle · Overload" };

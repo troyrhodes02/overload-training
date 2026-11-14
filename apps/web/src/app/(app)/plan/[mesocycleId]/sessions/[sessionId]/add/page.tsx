@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatRepTarget } from "@/lib/plan/rep-target";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -15,7 +15,7 @@ import {
   type LibraryFilters,
 } from "@/lib/exercises/library-params";
 import { listExercises, type ExerciseList } from "@/lib/exercises/queries";
-import { MUSCLE_GROUP_LABELS } from "@/lib/exercises/taxonomy";
+import { MUSCLE_GROUP_LABELS } from "@overload/shared/exercises/taxonomy";
 import { getSessionDetail } from "@/lib/plan/queries";
 import { requireAccount } from "@/lib/data/account";
 

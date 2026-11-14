@@ -1,6 +1,6 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
-import { todayIso } from "@/lib/plan/calendar";
+import { todayIso } from "@overload/shared/plan/calendar";
 
 /**
  * DATA EXPORT (Public Accounts spec §9, R7; design doc Screen 8, D4).

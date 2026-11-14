@@ -1,5 +1,5 @@
 import type { DashboardDto } from "@/lib/logging/queries";
-import { isoDateInZone } from "@/lib/plan/calendar";
+import { isoDateInZone } from "@overload/shared/plan/calendar";
 
 /**
  * The Today greeting (Personalization & Navigation Polish, spec §11; design
