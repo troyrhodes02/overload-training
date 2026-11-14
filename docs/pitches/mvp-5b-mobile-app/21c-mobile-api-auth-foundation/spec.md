@@ -9,7 +9,7 @@ prd_reference: docs/planning/prd.md
 architecture_reference: docs/planning/architecture.md
 audit_reference: docs/planning/mobile-audit.md (§2 endpoint inventory "21b — foundation", §3 auth, §7 isolation plan)
 contracts_reference: packages/shared/src/contracts/
-linear_issue: Linear milestone "Pitch 21c — Mobile API & Auth Foundation"
+linear_issue: OVE-176, OVE-177, OVE-178, OVE-179, OVE-180 (milestone "Pitch 21c — Mobile API & Auth Foundation")
 ---
 
 # Mobile API & Auth Foundation — Technical Specification
