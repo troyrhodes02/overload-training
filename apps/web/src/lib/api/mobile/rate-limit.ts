@@ -14,18 +14,30 @@ import { ApiFailure } from "./errors";
  * requests a minute) and stops a runaway retry loop. Counted in the existing
  * un-owned throttle table under its own action; the key is the account id,
  * hashed there before it reaches the database. Fails closed like the
- * existing limiter (a counter that can't be written refuses the request).
+ * existing limiter: a counter that can't be written refuses the request, as a
+ * 503 (an outage), never as a 429.
  */
 export async function checkMobileRateLimit(
   account: Account,
   now: () => number = Date.now,
 ): Promise<ApiFailure | null> {
-  const { allowed, retryAfterSeconds } = await throttleRequest(
+  const { allowed, retryAfterSeconds, failed } = await throttleRequest(
     "mobile_api_request",
     account.userId,
     now,
   );
   if (allowed) return null;
+  if (failed) {
+    // The counter could not be written: still refused (fail closed), but as
+    // our outage, not "too many requests" (release review #2).
+    console.error("mobile api: rate-limit counter unavailable");
+    return new ApiFailure(
+      "internal_error",
+      "Overload is having trouble right now. Try again in a moment.",
+      undefined,
+      503,
+    );
+  }
   return new ApiFailure(
     "rate_limited",
     "Too many requests. Try again in a moment.",

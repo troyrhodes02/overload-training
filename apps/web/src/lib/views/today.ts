@@ -68,6 +68,10 @@ export async function getTodayView(
     resolveRequestEntitlement(account, now),
   ]);
 
+  // Read right after the dashboard, as the web page always did (release
+  // review #5): the date header and the dashboard come from the same moment.
+  const today = accountToday(account);
+
   // Deterministic per account + local date + situation.
   const greeting = composeGreeting({
     dashboard,
@@ -131,7 +135,7 @@ export async function getTodayView(
     ]);
 
   return {
-    today: accountToday(account),
+    today,
     greeting,
     dashboard,
     plannedProgression,

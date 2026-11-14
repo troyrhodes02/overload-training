@@ -26,7 +26,7 @@ import { mobileRoute } from "@/lib/api/mobile/pipeline";
 import { apiJson, ApiFailure } from "@/lib/api/mobile/errors";
 import { DomainError } from "@/lib/actions/result";
 import { GET as appConfig } from "@/app/api/mobile/v1/app-config/route";
-import * as catchAll from "@/app/api/mobile/[...path]/route";
+import * as catchAll from "@/app/api/mobile/[[...path]]/route";
 
 const TOKEN = "aaaa.bbbb.cccc";
 const USER_ID = "00000000-0000-4000-8000-000000000001";
