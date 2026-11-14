@@ -212,7 +212,7 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
   });
 
   it("M2 serializes saves: a tap during a save is queued and the last choice wins", async () => {
-    const resolvers: Array<(v: unknown) => void> = [];
+    const resolvers: ((v: unknown) => void)[] = [];
     mockApi.request.mockImplementation(
       (_path: string, opts: { body: { appearance: string } }) =>
         new Promise((resolve) =>

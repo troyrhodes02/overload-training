@@ -196,6 +196,14 @@ describe("app.config.ts refuses a bad environment before anything is bundled", (
     expect(c.ios.bundleIdentifier).toBe("app.overloadtraining.dev");
   });
 
+  it("an absent value passes the config step (eas-cli's pre-check); the app's launch check catches it", () => {
+    const c = load({
+      EXPO_PUBLIC_OVERLOAD_ENV: undefined,
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: undefined,
+    });
+    expect(c.ios.bundleIdentifier).toBe("app.overloadtraining.dev");
+  });
+
   it.each([
     [{ EAS_BUILD_PROFILE: "production" }],
     [{ EAS_UPDATE_CHANNEL: "production" }],

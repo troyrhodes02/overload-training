@@ -39,8 +39,25 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     localApiOrigin: process.env.EXPO_PUBLIC_LOCAL_API_ORIGIN,
     allowLocalApi: true,
   });
+  // eas-cli evaluates this file once before it injects the EAS environment
+  // (and without .env files), so a value that is simply absent is not refused
+  // here: the bundle step runs with the values, and the app's launch check
+  // refuses a build without them. A value that is present and wrong (another
+  // environment, another Supabase project, anything naming Production) is
+  // always refused.
+  const absent = (name: string) => !process.env[name]?.trim();
   const problems = [
-    ...(env.ok ? [] : env.problems),
+    ...(env.ok ? [] : env.problems).filter(
+      (p) =>
+        !(
+          p.startsWith("EXPO_PUBLIC_OVERLOAD_ENV") &&
+          absent("EXPO_PUBLIC_OVERLOAD_ENV")
+        ) &&
+        !(
+          p === "EXPO_PUBLIC_SUPABASE_ANON_KEY is missing" &&
+          absent("EXPO_PUBLIC_SUPABASE_ANON_KEY")
+        ),
+    ),
     ...checkEasTarget({
       profile: process.env.EAS_BUILD_PROFILE,
       channel: process.env.EAS_UPDATE_CHANNEL,
