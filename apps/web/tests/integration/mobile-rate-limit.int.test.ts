@@ -8,7 +8,8 @@ import {
   MOBILE_API_RATE_LIMIT,
   MOBILE_API_RATE_WINDOW_SECONDS,
 } from "@/lib/api/mobile/rate-limit";
-import { checkAndIncrement } from "@/lib/accounts/throttle";
+import { checkAndIncrement, clearThrottle } from "@/lib/accounts/throttle";
+import { deleteAccount } from "@/lib/accounts/deletion";
 import { createTestAccount } from "./support/accounts";
 import { getTestPrisma } from "./support/db";
 
@@ -64,5 +65,60 @@ describe("checkMobileRateLimit", () => {
     expect((await checkAndIncrement("signup", "fp-1", at(2))).allowed).toBe(
       false,
     );
+  });
+
+  it("keeps at most one row per account: a new window drops the earlier ones", async () => {
+    const a = await createTestAccount();
+    for (const minute of [0, 1, 2, 3]) {
+      await checkMobileRateLimit(
+        a,
+        at(minute * MOBILE_API_RATE_WINDOW_SECONDS + 1),
+      );
+    }
+    const rows = await getTestPrisma().authThrottle.findMany({
+      where: { action: "mobile_api_request" },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].windowStart).toBe(
+      WINDOW_START + 3 * MOBILE_API_RATE_WINDOW_SECONDS,
+    );
+  });
+
+  it("the pre-auth doors keep their earlier windows (unchanged behavior)", async () => {
+    await checkAndIncrement("signup", "fp-2", at(1));
+    await checkAndIncrement(
+      "signup",
+      "fp-2",
+      at(MOBILE_API_RATE_WINDOW_SECONDS + 1),
+    );
+    expect(
+      await getTestPrisma().authThrottle.count({ where: { action: "signup" } }),
+    ).toBe(2);
+  });
+
+  it("clearThrottle forgets an account's row", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await checkMobileRateLimit(a, at(1));
+    await checkMobileRateLimit(b, at(1));
+    await clearThrottle("mobile_api_request", a.userId);
+    expect(
+      await getTestPrisma().authThrottle.count({
+        where: { action: "mobile_api_request" },
+      }),
+    ).toBe(1);
+  });
+
+  it("deleting an account forgets its rate-limit row and no other", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    await checkMobileRateLimit(a, at(1));
+    await checkMobileRateLimit(b, at(1));
+    await deleteAccount(a, { deleteAuthUser: async () => "deleted" });
+    expect(
+      await getTestPrisma().authThrottle.count({
+        where: { action: "mobile_api_request" },
+      }),
+    ).toBe(1);
   });
 });

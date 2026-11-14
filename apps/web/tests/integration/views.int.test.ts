@@ -32,6 +32,7 @@ import { getGreetingFacts } from "@/lib/personalization/greeting-facts";
 import { composeGreeting } from "@/lib/personalization/greeting";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { createGoal } from "@/lib/goals/goals";
+import { resolveRequestEntitlement } from "@/lib/entitlements/resolve";
 import {
   completeWorkoutAndReconcile,
   editLoggedSetAndReconcile,
@@ -322,6 +323,46 @@ describe("getWorkoutView", () => {
     const { loggedSessionId } = await startToday(a, plan);
     expect(await getWorkoutView(b, loggedSessionId)).toBeNull();
     expect(await getWorkoutView(a, "not-a-uuid")).toBeNull();
+  });
+});
+
+describe("request entitlements are bound to their own account", () => {
+  it("a Pro request entitlement handed to a Free account's reader is ignored", async () => {
+    const pro = await createTestAccount();
+    const free = await createTestAccount("UTC", undefined, {
+      entitlement: "none",
+    });
+    await planWithHistory(free, "F");
+    const proEntitlement = await resolveRequestEntitlement(pro);
+    const view = await getTodayView(free);
+    for (const { exerciseId } of view.plannedProgression) {
+      const p = await getPlannedProgression(free, exerciseId, {
+        scheduledDeloadWeek: false,
+        entitlement: proEntitlement,
+      });
+      expect(p.recommendation).toBeNull();
+      expect(p.tag).toBeNull();
+    }
+    expect(
+      view.plannedProgression.some(
+        (p) => p.progression.locked === "progression_insights",
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("getWorkoutView for a finished workout", () => {
+  it("skips the cards' calls when asked (the page redirects it)", async () => {
+    const a = await createTestAccount();
+    const plan = await activePlan(a, lib, "A");
+    const { loggedSessionId } = await logLastWeek(a, plan, 135, 5);
+    const skipped = await getWorkoutView(a, loggedSessionId, {
+      skipProgressionWhenComplete: true,
+    });
+    expect(skipped!.workout.status).toBe("complete");
+    expect(skipped!.progression).toEqual([]);
+    const full = await getWorkoutView(a, loggedSessionId);
+    expect(full!.progression.length).toBeGreaterThan(0);
   });
 });
 

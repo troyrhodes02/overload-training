@@ -66,6 +66,9 @@ export function classifyAuthError(error: unknown): TokenVerdict {
   if (isAuthSessionMissingError(error)) return { kind: "rejected" };
   if (isAuthError(error)) {
     const status = error.status ?? 0;
+    // A timeout (408) or a rate limit (429) says nothing about the token: the
+    // lifter must not be signed out because Auth is busy (review audit #1).
+    if (status === 408 || status === 429) return { kind: "unavailable" };
     return status >= 400 && status < 500
       ? { kind: "rejected" }
       : { kind: "unavailable" };

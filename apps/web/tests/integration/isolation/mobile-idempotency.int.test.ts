@@ -156,4 +156,20 @@ describe("withIdempotency", () => {
       requestFingerprint("POST /v1/goals", { a: 1 }),
     );
   });
+
+  it("a success without a body is not recordable: it fails and rolls the create back", async () => {
+    const a = await createTestAccount();
+    await expect(
+      withIdempotency(
+        a,
+        { key: "key-0000-gggg", scope: SCOPE, body: { name: "X" } },
+        async (tx) => {
+          await createGym(a, { name: "X" }, tx);
+          return { status: 204, body: {} };
+        },
+      ),
+    ).rejects.toThrow();
+    expect(await gymCount(a.userId)).toBe(0);
+    expect(await keyRows(a.userId)).toHaveLength(0);
+  });
 });

@@ -2,7 +2,7 @@ import "server-only";
 import type { Account } from "@/lib/data/account";
 import { getWorkout } from "@/lib/logging/queries";
 import { getOccurrenceProgression } from "@/lib/progression/queries";
-import { resolveEntitlement } from "@/lib/entitlements/resolve";
+import { resolveRequestEntitlement } from "@/lib/entitlements/resolve";
 import type { WorkoutViewDto } from "@overload/shared/contracts/views";
 
 /**
@@ -17,10 +17,22 @@ import type { WorkoutViewDto } from "@overload/shared/contracts/views";
 export async function getWorkoutView(
   account: Account,
   loggedSessionId: string,
+  opts: {
+    /**
+     * Skip the cards' calls for a finished workout (the web page redirects it
+     * to history, so computing them would be wasted; review audit #7).
+     */
+    skipProgressionWhenComplete?: boolean;
+  } = {},
 ): Promise<WorkoutViewDto | null> {
-  const workout = await getWorkout(account, loggedSessionId);
+  const [workout, entitlement] = await Promise.all([
+    getWorkout(account, loggedSessionId),
+    resolveRequestEntitlement(account),
+  ]);
   if (!workout) return null;
-  const entitlement = await resolveEntitlement(account);
+  if (opts.skipProgressionWhenComplete && workout.status === "complete") {
+    return { workout, progression: [] };
+  }
   const entries = await Promise.all(
     workout.exercises.map(async (e) => ({
       loggedExerciseId: e.loggedExerciseId,

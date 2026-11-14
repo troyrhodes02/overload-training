@@ -6,7 +6,7 @@ import {
   getPlannedProgression,
   getSessionProgressionSummary,
 } from "@/lib/progression/queries";
-import { resolveEntitlement } from "@/lib/entitlements/resolve";
+import { resolveRequestEntitlement } from "@/lib/entitlements/resolve";
 import { reconcileGoalCompletionsSafely } from "@/lib/goals/goals";
 import {
   countActiveGoals,
@@ -65,7 +65,7 @@ export async function getTodayView(
   const [dashboard, facts, entitlement] = await Promise.all([
     getTodayDashboard(account),
     getGreetingFacts(account, now),
-    resolveEntitlement(account, now),
+    resolveRequestEntitlement(account, now),
   ]);
 
   // Deterministic per account + local date + situation.
@@ -84,18 +84,6 @@ export async function getTodayView(
   if (showGoals) await reconcileGoalCompletionsSafely(account);
 
   const day = shownDay(dashboard);
-  const plannedProgression = day
-    ? await Promise.all(
-        day.exercises.map(async (e) => ({
-          exerciseId: e.exerciseId,
-          progression: await getPlannedProgression(account, e.exerciseId, {
-            scheduledDeloadWeek: day.scheduledDeloadWeek,
-            entitlement,
-          }),
-        })),
-      )
-    : [];
-
   // The finished day's summary and goal rows: today's, or the dimmed day under
   // a missed-day prompt when today is already done.
   const completedDay =
@@ -105,26 +93,42 @@ export async function getTodayView(
         ? dashboard.below
         : null;
   const completedSessionId = completedDay?.loggedSessionId ?? null;
-  const [sessionSummary, sessionGoals] = completedSessionId
-    ? await Promise.all([
-        getSessionProgressionSummary(account, completedSessionId, {
-          entitlement,
-        }),
-        getSessionGoalSummary(account, completedSessionId),
-      ])
-    : [null, []];
 
-  const goals = showGoals
-    ? await Promise.all([
-        listUnacknowledgedCompletions(account),
-        listActiveGoals(account, { take: DASHBOARD_GOAL_LIMIT }),
-        countActiveGoals(account),
-      ]).then(([reached, active, activeTotal]) => ({
-        reached,
-        active,
-        activeTotal,
-      }))
-    : null;
+  // Independent reads, together (as the page's blocks once rendered them),
+  // all after the reconciliation above.
+  const [plannedProgression, sessionSummary, sessionGoals, goals] =
+    await Promise.all([
+      day
+        ? Promise.all(
+            day.exercises.map(async (e) => ({
+              exerciseId: e.exerciseId,
+              progression: await getPlannedProgression(account, e.exerciseId, {
+                scheduledDeloadWeek: day.scheduledDeloadWeek,
+                entitlement,
+              }),
+            })),
+          )
+        : Promise.resolve([]),
+      completedSessionId
+        ? getSessionProgressionSummary(account, completedSessionId, {
+            entitlement,
+          })
+        : Promise.resolve(null),
+      completedSessionId
+        ? getSessionGoalSummary(account, completedSessionId)
+        : Promise.resolve([]),
+      showGoals
+        ? Promise.all([
+            listUnacknowledgedCompletions(account),
+            listActiveGoals(account, { take: DASHBOARD_GOAL_LIMIT }),
+            countActiveGoals(account),
+          ]).then(([reached, active, activeTotal]) => ({
+            reached,
+            active,
+            activeTotal,
+          }))
+        : Promise.resolve(null),
+    ]);
 
   return {
     today: accountToday(account),

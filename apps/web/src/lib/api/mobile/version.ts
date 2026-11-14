@@ -71,13 +71,21 @@ function configuredVersion(
  * The public app config. Reads ONLY the variables named above, the plan-import
  * kill switch, and the signup mode. Never the invite code, keys, URLs, or the
  * admin allowlist (pitch rabbit hole I). The legacy invite mode reads as
- * "closed": the app has no invite field (21b RD-19).
+ * "closed": the app has no invite field (21b RD-19). `planImportEnabled` always
+ * comes from the one kill-switch authority, isPlanImportEnabled() (the process
+ * environment), never from `env`.
  */
+/** The minimum supported app version (the one value the gate needs). */
+export function minimumAppVersion(
+  env: Record<string, string | undefined> = process.env,
+): AppVersion {
+  return configuredVersion(env, "MOBILE_MIN_APP_VERSION") ?? DEFAULT_MINIMUM;
+}
+
 export function mobileAppConfig(
   env: Record<string, string | undefined> = process.env,
 ): AppConfigDto {
-  const minimum =
-    configuredVersion(env, "MOBILE_MIN_APP_VERSION") ?? DEFAULT_MINIMUM;
+  const minimum = minimumAppVersion(env);
   const latestRaw = configuredVersion(env, "MOBILE_LATEST_APP_VERSION");
   const latest =
     latestRaw && compareAppVersions(latestRaw, minimum) >= 0
@@ -101,7 +109,7 @@ export function mobileAppConfig(
  */
 export function checkAppVersion(
   header: string | null,
-  config: AppConfigDto = mobileAppConfig(),
+  minimum: AppVersion = minimumAppVersion(),
 ): AppVersion | ApiFailure {
   const version = parseAppVersion(header);
   if (!version) {
@@ -111,7 +119,6 @@ export function checkAppVersion(
       { [APP_VERSION_HEADER]: "Send the app version as MAJOR.MINOR.PATCH." },
     );
   }
-  const minimum = parseAppVersion(config.minimumAppVersion) ?? DEFAULT_MINIMUM;
   if (compareAppVersions(version, minimum) < 0) {
     return new ApiFailure(
       "upgrade_required",

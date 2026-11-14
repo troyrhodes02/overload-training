@@ -5,6 +5,7 @@
 import {
   checkAppVersion,
   compareAppVersions,
+  minimumAppVersion,
   mobileAppConfig,
   parseAppVersion,
 } from "@/lib/api/mobile/version";
@@ -133,7 +134,7 @@ describe("mobileAppConfig", () => {
 });
 
 describe("checkAppVersion", () => {
-  const config = mobileAppConfig({ MOBILE_MIN_APP_VERSION: "1.2.0" });
+  const config = minimumAppVersion({ MOBILE_MIN_APP_VERSION: "1.2.0" });
 
   it("serves a version at or above the minimum", () => {
     expect(checkAppVersion("1.2.0", config)).toEqual([1, 2, 0]);

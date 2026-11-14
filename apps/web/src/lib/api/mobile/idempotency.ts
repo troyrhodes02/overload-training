@@ -76,9 +76,18 @@ export function requestFingerprint(scope: string, body: unknown): string {
     .digest("hex");
 }
 
-export type IdempotentResult<T extends JsonValue> = { status: number; body: T };
+/**
+ * A create's success: a 2xx status other than 204 with a non-null JSON body
+ * (a Prisma Json column can't store null, and a 204 can't carry a body to
+ * replay; review audit #6).
+ */
+export type IdempotentBody = Exclude<JsonValue, null>;
+export type IdempotentResult<T extends IdempotentBody> = {
+  status: number;
+  body: T;
+};
 
-export async function withIdempotency<T extends JsonValue>(
+export async function withIdempotency<T extends IdempotentBody>(
   account: Account,
   args: { key: string; scope: string; body: unknown },
   run: (tx: AccountTx) => Promise<IdempotentResult<T>>,
@@ -97,9 +106,15 @@ export async function withIdempotency<T extends JsonValue>(
           select: { id: true },
         });
         const outcome = await run(tx);
-        if (outcome.status < 200 || outcome.status > 299) {
-          // Only successes are recorded; a handler signals failure by throwing.
-          throw new Error("withIdempotency: non-2xx result");
+        if (
+          outcome.status < 200 ||
+          outcome.status > 299 ||
+          outcome.status === 204 ||
+          outcome.body === null
+        ) {
+          // Only successes with a body are recorded; a handler signals failure
+          // by throwing.
+          throw new Error("withIdempotency: not a recordable success");
         }
         await tx.apiIdempotencyKey.update({
           where: { id: claim.id },

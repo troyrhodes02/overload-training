@@ -16,7 +16,9 @@ export default async function WorkoutPage({
   const { loggedSessionId } = await params;
   // The one workout composition (Pitch 21c): the workout plus each card's
   // gated call, with the entitlement resolved once.
-  const view = await getWorkoutView(account, loggedSessionId);
+  const view = await getWorkoutView(account, loggedSessionId, {
+    skipProgressionWhenComplete: true,
+  });
   if (!view) notFound();
   const { workout } = view;
   // A finished workout is a historical record: never offer set entry or a

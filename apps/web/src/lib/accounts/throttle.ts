@@ -133,7 +133,21 @@ export async function throttleRequest(
     // (key_hash, action, window_start) increments in place; the RETURNING
     // clause hands back the post-increment count so the decision needs no
     // second read.
+    //
+    // The mobile API counts every authenticated request, so in the same
+    // statement it drops this key's EARLIER windows: at most one row per
+    // account ever exists, and the table cannot grow with use (there is no
+    // scheduler to prune it; review audit #2). The pre-auth doors keep their
+    // rows exactly as before.
+    const prune = action === "mobile_api_request";
     const rows = await prisma.$queryRaw<{ count: number }[]>`
+      WITH "pruned" AS (
+        DELETE FROM "auth_throttle"
+        WHERE ${prune}::boolean
+          AND "key_hash" = ${keyHash}
+          AND "action" = ${action}::"auth_throttle_action"
+          AND "window_start" < ${windowStart}
+      )
       INSERT INTO "auth_throttle" ("key_hash", "action", "window_start", "count", "created_at", "updated_at")
       VALUES (${keyHash}, ${action}::"auth_throttle_action", ${windowStart}, 1, now(), now())
       ON CONFLICT ("key_hash", "action", "window_start")
@@ -147,6 +161,29 @@ export async function throttleRequest(
     // error escape (never logging the raw key or any address). Callers treat a
     // refusal identically to a tripped limit.
     return { allowed: false, retryAfterSeconds };
+  }
+}
+
+/**
+ * Forget a key's counts for one action (review audit #3). Account deletion
+ * calls this for the mobile API's per-account key, so nothing derived from a
+ * deleted account's id stays in the table. Best effort: a failure is logged
+ * by error name only and never fails the caller.
+ */
+export async function clearThrottle(
+  action: ThrottleAction,
+  rawKey: string,
+): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      DELETE FROM "auth_throttle"
+      WHERE "key_hash" = ${hashKey(action, rawKey)}
+        AND "action" = ${action}::"auth_throttle_action"`;
+  } catch (error) {
+    console.error(
+      "throttle: could not clear a key",
+      error instanceof Error ? error.name : "unknown",
+    );
   }
 }
 

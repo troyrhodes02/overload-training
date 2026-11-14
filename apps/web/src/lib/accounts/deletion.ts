@@ -173,6 +173,13 @@ export async function deleteAccount(
   // throws).
   await removeFeedbackScreenshots(screenshotPaths);
   await removeSourceObjects(importSourcePaths);
+  // The mobile API's rate-limit counter is keyed on a hash of this account's
+  // id in the un-owned throttle table; forget it so nothing derived from the
+  // account remains (Pitch 21c review audit #3). Best-effort (never throws).
+  // Loaded lazily: the throttle module holds the raw client, which only a
+  // real deletion needs.
+  const { clearThrottle } = await import("./throttle");
+  await clearThrottle("mobile_api_request", account.userId);
 
   let identityRemoved = false;
   try {

@@ -77,6 +77,16 @@ describe("classifyAuthError", () => {
     });
   });
 
+  it("an Auth timeout (408) or rate limit (429) is 'unavailable', never a sign-out", () => {
+    for (const status of [408, 429]) {
+      expect(
+        classifyAuthError(
+          new AuthApiError("busy", status, "over_request_rate_limit"),
+        ),
+      ).toEqual({ kind: "unavailable" });
+    }
+  });
+
   it("a 5xx, a network failure, or anything unknown is 'unavailable', never a sign-out", () => {
     expect(
       classifyAuthError(new AuthApiError("boom", 500, "unexpected_failure")),

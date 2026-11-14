@@ -499,6 +499,10 @@ Anything on a device, simulator, Expo, or Hermes (21d).
 | RD-17 (OQ12) | Owner verification is a short runbook: confirm the migration on overload-dev and run three curl checks against a local or protected preview; everything else is automated. | Non-UI foundation; the suites cover the security matrix. | Pitch OQ12 |
 | RD-18 (OQ13) | Feature branch → `staging` only; the migration is applied to overload-dev before the merge; nothing reaches Production. | Branching workflow. | CLAUDE.md |
 | RD-19 | API conventions name the app-config fields `minSupportedVersion`/`latestVersion`; the shipped contract (`minimumAppVersion`/`latestAppVersion`) wins. | 21b contracts are the API's contract authority. | 21b spec |
+| RD-20 | Review audit: a 408 or 429 from Supabase Auth is `unavailable` (503), never `rejected`. | A busy Auth server must not sign lifters out (RD-6). | Review audit #1 |
+| RD-21 | Review audit: the mobile limiter keeps at most one `auth_throttle` row per account (the same statement drops the key's earlier windows), and account deletion clears that row after its transaction. The pre-auth doors are unchanged. | No scheduler can prune the table; nothing derived from a deleted account's id may remain. | Review audit #2, #3; CLAUDE.md (no cron, deletion) |
+| RD-22 | Review audit: the gated readers accept only a `RequestEntitlement` bound to the same `Account` object; any other is ignored and the entitlement is resolved fresh. | A stale or foreign entitlement can never decide another account's gate. | Review audit #5; CLAUDE.md (no Pro result for Free) |
+| RD-23 | Review audit: deferred — no throttle for unauthenticated or invalid-token requests (each costs one Auth call). | RD-8 stands (carrier NAT; no data or DB work is reachable); with RD-20 the worst case is a 503, not a sign-out. 21d evaluates per-device limits; volumetric floods are a platform concern. | Review audit #4 |
 
 ## Open questions
 
