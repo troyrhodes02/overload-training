@@ -148,7 +148,7 @@ export async function verifyAccessToken(token: string): Promise<TokenVerdict>;
 
 - Client: `createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })`, created per call (no cross-request state). Never the service role.
 - `getUser(token)` asks the Auth server, which refuses expired tokens, tokens for deleted users, and tokens whose session was signed out (revoked). No local JWT verification is used at all.
-- An `AuthApiError` with a 4xx status, or no user, is `rejected`. A network/retryable error or a 5xx is `unavailable`.
+- Any auth error with a 4xx status, or no user, is `rejected`. This includes `AuthSessionMissingError` (status 400), which supabase-js returns for a token whose session was signed out; the live check on overload-dev found this case. A network/retryable error or a 5xx is `unavailable`.
 - A user without an email cannot occur (email+password only); it is treated as `rejected`.
 
 ### 7.2 Bearer parsing

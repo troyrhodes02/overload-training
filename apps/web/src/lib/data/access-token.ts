@@ -1,8 +1,9 @@
 import "server-only";
 import {
   createClient,
-  isAuthApiError,
+  isAuthError,
   isAuthRetryableFetchError,
+  isAuthSessionMissingError,
 } from "@supabase/supabase-js";
 
 /**
@@ -53,13 +54,17 @@ export async function verifyAccessToken(token: string): Promise<TokenVerdict> {
 }
 
 /**
- * A refusal from the Auth server (4xx) means the token is bad; a network
+ * A refusal from the Auth server (any auth error with a 4xx status) means the
+ * token is bad. That includes a session that was signed out or revoked, which
+ * supabase-js reports as AuthSessionMissingError (status 400) rather than an
+ * AuthApiError — found by the live check against overload-dev. A network
  * failure or a 5xx means we don't know, and the lifter must not be signed out
  * for our outage (RD-6).
  */
 export function classifyAuthError(error: unknown): TokenVerdict {
   if (isAuthRetryableFetchError(error)) return { kind: "unavailable" };
-  if (isAuthApiError(error)) {
+  if (isAuthSessionMissingError(error)) return { kind: "rejected" };
+  if (isAuthError(error)) {
     const status = error.status ?? 0;
     return status >= 400 && status < 500
       ? { kind: "rejected" }
