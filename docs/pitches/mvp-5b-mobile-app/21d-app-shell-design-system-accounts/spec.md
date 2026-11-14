@@ -394,6 +394,8 @@ No logging, Today plan list, history, plan, goals, library, or gyms screens. No 
 | RD-20 | The request fingerprint moves to `src/lib/accounts/request-fingerprint.ts`, shared by the web actions and the mobile routes, with its behavior unchanged. | One throttle-key rule for both clients. | CLAUDE.md signup defenses |
 | RD-21 | The sign-in error messages move to `@overload/shared/accounts/auth-errors`, and the web re-exports them. | One copy of the copy, so the web and the app can't drift. | 21b principle |
 | RD-22 | `billingCopy` (the plan labels) moves to `@overload/shared/billing/copy`, and the web re-exports it unchanged. The app's read-only plan row uses its `shortLabel`. | The app shows the server's plan state in the web's words without copying them. It is display only; access stays enforced from capabilities on the server. | 21b principle; pitch §4 plan placement |
+| RD-23 | At config time, `app.config.ts` refuses only values that are present and wrong. An absent `EXPO_PUBLIC_*` value passes, because eas-cli evaluates the config once without `.env` files and before injecting the EAS environment. The app's launch check (the misconfigured gate) refuses a build without the values. | Found when publishing the first staging update. Every Production value is still refused at config time, at bundle time, and at launch. | Spec §7; live `eas update` run |
+| RD-24 | The update-channel guard applies when `EAS_UPDATE_CHANNEL` is set (the `update:staging` script sets it). The guarantee is `eas.json`: every build listens to `staging` only, so an update on any other channel reaches no build. | Review finding #7: eas-cli may not set the variable itself. | Review audit |
 
 ## Open Questions
 
