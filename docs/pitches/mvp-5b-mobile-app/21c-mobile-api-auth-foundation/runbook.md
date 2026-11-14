@@ -32,7 +32,7 @@ Set them in Vercel's Preview scope only when 21d ships a build. Changing one nee
 
 ## 3. Staging check (about 5 minutes)
 
-The stable staging URL is behind Vercel Deployment Protection, so an anonymous request gets Vercel's own 401 before it reaches Overload. Use a protection-bypass token (Vercel → Project → Settings → Deployment Protection → Protection Bypass for Automation) as the `x-vercel-protection-bypass` header, or run the checks against a local production build with `apps/web/.env.local`.
+The stable staging URL is behind Vercel Deployment Protection, so an anonymous request gets Vercel's own login redirect (HTTP 302) or 401 before it reaches Overload (observed on this branch's Preview: 302). Use a protection-bypass token (Vercel → Project → Settings → Deployment Protection → Protection Bypass for Automation) as the `x-vercel-protection-bypass` header, or run the checks against a local production build with `apps/web/.env.local`.
 
 First get a token for the staging tester (`overload-staging-tester@example.com`; the password is in `~/.overload-dev/test-user.txt`). From the repository root:
 
