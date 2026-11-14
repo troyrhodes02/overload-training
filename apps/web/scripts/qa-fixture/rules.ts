@@ -49,6 +49,9 @@ export const QA_RESET_MODELS = [
   "ExerciseFavorite",
   "Exercise",
   "Gym",
+  // Mobile API retry records (Pitch 21c): they replay responses about the
+  // training rows above, so a reset clears them too.
+  "ApiIdempotencyKey",
 ] as const satisfies readonly AccountDeletionModel[];
 
 /** What a reset keeps, by design (documented in docs/technical/qa-fixture-account.md). */

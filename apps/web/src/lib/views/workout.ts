@@ -25,14 +25,13 @@ export async function getWorkoutView(
     skipProgressionWhenComplete?: boolean;
   } = {},
 ): Promise<WorkoutViewDto | null> {
-  const [workout, entitlement] = await Promise.all([
-    getWorkout(account, loggedSessionId),
-    resolveRequestEntitlement(account),
-  ]);
+  const workout = await getWorkout(account, loggedSessionId);
   if (!workout) return null;
   if (opts.skipProgressionWhenComplete && workout.status === "complete") {
     return { workout, progression: [] };
   }
+  // Only when the cards' calls are computed (release review #8).
+  const entitlement = await resolveRequestEntitlement(account);
   const entries = await Promise.all(
     workout.exercises.map(async (e) => ({
       loggedExerciseId: e.loggedExerciseId,

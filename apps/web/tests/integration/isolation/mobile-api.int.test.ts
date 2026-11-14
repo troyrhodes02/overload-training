@@ -30,7 +30,7 @@ import { GET as appConfig } from "@/app/api/mobile/v1/app-config/route";
 import { GET as me } from "@/app/api/mobile/v1/me/route";
 import { GET as today } from "@/app/api/mobile/v1/today/route";
 import { GET as gyms } from "@/app/api/mobile/v1/gyms/route";
-import * as catchAll from "@/app/api/mobile/[...path]/route";
+import * as catchAll from "@/app/api/mobile/[[...path]]/route";
 import { createGoal } from "@/lib/goals/goals";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
 import {
@@ -353,11 +353,20 @@ const CASES: Record<string, () => void> = {
 
 // The unknown-path 404, one case per method.
 for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"] as const) {
-  CASES[`${method} api/mobile/[...path]`] = () =>
+  CASES[`${method} api/mobile/[[...path]]`] = () =>
     describe(`${method} unknown /api/mobile path`, () => {
       it("is a JSON 404 with no data, token or not", async () => {
         const { a } = await twoAccounts(lib);
         for (const token of [null, tokenFor(a.userId)]) {
+          // The bare /api/mobile path too (optional catch-all): no segments.
+          const bare = await catchAll[method](
+            new Request("http://localhost/api/mobile", {
+              method,
+              headers: token ? { authorization: `Bearer ${token}` } : {},
+            }),
+            { params: Promise.resolve({}) },
+          );
+          expect(bare.status).toBe(404);
           const res = await catchAll[method](
             new Request("http://localhost/api/mobile/v1/nope", {
               method,
