@@ -11,7 +11,10 @@ export type MobileEndpoint = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** The route directory under src/app, e.g. "api/mobile/v1/me". */
   route: string;
-  /** public: no token (app config, the unknown-path 404); account: token required. */
+  /**
+   * public: no token (app config, the unknown-path 404, and the version-gated
+   * account routes signup and reset request); account: token required.
+   */
   auth: "public" | "account";
 };
 
@@ -22,6 +25,10 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   { method: "GET", route: "api/mobile/v1/me", auth: "account" },
   { method: "GET", route: "api/mobile/v1/today", auth: "account" },
   { method: "GET", route: "api/mobile/v1/gyms", auth: "account" },
+  // Pitch 21d
+  { method: "POST", route: "api/mobile/v1/accounts", auth: "public" },
+  { method: "POST", route: "api/mobile/v1/password-reset", auth: "public" },
+  { method: "PUT", route: "api/mobile/v1/me/appearance", auth: "account" },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,
@@ -29,10 +36,19 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   })),
 ];
 
-/** The only routes allowed to skip the token (spec §6.3). */
+/** The only routes allowed to skip the token AND the version gate (21c spec §6.3). */
 export const PUBLIC_MOBILE_ROUTES: readonly string[] = [
   "api/mobile/v1/app-config",
   CATCH_ALL,
+];
+
+/**
+ * The only routes allowed to skip the token while keeping the version gate
+ * (Pitch 21d spec §10.2): native signup and the native reset request.
+ */
+export const PUBLIC_VERSIONED_MOBILE_ROUTES: readonly string[] = [
+  "api/mobile/v1/accounts",
+  "api/mobile/v1/password-reset",
 ];
 
 export const endpointKey = (e: Pick<MobileEndpoint, "method" | "route">) =>
