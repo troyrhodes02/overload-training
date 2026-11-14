@@ -161,7 +161,7 @@ Problems name the variable, never its value.
 
 ## 9. Navigation (OQ1, OQ10)
 
-Expo Router 58, with typed routes on.
+Expo Router 58. Typed routes are off: Expo’s generator runs from the root CLI and cannot resolve the workspace-nested `expo-router`.
 
 ```text
 apps/mobile/src/app/

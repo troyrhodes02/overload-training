@@ -25,6 +25,9 @@ import { colors } from "../../packages/shared/src/design/tokens.ts";
 
 const VERSION = "0.1.0";
 
+/** The EAS project (public identifier, not a secret). */
+const EAS_PROJECT_ID: string | null = "3b322e4a-1bf6-422e-9feb-3aa859dffb46";
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const env = checkMobileEnvironment({
     environment: process.env.EXPO_PUBLIC_OVERLOAD_ENV,
@@ -71,14 +74,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     },
     runtimeVersion: { policy: "fingerprint" },
-    updates: {
-      url: "https://u.expo.dev/EAS_PROJECT_ID",
-      checkAutomatically: "ON_LOAD",
-    },
-    extra: {
-      eas: { projectId: "EAS_PROJECT_ID" },
-    },
-    experiments: { typedRoutes: true },
+    ...(EAS_PROJECT_ID
+      ? {
+          updates: {
+            url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+            checkAutomatically: "ON_LOAD" as const,
+          },
+          extra: { eas: { projectId: EAS_PROJECT_ID } },
+        }
+      : {}),
     plugins: [
       "expo-router",
       "expo-secure-store",

@@ -4,11 +4,14 @@ import { ApiError, isApiErrorCode, MESSAGES } from "./errors";
  * Turn one HTTP answer into data or an ApiError (spec §6 step 4). Pure: it
  * takes what fetch returned, so every case is unit-tested.
  *
- * Vercel Deployment Protection answers an unauthorized request with a 302 to
- * vercel.com/sso-api (fetch follows it and lands on another host) or a 401
- * or 403 HTML page. The API itself always answers JSON, so any non-JSON
- * answer from the staging host is either protection or an outage, never a
- * reason to sign out.
+ * Vercel Deployment Protection answers an unauthorized request in one of
+ * three ways: a 302 to vercel.com/sso-api (fetch follows it to another host),
+ * a 401 or 403 HTML page, or, when the request accepts JSON (the app always
+ * does), a 401 JSON body of its own: `{ protection: {...}, error: { code:
+ * "401", message: "Protected deployment" } }`. The API never sends a
+ * `protection` key, so that body is recognized before the envelope is read
+ * (found by the simulator run against staging, 2026-11-14). None of these is
+ * ever a reason to sign out.
  */
 export type RawResponse = {
   status: number;
@@ -66,6 +69,17 @@ export function classifyResponse<T>(
     };
   }
 
+  if (isVercelProtection(body)) {
+    return {
+      ok: false,
+      error: new ApiError(
+        "staging_protected",
+        MESSAGES.staging_protected,
+        res.status,
+      ),
+    };
+  }
+
   if (res.status >= 200 && res.status < 300)
     return { ok: true, data: body as T };
 
@@ -102,6 +116,16 @@ export function classifyResponse<T>(
       res.status,
     ),
   };
+}
+
+/** Vercel's own JSON answer for a protected deployment. */
+function isVercelProtection(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const b = body as { protection?: unknown; error?: { message?: unknown } };
+  return (
+    (typeof b.protection === "object" && b.protection !== null) ||
+    b.error?.message === "Protected deployment"
+  );
 }
 
 function parseRetryAfter(raw: string | null): number | null {

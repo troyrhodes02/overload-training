@@ -53,7 +53,6 @@ jest.mock("expo-haptics", () => ({
 }));
 jest.mock("react-native-webview", () => ({ WebView: () => null }));
 
-
 beforeEach(() => jest.clearAllMocks());
 
 describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {

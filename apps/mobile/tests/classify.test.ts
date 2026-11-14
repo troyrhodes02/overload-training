@@ -41,6 +41,25 @@ describe("classifyResponse", () => {
     }
   });
 
+  it("Vercel's JSON 401 for a protected deployment is staging protection (live shape)", () => {
+    const body = {
+      access: "vercel curl <deployment-url>",
+      protection: {
+        auto_vercel_auth_redirect: true,
+        vercel_auth_enabled: true,
+      },
+      error: { code: "401", message: "Protected deployment" },
+    };
+    const r = classifyResponse(
+      raw({ status: 401, bodyText: JSON.stringify(body) }),
+      ORIGIN,
+    );
+    expect(r.ok === false && [r.error.code, r.error.temporary]).toEqual([
+      "staging_protected",
+      true,
+    ]);
+  });
+
   it("other non-JSON answers and 5xx without the envelope are temporary", () => {
     for (const r of [
       classifyResponse(
