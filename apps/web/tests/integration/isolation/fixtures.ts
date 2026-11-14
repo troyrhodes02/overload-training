@@ -54,7 +54,7 @@ export async function activePlan(
   account: Account,
   lib: Lib,
   label: string,
-  opts: { activate?: boolean } = {},
+  opts: { activate?: boolean; startWeeksAgo?: number } = {},
 ) {
   const gym = await createGym(account, { name: `${label} Gym` });
   const custom = await createCustomExercise(account, {
@@ -64,7 +64,7 @@ export async function activePlan(
   });
   const meso = await createMesocycle(account, {
     name: `${label} Block`,
-    startDate: addDays(today(), -7),
+    startDate: addDays(today(), -7 * (opts.startWeeksAgo ?? 1)),
     lengthWeeks: "5",
     deloadEveryWeeks: "5",
     splitType: "custom",

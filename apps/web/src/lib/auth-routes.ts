@@ -54,14 +54,29 @@ const SIGNED_IN_SAFE_PUBLIC = [
  */
 const UNAUTHENTICATED_WEBHOOKS = ["/api/stripe/webhook"] as const;
 
+/**
+ * The mobile API (Pitch 21c spec §15). Its requests carry a bearer token, never
+ * a session cookie, so the proxy must not redirect them to /login: they reach
+ * the route handlers, whose request pipeline verifies the token with Supabase
+ * Auth on EVERY request and answers a JSON 401 without one. This exempts the
+ * path from the cookie redirect only, never from authentication.
+ */
+export const MOBILE_API_PREFIX = "/api/mobile";
+
 export const PUBLIC_PATHS = [
   ...SIGNED_OUT_DOORS,
   ...SIGNED_IN_SAFE_PUBLIC,
   ...UNAUTHENTICATED_WEBHOOKS,
+  MOBILE_API_PREFIX,
 ] as const;
 
 function matches(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+/** `/api/mobile` and everything under it — not `/api/mobilex`. */
+export function isMobileApiPath(pathname: string): boolean {
+  return matches(pathname, MOBILE_API_PREFIX);
 }
 
 export function isPublicPath(pathname: string): boolean {

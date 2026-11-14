@@ -178,3 +178,33 @@ export const resolveEntitlement = cache(
     return computeEntitlement(entitlements, billing, now);
   },
 );
+
+/**
+ * An entitlement resolved ONCE for one request's account (Pitch 21c RD-16;
+ * review audit #5). React `cache` does not memoize in a route handler, so a
+ * view resolves the entitlement once and hands this to the gated readers.
+ * It is bound to the very Account object it was resolved for: a reader given
+ * one for any other account object ignores it and resolves fresh, so a stale
+ * or foreign entitlement can never decide another account's gate.
+ */
+export type RequestEntitlement = {
+  readonly account: Account;
+  readonly resolved: ResolvedEntitlement;
+};
+
+export async function resolveRequestEntitlement(
+  account: Account,
+  now?: Date,
+): Promise<RequestEntitlement> {
+  return { account, resolved: await resolveEntitlement(account, now) };
+}
+
+/** The gate's entitlement: the request's own when it belongs to `account`. */
+export async function entitlementFor(
+  account: Account,
+  given?: RequestEntitlement,
+): Promise<ResolvedEntitlement> {
+  return given && given.account === account
+    ? given.resolved
+    : resolveEntitlement(account);
+}

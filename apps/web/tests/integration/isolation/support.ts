@@ -79,6 +79,7 @@ const OWNED_TABLES = [
   "import_sessions",
   "import_source_parts",
   "import_usage_days",
+  "api_idempotency_keys",
 ] as const;
 
 /** Every row an account owns, in a stable order — to prove it never changed. */
