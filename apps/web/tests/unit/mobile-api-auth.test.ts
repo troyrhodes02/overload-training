@@ -12,7 +12,11 @@ jest.mock("@/lib/data/account", () => ({
   touchLastActive: (...a: unknown[]) => touchLastActive(...a),
 }));
 
-import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
+import {
+  AuthApiError,
+  AuthRetryableFetchError,
+  AuthSessionMissingError,
+} from "@supabase/supabase-js";
 import {
   authenticateMobileRequest,
   parseBearerToken,
@@ -63,6 +67,14 @@ describe("classifyAuthError", () => {
         classifyAuthError(new AuthApiError("bad jwt", status, "bad_jwt")),
       ).toEqual({ kind: "rejected" });
     }
+  });
+
+  it("a signed-out (revoked) session is rejected, not 'unavailable'", () => {
+    // What supabase-js returns for a token whose session was signed out
+    // (observed live on overload-dev): AuthSessionMissingError, status 400.
+    expect(classifyAuthError(new AuthSessionMissingError())).toEqual({
+      kind: "rejected",
+    });
   });
 
   it("a 5xx, a network failure, or anything unknown is 'unavailable', never a sign-out", () => {
