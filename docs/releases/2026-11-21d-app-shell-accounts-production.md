@@ -1,6 +1,6 @@
 # Release record: Pitch 21d — App Shell, Design System & Accounts (to Production)
 
-Staging PRs: #215 (feature, OVE-183..187), #221 (OVE-188), #222 (OVE-189). Release branch `release/21d-app-shell-accounts`, cut from `main` at `35c5caf` (the 21c release).
+Staging PRs: #215 (feature, OVE-183..187), #221 (OVE-188), #222 (OVE-189), and #223 (OVE-190, a test-only fix found while validating this release). Release branch `release/21d-app-shell-accounts`, cut from `main` at `35c5caf` (the 21c release).
 
 ## 1. What Production gains
 
@@ -17,6 +17,7 @@ Staging PRs: #215 (feature, OVE-183..187), #221 (OVE-188), #222 (OVE-189). Relea
   - The EAS project has one channel, `staging`. The repository has no GitHub or EAS workflows. The root script `mobile:update:staging` runs only by hand and publishes only to staging.
   - Vercel builds only the web app. The production build was checked: every `/api/mobile` route is dynamic.
 - **No Production mobile build, EAS update, TestFlight upload, or store submission** comes from this release. Those are 21l and human steps.
+- **Tests (OVE-190):** an integration test built a trial from a fixed date while the billing screen reads the real clock, so it began failing on 2026-11-15 on `main` and `staging` alike. Test-only; no application code changes.
 
 ## 2. Production migrations
 
