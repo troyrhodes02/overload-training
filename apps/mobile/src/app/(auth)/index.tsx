@@ -32,25 +32,29 @@ export default function WelcomeScreen() {
           gap: spacing.md,
         }}
       >
-        {/* The word is centered on its own; the logo hangs off its left
-            edge, outside the centered width (OVE-191). */}
-        <View>
+        {/* The word is centered on its own with the logo to its left
+            (OVE-191): an invisible spacer the logo's width balances the
+            row, so the logo sits outside the centered width. */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+          }}
+        >
           <Image
             source={require("../../../assets/splash-icon.png")}
-            style={{
-              position: "absolute",
-              right: "100%",
-              top: "50%",
-              width: LOGO_SIZE,
-              height: LOGO_SIZE,
-              marginTop: -LOGO_SIZE / 2,
-              marginRight: spacing.sm,
-            }}
+            style={{ width: LOGO_SIZE, height: LOGO_SIZE }}
             accessibilityIgnoresInvertColors
           />
           <Text size="2xl" weight="semibold" accessibilityRole="header">
             Overload
           </Text>
+          <View
+            style={{ width: LOGO_SIZE, height: LOGO_SIZE }}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
         </View>
         <EnvironmentBadge />
         <Text tone="muted" align="center" style={{ maxWidth: 280 }}>
