@@ -14,6 +14,7 @@ jest.mock("@/lib/data/account", () => ({
 }));
 
 import { getTestPrisma } from "./support/db";
+import { plannedOccurrence } from "./support/planned";
 import {
   createTestExercise,
   createTestMesocycle,
@@ -95,7 +96,9 @@ async function readAll(
   },
 ) {
   const [planned, occurrence, summary, history] = await Promise.all([
-    getPlannedProgression(account, s.exId, { scheduledDeloadWeek: false }),
+    getPlannedProgression(account, await plannedOccurrence(account, s.exId), {
+      scheduledDeloadWeek: false,
+    }),
     getOccurrenceProgression(account, s.done.loggedExerciseId),
     getSessionProgressionSummary(account, s.done.loggedSessionId),
     getExerciseHistory(account, s.exId),
@@ -386,9 +389,13 @@ describe("insufficient history shows its empty state, not an upgrade prompt", ()
       const history = (await getExerciseHistory(account, ex.id))!;
       expect(history.hasHistory).toBe(false);
       expect(history.locked).toBeNull();
-      const planned = await getPlannedProgression(account, ex.id, {
-        scheduledDeloadWeek: false,
-      });
+      const planned = await getPlannedProgression(
+        account,
+        await plannedOccurrence(account, ex.id),
+        {
+          scheduledDeloadWeek: false,
+        },
+      );
       expect(planned.locked).toBeNull();
     },
   );
@@ -542,9 +549,13 @@ describe("another account's record ids expose no history or insight", () => {
     expect(
       await getSessionProgressionSummary(intruder, s.done.loggedSessionId),
     ).toBeNull();
-    const planned = await getPlannedProgression(intruder, s.exId, {
-      scheduledDeloadWeek: false,
-    });
+    const planned = await getPlannedProgression(
+      intruder,
+      await plannedOccurrence(intruder, s.exId),
+      {
+        scheduledDeloadWeek: false,
+      },
+    );
     expect(planned.tag).toBeNull();
     expect(planned.recommendation).toBeNull();
     expect(planned.hasTrend).toBe(false);

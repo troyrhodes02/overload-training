@@ -22,6 +22,7 @@ import type {
 } from "@/lib/progression/queries";
 import type {
   ExerciseHistoryDto,
+  HistoryNextDto,
   SessionCallKind,
 } from "@overload/shared/progression/history-types";
 import type { ResolvedEntitlement } from "@overload/shared/entitlements/types";
@@ -135,20 +136,27 @@ export function gateHistory(
 
   const withheld = new Set<Capability>();
 
-  let next = dto.next;
-  // "Calls for machines are made per gym" describes calls Free never gets.
-  if (!insights && next?.kind === "no_gym") next = null;
-  if (!insights && next && next.kind === "call") {
-    if (next.tag !== null || next.recommendation !== null) {
+  // One rule for the single call and every per-workout call (Prescription-
+  // Aware Intelligence §9): Free keeps only the not-enough-history line.
+  const gateNext = (n: HistoryNextDto | null): HistoryNextDto | null => {
+    if (insights || n === null) return n;
+    // "Calls for machines are made per gym" describes calls Free never gets.
+    if (n.kind === "no_gym") return null;
+    if (n.tag !== null || n.recommendation !== null) {
       withheld.add("progression_insights");
     }
-    next = {
+    return {
       kind: "call",
       tag: null,
       recommendation: null,
-      insufficientNote: next.insufficientNote,
+      insufficientNote: n.insufficientNote,
     };
-  }
+  };
+  const next = gateNext(dto.next);
+  const nextByWorkout = dto.nextByWorkout.flatMap((w) => {
+    const gated = gateNext(w.next);
+    return gated ? [{ ...w, next: gated }] : [];
+  });
 
   let records = dto.records;
   if (records && records.kind === "loaded") {
@@ -196,5 +204,5 @@ export function gateHistory(
   ];
   const locked = order.find((c) => withheld.has(c)) ?? null;
 
-  return { ...dto, next, records, trend, sessions, locked };
+  return { ...dto, next, nextByWorkout, records, trend, sessions, locked };
 }

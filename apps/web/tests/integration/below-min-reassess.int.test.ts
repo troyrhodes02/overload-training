@@ -1,7 +1,10 @@
 import { getTestPrisma } from "./support/db";
+import { plannedOccurrence } from "./support/planned";
 import {
   createTestExercise,
   createTestMesocycle,
+  createTestSession,
+  createTestSessionExercise,
 } from "./support/plan-factories";
 import {
   getExerciseProgression,
@@ -43,6 +46,8 @@ async function logPerf(
     data: {
       userId: account.userId,
       mesocycleId: opts.mesocycleId,
+      // The block's one planned session, as the app writes it.
+      sessionId: plannedSessionFor(opts.mesocycleId, opts.exerciseId),
       performedOn: new Date(`${opts.scheduledFor}T12:00:00Z`),
       scheduledFor: new Date(`${opts.scheduledFor}T00:00:00Z`),
       status: opts.status ?? "complete",
@@ -86,8 +91,34 @@ async function setup(
     equipmentType,
     userId: account.userId,
   });
+  const session = await createTestSession(meso.id, {
+    userId: account.userId,
+    name: "Push Day 1",
+    dayOfWeek: null,
+  });
+  await createTestSessionExercise(session.id, ex.id, {
+    userId: account.userId,
+    plannedSets: 3,
+    targetRepMin: 6,
+    targetRepMax: 10,
+  });
+  plannedSessionOf.set(meso.id, { sessionId: session.id, exerciseId: ex.id });
   return { mesoId: meso.id, exId: ex.id };
 }
+
+/**
+ * The block's planned session and the exercise it plans, made by setup.
+ * Workouts of that exercise belong to it; any other exercise a test logs
+ * stays session-less (one context per exercise, RD-17).
+ */
+const plannedSessionOf = new Map<
+  string,
+  { sessionId: string; exerciseId: string }
+>();
+const plannedSessionFor = (mesocycleId: string, exerciseId: string) => {
+  const p = plannedSessionOf.get(mesocycleId);
+  return p && p.exerciseId === exerciseId ? p.sessionId : null;
+};
 
 const REASSESS_EVIDENCE =
   "Last time: 3, 8, 8 of 6–10, below 6. A deload follows 2 complete sessions running below 6.";
@@ -138,9 +169,13 @@ describe("90 × 3 against 6–10 never says to stay at 90 lb (Pro)", () => {
     expect(page.state).toBe("hold");
     expect(page.recommendation?.action).toBe("Reassess the weight next time");
 
-    const planned = await getPlannedProgression(account, exId, {
-      scheduledDeloadWeek: false,
-    });
+    const planned = await getPlannedProgression(
+      account,
+      await plannedOccurrence(account, exId),
+      {
+        scheduledDeloadWeek: false,
+      },
+    );
     expect(planned.recommendation?.action).toBe("Reassess the weight today");
 
     for (const rec of [
@@ -284,7 +319,11 @@ describe("90 × 3 against 6–10 never says to stay at 90 lb (Pro)", () => {
     await getOccurrenceProgression(account, failed.loggedExerciseId);
     await getSessionProgressionSummary(account, failed.loggedSessionId);
     await getExerciseProgression(account, exId);
-    await getPlannedProgression(account, exId, { scheduledDeloadWeek: false });
+    await getPlannedProgression(
+      account,
+      await plannedOccurrence(account, exId),
+      { scheduledDeloadWeek: false },
+    );
     expect(await snapshotAccount(account.userId)).toEqual(before);
   });
 });

@@ -198,7 +198,16 @@ export function computeRecords(
  */
 export function callsBySession(
   rows: HistoryRow[],
-  opts: { externalLoad: boolean; noGymScope: boolean },
+  opts: {
+    externalLoad: boolean;
+    noGymScope: boolean;
+    /**
+     * The evidence a session was judged on (Prescription-Aware Intelligence
+     * §7.5): its recurring workout's comparable run ending at it. Omitted,
+     * every earlier row in scope counts (the single-context history).
+     */
+    segmentEndingAt?: (row: HistoryRow) => HistoryRow[];
+  },
 ): Map<string, SessionCallKind> {
   const ordered = chronological(rows);
   const calls = new Map<string, SessionCallKind>();
@@ -207,7 +216,9 @@ export function callsBySession(
     if (opts.noGymScope) return calls.set(id, "none");
     if (!r.finished) return calls.set(id, "in_progress");
     if (r.perf.scheduledDeload) return calls.set(id, "deload_week");
-    const prefix = ordered.slice(0, i + 1).map((x) => x.perf);
+    const prefix = (
+      opts.segmentEndingAt ? opts.segmentEndingAt(r) : ordered.slice(0, i + 1)
+    ).map((x) => x.perf);
     const { state, evidence } = evaluateReactiveDecision(prefix, {
       e1rmApplicable: opts.externalLoad,
     });

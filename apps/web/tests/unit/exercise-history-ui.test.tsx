@@ -118,6 +118,7 @@ function sessionRow(over: Partial<SessionRowDto>): SessionRowDto {
     extraSets: [],
     plannedSets: 3,
     swappedFromName: null,
+    sessionName: null,
     call: "progress",
     ...over,
   };
@@ -141,6 +142,7 @@ describe("SessionHistoryList", () => {
       loggedExerciseId: "i",
       call: "hold",
       swappedFromName: "Incline Dumbbell Press",
+      sessionName: null,
       extraSets: [{ weightLbs: 135, reps: 15 }],
       gymArchived: true,
     }),

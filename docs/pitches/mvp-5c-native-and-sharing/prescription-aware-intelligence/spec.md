@@ -56,7 +56,7 @@ The core abstraction is a pure, shared **segment** function. A recurring exercis
 | Concept | Description |
 | --- | --- |
 | `Session.lineageId` | Opaque, immutable UUID naming a recurring workout across blocks. Inherited by `cloneMesocycle`, fresh for every other session create. Unique per mesocycle. Not a foreign key. Persisted. |
-| Recurring exercise | `(lineageId of the LoggedSession's Session, performed exerciseId)`, plus `gymId` when `isGymVariable(exercise)`. Derived. A `LoggedSession` with no session has no recurring identity. |
+| Recurring exercise | `(lineageId of the LoggedSession's Session, performed exerciseId)`, plus `gymId` when `isGymVariable(exercise)`. Derived. Workouts with no session (none are written today) share one recurring context per exercise and never match a planned workout (RD-17). |
 | Prescription | The copied plan values a performance was evaluated against: `targetRepMin`, `targetRepMax` (on `LoggedExercise`), and `targetRirMin`/`targetRirMax` once Planned Workout Guidance adds them (null until then). The plan's `SessionExercise` values for an occurrence not yet started. |
 | Compatible | Same rep range, and target RIR compatible under the effective-target rule (§6). Set count, session name, weekday, order, notes do not matter. |
 | Segment | The contiguous run of the recurring exercise's history, newest to oldest, up to the first incompatible performance. Derived on read, never stored. Includes scheduled-deload-week and short performances (each consumer filters them as it already does). |
@@ -112,7 +112,7 @@ export function currentSegment<T extends SegmentCandidate>(
 
 Rules (Resolved Decisions RD-4 to RD-7):
 
-1. **Identity.** A candidate belongs to the anchor's recurring exercise iff `lineageId` is non-null on both and equal, `exerciseId` is equal, and, for gym-variable equipment, `gymId` is equal. A null lineage (no session) never matches.
+1. **Identity.** A candidate belongs to the anchor's recurring exercise iff `lineageId` is equal (a missing lineage equals only another missing lineage, RD-17), `exerciseId` is equal, and, for gym-variable equipment, `gymId` is equal and present.
 2. **Walk.** Sort the matching candidates newest first (date, then `orderKey`, then id). Start with `effective = anchor.prescription` target RIR (may be null).
 3. **Compatibility of each candidate in order:** rep range equal (`repMin` and `repMax`), else stop. Target RIR: if the candidate's target is null, compatible. If `effective` is null, compatible and `effective := candidate's target`. Otherwise compatible iff equal (both min and max), else stop.
 4. **Result:** the collected run, returned oldest first.
@@ -293,7 +293,7 @@ GIVEN RIR1–2 history and anchor RIR3 THEN empty
 GIVEN RIR3, null, RIR1–2(newest) and anchor null THEN segment = [RIR1–2] only
 GIVEN set counts 3,3,2 THEN continuous
 GIVEN machine rows at two gyms THEN only the anchor gym's rows
-GIVEN null lineage rows THEN never in a segment
+GIVEN session-less rows THEN they group only with session-less rows of the exercise (RD-17)
 ```
 
 Integration (embedded Postgres, scenarios A–L):
@@ -359,6 +359,8 @@ Plus: clone copies lineage and duplicate/addSession/createMesocycle/import mint 
 | RD-14 | The card contract gains `referencePerformance` and `weightContext`; `PreviousPerformanceDto` gains `sessionName` and `repRange`; history types gain `nextByWorkout` and `SessionRowDto.sessionName`. No mobile endpoint serves these yet. | Pitch decision 17; verified route list. | Pitch; codebase |
 | RD-15 | Guidance: one non-significant release note; no tour step. | The card's anatomy is unchanged. | overload-onboarding |
 | RD-16 | The migration is applied to `overload-dev` with the dev wrapper before the feature merges into `staging`; if dev credentials are unavailable to the run, the feature PR stays open for the owner. | The staging deployment reads `lineage_id` once merged. | CLAUDE.md (migrations to overload-dev) |
+| RD-17 | Workouts with no session share one recurring context per exercise: a missing lineage matches only another missing lineage, never a planned workout's. | The app writes no session-less workouts today (every start needs a session), so this governs only legacy test fixtures and future unplanned workouts; grouping them per exercise keeps the engine's existing behavior for them, and a planned workout still never reads them. Found while running the existing suites, which seed session-less history. | Pitch decisions 1 and 8; engine behavior preserved |
+| RD-18 | The progression read layer reads no `GymExerciseBaseline`: `currentWorkingWeightLbs`, `WorkingWeightOptions`, and `baselineWrittenBefore` are removed, and a static guard (`tests/unit/baseline-read-guard.test.ts`) allows the table only in the write path, export, and deletion. Existing tests that asserted the superseded baseline behavior (Faster Logging UX R27, Smarter & Explainable R34) were updated with the RD-9/RD-10 rationale; tests that seeded session-less history and asked Today about an unplanned exercise now seed a real planned session (`tests/integration/support/planned.ts`). | RD-9/RD-10 made the baseline read dead code; a guard keeps it from returning. Test changes follow superseded decisions, not convenience. | Pitch decisions 10 and 12 |
 
 ## Open Questions
 

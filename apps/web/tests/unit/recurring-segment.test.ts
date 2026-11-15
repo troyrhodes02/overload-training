@@ -114,14 +114,20 @@ describe("identity", () => {
     expect(ids(currentSegment(rows, anchor()))).toEqual(["2026-11-04"]);
   });
 
-  it("a missing lineage never matches, not even another missing lineage", () => {
+  it("a missing lineage matches only another missing lineage (RD-17)", () => {
     const rows = [perf("2026-11-04", { lineage: null })];
-    expect(currentSegment(rows, anchor({ lineage: null }))).toEqual([]);
+    expect(ids(currentSegment(rows, anchor({ lineage: null })))).toEqual([
+      "2026-11-04",
+    ]);
+    // A planned workout never draws on session-less history, nor the reverse.
     expect(currentSegment(rows, anchor())).toEqual([]);
+    expect(
+      currentSegment([perf("2026-11-04")], anchor({ lineage: null })),
+    ).toEqual([]);
     expect(
       sameRecurringExercise(
         { lineageId: null, exerciseId: BENCH, gymId: null },
-        { lineageId: null, exerciseId: BENCH, gymId: null },
+        { lineageId: PUSH, exerciseId: BENCH, gymId: null },
         false,
       ),
     ).toBe(false);

@@ -13,6 +13,7 @@
  * starts a new segment: an earlier run is never stitched on.
  *
  * Compatibility is deterministic, with no similarity threshold:
+ *   - workouts with no session share one context per exercise (RD-17);
  *   - the rep range must be equal (min and max);
  *   - target RIR uses the EFFECTIVE target: the anchor's recorded target, or,
  *     if it has none, the first recorded target met in the walk. A performance
@@ -76,13 +77,17 @@ export function prescriptionOf(p: {
   };
 }
 
-/** Same recurring exercise. A missing lineage never matches anything. */
+/**
+ * Same recurring exercise. Workouts with no session (none are created today;
+ * reserved for future unplanned workouts) form ONE recurring context per
+ * exercise (RD-17): a missing lineage matches only another missing lineage,
+ * never a planned workout's.
+ */
 export function sameRecurringExercise(
   a: RecurringKey,
   b: RecurringKey,
   gymVariable: boolean,
 ): boolean {
-  if (a.lineageId === null || b.lineageId === null) return false;
   if (a.lineageId !== b.lineageId) return false;
   if (a.exerciseId !== b.exerciseId) return false;
   return gymVariable ? a.gymId !== null && a.gymId === b.gymId : true;
