@@ -10,7 +10,7 @@ import {
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import { prescriptionOf } from "@overload/shared/progression/recurring";
-import { segmentRows, type RowAnchor } from "./recurring";
+import { rowSegmentEndingAt, segmentRows, type RowAnchor } from "./recurring";
 import { PROGRESS_INCREMENT_LBS } from "@overload/shared/progression/config";
 import {
   can,
@@ -654,6 +654,25 @@ export function gymsWithFinishedHistory(
  * exercises show their global call now; during a scheduled-deload week the
  * reactive tag is suppressed and the 90% load is shown instead (R37).
  */
+/**
+ * Whether the exercise has a trend to show — the same points the exercise
+ * page draws for its default scope (all history; a machine's most recent gym).
+ */
+function trendExists(exercise: ScopeExercise, rows: Row[]): boolean {
+  if (isGymVariable(exercise)) {
+    const gym = gymsWithFinishedHistory(rows)[0];
+    if (!gym) return false;
+    return (
+      toPoints(
+        rows.filter((r) => r.perf.gymId === gym.id),
+        gym.name,
+      ).length > 0
+    );
+  }
+  if (!requiresExternalWeight(exercise)) return false;
+  return toPoints(rows, null).length > 0;
+}
+
 export type PlannedOccurrence = {
   /** The planned (or, once started, performed) exercise. */
   exerciseId: string;
@@ -750,22 +769,16 @@ async function computePlannedProgression(
       })
     : null;
   if (!exercise) return empty;
-  // Whether a trend exists is a fact about the exercise's whole history.
-  const base = await getExerciseProgression(account, exercise.id, null, {
-    when: "today",
-  });
-  const hasTrend = (base?.points.length ?? 0) > 0;
+  // One history read serves both the trend fact and the segment.
+  const rows = await gatherRows(account, exercise.id);
+  const hasTrend = trendExists(exercise, rows);
   if (isGymVariable(exercise)) {
     // A machine's call waits for the gym (R14, R15).
     return { ...empty, gymVariable: true, hasTrend };
   }
   const anchor = await plannedAnchor(account, occurrence, false);
   if (!anchor) return { ...empty, hasTrend };
-  const segment = segmentRows(
-    await gatherRows(account, exercise.id),
-    exercise.id,
-    anchor,
-  );
+  const segment = segmentRows(rows, exercise.id, anchor);
   if (opts.scheduledDeloadWeek) {
     return {
       ...empty,
@@ -853,15 +866,22 @@ async function computeOccurrenceProgression(
   // The evidence: this recurring workout's comparable run, judged against the
   // plan copied when this workout started (Prescription-Aware Intelligence
   // §7.3; RD-13 — a later plan edit never changes it).
-  const scopeRows = segmentRows(rows, le.exercise.id, {
-    key: {
-      lineageId: le.loggedSession.session?.lineageId ?? null,
-      exerciseId: le.exercise.id,
-      gymId: le.gymId,
-    },
-    prescription: prescriptionOf(le),
-    gymVariable,
-  });
+  // The run ENDING AT this occurrence (review of #227): a later workout at a
+  // changed prescription never empties a past workout's evidence, and a
+  // workout logged late is judged on what came before it — the same run the
+  // exercise page's session rows use.
+  const self = rows.find((r) => r.perf.loggedExerciseId === le.id);
+  const scopeRows = self
+    ? rowSegmentEndingAt(rows, le.exercise.id, self, gymVariable)
+    : segmentRows(rows, le.exercise.id, {
+        key: {
+          lineageId: le.loggedSession.session?.lineageId ?? null,
+          exerciseId: le.exercise.id,
+          gymId: le.gymId,
+        },
+        prescription: prescriptionOf(le),
+        gymVariable,
+      });
   // Any finished workout in scope has a history to link to (R4), bodyweight too.
   const historyHref = gymRows.some((r) => r.finished)
     ? exerciseHistoryHref(

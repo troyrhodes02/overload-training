@@ -104,8 +104,11 @@ export type ExerciseCardDto = {
    */
   referencePerformance: ReferencePerformanceDto | null;
   /**
-   * "trusted": `suggestedWeightLbs` is this workout's own last weight.
-   * "reference_only": no trusted weight; `referencePerformance` is shown.
+   * "trusted": `previousPerformance` is this workout's comparable last time,
+   *   and `suggestedWeightLbs` its weight when the exercise takes one (null
+   *   for bodyweight).
+   * "reference_only": no comparable last time; `referencePerformance` is
+   *   shown and nothing is offered.
    * "none": nothing to show or offer.
    */
   weightContext: WeightContext;

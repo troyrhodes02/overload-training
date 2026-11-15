@@ -29,7 +29,7 @@ export const WED_DELOAD = "2026-11-04";
 export async function twoWorkoutBlock(
   account: Account,
   opts: {
-    equipmentType?: "barbell" | "machine" | "cable";
+    equipmentType?: "barbell" | "machine" | "cable" | "bodyweight";
     name?: string;
     push?: { reps: [number, number]; sets?: number };
     upper?: { reps: [number, number]; sets?: number };
