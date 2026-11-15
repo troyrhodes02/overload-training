@@ -158,4 +158,25 @@ describe("session lineage", () => {
       await prisma().session.count({ where: { userId: other.userId } }),
     ).toBe(0);
   });
+
+  it("an old-code insert (no lineage_id) gets a database lineage that a clone then carries (OVE-197, RD-21)", async () => {
+    const { m, push } = await block();
+    // The columns the pre-feature application writes: no lineage_id.
+    const [row] = await prisma().$queryRawUnsafe<
+      { id: string; lineage_id: string }[]
+    >(
+      `INSERT INTO "sessions" (id, user_id, mesocycle_id, name, day_of_week, position, created_at, updated_at)
+       VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'Legs', 2, 5, now(), now())
+       RETURNING id::text, lineage_id::text`,
+      account.userId,
+      m.id,
+    );
+    expect(row.lineage_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(row.lineage_id).not.toBe(push.lineageId);
+    const { id } = await cloneMesocycle(account, cloneInput(m.id));
+    const legs = await prisma().session.findFirstOrThrow({
+      where: { mesocycleId: id, name: "Legs" },
+    });
+    expect(legs.lineageId).toBe(row.lineage_id);
+  });
 });

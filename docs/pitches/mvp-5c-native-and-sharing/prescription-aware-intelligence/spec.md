@@ -70,7 +70,7 @@ No new state machine. `lineageId` has one transition: assigned at insert. It nev
 
 | Writer | lineageId |
 | --- | --- |
-| `createMesocycle` (presets), `addSession`, import confirm (via `addSession`) | fresh (Prisma `@default(uuid())`) |
+| `createMesocycle` (presets), `addSession`, import confirm (via `addSession`) | fresh (database default `gen_random_uuid()`, RD-21) |
 | `duplicateSession` | fresh (pitch decision 8) |
 | `cloneMesocycle` | the source session's `lineageId` |
 
@@ -189,7 +189,7 @@ model Session {
   /// Durable identity of a recurring workout (Prescription-Aware Intelligence).
   /// Fresh on create and duplicate; copied from the source by cloneMesocycle.
   /// Immutable (trigger sessions_lineage_id_immutable). Not a foreign key.
-  lineageId   String   @default(uuid()) @map("lineage_id") @db.Uuid
+  lineageId   String   @default(dbgenerated("gen_random_uuid()")) @map("lineage_id") @db.Uuid  // RD-21 (was @default(uuid()), RD-3)
 
   @@unique([mesocycleId, lineageId])
   @@index([lineageId])
@@ -345,7 +345,7 @@ Plus: clone copies lineage and duplicate/addSession/createMesocycle/import mint 
 | --- | --- | --- | --- |
 | RD-1 | The pitch lives in `docs/pitches/mvp-5c-native-and-sharing/prescription-aware-intelligence/` with no number; the owner adds it to the roadmap and PRD and assigns its number. | No free number exists (39+ is Nutrition) and a run does not edit `docs/planning/`. Adding a feature contradicts nothing; it is an amendment. | CLAUDE.md (docs layout, run may not edit planning) |
 | RD-2 | Identity is `Session.lineageId` + performed exerciseId (+ gym for gym-variable). | Unique within a block because a session holds an exercise once (Pitch 3 D20); a `SessionExercise` identity is only needed if D20 is relaxed. | Pitch decision 1; schema |
-| RD-3 | `lineageId` uses Prisma `@default(uuid())` (no DB default), backfilled to `id`, NOT NULL, unique `(mesocycleId, lineageId)`, indexed, immutable by trigger, no FK. | Fresh values need no app code; the backfill is a self-reference; no FK means deleting a draft root session blocks nothing. | Pitch decision 1; Pitch 8 trigger precedent |
+| RD-3 | *(Default amended by RD-21.)* `lineageId` uses Prisma `@default(uuid())` (no DB default), backfilled to `id`, NOT NULL, unique `(mesocycleId, lineageId)`, indexed, immutable by trigger, no FK. | Fresh values need no app code; the backfill is a self-reference; no FK means deleting a draft root session blocks nothing. | Pitch decision 1; Pitch 8 trigger precedent |
 | RD-4 | Clone copies lineage; duplicate, add, presets, and import confirm mint fresh. | Pitch decision 1 and 8. | Pitch |
 | RD-5 | Compatibility = equal rep range + effective-target RIR rule (§6). Set count, name, weekday, order, notes ignored. | Pitch decisions 6 and 7; deterministic, no thresholds. | Pitch |
 | RD-6 | Segments are contiguous runs walked from the newest performance; deload-week and short performances stay in the run and are filtered by each consumer as today. | Pitch decision 5; the engine already excludes deload and short rows correctly. | Pitch; engine.ts |
@@ -363,6 +363,7 @@ Plus: clone copies lineage and duplicate/addSession/createMesocycle/import mint 
 | RD-18 | The progression read layer reads no `GymExerciseBaseline`: `currentWorkingWeightLbs`, `WorkingWeightOptions`, and `baselineWrittenBefore` are removed, and a static guard (`tests/unit/baseline-read-guard.test.ts`) allows the table only in the write path, export, and deletion. Existing tests that asserted the superseded baseline behavior (Faster Logging UX R27, Smarter & Explainable R34) were updated with the RD-9/RD-10 rationale; tests that seeded session-less history and asked Today about an unplanned exercise now seed a real planned session (`tests/integration/support/planned.ts`). | RD-9/RD-10 made the baseline read dead code; a guard keeps it from returning. Test changes follow superseded decisions, not convenience. | Pitch decisions 10 and 12 |
 | RD-19 | **Effect at release (review of #227):** the backfill gives every existing session its own lineage, so a block cloned BEFORE this release is not linked to its source block. In that block, each workout's first occurrence has no comparable history from the earlier block: an empty box, a "For reference" line, and no call until it has its own history. Later occurrences in the same block link normally. Blocks cloned after release link automatically. | Pitch decision 7 forbids guessing how existing blocks relate (by name, weekday, or position); there is no stored clone source to read. Stated in the runbook and owner notes so the change is expected. | Pitch decision 7 |
 | RD-20 | Review of #227: an occurrence's call (card, finish summary) uses the run ENDING AT that occurrence (`rowSegmentEndingAt`), so a later prescription change never empties a past workout's evidence and a workout logged late is judged on what came before it; the exercise page segments every gathered row in scope (not only rows with sets), like the card; `weightContext` is "trusted" whenever a comparable last time exists (bodyweight has no weight); Today reads an exercise's history once. | Consistency across surfaces (pitch decision 9) and the contract's own wording. | Pitch decision 9 |
+| RD-21 | **Amends RD-3 (owner decision, Option B, 2026-11-15; OVE-197):** `sessions.lineage_id` gets a database default, `gen_random_uuid()`, through the additive migration `9r_session_lineage_default`, and the Prisma field becomes `@default(dbgenerated("gen_random_uuid()"))`. Every writer that omits the field — the application released before this feature, a rolled-back deployment, and the current create, duplicate, preset and import paths — gets a fresh, independent lineage from the database; `cloneMesocycle` still supplies the source's lineage explicitly and keeps it. NOT NULL, the per-mesocycle unique index, and the immutability trigger are unchanged. | Without a default, the pre-feature application (which does not know the column) could not create a session between the Production migration and the new deployment, or after a code rollback. The owner chose to close that gap before release rather than rely on an emergency rollback statement. | Owner decision; CLAUDE.md (Production releases stay safe to roll back) |
 
 ## Open Questions
 
