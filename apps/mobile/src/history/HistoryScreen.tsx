@@ -24,6 +24,7 @@ import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { GroupedList, ListRow } from "../ui/GroupedList";
 import { SkeletonCard } from "../ui/Skeleton";
+import { LoadErrorState } from "../ui/LoadErrorState";
 import { StateView } from "../ui/StateView";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
@@ -164,15 +165,12 @@ export function HistoryScreen() {
       // A failed week never strands the lifter (review #3): retry it, or go
       // back to this week.
       return query.isError ? (
-        <StateView
-          icon="wifi.exclamationmark"
-          title={week ? "Couldn't load that week." : "Couldn't load History"}
-          message={failure?.message}
-          action={{
-            label: "Try again",
-            onPress: retry,
-            loading: query.isFetching,
-          }}
+        <LoadErrorState
+          error={failure}
+          subject={week ? "That week" : "History"}
+          request={week ? `GET /history?week=${week}` : "GET /history"}
+          onRetry={retry}
+          retrying={query.isFetching}
           secondaryAction={
             week
               ? { label: "Back to this week", onPress: () => setWeek(null) }

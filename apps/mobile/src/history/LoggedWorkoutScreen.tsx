@@ -7,7 +7,7 @@ import { longDateLabel } from "../today/date";
 import { Button } from "../ui/Button";
 import { GroupedList, ListRow } from "../ui/GroupedList";
 import { SkeletonCard } from "../ui/Skeleton";
-import { StateView } from "../ui/StateView";
+import { LoadErrorState } from "../ui/LoadErrorState";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
 import { setValueLabel } from "../workout/labels";
@@ -59,26 +59,18 @@ export function LoggedWorkoutScreen({
       >
         {!detail ? (
           query.isError ? (
-            query.error.code === "not_found" ? (
-              <StateView
-                title="This workout isn't available."
-                action={{
-                  label: "Back to History",
-                  onPress: () => router.back(),
-                }}
-              />
-            ) : (
-              <StateView
-                icon="wifi.exclamationmark"
-                title="Couldn't load this workout"
-                message={query.error.message}
-                action={{
-                  label: "Try again",
-                  onPress: () => void query.refetch(),
-                  loading: query.isFetching,
-                }}
-              />
-            )
+            <LoadErrorState
+              error={query.error}
+              subject="This workout"
+              request={`GET /history/${loggedSessionId}`}
+              byId
+              onRetry={() => void query.refetch()}
+              retrying={query.isFetching}
+              secondaryAction={{
+                label: "Back to History",
+                onPress: () => router.back(),
+              }}
+            />
           ) : (
             <SkeletonCard rows={4} />
           )

@@ -233,7 +233,7 @@ describe.each(["light", "dark"] as const)(
           <TodayView />
         </Providers>,
       );
-      expect(await screen.findByText("Couldn't load today")).toBeTruthy();
+      expect(await screen.findByText("Can't reach Overload")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
     });
   },
