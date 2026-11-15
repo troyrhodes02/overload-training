@@ -26,7 +26,9 @@ The demo seed creates two blocks ("Strength Block 1" and "Strength Block 2", wit
 
 ## 2. Checkpoint A — iOS Simulator, against a local API (before the merge)
 
-The new endpoints aren't on staging yet, so the simulator talks to a local web server on overload-dev. Only Metro development bundles honor the local origin.
+**Why a local API.** The 21e endpoints aren't on staging until this feature merges. A simulator talking to staging gets `404 not_found` for every workout and History request; that is what "Couldn't load History — There's nothing here." was at the first Checkpoint A (confirmed: `npx vercel curl <staging>/api/mobile/v1/history` returns exactly that body). Since OVE-203 the app says "History isn't available from this server" instead, with the request and code underneath in staging builds.
+
+**Run the right code.** The main checkout, on `feature/21e-workout-loop` (`git checkout feature/21e-workout-loop && git pull`). Both the web server and Metro serve this checkout.
 
 ```bash
 # Terminal 1 — the web app on overload-dev (from the repo root)
@@ -39,13 +41,44 @@ export STRIPE_BILLING_ENABLED=false PLAN_IMPORT_ENABLED=false \
   STRIPE_PRICE_ID_MONTHLY=placeholder STRIPE_PRICE_ID_ANNUAL=placeholder \
   OVERLOAD_SIGNUP_MODE=closed TURNSTILE_DISABLED=true
 npm run build && npx next start -p 3200
+# Check it: curl -s localhost:3200/api/mobile/v1/history -H 'x-overload-app-version: 0.1.0'
+# → {"error":{"code":"unauthorized",...}} (the route exists; a 404 means old code)
 
-# Terminal 2 — the app (from the repo root)
+# Terminal 2 — the app (from the repo root). Stop any running `expo run:ios` /
+# Metro first (Ctrl-C): EXPO_PUBLIC_* values are read when Metro starts.
 echo 'EXPO_PUBLIC_LOCAL_API_ORIGIN=http://localhost:3200' >> apps/mobile/.env.local
-npm run start -w @overload/mobile     # then open Overload Dev in the simulator → http://localhost:8081
+npx expo start --dev-client --clear --port 8081 --cwd apps/mobile   # or: cd apps/mobile && npx expo start --dev-client --clear
 ```
 
-Remove the `EXPO_PUBLIC_LOCAL_API_ORIGIN` line after Checkpoint A. More → Diagnostics shows the API host, so you can confirm which one you're on.
+In the simulator, open **Overload Dev** and connect to `http://localhost:8081`. **Confirm the API:** More → Diagnostics → **API** must read `localhost:3200`. If it shows the `overload-training-git-staging-…` host, Metro didn't pick up the variable: stop it and start again with `--clear`.
+
+**Hide the development tools button** (the floating gear): it is Expo's dev-build tool, not app UI. Shake (Device → Shake) → turn off "Show tools button", so it doesn't sit over the screens you're judging.
+
+**A throwaway account on a pending workout** (never the QA fixture or your own account). The demo seed always anchors "today" to Block 2, week 4, day 1, not yet logged, with no missed day and two gyms:
+
+```bash
+cd apps/web
+set -a; . ./.env.overload-dev; set +a
+HOME="$(mktemp -d)" npx tsx scripts/operator/provision-dev-test-user/cli.ts \
+  --confirm-ref vdxrmfadikwzodjljbdi --email 21e-check-1@example.com --username check21e1 --execute
+# It prints where the password was saved (inside that temporary HOME). Then seed, with the
+# user id from the sign-in (or from the provision output):
+npx tsx --require ./scripts/demo/server-only-shim.cjs scripts/demo/cli.ts \
+  --user-id <uuid> --confirm-ref vdxrmfadikwzodjljbdi --execute --confirm-user <uuid>
+```
+
+Use a new email each time you want a fresh pending day (`21e-check-2@…`). In the app: More → Sign out, then sign in with that account. Today shows **Upper A — Ready** and **Start workout**.
+
+**The loop, step by step**
+
+1. **Start:** Start workout → the action sheet "Where are you training?" (two demo gyms) → pick one → the workout opens on Barbell Bench Press.
+2. **Log a set:** the weight box already holds this workout's trusted weight with "last time" under it; type reps on the number pad; tap **Log set 1** (or the bar above the keypad). The row turns "Set 1 · … ✓"; set 2 offers the same weight.
+3. **Failed save and retry:** Ctrl-C terminal 1, type reps for the next set, Log set → "Couldn't save — Overload needs a connection. Your numbers are still here." Start the server again (`npx next start -p 3200`, no rebuild), tap Log set → it saves once.
+4. **Close and resume:** `xcrun simctl terminate booted app.overloadtraining.dev`, then open Overload Dev again (connect to Metro) → Today shows **Resume workout** with "N of 4 exercises logged" → Resume opens the first unfinished exercise with every saved set.
+5. **Finish:** go to the last exercise (Next), tap **Finish workout** → the alert lists what's unfinished → Finish workout → the summary.
+6. **History:** Done → History tab → this week shows Upper A **Done** → open it to see every set; ‹ reaches earlier weeks and **Earlier blocks** lists Strength Block 1.
+
+Remove the `EXPO_PUBLIC_LOCAL_API_ORIGIN` line after Checkpoint A.
 
 | # | Check | Expected |
 | --- | --- | --- |
