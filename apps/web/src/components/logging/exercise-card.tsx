@@ -18,7 +18,7 @@ import { RirPicker } from "@/components/logging/rir-picker";
 import type { ExerciseCardDto } from "@/lib/logging/queries";
 import {
   activeSetNumber,
-  formatPreviousPerformance,
+  formatCardContext,
   formatWeight,
   loggedRowLabel,
   offerCaption,
@@ -87,6 +87,8 @@ export function ExerciseCard({
   swapSlot,
   progression,
   workoutDateIso,
+  workoutName = "this workout",
+  scheduledDeloadWeek = false,
   focusOnMount = false,
   onPlannedSetsDone,
 }: {
@@ -98,6 +100,10 @@ export function ExerciseCard({
   progression?: CardProgression;
   /** The workout's date: the "Last time" line adds a year only when it differs. */
   workoutDateIso?: string;
+  /** Today's workout name, for "Nothing logged in {workout} …" (design Screen 1). */
+  workoutName?: string;
+  /** The workout falls in a scheduled-deload week. */
+  scheduledDeloadWeek?: boolean;
   /** True only when the lifter moved here with Next/Previous — never on page load. */
   focusOnMount?: boolean;
   /** Called once a confirmed set leaves nothing to log, so the runner can focus Next. */
@@ -259,11 +265,22 @@ export function ExerciseCard({
         ]
       : []),
   ];
-  const contextLine = formatPreviousPerformance({
+  // This recurring workout's last time, or — when it has none — what else
+  // exists, as reference only (Prescription-Aware Intelligence, Screen 1).
+  // The reference never sets the weight box.
+  const { line: contextLine, reference: referenceLine } = formatCardContext({
     previous: exercise.previousPerformance,
+    reference: exercise.referencePerformance,
+    workoutName,
+    plannedRepRange: exercise.plannedRepRange,
+    scheduledDeloadWeek,
     isGymVariable: exercise.isGymVariable,
     gymName: exercise.gymName,
-    referenceIso: workoutDateIso ?? exercise.previousPerformance?.dateIso ?? "",
+    referenceIso:
+      workoutDateIso ??
+      exercise.previousPerformance?.dateIso ??
+      exercise.referencePerformance?.dateIso ??
+      "",
   });
 
   function addExtraSet() {
@@ -382,12 +399,14 @@ export function ExerciseCard({
           ) : null}
         </div>
       </div>
-      <p
-        className="truncate text-sm tabular-nums text-muted-foreground"
-        title={contextLine}
-      >
+      <p className="text-sm tabular-nums text-muted-foreground">
         {contextLine}
       </p>
+      {referenceLine ? (
+        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          {referenceLine}
+        </p>
+      ) : null}
       {exercise.swapped ? (
         <p className="text-xs text-muted-foreground">
           Swapped from {exercise.plannedExerciseName}

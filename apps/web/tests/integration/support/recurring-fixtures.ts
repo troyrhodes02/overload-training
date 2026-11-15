@@ -33,31 +33,49 @@ export async function twoWorkoutBlock(
     name?: string;
     push?: { reps: [number, number]; sets?: number };
     upper?: { reps: [number, number]; sets?: number };
+    /** Use this (e.g. shared library) exercise instead of a new custom one. */
+    exercise?: { id: string; equipmentType: string };
+    /** Force a session lineage (test-only; the app never accepts one). */
+    lineage?: { push?: string; upper?: string };
   } = {},
 ) {
+  const userId = account.userId;
   const meso = await createActiveTestMesocycle({
+    userId,
     startDate: new Date(`${BLOCK_START}T00:00:00Z`),
     lengthWeeks: 5,
     deloadEveryWeeks: 5,
   });
-  const exercise = await createTestExercise({
-    name: opts.name ?? "Barbell Bench Press",
-    equipmentType: opts.equipmentType ?? "barbell",
-    primaryMuscle: "chest",
+  const exercise =
+    opts.exercise ??
+    (await createTestExercise({
+      userId,
+      name: opts.name ?? "Barbell Bench Press",
+      equipmentType: opts.equipmentType ?? "barbell",
+      primaryMuscle: "chest",
+    }));
+  const push = await createTestSession(meso.id, {
+    userId,
+    name: "Push",
+    dayOfWeek: 6,
+    ...(opts.lineage?.push ? { lineageId: opts.lineage.push } : {}),
   });
-  const push = await createTestSession(meso.id, { name: "Push", dayOfWeek: 6 });
   const upper = await createTestSession(meso.id, {
+    userId,
     name: "Upper",
     dayOfWeek: 3,
+    ...(opts.lineage?.upper ? { lineageId: opts.lineage.upper } : {}),
   });
   const p = opts.push ?? { reps: [3, 5] };
   const u = opts.upper ?? { reps: [6, 8] };
   await createTestSessionExercise(push.id, exercise.id, {
+    userId,
     plannedSets: p.sets ?? 3,
     targetRepMin: p.reps[0],
     targetRepMax: p.reps[1],
   });
   await createTestSessionExercise(upper.id, exercise.id, {
+    userId,
     plannedSets: u.sets ?? 3,
     targetRepMin: u.reps[0],
     targetRepMax: u.reps[1],
