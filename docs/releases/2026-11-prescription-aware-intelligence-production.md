@@ -1,7 +1,7 @@
 # Release record: Prescription-Aware Intelligence (to Production)
 
 **Release branch:** `release/prescription-aware-intelligence`, cut from `main` at `1551e46` (the 21d release).
-**Content:** one cherry-pick from `staging`: `cd393e3` (feature PR #227: tickets OVE-192..196, the review fixes #233, and the owner-ratified method-note amendments). Plus this record. Apart from this record, the release tree is byte-identical to `staging` at `cd393e3`, and `staging` immediately before the feature (`de2a178`) was byte-identical to `main`, so nothing else from `staging` is involved.
+**Content:** two cherry-picks from `staging`: `cd393e3` (feature PR #227: tickets OVE-192..196, the review fixes #233, and the owner-ratified method-note amendments) and `9055015` (OVE-197, #235: the database default for `lineage_id`, the owner's Option B). Plus this record. Apart from this record, the release tree is byte-identical to `staging` at `9055015`, and `staging` immediately before the feature (`de2a178`) was byte-identical to `main`, so nothing else from `staging` is involved.
 
 Nothing below has been done to Production. Every Production step is the owner's (CLAUDE.md: a Production migration is applied by a human from a runbook, with a backup taken immediately before; merging into `main` is a human step).
 
@@ -15,29 +15,34 @@ Nothing below has been done to Production. Every Production step is the owner's 
 - A significant release note, "Each workout remembers its own weights", dated 2026-11-15. If Production ships on a later day, re-date its `id` and `date` in `packages/shared/src/release-notes/entries.ts` before merging.
 - Mobile API: no new endpoint; `/today`'s shape is unchanged (its values are now per recurring workout). The card and history contracts gain additive fields only. No released app consumes them (no store build exists).
 
-## 2. Production migration
+## 2. Production migrations
 
-### Which one
+### Which ones
 
 | Migration | In `main` since | Applied to Production? | What it does |
 | --- | --- | --- | --- |
 | `9q_session_lineage` | this release | **no** | Adds `sessions.lineage_id uuid`, backfills every row to its own `id`, sets NOT NULL, adds the unique index `(mesocycle_id, lineage_id)`, an index on `lineage_id`, and the immutability trigger `sessions_lineage_id_immutable`. No other table is touched. |
+| `9r_session_lineage_default` | this release (OVE-197) | **no** | `ALTER COLUMN lineage_id SET DEFAULT gen_random_uuid()`. Metadata only: no row is touched. |
 
-`main`'s previous latest migration is `9p_mobile_api` (21c release). The run holds no Production credentials, so the read-only status check in step 4 decides: continue only if the pending list is exactly `9q_session_lineage`.
+`main`'s previous latest migration is `9p_mobile_api` (21c release). The run holds no Production credentials, so the read-only status check in step 4 decides: continue only if the pending list is exactly `9q_session_lineage` then `9r_session_lineage_default`. `prisma migrate deploy` applies both, in order, in one run.
 
 ### Compatibility with existing Production data
 
-Every existing session gets `lineage_id = id`, which is unique, so the per-mesocycle unique index and NOT NULL always succeed, whatever the data. Rehearsed on the legacy dataset (`tests/integration/session-lineage-migration.int.test.ts`) and applied to `overload-dev` on 2026-11-15 (18 sessions backfilled; logged-set counts and a checksum of every logged set unchanged).
+Every existing session gets `lineage_id = id`, which is unique, so the per-mesocycle unique index and NOT NULL always succeed, whatever the data. Rehearsed on the legacy dataset (`tests/integration/session-lineage-migration.int.test.ts`, both migrations) and applied to `overload-dev` on 2026-11-15 (18 sessions backfilled; logged-set counts and a checksum of every logged set unchanged by both migrations).
 
-### Compatibility with the code running in Production today (read this)
+### Compatibility with the code running in Production today
 
-`lineage_id` is NOT NULL with **no database default**: new values come from the new code's Prisma client (spec RD-3). The code deployed now (`1551e46`) does not know the column. So, between applying `9q` and the new deployment going live, and after any code rollback, **old code that creates a session fails** (`null value in column "lineage_id"`): adding or duplicating a session, creating or cloning a block, and confirming a plan import. Reads, logging, and everything else are unaffected, and no data is at risk.
+With `9r`, `lineage_id` has a database default. The code deployed now (`1551e46`) does not know the column and omits it when it creates a session; the database fills it with a fresh, independent lineage. Verified on `overload-dev` with an insert of exactly the old application's columns: it failed with `null value in column "lineage_id"` after `9q` alone, and succeeds after `9r` (both probes rolled back). So:
 
-Mitigation built into the runbook: apply the migration immediately before merging, at a quiet time, so the window is the Vercel build (a few minutes). The rollback section includes the one statement that restores old-code session creation.
+- Between applying the migrations and the new deployment going live, the old application keeps working normally, including creating, duplicating, and cloning sessions and confirming plan imports.
+- A code rollback to `1551e46` needs **no** database change.
+- Old-code reads are unaffected (Prisma selects only the columns it knows).
 
-### Order: migration first, then the code
+The new code also omits the field on create (its Prisma schema declares the same database default) and passes it explicitly only when cloning, so a clone keeps the recurring workout's lineage.
 
-The new code selects `sessions.lineage_id`; deploying it before `9q` would break every plan and logging read. So: **back up, apply `9q`, verify, then merge the release PR.**
+### Order: migrations first, then the code
+
+The new code selects `sessions.lineage_id`; deploying it before the migrations would break every plan and logging read. So: **back up, apply `9q` and `9r`, verify, then merge the release PR.** Because the old code keeps working on the migrated schema, there is no time pressure between the two steps.
 
 ## 3. Production migration runbook (owner-operated)
 
@@ -68,7 +73,7 @@ Run from a checkout of `release/prescription-aware-intelligence` with no `.env` 
    SELECT count(*) AS logged_sets, md5(string_agg(id::text||':'||coalesce(weight_lbs::text,'')||':'||reps::text||':'||coalesce(rir::text,''), ',' ORDER BY id)) AS sets_hash FROM logged_sets;
    SQL
    ```
-   Continue only if the pending list is exactly `9q_session_lineage`, the newest finished row is `9p_mobile_api`, nothing is failed or rolled back, and `lineage_id` does not exist yet. Note the session count and the `sets_hash`.
+   Continue only if the pending list is exactly `9q_session_lineage` then `9r_session_lineage_default`, the newest finished row is `9p_mobile_api`, nothing is failed or rolled back, and `lineage_id` does not exist yet. Note the session count and the `sets_hash`.
 5. **Apply.**
    ```bash
    npx prisma migrate deploy      # never migrate dev, db push, or migrate reset
@@ -77,7 +82,7 @@ Run from a checkout of `release/prescription-aware-intelligence` with no `.env` 
    ```bash
    npx prisma migrate status      # expect: Database schema is up to date!
    psql "$DIRECT_URL" <<'SQL'
-   SELECT is_nullable, data_type, column_default FROM information_schema.columns WHERE table_name='sessions' AND column_name='lineage_id';  -- NO | uuid | (null)
+   SELECT is_nullable, data_type, column_default FROM information_schema.columns WHERE table_name='sessions' AND column_name='lineage_id';  -- NO | uuid | gen_random_uuid()
    SELECT indexname FROM pg_indexes WHERE tablename='sessions' AND indexname LIKE '%lineage%';   -- the unique key and the index
    SELECT tgname FROM pg_trigger WHERE tgname='sessions_lineage_id_immutable';                    -- 1 row
    SELECT count(*) FILTER (WHERE lineage_id <> id) AS differs, count(*) AS sessions FROM sessions;  -- differs 0, sessions = step 4
@@ -86,7 +91,17 @@ Run from a checkout of `release/prescription-aware-intelligence` with no `.env` 
    SQL
    ```
 7. **Close the shell** (or `unset DIRECT_URL DATABASE_URL`).
-8. **Then immediately** merge the release PR into `main`. Vercel deploys Production.
+   Optional, the old application's insert (rolled back, writes nothing):
+   ```bash
+   psql "$DIRECT_URL" <<'SQL'
+   BEGIN;
+   INSERT INTO sessions (id, user_id, mesocycle_id, name, day_of_week, position, created_at, updated_at)
+     SELECT gen_random_uuid(), m.user_id, m.id, 'compat probe', NULL, 999, now(), now() FROM mesocycles m LIMIT 1
+     RETURNING lineage_id IS NOT NULL AS has_lineage;   -- t
+   ROLLBACK;
+   SQL
+   ```
+8. **Then** merge the release PR into `main`. Vercel deploys Production. (The old deployment keeps working in between.)
 
 ## 4. Production environment
 
@@ -103,14 +118,10 @@ No environment variable is added or changed. No provider, billing, or scheduled-
 
 ## 6. Rollback
 
-- **Code:** in Vercel, promote the previous Production deployment (`1551e46`), or revert the merge on `main` through a PR. Old code reads correctly on the migrated schema, but **creating a session fails** (§2) until you run, once:
-  ```sql
-  ALTER TABLE "sessions" ALTER COLUMN "lineage_id" SET DEFAULT gen_random_uuid();
-  ```
-  This only lets the old code insert sessions; the trigger still prevents any change to an existing lineage. Drop the default again (`ALTER TABLE "sessions" ALTER COLUMN "lineage_id" DROP DEFAULT;`) before re-releasing this feature.
-- **Schema** (only after a code rollback, and only if you want the column gone): drop the trigger, its function, the two indexes, and the column, then delete the `9q_session_lineage` row from `_prisma_migrations` (exact statements in the feature runbook §5). This loses the cross-block links of blocks cloned after the release; logged sets are untouched.
+- **Code:** in Vercel, promote the previous Production deployment (`1551e46`), or revert the merge on `main` through a PR. The old code runs correctly on the migrated schema, including creating sessions (§2); no database change is needed.
+- **Schema** (only after a code rollback, and only if you want the column gone — not needed for the old code to work): drop the trigger, its function, the two indexes, and the column, then delete the `9q_session_lineage` and `9r_session_lineage_default` rows from `_prisma_migrations` (statements in the feature runbook §5). This loses the cross-block links of blocks cloned after the release; logged sets are untouched.
 - **Last resort:** restore the step 1 backup. This loses anything written after it.
 
 ## 7. After the release
 
-Synchronize `main` back into `staging` with a normal merge commit through a PR, as after every release (for example #225). `staging` already has `9q` applied on `overload-dev`; the sync must not re-apply anything.
+Synchronize `main` back into `staging` with a normal merge commit through a PR, as after every release (for example #225). `staging` already has `9q` and `9r` applied on `overload-dev`; the sync must not re-apply anything.
