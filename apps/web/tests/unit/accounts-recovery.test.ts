@@ -240,7 +240,42 @@ describe("requestPasswordReset — identical outcome for every address (D7)", ()
       { email: "  Will@Example.com ", challengeToken: "t" },
       requestDeps(),
     );
-    expect(resetPasswordForEmail).toHaveBeenCalledWith("will@example.com");
+    expect(resetPasswordForEmail).toHaveBeenCalledWith("will@example.com", {
+      redirectTo: expect.stringMatching(/\/auth\/confirm$/),
+    });
+  });
+
+  // 21d staging QA: with no redirectTo, Supabase substitutes the bare Site URL
+  // and the link opens the landing page instead of the reset flow.
+  it("sends the link back to this deployment's /auth/confirm", async () => {
+    resetPasswordForEmail.mockResolvedValue({ error: null });
+    await requestPasswordReset(
+      { email: "will@example.com", challengeToken: "t" },
+      requestDeps({
+        redirectUrl: async () =>
+          "https://overload-training-git-staging-x.vercel.app/auth/confirm",
+      }),
+    );
+    expect(resetPasswordForEmail).toHaveBeenCalledWith("will@example.com", {
+      redirectTo:
+        "https://overload-training-git-staging-x.vercel.app/auth/confirm",
+    });
+  });
+
+  it("the destination never depends on the address (no enumeration)", async () => {
+    resetPasswordForEmail.mockResolvedValue({ error: null });
+    const redirectUrl = jest.fn(
+      async () => "https://a.vercel.app/auth/confirm",
+    );
+    for (const email of ["known@example.com", "nobody@example.com"]) {
+      await requestPasswordReset(
+        { email, challengeToken: "t" },
+        requestDeps({ redirectUrl }),
+      );
+    }
+    const options = resetPasswordForEmail.mock.calls.map((c) => c[1]);
+    expect(options[0]).toEqual(options[1]);
+    expect(redirectUrl.mock.calls.every((c) => c.length === 0)).toBe(true);
   });
 
   it("an unreachable auth service still yields the identical sent state", async () => {

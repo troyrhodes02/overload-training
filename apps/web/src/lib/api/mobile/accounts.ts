@@ -8,6 +8,7 @@ import {
   CHALLENGE_FAILED,
   TOO_MANY_ATTEMPTS,
 } from "@overload/shared/accounts/auth-errors";
+import { authConfirmUrl } from "@/lib/accounts/auth-redirect";
 import { requestFingerprint } from "@/lib/accounts/request-fingerprint";
 import {
   requestPasswordReset,
@@ -186,6 +187,9 @@ export async function mobileRequestPasswordReset(
         if (!auth) throw new Error("auth unconfigured");
         return auth as unknown as Awaited<ReturnType<RequestResetDeps["auth"]>>;
       },
+      // The link returns to /auth/confirm on the deployment the app called,
+      // so the reset completes on the web form (21d staging QA).
+      redirectUrl: async () => authConfirmUrl(headers),
     },
   );
   if (!result.ok) {

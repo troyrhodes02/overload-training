@@ -126,7 +126,14 @@ Native signup (`POST /api/mobile/v1/accounts`), the reset request (`POST /api/mo
 | D3 | Reset password | The identical "Check your email" text for a real and an unknown email. The real one gets the email; its link opens the **web** reset page |
 | D4 | Appearance | Dark, then Light, then System each stay, with no error. Sign out and back in: the last choice returns. The web shows it after a reload |
 
-**D4 is required after the merge.** Saving appearance could not be checked on a device before, because staging had no `PUT /api/mobile/v1/me/appearance`. With the QA account on the iPhone (the installed build already has the client; no new update is needed):
+**D3's link must open the web reset form (owner Supabase check, `overload-dev` only).** Since the recovery fix (RD-31) the app sends Supabase the reset destination, this deployment's `/auth/confirm`. Supabase → `overload-dev` → Authentication:
+
+1. **Emails → Reset Password.** The link's `href` must be exactly `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=recovery`, the same form as the Magic Link template. If it shows `{{ .ConfirmationURL }}` (Supabase's default), replace it. Keep the subject and text from the Pitch 18 design ("Reset your Overload password").
+2. **URL Configuration → Redirect URLs** includes `https://overload-training-git-staging-wtrhodes02-gmailcoms-projects.vercel.app/**`. Supabase silently swaps any destination not on this list for the Site URL, which is the home page.
+
+Don't change Production's template now: Production's code doesn't send a destination yet, so a `{{ .RedirectTo }}` link there would break its reset. It changes with the 21d release (the release runbook says when).
+
+ Saving appearance could not be checked on a device before, because staging had no `PUT /api/mobile/v1/me/appearance`. With the QA account on the iPhone (the installed build already has the client; no new update is needed):
 
 1. Open the app (Metro or the staging update), More → **Appearance**.
 2. Tap **Dark**. The app turns dark and stays dark, with no "Couldn't save your appearance".

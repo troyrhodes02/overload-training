@@ -43,6 +43,7 @@ Supabase → `overload-dev` → Authentication → URL Configuration:
 - **Site URL:** the staging URL above.
 - **Redirect URLs:** the same URL followed by `/**` only. Add no wildcard over `*.vercel.app` or the team slug. Auth links are built from the host the lifter is on, and Supabase's allow-list is the gate, so a single exact entry is enough and nothing else can receive an auth link. Add `http://localhost:3000/**` only if you test locally against `overload-dev`; local development normally uses the local stack.
 - Remove stale entries pointing at old feature-branch URLs.
+- **Email templates** (Authentication → Emails): **Reset Password** links to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery` and **Magic Link** to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink`. The app passes the destination (this deployment's `/auth/confirm`) with every recovery and verification request. Supabase's default `{{ .ConfirmationURL }}` lands on the home page instead.
 
 ## Vercel configuration
 

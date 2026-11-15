@@ -1,5 +1,6 @@
 import "server-only";
 import { DomainError, isUuid } from "@/lib/actions/result";
+import { requestAuthConfirmUrl } from "@/lib/accounts/auth-redirect";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { inAdminTx } from "./db";
 import { recordAudit } from "./audit";
@@ -52,7 +53,10 @@ export type RecoveryEmailSender = (email: string) => Promise<void>;
  */
 async function defaultSendRecoveryEmail(email: string): Promise<void> {
   const supabase = await createServerSupabase();
-  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  // Same destination as recovery.ts: this deployment's /auth/confirm.
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: await requestAuthConfirmUrl(),
+  });
   if (error) {
     throw new Error(
       `admin reset email not sent (${error.code ?? error.status ?? "unknown"})`,

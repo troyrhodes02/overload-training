@@ -33,8 +33,14 @@ import { SIGNUPS_PAUSED } from "@/lib/accounts/signup-messages";
 const USER = "00000000-0000-4000-8000-0000000000aa";
 const OPEN = { OVERLOAD_SIGNUP_MODE: "public", NODE_ENV: "test" };
 
+const STAGING_HOST = "overload-training-git-staging-x.vercel.app";
+
 function headers(ip = "203.0.113.7") {
-  return new Headers({ "x-forwarded-for": `${ip}, 10.0.0.1` });
+  return new Headers({
+    "x-forwarded-for": `${ip}, 10.0.0.1`,
+    "x-forwarded-host": STAGING_HOST,
+    "x-forwarded-proto": "https",
+  });
 }
 
 const body = (over: Record<string, unknown> = {}) => ({
@@ -349,8 +355,11 @@ describe("mobileRequestPasswordReset keeps the web's non-enumeration rule", () =
       ),
     ];
     for (const a of answers) expect(a).toEqual({ sent: true });
+    // The link returns to the reset flow on the deployment the app called
+    // (21d staging QA: it had opened the landing page).
     expect(known.auth.resetPasswordForEmail).toHaveBeenCalledWith(
       "a@example.com",
+      { redirectTo: `https://${STAGING_HOST}/auth/confirm` },
     );
     expect(throttled.auth.resetPasswordForEmail).not.toHaveBeenCalled();
     expect(known.keys).toEqual(["ip:203.0.113.7"]);
