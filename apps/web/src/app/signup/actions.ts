@@ -1,27 +1,9 @@
 "use server";
 
 import { headers } from "next/headers";
+import { requestFingerprint } from "@/lib/accounts/request-fingerprint";
 import { redirect } from "next/navigation";
 import { signUp, type SignUpField } from "@/lib/accounts/signup";
-
-/**
- * A coarse request fingerprint for the signup rate limiter (PA2, §9/R4). The
- * first client IP from the standard proxy headers, else a stable fallback from
- * the user-agent and language so a header-stripped request still gets limited
- * (and never evades the throttle by omitting the IP). It is NEVER the email, so
- * a rate-limit decision reveals no membership; the throttle SHA-256-hashes it
- * before it touches the database.
- */
-async function requestFingerprint(): Promise<string> {
-  const h = await headers();
-  const forwarded = h.get("x-forwarded-for");
-  const ip =
-    forwarded?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || "";
-  if (ip) return `ip:${ip}`;
-  const ua = h.get("user-agent")?.trim() ?? "";
-  const lang = h.get("accept-language")?.trim() ?? "";
-  return `ua:${ua}|${lang}`;
-}
 
 export type SignUpState = {
   status: "idle" | "error" | "closed";
@@ -69,7 +51,7 @@ export async function signUpAction(
     timeZone: get("timeZone"),
     inviteCode: get("inviteCode"),
     challengeToken: get("challengeToken"),
-    throttleKey: await requestFingerprint(),
+    throttleKey: requestFingerprint(await headers()),
   });
   if (outcome.kind === "created") redirect("/");
 

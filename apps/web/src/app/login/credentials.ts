@@ -1,5 +1,3 @@
-import { classifySignInError } from "@overload/shared/accounts/auth-errors";
-
 /** Pure input parsing for the login form, unit-testable without Supabase. */
 export type ParsedCredentials =
   | { ok: true; email: string; password: string }
@@ -14,23 +12,11 @@ export function parseCredentials(formData: FormData): ParsedCredentials {
   return { ok: true, email, password };
 }
 
-export const WRONG_CREDENTIALS = "Wrong email or password.";
-export const TOO_MANY_ATTEMPTS =
-  "Too many attempts. Wait a minute and try again.";
-export const SIGN_IN_UNAVAILABLE =
-  "Couldn't sign in. Check your connection and try again.";
-
-/**
- * The one message per failure class (Accounts design doc Screen 1). An unknown
- * email and a wrong password are the same message, so login never reveals
- * whether an address has an account. Supabase internals never reach the page.
- */
-export function signInErrorMessage(error: {
-  code?: string;
-  status?: number;
-}): string {
-  const kind = classifySignInError(error);
-  if (kind === "rate_limited") return TOO_MANY_ATTEMPTS;
-  if (kind === "wrong") return WRONG_CREDENTIALS;
-  return SIGN_IN_UNAVAILABLE;
-}
+// The refusal messages and their classification live in the shared package
+// (Pitch 21d RD-21), so the iPhone app shows the same words. Unchanged text.
+export {
+  SIGN_IN_UNAVAILABLE,
+  signInErrorMessage,
+  TOO_MANY_ATTEMPTS,
+  WRONG_CREDENTIALS,
+} from "@overload/shared/accounts/auth-errors";
