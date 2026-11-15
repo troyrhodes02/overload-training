@@ -21,9 +21,15 @@ import { POST as startRoute } from "@/app/api/mobile/v1/workouts/route";
 import { GET as workoutRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/route";
 import { POST as completeRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/complete/route";
 import { PUT as setRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]/route";
+import { GET as historyWeekRoute } from "@/app/api/mobile/v1/history/route";
+import { GET as historyWorkoutRoute } from "@/app/api/mobile/v1/history/[loggedSessionId]/route";
 import { cloneMesocycle } from "@/lib/plan/mesocycles";
+import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type { ExerciseCardDto } from "@overload/shared/contracts/logging";
-import type { WorkoutViewDto } from "@overload/shared/contracts/views";
+import type {
+  LoggedWorkoutDetailViewDto,
+  WorkoutViewDto,
+} from "@overload/shared/contracts/views";
 import { createTestAccount } from "./support/accounts";
 import { getTestPrisma } from "./support/db";
 import {
@@ -48,6 +54,7 @@ async function call(
     json?: unknown;
     rawBody?: string;
     params?: Record<string, string>;
+    query?: string;
   } = {},
 ) {
   const headers = new Headers({
@@ -59,11 +66,14 @@ async function call(
     (opts.json === undefined ? undefined : JSON.stringify(opts.json));
   if (body !== undefined) headers.set("content-type", "application/json");
   const res = await (handler as Handler)(
-    new Request("http://localhost/api/mobile/v1/x", {
-      method: opts.method ?? (body === undefined ? "GET" : "POST"),
-      headers,
-      body,
-    }),
+    new Request(
+      `http://localhost/api/mobile/v1/x${opts.query ? `?${opts.query}` : ""}`,
+      {
+        method: opts.method ?? (body === undefined ? "GET" : "POST"),
+        headers,
+        body,
+      },
+    ),
     { params: Promise.resolve(opts.params ?? {}) as Promise<never> },
   );
   const text = await res.text();
@@ -478,5 +488,84 @@ describe("Prescription-Aware weight context, as the phone receives it", () => {
       3,
       { min: 6, max: 8 },
     ]);
+  });
+});
+
+describe("all-time history through the API (E5, E6)", () => {
+  it("reaches a week two blocks back, keeps archived exercises, and stops at the first week", async () => {
+    const b = await twoWorkoutBlock(account);
+    const first = await logWorkout(account, {
+      sessionId: b.upper.id,
+      date: WED[0],
+      gymId: b.gym.id,
+      exerciseId: b.exercise.id,
+      sets: volume,
+    });
+    await db().mesocycle.update({
+      where: { id: b.meso.id },
+      data: { lengthWeeks: 2, deloadEveryWeeks: 2 },
+    });
+    let source = b.meso.id;
+    for (const startDate of ["2026-10-19", "2026-11-02"]) {
+      const { id } = await cloneMesocycle(account, {
+        sourceMesocycleId: source,
+        name: `Block from ${startDate}`,
+        startDate,
+        lengthWeeks: "2",
+        deloadEveryWeeks: "2",
+      });
+      await db().mesocycle.updateMany({
+        where: { userId: account.userId, status: "active" },
+        data: { status: "archived" },
+      });
+      await db().mesocycle.update({
+        where: { id },
+        data: { status: "active" },
+      });
+      source = id;
+    }
+    // The lift is archived after it was logged: history keeps it.
+    await db().exercise.update({
+      where: { id: b.exercise.id },
+      data: { deletedAt: new Date() },
+    });
+
+    const week = await call(historyWeekRoute, account, {
+      query: `week=${WED[0]}`,
+    });
+    expect(week.status).toBe(200);
+    const dto = week.body as HistoryWeekDto;
+    expect(dto.weekStart).toBe("2026-10-05");
+    expect(dto.prevWeekStart).toBeNull();
+    expect(dto.view.kind).toBe("logged");
+    if (dto.view.kind !== "logged") throw new Error("unreachable");
+    const workouts = dto.view.days.flatMap((d) => d.workouts);
+    expect(
+      workouts.map((w) => [w.loggedSessionId, w.sessionName, w.state]),
+    ).toEqual([[first.loggedSessionId, "Upper", "complete"]]);
+    expect(dto.earlierBlocks.map((e) => e.mesocycleId)).toContain(b.meso.id);
+
+    const detail = await call(historyWorkoutRoute, account, {
+      params: { loggedSessionId: first.loggedSessionId },
+    });
+    expect(detail.status).toBe(200);
+    const [exercise] = (detail.body as LoggedWorkoutDetailViewDto).detail
+      .exercises;
+    expect(exercise).toMatchObject({
+      performedName: "Barbell Bench Press",
+      archived: true,
+      skipped: false,
+    });
+    expect(exercise.sets.map((s) => [s.weightLbs, s.reps])).toEqual([
+      [230, 8],
+      [230, 7],
+      [230, 7],
+    ]);
+  });
+
+  it("an account with nothing logged and no plan has an empty history", async () => {
+    const r = await call(historyWeekRoute, account);
+    expect(r.status).toBe(200);
+    expect((r.body as HistoryWeekDto).hasAnyHistory).toBe(false);
   });
 });

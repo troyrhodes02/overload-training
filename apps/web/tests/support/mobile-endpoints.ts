@@ -46,6 +46,12 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]",
     auth: "account",
   },
+  { method: "GET", route: "api/mobile/v1/history", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/history/[loggedSessionId]",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,

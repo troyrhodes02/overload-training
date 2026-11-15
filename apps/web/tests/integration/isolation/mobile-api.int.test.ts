@@ -82,6 +82,9 @@ import { PUT as putAppearance } from "@/app/api/mobile/v1/me/appearance/route";
 import { POST as startWorkoutRoute } from "@/app/api/mobile/v1/workouts/route";
 import { GET as getWorkoutRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/route";
 import { POST as completeWorkoutRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/complete/route";
+import { GET as historyWeekRoute } from "@/app/api/mobile/v1/history/route";
+import { GET as historyWorkoutRoute } from "@/app/api/mobile/v1/history/[loggedSessionId]/route";
+import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import { PUT as putSetRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]/route";
 import { createGoal } from "@/lib/goals/goals";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
@@ -92,6 +95,7 @@ import {
 import { addDays } from "@overload/shared/plan/calendar";
 import type {
   LoggedSetDto,
+  LoggedWorkoutDetailViewDto,
   TodayDto,
   WorkoutViewDto,
 } from "@overload/shared/contracts/views";
@@ -137,6 +141,8 @@ type CallInit = {
   ip?: string;
   /** Dynamic route segments (Pitch 21e). */
   params?: Record<string, string>;
+  /** A query string without the "?" (Pitch 21e). */
+  query?: string;
 };
 
 async function call(
@@ -151,11 +157,14 @@ async function call(
   const hasBody = opts.json !== undefined;
   if (hasBody) headers.set("content-type", "application/json");
   const res = await handler(
-    new Request("http://localhost/api/mobile/v1/x", {
-      method: opts.method ?? (hasBody ? "POST" : "GET"),
-      headers,
-      body: hasBody ? JSON.stringify(opts.json) : undefined,
-    }),
+    new Request(
+      `http://localhost/api/mobile/v1/x${opts.query ? `?${opts.query}` : ""}`,
+      {
+        method: opts.method ?? (hasBody ? "POST" : "GET"),
+        headers,
+        body: hasBody ? JSON.stringify(opts.json) : undefined,
+      },
+    ),
     { params: Promise.resolve(opts.params ?? {}) } as {
       params: Promise<never>;
     },
@@ -357,6 +366,108 @@ const loggedSessionCount = (userId: string) =>
 
 /** Pitch 21e: the workout endpoints (spec §11, isolation cases E1–E4). */
 const WORKOUT_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/history": () => {
+    accountEndpointMatrix("GET /history", historyWeekRoute as Handler);
+    describe("GET /history: isolation", () => {
+      it("B sees none of A's weeks, even on A's dates", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const weeks = [
+          undefined,
+          `week=${addDays(todayIso(), -7)}`,
+          `week=${addDays(todayIso(), -14)}`,
+        ];
+        for (const query of weeks) {
+          const r = await call(historyWeekRoute as Handler, {
+            token: tokenFor(b.userId),
+            query,
+          });
+          expect(r.status).toBe(200);
+          const week = r.body as HistoryWeekDto;
+          expect(week.hasAnyHistory).toBe(false);
+          expect(week.earlierBlocks).toEqual([]);
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+        }
+      });
+
+      it("A reaches its own earlier weeks", async () => {
+        const { a } = await twoAccounts(lib);
+        const r = await call(historyWeekRoute as Handler, {
+          token: tokenFor(a.userId),
+          query: `week=${addDays(todayIso(), -14)}`,
+        });
+        const week = r.body as HistoryWeekDto;
+        expect(week.hasAnyHistory).toBe(true);
+        expect(r.text).toContain("Alpha Push");
+      });
+    });
+  },
+
+  "GET api/mobile/v1/history/[loggedSessionId]": () => {
+    accountEndpointMatrix(
+      "GET /history/{id}",
+      historyWorkoutRoute as Handler,
+      { params: { loggedSessionId: randomUUID() } },
+      404,
+    );
+    describe("GET /history/{id}: isolation and gating", () => {
+      it("another account's logged workout is a 404, like a missing one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const done = await getTestPrisma().loggedSession.findFirstOrThrow({
+          where: { userId: a.userId, status: "complete" },
+        });
+        const missing = await call(historyWorkoutRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { loggedSessionId: randomUUID() },
+        });
+        const r = await call(historyWorkoutRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { loggedSessionId: done.id },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        expect(r.status).toBe(404);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+      });
+
+      it("A reads its own sets; a Free account's summary is locked", async () => {
+        const { a } = await twoAccounts(lib);
+        // The later finished workout: the first gives it a call to make.
+        const done = await getTestPrisma().loggedSession.findFirstOrThrow({
+          where: { userId: a.userId, status: "complete" },
+          orderBy: { scheduledFor: "desc" },
+        });
+        const read = async () =>
+          (
+            await call(historyWorkoutRoute as Handler, {
+              token: tokenFor(a.userId),
+              params: { loggedSessionId: done.id },
+            })
+          ).body as LoggedWorkoutDetailViewDto;
+        const pro = await read();
+        expect(pro.detail.loggedSessionId).toBe(done.id);
+        expect(pro.detail.exercises.every((e) => e.sets.length > 0)).toBe(true);
+        expect(pro.summary?.locked ?? null).toBeNull();
+        await getTestPrisma().entitlement.deleteMany({
+          where: { userId: a.userId },
+        });
+        const free = await read();
+        expect(free.detail).toEqual(pro.detail);
+        // The gate's own rule: nothing Pro on a Free account, and `locked`
+        // names the capability whenever the Pro summary held a call.
+        for (const e of free.summary?.exercises ?? []) {
+          expect(e.tag).toBeNull();
+          expect(e.recommendation).toBeNull();
+        }
+        const proHadCalls = (pro.summary?.exercises ?? []).some(
+          (e) => e.tag !== null || e.recommendation !== null,
+        );
+        expect(proHadCalls).toBe(true);
+        expect(free.summary?.locked).toBe("progression_insights");
+      });
+    });
+  },
+
   "POST api/mobile/v1/workouts": () => {
     accountEndpointMatrix(
       "POST /workouts",

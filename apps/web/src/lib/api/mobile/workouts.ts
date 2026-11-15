@@ -6,12 +6,19 @@ import {
   logSetAndReconcile,
 } from "@/lib/logging/workflows";
 import { getWorkoutView } from "@/lib/views/workout";
+import { getHistoryWeek } from "@/lib/logging/history-week";
+import { getLoggedWorkoutDetail } from "@/lib/logging/queries";
+import { getSessionProgressionSummary } from "@/lib/progression/queries";
+import { getSessionGoalSummary } from "@/lib/goals/queries";
+import { resolveRequestEntitlement } from "@/lib/entitlements/resolve";
 import type {
   CompleteWorkoutResponseDto,
   StartWorkoutResponseDto,
 } from "@overload/shared/contracts/logging";
+import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
   LoggedSetDto,
+  LoggedWorkoutDetailViewDto,
   WorkoutViewDto,
 } from "@overload/shared/contracts/views";
 import { ApiFailure } from "./errors";
@@ -101,4 +108,32 @@ export async function completeWorkoutFromRequest(
 ): Promise<CompleteWorkoutResponseDto> {
   await completeWorkoutAndReconcile(account, { loggedSessionId });
   return { loggedSessionId, status: "complete" };
+}
+
+/** E5 `GET /history?week=`: one week of all-time history. */
+export async function readHistoryWeek(
+  account: Account,
+  week: string | null,
+): Promise<HistoryWeekDto> {
+  return getHistoryWeek(account, week);
+}
+
+/**
+ * E6 `GET /history/{loggedSessionId}`: one logged workout as recorded, with
+ * its gated summary (locked for Free) and the goals it moved.
+ */
+export async function readLoggedWorkout(
+  account: Account,
+  loggedSessionId: string,
+): Promise<LoggedWorkoutDetailViewDto> {
+  const detail = await getLoggedWorkoutDetail(account, loggedSessionId);
+  if (!detail) throw new ApiFailure("not_found", WORKOUT_NOT_FOUND);
+  const entitlement = await resolveRequestEntitlement(account);
+  const [summary, goals] = await Promise.all([
+    getSessionProgressionSummary(account, detail.loggedSessionId, {
+      entitlement,
+    }),
+    getSessionGoalSummary(account, detail.loggedSessionId),
+  ]);
+  return { detail, summary, goals };
 }
