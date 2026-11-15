@@ -233,12 +233,28 @@ describe("moving through all-time history", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Previous week" }),
     );
-    expect(await screen.findByText("Couldn't load that week.")).toBeTruthy();
+    expect(await screen.findByText("Can't reach Overload")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
     await fireEvent.press(
       screen.getByRole("button", { name: "Back to this week" }),
     );
     expect(await screen.findByText("Nov 9 – 15")).toBeTruthy();
+  });
+
+  it("a server without the History route says so, never 'There's nothing here.' (OVE-203)", async () => {
+    serve({
+      "/history": new ApiError("not_found", "There's nothing here.", 404),
+    });
+    await render(
+      <Providers>
+        <HistoryScreen />
+      </Providers>,
+    );
+    expect(
+      await screen.findByText("History isn't available from this server"),
+    ).toBeTruthy();
+    expect(screen.queryByText("There's nothing here.")).toBeNull();
+    expect(screen.queryByText("No workouts yet.")).toBeNull();
   });
 
   it("an account with nothing logged sees the empty state", async () => {

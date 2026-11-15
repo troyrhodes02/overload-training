@@ -9,6 +9,7 @@ import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { haptic } from "../ui/haptics";
 import { SkeletonCard } from "../ui/Skeleton";
+import { LoadErrorState } from "../ui/LoadErrorState";
 import { StateView } from "../ui/StateView";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
@@ -84,23 +85,14 @@ export function WorkoutScreen({
     return (
       <Frame>
         {query.isError ? (
-          <StateView
-            icon="wifi.exclamationmark"
-            title={
-              query.error.code === "not_found"
-                ? "This workout isn't available."
-                : "Couldn't load this workout"
-            }
-            message={query.error.message}
-            action={
-              query.error.code === "not_found"
-                ? { label: "Back", onPress: () => router.back() }
-                : {
-                    label: "Try again",
-                    onPress: () => void query.refetch(),
-                    loading: query.isFetching,
-                  }
-            }
+          <LoadErrorState
+            error={query.error}
+            subject="This workout"
+            request={`GET /workouts/${loggedSessionId}`}
+            byId
+            onRetry={() => void query.refetch()}
+            retrying={query.isFetching}
+            secondaryAction={{ label: "Back", onPress: () => router.back() }}
           />
         ) : (
           <SkeletonCard rows={5} />

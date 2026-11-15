@@ -15,6 +15,7 @@ import { webOrigin } from "../config/env";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { SkeletonCard } from "../ui/Skeleton";
+import { LoadErrorState } from "../ui/LoadErrorState";
 import { StateView } from "../ui/StateView";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
@@ -46,15 +47,12 @@ export function TodayView() {
     }
     if (today.isError) {
       return (
-        <StateView
-          icon="wifi.exclamationmark"
-          title="Couldn't load today"
-          message={today.error.message}
-          action={{
-            label: "Try again",
-            onPress: () => void today.refetch(),
-            loading: today.isFetching,
-          }}
+        <LoadErrorState
+          error={today.error}
+          subject="Today"
+          request="GET /today"
+          onRetry={() => void today.refetch()}
+          retrying={today.isFetching}
         />
       );
     }

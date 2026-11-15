@@ -6,7 +6,7 @@ import { longDateLabel } from "../today/date";
 import { Button } from "../ui/Button";
 import { GroupedList, ListRow } from "../ui/GroupedList";
 import { SkeletonCard } from "../ui/Skeleton";
-import { StateView } from "../ui/StateView";
+import { LoadErrorState } from "../ui/LoadErrorState";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
@@ -86,13 +86,13 @@ export function SummaryScreen({
             ))}
           </GroupedList>
         ) : query.isError ? (
-          <StateView
-            title="Couldn't load the details. Your workout is saved."
-            action={{
-              label: "Try again",
-              onPress: () => void query.refetch(),
-              loading: query.isFetching,
-            }}
+          <LoadErrorState
+            error={query.error}
+            subject="The details"
+            request={`GET /history/${loggedSessionId}`}
+            byId
+            onRetry={() => void query.refetch()}
+            retrying={query.isFetching}
           />
         ) : (
           <SkeletonCard rows={4} />
