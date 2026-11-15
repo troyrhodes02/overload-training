@@ -47,7 +47,7 @@ npm run build && npx next start -p 3200
 # Terminal 2 — the app (from the repo root). Stop any running `expo run:ios` /
 # Metro first (Ctrl-C): EXPO_PUBLIC_* values are read when Metro starts.
 echo 'EXPO_PUBLIC_LOCAL_API_ORIGIN=http://localhost:3200' >> apps/mobile/.env.local
-npx expo start --dev-client --clear --port 8081 --cwd apps/mobile   # or: cd apps/mobile && npx expo start --dev-client --clear
+cd apps/mobile && npx expo start --dev-client --clear
 ```
 
 In the simulator, open **Overload Dev** and connect to `http://localhost:8081`. **Confirm the API:** More → Diagnostics → **API** must read `localhost:3200`. If it shows the `overload-training-git-staging-…` host, Metro didn't pick up the variable: stop it and start again with `--clear`.
