@@ -69,7 +69,12 @@ export async function readWorkout(
   account: Account,
   loggedSessionId: string,
 ): Promise<WorkoutViewDto> {
-  const view = await getWorkoutView(account, loggedSessionId);
+  // A finished workout's cards need no calls (the app shows it as finished
+  // and its calls live in the history summary), so they aren't computed
+  // (review #5); an in-progress workout's stay as the contract defines them.
+  const view = await getWorkoutView(account, loggedSessionId, {
+    skipProgressionWhenComplete: true,
+  });
   if (!view) throw new ApiFailure("not_found", WORKOUT_NOT_FOUND);
   return view;
 }
@@ -126,9 +131,12 @@ export async function readLoggedWorkout(
   account: Account,
   loggedSessionId: string,
 ): Promise<LoggedWorkoutDetailViewDto> {
-  const detail = await getLoggedWorkoutDetail(account, loggedSessionId);
+  // The detail and the entitlement don't depend on each other (review #7).
+  const [detail, entitlement] = await Promise.all([
+    getLoggedWorkoutDetail(account, loggedSessionId),
+    resolveRequestEntitlement(account),
+  ]);
   if (!detail) throw new ApiFailure("not_found", WORKOUT_NOT_FOUND);
-  const entitlement = await resolveRequestEntitlement(account);
   const [summary, goals] = await Promise.all([
     getSessionProgressionSummary(account, detail.loggedSessionId, {
       entitlement,

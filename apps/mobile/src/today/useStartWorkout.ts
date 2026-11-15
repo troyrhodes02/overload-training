@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActionSheetIOS } from "react-native";
 import { router } from "expo-router";
 import type { DashboardTodayDto } from "@overload/shared/contracts/logging";
@@ -54,11 +54,19 @@ export function useStartOrResume(
   const fetchGyms = useFetchGyms();
   const start = useStartWorkout();
   const [state, setState] = useState<StartState>({ kind: "idle" });
+  // A synchronous guard (review #4): a second tap before the re-render can
+  // neither start twice nor push the workout twice.
+  const busy = useRef(false);
 
   async function run(day: DashboardTodayDto) {
-    if (state.kind === "busy") return;
+    if (busy.current) return;
+    busy.current = true;
     if (day.loggedSessionId) {
       router.push(workoutHref(day.loggedSessionId));
+      // Long enough to cover a double tap while the screen pushes.
+      setTimeout(() => {
+        busy.current = false;
+      }, 800);
       return;
     }
     setState({ kind: "busy" });
@@ -88,6 +96,8 @@ export function useStartOrResume(
             ? error.message
             : "Couldn't start the workout. Nothing was changed.",
       });
+    } finally {
+      busy.current = false;
     }
   }
 

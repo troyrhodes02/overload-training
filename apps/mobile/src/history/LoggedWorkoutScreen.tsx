@@ -1,9 +1,7 @@
 import { Linking, ScrollView, View } from "react-native";
 import { Stack, router } from "expo-router";
-import { formatWeight } from "@overload/shared/logging/set-entry";
-import { rirSuffix } from "@overload/shared/logging/rir";
 import type { LoggedWorkoutDetailDto } from "@overload/shared/contracts/logging";
-import { useLoggedWorkout } from "../api/training";
+import { useLoggedWorkout, useWorkout } from "../api/training";
 import { webOrigin } from "../config/env";
 import { longDateLabel } from "../today/date";
 import { Button } from "../ui/Button";
@@ -12,19 +10,8 @@ import { SkeletonCard } from "../ui/Skeleton";
 import { StateView } from "../ui/StateView";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
+import { setValueLabel } from "../workout/labels";
 import { workoutHref } from "../workout/routes";
-
-type DetailSet = LoggedWorkoutDetailDto["exercises"][number]["sets"][number];
-
-/** "255 lbs × 5 · 2 RIR · extra", or "12 reps" for bodyweight. */
-export function setValueLabel(s: DetailSet): string {
-  const value =
-    s.weightLbs === null
-      ? `${s.reps} reps`
-      : `${formatWeight(s.weightLbs)} lbs × ${s.reps}`;
-  const rir = rirSuffix(s.rir);
-  return `${value}${rir ? ` ${rir}` : ""}${s.extra ? " · extra" : ""}`;
-}
 
 /** The section header: the performed name, and what changed about it. */
 export function exerciseHeader(
@@ -49,11 +36,16 @@ export function LoggedWorkoutScreen({
   inProgress,
 }: {
   loggedSessionId: string;
-  /** From the History row; only decides whether Resume is offered. */
+  /** From the History row: only whether to ask the server for the status. */
   inProgress: boolean;
 }) {
   const { colors, spacing } = useTheme();
   const query = useLoggedWorkout(loggedSessionId);
+  // The History row only says to ASK: whether it is still in progress is the
+  // server's answer (review #2), so a workout finished since never offers
+  // Resume.
+  const status = useWorkout(loggedSessionId, { enabled: inProgress });
+  const resumable = status.data?.workout.status === "in_progress";
   const detail = query.data?.detail;
   const origin = webOrigin();
 
@@ -98,13 +90,13 @@ export function LoggedWorkoutScreen({
                   .filter(Boolean)
                   .join(" · ")}
               </Text>
-              {inProgress ? (
+              {resumable ? (
                 <Text size="sm" weight="medium">
                   In progress
                 </Text>
               ) : null}
             </View>
-            {inProgress ? (
+            {resumable ? (
               <Button
                 label="Resume workout"
                 onPress={() => router.push(workoutHref(loggedSessionId))}

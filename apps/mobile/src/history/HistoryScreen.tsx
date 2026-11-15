@@ -15,7 +15,11 @@ import type {
   WeekDayDto,
   WeekDayState,
 } from "@overload/shared/contracts/logging";
-import { useHistoryWeek } from "../api/training";
+import {
+  TRAINING_KEYS,
+  useHistoryWeek,
+  useRefetchWhenFocused,
+} from "../api/training";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { GroupedList, ListRow } from "../ui/GroupedList";
@@ -150,20 +154,30 @@ export function HistoryScreen() {
   const { colors, spacing } = useTheme();
   const [week, setWeek] = useState<string | null>(null);
   const query = useHistoryWeek(week);
+  useRefetchWhenFocused(TRAINING_KEYS.historyWeek(week));
   const data = query.data;
+  const failure = query.error;
+  const retry = () => void query.refetch();
 
   const body = (() => {
     if (!data) {
+      // A failed week never strands the lifter (review #3): retry it, or go
+      // back to this week.
       return query.isError ? (
         <StateView
           icon="wifi.exclamationmark"
-          title="Couldn't load History"
-          message={query.error.message}
+          title={week ? "Couldn't load that week." : "Couldn't load History"}
+          message={failure?.message}
           action={{
             label: "Try again",
-            onPress: () => void query.refetch(),
+            onPress: retry,
             loading: query.isFetching,
           }}
+          secondaryAction={
+            week
+              ? { label: "Back to this week", onPress: () => setWeek(null) }
+              : undefined
+          }
         />
       ) : (
         <SkeletonCard rows={5} />
@@ -179,7 +193,9 @@ export function HistoryScreen() {
       );
     }
     const rows = historyRows(data);
-    const moving = query.isPlaceholderData;
+    // Moving to another week: the shown week stays, dimmed, until the new
+    // one arrives (a failure falls through to the state above).
+    const moving = query.isPlaceholderData && query.isFetching;
     return (
       <View style={{ gap: spacing.xl }}>
         <WeekHeader
@@ -189,7 +205,7 @@ export function HistoryScreen() {
           onMove={(to) => setWeek(to === data.thisWeekStart ? null : to)}
         />
         {query.isError ? (
-          <Banner message="Couldn't load this week. Pull to try again." />
+          <Banner message="Couldn't refresh this week. Pull to try again." />
         ) : null}
         <View style={{ opacity: moving ? 0.5 : 1 }}>
           {rows.length === 0 ? (

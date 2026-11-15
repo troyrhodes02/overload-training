@@ -35,6 +35,7 @@ jest.mock("expo-router", () => ({
     return mockRouter;
   },
   useLocalSearchParams: () => ({}),
+  useFocusEffect: () => {},
 }));
 
 const day = (over: Partial<DashboardTodayDto> = {}): DashboardTodayDto => ({
