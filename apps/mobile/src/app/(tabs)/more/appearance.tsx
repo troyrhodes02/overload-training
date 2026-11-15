@@ -17,6 +17,11 @@ const LABEL: Record<Appearance, string> = {
   dark: "Dark",
 };
 
+/** Said under System itself, where the web says "Follows your device" (RD-30). */
+const SUBTITLE: Partial<Record<Appearance, string>> = {
+  system: "Follows your iPhone's setting",
+};
+
 /**
  * M2 Appearance (design §6; RD-10). The choice applies at once and saves to
  * the account, so the web follows. Saves run one at a time: a tap during a
@@ -79,11 +84,12 @@ export default function AppearanceScreen() {
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
       >
-        <GroupedList footer="System follows your iPhone's setting.">
+        <GroupedList>
           {APPEARANCES.map((value) => (
             <ListRow
               key={value}
               title={LABEL[value]}
+              subtitle={SUBTITLE[value]}
               accessory="check"
               selected={preference === value}
               onPress={() => choose(value)}

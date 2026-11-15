@@ -163,6 +163,6 @@ End on **System**: it is the QA fixture's baseline value (`npm run qa:verify` ch
 | A — Simulator | Passed after 7c13b93: sign-in lands on Today, sign-out on Welcome, no Unmatched Route, no endless "Opening Overload". Appearance applied on screen; before the merge each save returned "Couldn't save" (the endpoint was not on staging) | Owner, interactively, 2026-11-14 |
 | B — iPhone | Passed: B1 install and launch, B2 staging only, B3 the QA account signs in, B4 the session survives force-quit and reopen, B7 sign-out returns to Welcome | Owner, EAS development build 86e673d0 (commit 30b8bb5), 2026-11-14 |
 | C — Staging update | Passed: update group `a9f12f47` (commit 5fdb90b, runtime `f98506f78a`) opened by URL. Diagnostics showed that update and commit. On the update: force-quit and reopen → Today; sign out → Welcome; sign in → Today. No Unmatched Route or endless loading | Owner, 2026-11-15 |
-| D — After the merge | **Pending.** D4 (appearance saved to the account) is required; D1–D3 as listed in §6 | Owner, after the merge |
+| D — After the merge | **D4 passed:** appearance saves to the account and works on staging. D1–D3 (signup, duplicate email, reset request) still to run (§6) | Owner, iPhone, 2026-11-15 (after 5c41813) |
 
 **Not performed, so unverified (DoD 45):** B4's phone reboot, B5 (background for more than an hour), B6 (Airplane Mode outage), B8 (haptics and VoiceOver), and the Turnstile card in a real web view (optional local test, §6). Automated tests cover the logic behind B5 and B6 (session-transitions and gate suites).
