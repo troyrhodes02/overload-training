@@ -79,6 +79,7 @@ export type {
   ExerciseHistoryDto,
   ExerciseRecordsDto,
   HistoryNextDto,
+  HistoryWorkoutNextDto,
   HistoryScopeDto,
   RecordSetDto,
   SessionRowDto,

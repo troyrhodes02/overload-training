@@ -21,7 +21,11 @@ import {
 } from "@/lib/exercises/library-params";
 import { getExercise } from "@/lib/exercises/queries";
 import { getExerciseGoals, newGoalFormHref } from "@/lib/goals/queries";
-import { getExerciseHistory } from "@/lib/progression/history-queries";
+import {
+  getExerciseHistory,
+  type HistoryNextDto,
+} from "@/lib/progression/history-queries";
+import { formatRepTarget } from "@overload/shared/plan/rep-target";
 
 export const metadata = { title: "Exercise · Overload" };
 
@@ -104,8 +108,7 @@ export default async function ExerciseDetailPage({
   // "Next time": the call, the not-enough-history line, or the per-gym note.
   // On Free the call is withheld server-side, leaving nothing to say here;
   // the section then gives way to the one upgrade invitation below.
-  const next = history.next;
-  const nextTime =
+  const callOf = (next: HistoryNextDto | null) =>
     next?.kind === "no_gym" ? (
       <p className="text-sm text-muted-foreground">
         Calls for machines are made per gym.
@@ -118,6 +121,29 @@ export default async function ExerciseDetailPage({
         <Recommendation recommendation={next.recommendation} />
       </div>
     ) : null;
+  // Two or more recurring workouts (Prescription-Aware Intelligence, design
+  // Screen 4): one labeled line each, never one exercise-wide call.
+  const workoutLines = history.nextByWorkout
+    .map((w) => ({ w, body: callOf(w.next) }))
+    .filter((x) => x.body !== null);
+  const nextTime =
+    history.nextByWorkout.length > 1 ? (
+      workoutLines.length > 0 ? (
+        <div className="space-y-3">
+          {workoutLines.map(({ w, body }) => (
+            <div key={w.sessionName} className="space-y-1">
+              <p className="text-sm font-medium tabular-nums">
+                {w.sessionName} ·{" "}
+                {formatRepTarget(w.repRange.min, w.repRange.max)} reps
+              </p>
+              {body}
+            </div>
+          ))}
+        </div>
+      ) : null
+    ) : (
+      callOf(history.next)
+    );
 
   return (
     <section className="space-y-6 pb-8">

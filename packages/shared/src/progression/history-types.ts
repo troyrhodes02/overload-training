@@ -25,6 +25,12 @@ export type SessionRowDto = {
   plannedSets: number;
   /** The planned exercise's name when a swap put this one in its place. */
   swappedFromName: string | null;
+  /**
+   * The workout this session belonged to ("Push"); null when it had none
+   * (Prescription-Aware Intelligence). Its `call` was judged on that
+   * workout's own comparable history.
+   */
+  sessionName: string | null;
   call: SessionCallKind;
 };
 
@@ -87,6 +93,16 @@ export type HistoryNextDto =
     }
   | { kind: "no_gym" };
 
+/**
+ * "Next time" for one recurring workout of this exercise (Prescription-Aware
+ * Intelligence §7.5): the call its card would give next.
+ */
+export type HistoryWorkoutNextDto = {
+  sessionName: string;
+  repRange: { min: number; max: number };
+  next: HistoryNextDto;
+};
+
 export type ExerciseHistoryDto = {
   exerciseId: string;
   gymVariable: boolean;
@@ -95,7 +111,14 @@ export type ExerciseHistoryDto = {
   /** Machine/cable scopes, most recent first, "No gym recorded" last; [] otherwise. */
   scopes: HistoryScopeDto[];
   selectedScope: HistoryScopeDto | null;
+  /**
+   * The single call when the exercise has one recurring workout in scope;
+   * null when it has two or more (each is in `nextByWorkout`), so an older
+   * reader never shows one exercise-wide call that contradicts them.
+   */
   next: HistoryNextDto | null;
+  /** One entry per recurring workout (see HistoryWorkoutNextDto). */
+  nextByWorkout: HistoryWorkoutNextDto[];
   records: ExerciseRecordsDto | null;
   trend: {
     e1rm: TrendDto | null;

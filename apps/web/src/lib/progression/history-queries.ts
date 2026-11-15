@@ -21,6 +21,13 @@ import {
 } from "@overload/shared/progression/history";
 import { formatSetLine } from "@overload/shared/progression/history-format";
 import { describeScope, gatherRows, type PerformanceRow } from "./queries";
+import {
+  anchorOfRow,
+  rowSegmentEndingAt,
+  segmentRows,
+  type RowAnchor,
+} from "./recurring";
+import { prescriptionOf } from "@overload/shared/progression/recurring";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
 import { gateHistory } from "@/lib/entitlements/gate";
 import type {
@@ -28,6 +35,7 @@ import type {
   ExerciseRecordsDto,
   HistoryNextDto,
   HistoryScopeDto,
+  HistoryWorkoutNextDto,
   RecordSetDto,
   TrendDto,
 } from "@overload/shared/progression/history-types";
@@ -127,6 +135,53 @@ function pickScope(
   return finished[0] ?? gyms[0] ?? scopes[0] ?? null;
 }
 
+/**
+ * The recurring workouts "Next time" speaks for (RD-12): every session of the
+ * active block that plans this exercise, in the block's order, anchored on
+ * the plan's rep range; with none, the workout of the scope's most recent
+ * performance, anchored on its copied range.
+ */
+async function workoutAnchors(
+  account: Account,
+  exerciseId: string,
+  scopeRows: PerformanceRow[],
+  opts: { gymVariable: boolean; gymId: string | null },
+): Promise<{ sessionName: string; anchor: RowAnchor }[]> {
+  const planned = await account.db.sessionExercise.findMany({
+    where: { exerciseId, session: { mesocycle: { status: "active" } } },
+    select: {
+      targetRepMin: true,
+      targetRepMax: true,
+      session: { select: { name: true, lineageId: true, position: true } },
+    },
+  });
+  if (planned.length > 0) {
+    return planned
+      .slice()
+      .sort((a, b) => a.session.position - b.session.position)
+      .map((se) => ({
+        sessionName: se.session.name,
+        anchor: {
+          key: {
+            lineageId: se.session.lineageId,
+            exerciseId,
+            gymId: opts.gymId,
+          },
+          prescription: prescriptionOf(se),
+          gymVariable: opts.gymVariable,
+        },
+      }));
+  }
+  const newest = scopeRows.slice().sort((a, b) => byDate(b.perf, a.perf))[0];
+  if (!newest) return [];
+  return [
+    {
+      sessionName: newest.sessionName ?? "Workout",
+      anchor: anchorOfRow(newest, exerciseId, opts.gymVariable),
+    },
+  ];
+}
+
 const toHistoryRow = (r: PerformanceRow): HistoryRow => ({
   perf: r.perf,
   finished: r.finished,
@@ -189,25 +244,47 @@ async function computeExerciseHistory(
   const today = accountToday(account);
   const label = (iso: string) => formatMonthDay(iso, today);
 
+  // "Next time" per recurring workout (Prescription-Aware Intelligence
+  // §7.5; RD-12): the call each workout's card would give next, judged on its
+  // own comparable run within this scope.
   let next: HistoryNextDto | null = null;
+  let nextByWorkout: HistoryWorkoutNextDto[] = [];
   if (selected && noGymScope) {
     next = { kind: "no_gym" };
-  } else if (selected) {
-    const d = await describeScope(
-      account,
-      exercise,
-      allRows,
+  } else if (selected && scopeRows.length > 0) {
+    const gym =
       gymVariable && selected.gymId
         ? { id: selected.gymId, name: scopeRows[0]?.gymName ?? "Gym" }
-        : null,
-      "next",
+        : null;
+    const entries = await workoutAnchors(account, exercise.id, scopeRows, {
+      gymVariable,
+      gymId: gymVariable ? selected.gymId : null,
+    });
+    nextByWorkout = await Promise.all(
+      entries.map(async (e) => {
+        const d = await describeScope(
+          account,
+          exercise,
+          segmentRows(scopeRows, exercise.id, e.anchor),
+          gym,
+          "next",
+        );
+        return {
+          sessionName: e.sessionName,
+          repRange: {
+            min: e.anchor.prescription.repMin,
+            max: e.anchor.prescription.repMax,
+          },
+          next: {
+            kind: "call" as const,
+            tag: d.tag,
+            recommendation: d.recommendation,
+            insufficientNote: d.insufficientNote,
+          },
+        };
+      }),
     );
-    next = {
-      kind: "call",
-      tag: d.tag,
-      recommendation: d.recommendation,
-      insufficientNote: d.insufficientNote,
-    };
+    next = nextByWorkout.length === 1 ? nextByWorkout[0].next : null;
   }
 
   const recordDto = (s: RecordSet): RecordSetDto => ({
@@ -264,7 +341,23 @@ async function computeExerciseHistory(
     latest: latestValue(pts),
   });
 
-  const calls = callsBySession(historyRows, { externalLoad, noGymScope });
+  // Each session's call is judged on its own recurring workout's comparable
+  // run ending at it — the same evidence its card used (§7.5).
+  const performanceById = new Map(
+    scopeRows.map((r) => [r.perf.loggedExerciseId, r]),
+  );
+  const calls = callsBySession(historyRows, {
+    externalLoad,
+    noGymScope,
+    segmentEndingAt: (hr) => {
+      const target = performanceById.get(hr.perf.loggedExerciseId);
+      return target
+        ? rowSegmentEndingAt(scopeRows, exercise.id, target, gymVariable).map(
+            toHistoryRow,
+          )
+        : [];
+    },
+  });
   const newestFirst = scopeRows.slice().sort((a, b) => byDate(b.perf, a.perf));
   const shown = opts.allSessions
     ? newestFirst
@@ -288,6 +381,7 @@ async function computeExerciseHistory(
         }
       : null,
     next,
+    nextByWorkout,
     records,
     trend: {
       e1rm:
@@ -317,6 +411,7 @@ async function computeExerciseHistory(
         plannedSets: r.plannedSets,
         swappedFromName:
           r.plannedExerciseId !== exercise.id ? r.plannedExerciseName : null,
+        sessionName: r.sessionName,
         call: calls.get(r.perf.loggedExerciseId) ?? "none",
       })),
       total: newestFirst.length,

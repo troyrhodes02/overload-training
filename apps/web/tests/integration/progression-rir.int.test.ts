@@ -1,4 +1,5 @@
 import { getTestPrisma } from "./support/db";
+import { plannedOccurrence } from "./support/planned";
 import {
   createTestExercise,
   createTestMesocycle,
@@ -135,9 +136,13 @@ describe("case A — reaching the top at 0 RIR holds (AC-3)", () => {
       suggestion: null,
     });
 
-    const planned = await getPlannedProgression(account, exId, {
-      scheduledDeloadWeek: false,
-    });
+    const planned = await getPlannedProgression(
+      account,
+      await plannedOccurrence(account, exId),
+      {
+        scheduledDeloadWeek: false,
+      },
+    );
     expect(planned.tag).toBeNull();
   });
 
@@ -342,7 +347,11 @@ describe("scheduled deload weeks stay silent (R26; Pitch 5 R37–R38)", () => {
       rir: [0, 0, 0],
     });
     expect(
-      await getPlannedProgression(account, exId, { scheduledDeloadWeek: true }),
+      await getPlannedProgression(
+        account,
+        await plannedOccurrence(account, exId),
+        { scheduledDeloadWeek: true },
+      ),
     ).toMatchObject({ tag: null, rirEffect: null });
   });
 });
