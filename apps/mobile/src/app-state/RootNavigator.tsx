@@ -42,6 +42,15 @@ export function RootNavigator({
           name="workout/[loggedSessionId]/index"
           options={workoutHeader}
         />
+        <Stack.Screen
+          name="workout/[loggedSessionId]/summary"
+          // Done returns; there is no going back into a finished workout.
+          options={{
+            ...workoutHeader,
+            headerBackVisible: false,
+            gestureEnabled: false,
+          }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn} redirectTo={SIGNED_IN_HOME}>
         <Stack.Screen name="(auth)" />
