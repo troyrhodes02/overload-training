@@ -140,7 +140,9 @@ describe.each(["light", "dark"] as const)(
           "In progress · Week 3 · 1 of 2 exercises logged",
         ),
       ).toBeTruthy();
-      fireEvent.press(screen.getByRole("button", { name: "Resume workout" }));
+      await fireEvent.press(
+        screen.getByRole("button", { name: "Resume workout" }),
+      );
       expect(mockRouter.push).toHaveBeenCalledWith("/workout/ls-1");
       expect(
         mockApi.request.mock.calls.filter(([p]) => p === "/workouts"),
@@ -166,7 +168,9 @@ describe.each(["light", "dark"] as const)(
       expect(
         screen.queryByRole("button", { name: "Start workout" }),
       ).toBeNull();
-      fireEvent.press(screen.getByRole("button", { name: "View workout" }));
+      await fireEvent.press(
+        screen.getByRole("button", { name: "View workout" }),
+      );
       expect(mockRouter.push).toHaveBeenCalledWith("/history/ls-1");
     });
 
@@ -250,7 +254,7 @@ describe("Start (W0, RD-4)", () => {
         <TodayView />
       </Providers>,
     );
-    fireEvent.press(
+    await fireEvent.press(
       await screen.findByRole("button", { name: "Start workout" }),
     );
     await waitFor(() =>
@@ -286,7 +290,7 @@ describe("Start (W0, RD-4)", () => {
         <TodayView />
       </Providers>,
     );
-    fireEvent.press(
+    await fireEvent.press(
       await screen.findByRole("button", { name: "Start workout" }),
     );
     await waitFor(() => expect(start).toHaveBeenCalled());
@@ -311,7 +315,7 @@ describe("Start (W0, RD-4)", () => {
         <TodayView />
       </Providers>,
     );
-    fireEvent.press(
+    await fireEvent.press(
       await screen.findByRole("button", { name: "Start workout" }),
     );
     await waitFor(() =>
@@ -335,7 +339,7 @@ describe("Start (W0, RD-4)", () => {
         <TodayView />
       </Providers>,
     );
-    fireEvent.press(
+    await fireEvent.press(
       await screen.findByRole("button", { name: "Start workout" }),
     );
     expect(
@@ -359,7 +363,7 @@ describe("Start (W0, RD-4)", () => {
         <TodayView />
       </Providers>,
     );
-    fireEvent.press(
+    await fireEvent.press(
       await screen.findByRole("button", { name: "Start workout" }),
     );
     expect(
