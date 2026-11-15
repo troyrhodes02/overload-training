@@ -1,4 +1,5 @@
 import { formatMonthDay } from "../plan/calendar";
+import { formatRepTarget } from "../plan/rep-target";
 import { formatWeightLbs } from "./weight";
 
 /**
@@ -131,6 +132,8 @@ export function formatPreviousPerformance(args: {
     dateIso: string;
     gymScoped: boolean;
     sets: readonly { weightLbs: number | null; reps: number }[];
+    /** The workout it was logged in (Prescription-Aware Intelligence). */
+    sessionName?: string | null;
   } | null;
   isGymVariable: boolean;
   gymName: string | null;
@@ -142,9 +145,73 @@ export function formatPreviousPerformance(args: {
       ? `First time on this at ${args.gymName}.`
       : "First time logging this.";
   }
-  const label = previous.gymScoped ? "Last time here" : "Last time";
+  // "Last time in Push": the recurring workout the number came from. A
+  // workout with no session keeps the older wording.
+  const label = previous.sessionName
+    ? `Last time in ${previous.sessionName}`
+    : previous.gymScoped
+      ? "Last time here"
+      : "Last time";
   const date = formatMonthDay(previous.dateIso, args.referenceIso);
   return `${label} · ${date} · ${formatSetSummary(previous.sets)}`;
+}
+
+type CardPerformance = {
+  dateIso: string;
+  gymScoped: boolean;
+  sets: readonly { weightLbs: number | null; reps: number }[];
+  sessionName: string | null;
+  repRange: { min: number; max: number };
+};
+
+/**
+ * The card's context lines (Prescription-Aware Intelligence design Screen 1):
+ *
+ *   - this workout's comparable last time → "Last time in Push · Nov 8 · …";
+ *   - otherwise, when something else exists → "Nothing logged in Upper at 6–8
+ *     reps yet." (or "… for a deload week yet.") plus a quieter reference
+ *     line "For reference: Push · 3–5 reps · Nov 8 · …";
+ *   - otherwise the existing first-time line.
+ *
+ * The reference is display-only: it never sets the weight box. One function so
+ * the web card and the native card say the same words.
+ */
+export function formatCardContext(args: {
+  previous: CardPerformance | null;
+  reference: CardPerformance | null;
+  /** Today's workout name ("Upper"). */
+  workoutName: string;
+  plannedRepRange: { min: number; max: number };
+  scheduledDeloadWeek: boolean;
+  isGymVariable: boolean;
+  gymName: string | null;
+  referenceIso: string;
+}): { line: string; reference: string | null } {
+  if (args.previous || !args.reference) {
+    return {
+      line: formatPreviousPerformance({
+        previous: args.previous,
+        isGymVariable: args.isGymVariable,
+        gymName: args.gymName,
+        referenceIso: args.referenceIso,
+      }),
+      reference: null,
+    };
+  }
+  const line = args.scheduledDeloadWeek
+    ? `Nothing logged in ${args.workoutName} for a deload week yet.`
+    : `Nothing logged in ${args.workoutName} at ${formatRepTarget(
+        args.plannedRepRange.min,
+        args.plannedRepRange.max,
+      )} reps yet.`;
+  const r = args.reference;
+  const where = r.sessionName ?? "Another workout";
+  const reps = formatRepTarget(r.repRange.min, r.repRange.max);
+  const date = formatMonthDay(r.dateIso, args.referenceIso);
+  return {
+    line,
+    reference: `For reference: ${where} · ${reps} reps · ${date} · ${formatSetSummary(r.sets)}`,
+  };
 }
 
 /** A logged row's visible value: "185 lbs × 8" parts, or "18 reps". */

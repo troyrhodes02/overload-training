@@ -147,6 +147,8 @@ export function WorkoutRunner({
           gymLocked={workout.gymLocked}
           progression={progression[current.loggedExerciseId]}
           workoutDateIso={workout.scheduledFor}
+          workoutName={workout.sessionName}
+          scheduledDeloadWeek={workout.scheduledDeloadWeek}
           focusOnMount={navigated}
           onPlannedSetsDone={focusPrimary}
           swapSlot={

@@ -12,12 +12,10 @@ import {
   startOrResumeWorkout,
   swapExercise,
 } from "@/lib/logging/sessions";
+import { getLoggedWorkoutDetail, getWorkout } from "@/lib/logging/queries";
 import {
-  currentWorkingWeightLbs,
-  getLoggedWorkoutDetail,
-  getWorkout,
-} from "@/lib/logging/queries";
-import {
+  gatherRows,
+  segmentWorkingWeight,
   getExerciseProgression,
   getOccurrenceProgression,
   getQualifyingSessionE1rms,
@@ -406,14 +404,11 @@ describe("bodyweight reads and history render truthfully", () => {
       reps: 15,
       saved: true,
     });
+    // The progression number's weight source (Prescription-Aware
+    // Intelligence RD-10): a NULL set is never read back as 0.
     expect(
-      await currentWorkingWeightLbs(
-        account,
-        plan.exerciseId,
-        plan.gymId,
-        false,
-      ),
-    ).toBeNull(); // a NULL set is never read back as 0
+      segmentWorkingWeight(await gatherRows(account, plan.exerciseId)),
+    ).toBeNull();
   });
 
   it("history detail shows a null weight (never 0) and edits reps only", async () => {

@@ -203,8 +203,8 @@ export async function seedRepresentativeWorkout(
       ).rows[0].id;
       const session = (
         await db.query<{ id: string }>(
-          `INSERT INTO sessions (id, user_id, mesocycle_id, name, day_of_week, position, updated_at)
-           VALUES (gen_random_uuid(), $1, $2, 'Push Day 1', $3, 0, now()) RETURNING id`,
+          `INSERT INTO sessions (id, user_id, mesocycle_id, name, day_of_week, position, lineage_id, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, 'Push Day 1', $3, 0, gen_random_uuid(), now()) RETURNING id`,
           [userId, meso, isoWeekday(today)],
         )
       ).rows[0].id;

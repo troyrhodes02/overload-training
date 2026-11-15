@@ -121,6 +121,10 @@ describe("previousPerformance", () => {
         { setNumber: 2, weightLbs: 185, reps: 8 },
         { setNumber: 3, weightLbs: 185, reps: 7 },
       ],
+      // Prescription-Aware Intelligence (spec §12): the recurring workout it
+      // came from and that occurrence's copied rep range.
+      sessionName: "Push Day 1",
+      repRange: { min: 6, max: 8 },
     });
     expect(c.suggestedWeightLbs).toBe(185);
     expect(c.workingWeightFromBaseline).toBe(false);
@@ -150,7 +154,10 @@ describe("previousPerformance", () => {
     expect(c.suggestedWeightLbs).toBeNull();
   });
 
-  it("cable at its own gym: Last time here, and the gym's baseline as the working weight", async () => {
+  // Prescription-Aware Intelligence RD-9 supersedes Faster Logging UX R27:
+  // the gym baseline is no longer a weight source, so the offer is the
+  // latest comparable weight logged at this gym, captioned "last time".
+  it("cable at its own gym: Last time here, and that gym's latest comparable weight", async () => {
     const { session } = await plan("cable", "Triceps Pushdown");
     const a = await gym("Downtown Gym");
     await train(session.id, W1, a.id, [
@@ -168,7 +175,8 @@ describe("previousPerformance", () => {
       12, 12, 11,
     ]);
     expect(c.suggestedWeightLbs).toBe(50);
-    expect(c.workingWeightFromBaseline).toBe(true);
+    expect(c.workingWeightFromBaseline).toBe(false);
+    expect(c.weightContext).toBe("trusted");
   });
 
   it("cable at a gym with a partial (no baseline yet): that gym's latest weight, still no other gym's", async () => {

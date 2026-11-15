@@ -13,6 +13,7 @@
  * - Nothing here crosses accounts.
  */
 import type { Account } from "@/lib/data/account";
+import { plannedOccurrence } from "./support/planned";
 import { getTodayView, DASHBOARD_GOAL_LIMIT } from "@/lib/views/today";
 import { getWorkoutView } from "@/lib/views/workout";
 import { getMeView } from "@/lib/views/me";
@@ -181,9 +182,17 @@ describe("getTodayView", () => {
     const expected = await Promise.all(
       dash.exercises.map(async (e) => ({
         exerciseId: e.exerciseId,
-        progression: await getPlannedProgression(a, e.exerciseId, {
-          scheduledDeloadWeek: dash.scheduledDeloadWeek,
-        }),
+        progression: await getPlannedProgression(
+          a,
+          {
+            exerciseId: e.exerciseId,
+            sessionId: dash.sessionId,
+            loggedSessionId: dash.loggedSessionId,
+          },
+          {
+            scheduledDeloadWeek: dash.scheduledDeloadWeek,
+          },
+        ),
       })),
     );
     expect(view.plannedProgression).toEqual(expected);
@@ -336,10 +345,14 @@ describe("request entitlements are bound to their own account", () => {
     const proEntitlement = await resolveRequestEntitlement(pro);
     const view = await getTodayView(free);
     for (const { exerciseId } of view.plannedProgression) {
-      const p = await getPlannedProgression(free, exerciseId, {
-        scheduledDeloadWeek: false,
-        entitlement: proEntitlement,
-      });
+      const p = await getPlannedProgression(
+        free,
+        await plannedOccurrence(free, exerciseId),
+        {
+          scheduledDeloadWeek: false,
+          entitlement: proEntitlement,
+        },
+      );
       expect(p.recommendation).toBeNull();
       expect(p.tag).toBeNull();
     }
