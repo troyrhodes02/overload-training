@@ -9,10 +9,8 @@ import {
 } from "@overload/shared/plan/calendar";
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
-import {
-  currentWorkingWeightLbs,
-  type WorkingWeightOptions,
-} from "@/lib/logging/queries";
+import { prescriptionOf } from "@overload/shared/progression/recurring";
+import { rowSegmentEndingAt, segmentRows, type RowAnchor } from "./recurring";
 import { PROGRESS_INCREMENT_LBS } from "@overload/shared/progression/config";
 import {
   can,
@@ -139,6 +137,14 @@ export type PerformanceRow = {
   plannedSets: number;
   completed: boolean; // session complete AND all planned working sets present
   /**
+   * Recurring-exercise identity and order (Prescription-Aware Intelligence
+   * §6): the workout's session lineage (null when it had no session), its
+   * session name, and the occurrence's creation time (same-date tie-break).
+   */
+  lineageId: string | null;
+  sessionName: string | null;
+  createdAtIso: string;
+  /**
    * Session complete, regardless of how many planned sets were logged. Strength
    * reads (e1RM trend, goal progress) use this: a set the lifter actually did
    * demonstrates strength even when they stopped short of the plan. The
@@ -177,6 +183,7 @@ export async function gatherRows(
           status: true,
           createdAt: true,
           scheduledFor: true,
+          session: { select: { lineageId: true, name: true } },
           mesocycle: {
             select: { startDate: true, deloadEveryWeeks: true },
           },
@@ -236,6 +243,9 @@ export async function gatherRows(
       plannedExerciseId: le.plannedExerciseId,
       plannedExerciseName: le.plannedExercise.name,
       plannedSets: le.plannedSets,
+      lineageId: le.loggedSession.session?.lineageId ?? null,
+      sessionName: le.loggedSession.session?.name ?? null,
+      createdAtIso: le.createdAt.toISOString(),
       completed,
       finished: le.loggedSession.status === "complete",
     };
@@ -345,23 +355,33 @@ function currentE1rm(rows: Row[]): number | null {
     : null;
 }
 
-async function scheduledDeloadSuggestion(
-  account: Account,
-  exerciseId: string,
-  gymId: string | null,
-  gymVariable: boolean,
+/**
+ * The working weight a call's number is built from (Prescription-Aware
+ * Intelligence RD-10): the top planned working set of the most recent
+ * FINISHED, non-scheduled-deload performance in the segment the engine judged
+ * — never another recurring workout's, never a gym baseline (RD-9), and never
+ * a deload week's reduced load (so a 90% suggestion never compounds).
+ */
+export function segmentWorkingWeight(rows: readonly Row[]): number | null {
+  const normal = rows
+    .filter((r) => r.finished && !r.perf.scheduledDeload)
+    .slice()
+    .sort((a, b) => byDate(b.perf, a.perf));
+  for (const r of normal) {
+    const loads = loadedSets(r.perf.workingSets).map((s) => s.weightLbs);
+    if (loads.length > 0) return Math.max(...loads);
+  }
+  return null;
+}
+
+/** 90% of the segment's last normal working weight, rounded down (R33–R36). */
+function scheduledDeloadSuggestion(
+  segment: readonly Row[],
   externalLoad: boolean,
-  ww: WorkingWeightOptions = {},
-): Promise<SuggestedLoadDto> {
+): SuggestedLoadDto {
   // Bodyweight: no load to reduce to 90% of; show the state without a number.
   if (!externalLoad) return null;
-  const base = await currentWorkingWeightLbs(
-    account,
-    exerciseId,
-    gymId,
-    gymVariable,
-    { completedOnly: true, ...ww },
-  );
+  const base = segmentWorkingWeight(segment);
   if (base == null) return null; // show state without a number (R36)
   return { lbs: scheduledDeloadLoad(base), kind: "scheduled_deload" };
 }
@@ -401,7 +421,6 @@ async function describeDecision(
     gymName: string | null;
     when: "today" | "next";
     referenceIso: string;
-    baselineWrittenBefore?: Date;
   },
 ): Promise<{
   suggestion: SuggestedLoadDto;
@@ -416,22 +435,12 @@ async function describeDecision(
     (decision.state === "progress" ||
       decision.state === "hold" ||
       decision.state === "stalled");
-  const read = needsWeight
-    ? await currentWorkingWeightLbs(
-        account,
-        args.exerciseId,
-        args.gymId,
-        args.gymVariable,
-        {
-          completedOnly: true,
-          baselineWrittenBefore: args.baselineWrittenBefore,
-        },
-      )
-    : null;
+  // The same segment the engine judged supplies the number, and it prints
+  // only when it is the judged session's top load — for every equipment type
+  // now that the gym baseline is not a source (RD-9, RD-10; R33).
+  const read = needsWeight ? segmentWorkingWeight(args.scopeRows) : null;
   const trusted =
-    read !== null && (args.gymVariable || read === decision.latestTopLoadLbs)
-      ? read
-      : null;
+    read !== null && read === decision.latestTopLoadLbs ? read : null;
   // Bodyweight never gets "+5 lb"; no trusted weight → no number (R31).
   const suggestion: SuggestedLoadDto =
     decision.state === "progress" && trusted !== null
@@ -645,70 +654,149 @@ export function gymsWithFinishedHistory(
  * exercises show their global call now; during a scheduled-deload week the
  * reactive tag is suppressed and the 90% load is shown instead (R37).
  */
+/**
+ * Whether the exercise has a trend to show — the same points the exercise
+ * page draws for its default scope (all history; a machine's most recent gym).
+ */
+function trendExists(exercise: ScopeExercise, rows: Row[]): boolean {
+  if (isGymVariable(exercise)) {
+    const gym = gymsWithFinishedHistory(rows)[0];
+    if (!gym) return false;
+    return (
+      toPoints(
+        rows.filter((r) => r.perf.gymId === gym.id),
+        gym.name,
+      ).length > 0
+    );
+  }
+  if (!requiresExternalWeight(exercise)) return false;
+  return toPoints(rows, null).length > 0;
+}
+
+export type PlannedOccurrence = {
+  /** The planned (or, once started, performed) exercise. */
+  exerciseId: string;
+  /** Today's session: its lineage names the recurring workout. */
+  sessionId: string;
+  /** Set once the workout started: its copied plan values are the anchor. */
+  loggedSessionId: string | null;
+};
+
 export async function getPlannedProgression(
   account: Account,
-  exerciseId: string,
+  occurrence: PlannedOccurrence,
   opts: { scheduledDeloadWeek: boolean; entitlement?: RequestEntitlement },
 ): Promise<PlannedProgressionDto> {
-  const dto = await computePlannedProgression(account, exerciseId, opts);
+  const dto = await computePlannedProgression(account, occurrence, opts);
   // A view that already resolved this account's entitlement for the request
   // passes it in (Pitch 21c RD-16); one for any other account is ignored.
   const resolved = await entitlementFor(account, opts.entitlement);
   return gatePlanned(dto, can(resolved, "progression_insights"));
 }
 
+/**
+ * Today's anchor (Prescription-Aware Intelligence RD-11): a started workout's
+ * copied plan values for this exercise, else the plan's SessionExercise; the
+ * lineage from today's session. Null when neither exists for this account.
+ */
+async function plannedAnchor(
+  account: Account,
+  occurrence: PlannedOccurrence,
+  gymVariable: boolean,
+): Promise<RowAnchor | null> {
+  if (!isUuid(occurrence.sessionId)) return null;
+  const session = await account.db.session.findUnique({
+    where: { id: occurrence.sessionId },
+    select: { lineageId: true },
+  });
+  if (!session) return null;
+  if (occurrence.loggedSessionId && isUuid(occurrence.loggedSessionId)) {
+    const le = await account.db.loggedExercise.findFirst({
+      where: {
+        loggedSessionId: occurrence.loggedSessionId,
+        exerciseId: occurrence.exerciseId,
+      },
+      select: { targetRepMin: true, targetRepMax: true, gymId: true },
+    });
+    if (le) {
+      return {
+        key: {
+          lineageId: session.lineageId,
+          exerciseId: occurrence.exerciseId,
+          gymId: le.gymId,
+        },
+        prescription: prescriptionOf(le),
+        gymVariable,
+      };
+    }
+  }
+  const se = await account.db.sessionExercise.findFirst({
+    where: {
+      sessionId: occurrence.sessionId,
+      exerciseId: occurrence.exerciseId,
+    },
+    select: { targetRepMin: true, targetRepMax: true },
+  });
+  if (!se) return null;
+  return {
+    key: {
+      lineageId: session.lineageId,
+      exerciseId: occurrence.exerciseId,
+      gymId: null,
+    },
+    prescription: prescriptionOf(se),
+    gymVariable,
+  };
+}
+
 async function computePlannedProgression(
   account: Account,
-  exerciseId: string,
+  occurrence: PlannedOccurrence,
   opts: { scheduledDeloadWeek: boolean },
 ): Promise<Omit<PlannedProgressionDto, "locked">> {
-  const base = await getExerciseProgression(account, exerciseId, null, {
-    when: "today",
-  });
-  if (!base) {
-    return {
-      tag: null,
-      rirEffect: null,
-      gymVariable: false,
-      suggestion: null,
-      hasTrend: false,
-      recommendation: null,
-    };
+  const empty = {
+    tag: null,
+    rirEffect: null,
+    gymVariable: false,
+    suggestion: null,
+    hasTrend: false,
+    recommendation: null,
+  } as const;
+  const exercise = isUuid(occurrence.exerciseId)
+    ? await account.db.exercise.findUnique({
+        where: { id: occurrence.exerciseId },
+        select: { id: true, name: true, equipmentType: true, deletedAt: true },
+      })
+    : null;
+  if (!exercise) return empty;
+  // One history read serves both the trend fact and the segment.
+  const rows = await gatherRows(account, exercise.id);
+  const hasTrend = trendExists(exercise, rows);
+  if (isGymVariable(exercise)) {
+    // A machine's call waits for the gym (R14, R15).
+    return { ...empty, gymVariable: true, hasTrend };
   }
-  const hasTrend = base.points.length > 0;
-  if (base.isGymVariable) {
-    return {
-      tag: null,
-      rirEffect: null,
-      gymVariable: true,
-      suggestion: null,
-      hasTrend,
-      recommendation: null,
-    };
-  }
+  const anchor = await plannedAnchor(account, occurrence, false);
+  if (!anchor) return { ...empty, hasTrend };
+  const segment = segmentRows(rows, exercise.id, anchor);
   if (opts.scheduledDeloadWeek) {
     return {
-      tag: null,
-      rirEffect: null,
-      gymVariable: false,
-      suggestion: await scheduledDeloadSuggestion(
-        account,
-        exerciseId,
-        null,
-        false,
-        base.requiresExternalWeight,
+      ...empty,
+      suggestion: scheduledDeloadSuggestion(
+        segment,
+        requiresExternalWeight(exercise),
       ),
       hasTrend,
-      recommendation: null,
     };
   }
+  const d = await describeScope(account, exercise, segment, null, "today");
   return {
-    tag: base.tag,
-    rirEffect: base.rirEffect,
+    tag: d.tag,
+    rirEffect: d.rirEffect,
     gymVariable: false,
-    suggestion: base.suggestion,
+    suggestion: d.suggestion,
     hasTrend,
-    recommendation: base.recommendation,
+    recommendation: d.recommendation,
   };
 }
 
@@ -743,8 +831,8 @@ async function computeOccurrenceProgression(
       loggedSession: {
         select: {
           status: true,
-          createdAt: true,
           scheduledFor: true,
+          session: { select: { lineageId: true } },
           mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
         },
       },
@@ -767,19 +855,35 @@ async function computeOccurrenceProgression(
   );
 
   // While the session is in progress the card advises today's workout, judged
-  // on finished history — so its numbers come from finished workouts too,
-  // and a baseline this workout rewrote is not its context (R9, R18, R33).
+  // on finished history — so its numbers come from finished workouts too
+  // (R9, R18, R33): segmentWorkingWeight reads finished performances only.
   const inProgress = le.loggedSession.status !== "complete";
-  const baselineWrittenBefore = inProgress
-    ? le.loggedSession.createdAt
-    : undefined;
 
   const rows = await gatherRows(account, le.exercise.id);
-  const scopeRows = gymVariable
+  const gymRows = gymVariable
     ? rows.filter((r) => r.perf.gymId === le.gymId)
     : rows;
+  // The evidence: this recurring workout's comparable run, judged against the
+  // plan copied when this workout started (Prescription-Aware Intelligence
+  // §7.3; RD-13 — a later plan edit never changes it).
+  // The run ENDING AT this occurrence (review of #227): a later workout at a
+  // changed prescription never empties a past workout's evidence, and a
+  // workout logged late is judged on what came before it — the same run the
+  // exercise page's session rows use.
+  const self = rows.find((r) => r.perf.loggedExerciseId === le.id);
+  const scopeRows = self
+    ? rowSegmentEndingAt(rows, le.exercise.id, self, gymVariable)
+    : segmentRows(rows, le.exercise.id, {
+        key: {
+          lineageId: le.loggedSession.session?.lineageId ?? null,
+          exerciseId: le.exercise.id,
+          gymId: le.gymId,
+        },
+        prescription: prescriptionOf(le),
+        gymVariable,
+      });
   // Any finished workout in scope has a history to link to (R4), bodyweight too.
-  const historyHref = scopeRows.some((r) => r.finished)
+  const historyHref = gymRows.some((r) => r.finished)
     ? exerciseHistoryHref(
         le.exercise.id,
         gymVariable ? { gymId: le.gymId } : null,
@@ -789,14 +893,7 @@ async function computeOccurrenceProgression(
   if (scheduledDeloadWeek) {
     // Reactive evaluation is suppressed entirely during a scheduled-deload week
     // (R37): no tag, only the reduced-load suggestion — and no engine call.
-    const suggestion = await scheduledDeloadSuggestion(
-      account,
-      le.exercise.id,
-      le.gymId,
-      gymVariable,
-      externalLoad,
-      { baselineWrittenBefore },
-    );
+    const suggestion = scheduledDeloadSuggestion(scopeRows, externalLoad);
     return {
       loggedExerciseId,
       scheduledDeloadWeek: true,
@@ -829,7 +926,6 @@ async function computeOccurrenceProgression(
     gymName: le.gym?.name ?? null,
     when: inProgress ? "today" : "next",
     referenceIso: scheduledForIso,
-    baselineWrittenBefore,
   });
   return {
     loggedExerciseId,

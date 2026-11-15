@@ -79,6 +79,12 @@ export function SessionHistoryList({
                   >
                     {r.dateLabel}
                   </Link>
+                  {r.sessionName ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {r.sessionName}
+                    </span>
+                  ) : null}
                   {r.gymName ? (
                     <span className="text-muted-foreground">
                       {" "}

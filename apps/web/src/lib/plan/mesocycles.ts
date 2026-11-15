@@ -256,6 +256,10 @@ export async function archiveDraftMesocycle(
  * replaced or removed (never dropped, substituted, or un-archived) — and each
  * day's planned cardio (day, activity, minutes; Cardio Logging R12).
  *
+ * Each session keeps its source's lineageId, so the recurring workout keeps
+ * its weight memory and progression history across blocks (Prescription-
+ * Aware Intelligence RD-4); every other session create mints a fresh one.
+ *
  * Plan-forward, never history-forward: no logged session, logged exercise,
  * logged set, cardio log, goal, gym baseline, or completion state is read or
  * written.
@@ -285,6 +289,9 @@ export async function cloneMesocycle(
           select: {
             name: true,
             dayOfWeek: true,
+            // The recurring-workout identity carries forward (Prescription-
+            // Aware Intelligence RD-4), read from the account's own source.
+            lineageId: true,
             sessionExercises: {
               orderBy: [{ position: "asc" }, { createdAt: "asc" }],
               select: plannedExerciseSourceSelect,
@@ -319,6 +326,7 @@ export async function cloneMesocycle(
           dayOfWeek: s.dayOfWeek,
           // Keep the source's order (createdAt is identical within one tx).
           position: i,
+          lineageId: s.lineageId,
         },
         select: { id: true },
       });

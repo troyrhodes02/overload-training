@@ -1,4 +1,5 @@
 import { getTestPrisma } from "./support/db";
+import { plannedOccurrence } from "./support/planned";
 import {
   createTestExercise,
   createTestMesocycle,
@@ -81,9 +82,13 @@ describe("a Pro account receives the real progression call", () => {
   it("planned list, session summary, and exercise history all carry the Pro result", async () => {
     const { exId, done } = await progressScenario(account);
 
-    const planned = await getPlannedProgression(account, exId, {
-      scheduledDeloadWeek: false,
-    });
+    const planned = await getPlannedProgression(
+      account,
+      await plannedOccurrence(account, exId),
+      {
+        scheduledDeloadWeek: false,
+      },
+    );
     expect(planned.tag).toBe("progress");
     expect(planned.recommendation).not.toBeNull();
     expect(planned.suggestion).not.toBeNull();
@@ -128,9 +133,13 @@ describe("a Free account cannot obtain a Pro result through the read path", () =
 
   it("planned list withholds the call and marks it locked", async () => {
     const { exId } = await progressScenario(account);
-    const planned = await getPlannedProgression(account, exId, {
-      scheduledDeloadWeek: false,
-    });
+    const planned = await getPlannedProgression(
+      account,
+      await plannedOccurrence(account, exId),
+      {
+        scheduledDeloadWeek: false,
+      },
+    );
     expect(planned.tag).toBeNull();
     expect(planned.recommendation).toBeNull();
     expect(planned.suggestion).toBeNull();

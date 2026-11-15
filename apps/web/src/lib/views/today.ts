@@ -106,10 +106,20 @@ export async function getTodayView(
         ? Promise.all(
             day.exercises.map(async (e) => ({
               exerciseId: e.exerciseId,
-              progression: await getPlannedProgression(account, e.exerciseId, {
-                scheduledDeloadWeek: day.scheduledDeloadWeek,
-                entitlement,
-              }),
+              // Today's workout's own call (Prescription-Aware Intelligence
+              // RD-11): its recurring workout, its copied or planned range.
+              progression: await getPlannedProgression(
+                account,
+                {
+                  exerciseId: e.exerciseId,
+                  sessionId: day.sessionId,
+                  loggedSessionId: day.loggedSessionId,
+                },
+                {
+                  scheduledDeloadWeek: day.scheduledDeloadWeek,
+                  entitlement,
+                },
+              ),
             })),
           )
         : Promise.resolve([]),

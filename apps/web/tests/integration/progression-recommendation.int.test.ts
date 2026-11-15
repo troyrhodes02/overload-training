@@ -1,7 +1,10 @@
 import { getTestPrisma } from "./support/db";
+import { plannedOccurrence } from "./support/planned";
 import {
   createTestExercise,
   createTestMesocycle,
+  createTestSession,
+  createTestSessionExercise,
 } from "./support/plan-factories";
 import { editLoggedSet, logSet } from "@/lib/logging/logged-sets";
 import { completeWorkout } from "@/lib/logging/sessions";
@@ -51,6 +54,9 @@ async function logPerf(opts: {
     data: {
       userId: account.userId,
       mesocycleId: opts.mesocycleId,
+      // Every workout belongs to the block's one planned session, as the app
+      // writes it (Prescription-Aware Intelligence: the recurring workout).
+      sessionId: plannedSessionFor(opts.mesocycleId, opts.exerciseId),
       performedOn: new Date(`${opts.scheduledFor}T12:00:00Z`),
       scheduledFor: new Date(`${opts.scheduledFor}T00:00:00Z`),
       status: opts.status ?? "complete",
@@ -90,11 +96,36 @@ async function logPerf(opts: {
   return { loggedSessionId: ls.id, loggedExerciseId: le.id, setIds };
 }
 
+/**
+ * The block's planned session and the exercise it plans, made by setup.
+ * Workouts of that exercise belong to it; any other exercise a test logs
+ * stays session-less (one context per exercise, RD-17).
+ */
+const plannedSessionOf = new Map<
+  string,
+  { sessionId: string; exerciseId: string }
+>();
+const plannedSessionFor = (mesocycleId: string, exerciseId: string) => {
+  const p = plannedSessionOf.get(mesocycleId);
+  return p && p.exerciseId === exerciseId ? p.sessionId : null;
+};
+
 async function setup(
   equipmentType: "barbell" | "bodyweight" | "cable" = "barbell",
+  range: { repMin: number; repMax: number } = { repMin: 6, repMax: 8 },
 ) {
   const meso = await createTestMesocycle({ status: "active" });
   const ex = await createTestExercise({ equipmentType });
+  const session = await createTestSession(meso.id, {
+    name: "Push Day 1",
+    dayOfWeek: null,
+  });
+  await createTestSessionExercise(session.id, ex.id, {
+    plannedSets: 3,
+    targetRepMin: range.repMin,
+    targetRepMax: range.repMax,
+  });
+  plannedSessionOf.set(meso.id, { sessionId: session.id, exerciseId: ex.id });
   return { mesoId: meso.id, exId: ex.id };
 }
 
@@ -102,14 +133,17 @@ const page = async (exId: string, gymId?: string) =>
   (await getExerciseProgression(account, exId, gymId))!;
 const occurrence = async (leId: string) =>
   (await getOccurrenceProgression(account, leId))!;
-const planned = (exId: string, scheduledDeloadWeek = false) =>
-  getPlannedProgression(account, exId, { scheduledDeloadWeek });
+const planned = async (exId: string, scheduledDeloadWeek = false) =>
+  getPlannedProgression(account, await plannedOccurrence(account, exId), {
+    scheduledDeloadWeek,
+  });
 
 async function inProgress(
   mesoId: string,
   exId: string,
   date: string,
   gymId?: string,
+  range?: { repMin: number; repMax: number },
 ) {
   return logPerf({
     mesocycleId: mesoId,
@@ -118,6 +152,7 @@ async function inProgress(
     scheduledFor: date,
     reps: [],
     status: "in_progress",
+    ...range,
   });
 }
 
@@ -461,7 +496,11 @@ describe("machines and cables are judged per gym, and say which (D1, N1)", () =>
     );
 
     // Today's card at Gym A carries the same call, for today.
-    const t = await inProgress(mesoId, exId, "2026-11-16", a.id);
+    // Today's occurrence copies the plan it was started from: 12–15.
+    const t = await inProgress(mesoId, exId, "2026-11-16", a.id, {
+      repMin: 12,
+      repMax: 15,
+    });
     expect(
       (await occurrence(t.loggedExerciseId)).recommendation?.evidence,
     ).toBe("A set below 12 reps, 2 sessions running at Downtown Gym");
@@ -583,6 +622,11 @@ describe("reading recommendations writes nothing (AC-3)", () => {
     const t = await inProgress(mesoId, exId, "2026-11-16");
     const wk5 = await inProgress(mesoId, cable.id, "2026-11-30", gym.id);
 
+    // Resolve each planned occurrence first: the fixture helper links the
+    // cable's session-less workouts to a planned session once (test setup,
+    // not a read), so the measured reads below start from a stable state.
+    await plannedOccurrence(account, exId);
+    await plannedOccurrence(account, cable.id);
     const before = await snapshotAccount(account.userId);
     for (let i = 0; i < 2; i++) {
       await page(exId);
@@ -692,9 +736,12 @@ describe("review audit of #86: the number is the judged session's, or none (R9, 
       where: { gymId: gym.id, exerciseId: exId },
     });
     expect(Number(corrected.weightLbs)).toBe(120); // the logging path corrected it
-    // The card no longer prints a number it can't stand behind.
+    // Prescription-Aware Intelligence RD-9/RD-10 supersede R34: the gym
+    // baseline is no longer a source, so the baseline this workout rewrote
+    // cannot move the number. It stays the judged (finished) session's own
+    // top load, 100 → +5.
     expect((await occurrence(t.loggedExerciseId)).recommendation?.action).toBe(
-      "Ready to add weight today",
+      "Try 105 lb today (+5 lb)",
     );
   });
 

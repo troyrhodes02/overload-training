@@ -129,6 +129,7 @@ describe("gateHistory", () => {
     hasHistory: true,
     scopes: [],
     selectedScope: null,
+    nextByWorkout: [],
     next: {
       kind: "call" as const,
       tag: "progress" as const,
@@ -177,6 +178,7 @@ describe("gateHistory", () => {
           extraSets: [],
           plannedSets: 3,
           swappedFromName: null,
+          sessionName: null,
           call: "progress" as const,
         },
       ],
@@ -222,6 +224,7 @@ describe("gateHistory: rep records and the upgrade marker (Entitlement Audit)", 
     hasHistory: true,
     scopes: [],
     selectedScope: null,
+    nextByWorkout: [],
     next: {
       kind: "call" as const,
       tag: null,
@@ -287,6 +290,7 @@ describe("gateHistory: rep records and the upgrade marker (Entitlement Audit)", 
         extraSets: [],
         plannedSets: 1,
         swappedFromName: null,
+        sessionName: null,
         call: "insufficient" as const,
       },
     ];
@@ -427,6 +431,7 @@ describe("review follow-ups: no marker or Pro-only line without a withheld resul
       hasHistory: true,
       scopes: [],
       selectedScope: null,
+      nextByWorkout: [],
       next: { kind: "no_gym" as const },
       records: null,
       trend: { e1rm: null, weight: null, reps: null },
@@ -434,5 +439,59 @@ describe("review follow-ups: no marker or Pro-only line without a withheld resul
     };
     expect(gateHistory(dto, free()).next).toBeNull();
     expect(gateHistory(dto, pro()).next).toEqual({ kind: "no_gym" });
+  });
+});
+
+describe("gateHistory: per-workout calls (Prescription-Aware Intelligence §9)", () => {
+  const call = (tag: "progress" | null) => ({
+    kind: "call" as const,
+    tag,
+    recommendation: tag ? REC : null,
+    insufficientNote: tag
+      ? null
+      : "Not enough history yet: 1 of 2 complete sessions.",
+  });
+  const dto = {
+    exerciseId: "x",
+    gymVariable: false,
+    externalLoad: true,
+    hasHistory: true,
+    scopes: [],
+    selectedScope: null,
+    next: null,
+    nextByWorkout: [
+      {
+        sessionName: "Push",
+        repRange: { min: 3, max: 5 },
+        next: call("progress"),
+      },
+      { sessionName: "Upper", repRange: { min: 6, max: 8 }, next: call(null) },
+    ],
+    records: null,
+    trend: { e1rm: null, weight: null, reps: null },
+    sessions: { rows: [], total: 0, showingAll: true },
+  };
+
+  it("withholds every workout's call on Free and keeps the not-enough-history line", () => {
+    const g = gateHistory(dto, free());
+    expect(g.nextByWorkout.map((w) => [w.sessionName, w.next])).toEqual([
+      [
+        "Push",
+        {
+          kind: "call",
+          tag: null,
+          recommendation: null,
+          insufficientNote: null,
+        },
+      ],
+      ["Upper", call(null)],
+    ]);
+    expect(g.locked).toBe("progression_insights");
+  });
+
+  it("passes Pro calls through untouched", () => {
+    const g = gateHistory(dto, pro());
+    expect(g.nextByWorkout).toEqual(dto.nextByWorkout);
+    expect(g.locked).toBeNull();
   });
 });
