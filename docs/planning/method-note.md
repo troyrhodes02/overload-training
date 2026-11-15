@@ -113,8 +113,8 @@ Source: `docs/pitches/mvp-2-multi-user/13-faster-logging-ux/spec.md` (§5, §7, 
 
 - **One active row.** Only the lowest unlogged planned set (or the pending extra after Add set) has inputs. Logged sets render as text from the server's records only ("a box is a draft; a plain number is history"). Upcoming sets are read-only.
 - **The weight carries; reps are never offered.** Set 1 offers the working weight; later sets offer the weight of the highest-numbered logged set in the card. An offer is local state: nothing is written until Log set or Enter in reps. The +5 Progress and 90% deload suggestions never prefill. Bodyweight has no weight field and no offer.
-- **Working weight is gym-scoped for machine/cable** (`isGymVariable`): the gym's baseline, else the latest weight logged at that gym, else none — never another gym's. Gym-consistent: the latest weight logged anywhere. One source feeds the offer and the display-only suggestions.
-- **"Last time"** = the most recent earlier `LoggedExercise` of the performed exercise with ≥ 1 set, on or before the workout's date; machine/cable at this gym only.
+- **Working weight** (superseded by Prescription-Aware Intelligence; see that section): the top planned working set of the newest comparable earlier performance of THIS recurring workout, in the same scheduled-deload status; machine/cable at this gym only. The gym baseline is no longer a source. No comparable performance → no offer.
+- **"Last time"** = the newest comparable earlier performance of this recurring workout with ≥ 1 set ("Last time in Push"); when there is none, the newest other earlier performance is shown as "For reference: …" and never sets the box.
 - **Focus only follows the lifter's action**: none on load; next reps after a confirmed set; Next/Finish after the last planned set; the new card's set after Next/Previous. Log set does not take focus.
 - A new control on the card (for example an RIR selector) belongs on the active row only, so logged and upcoming rows stay control-free.
 
@@ -169,7 +169,7 @@ The engine attaches one `evidence` value at each existing return; rules, thresho
 - **RIR is named only when `rirEffect` is set.** The stall line names its rule ("e1RM hasn't risen over 3 sessions"), never rounded figures.
 - **"Last time"** only when the latest counted session is also the latest finished one in scope; otherwise its date ("on Nov 9").
 - **When:** "today" while the occurrence's session is in progress (and on the planned list); "next time" once the judged history includes the finished session (day-complete summary, exercise page).
-- **The number is the judged session's, or none.** Progression reads take the working weight from completed workouts only (`currentWorkingWeightLbs(..., { completedOnly: true })`), so logging today's sets never moves today's advice; a free-weight number is printed only when it equals the last working set's load of the latest counted session (`ReactiveDecision.latestLoadLbs`), else it is withheld; a baseline rewritten by the in-progress workout is not that workout's context. The working-weight source itself is unchanged (OVE-61 tracks its extra-set and log-late limits).
+- **The number is the judged session's, or none.** Since Prescription-Aware Intelligence, the number is `segmentWorkingWeight(segment)`: the top planned working set of the newest finished, non-scheduled-deload performance in the segment the engine judged, so logging today's sets never moves today's advice. It is printed only when it equals the top working-set load of the latest counted session (`ReactiveDecision.latestTopLoadLbs`, OVE-61), for every equipment type; else it is withheld. No gym baseline is read.
 - Machines and cables append " at {gym}"; nothing crosses gyms. Advisory verbs only (Try / Stay at / Lower); no fatigue, recovery (outside the deload week's own line), injury, or certainty words.
 - Computed on every read, carried as strings on DTOs, never stored, never written back to a plan, weight, baseline, or goal.
 
@@ -222,3 +222,14 @@ No new constant. The rule reuses `hasBelowMin` (a planned working set with `reps
 - An in-range miss (short of the top, at or above the minimum) is still an ordinary hold: "Stay at {weight}".
 - **Fixed targets** are `targetRepMin === targetRepMax`. Pass is `reps >= repMax`, failure is `reps < repMin`, so 10 passes and 9 is below a target of 10. Print through `formatRepTarget(min, max)` (`src/lib/plan/rep-target.ts`): "10" or "6–10".
 - **Swap** opens on the planned primary muscle and can be filtered to any canonical muscle group. There is no muscle rule in the write.
+
+## Recurring workouts and comparable evidence (established by Prescription-Aware Intelligence)
+
+Source: `docs/pitches/mvp-5c-native-and-sharing/prescription-aware-intelligence/spec.md` §6–§7 (RD-2..RD-18). Code: `packages/shared/src/progression/recurring.ts` (the one rule), `src/lib/progression/recurring.ts`, `src/lib/logging/card-context.ts`.
+
+- **Recurring exercise** = `Session.lineageId` + the PERFORMED exercise id, plus the gym for gym-variable equipment. `lineageId` is copied by `cloneMesocycle` and fresh for every other session create (including duplicate); immutable; unique per mesocycle. Workouts with no session share one context per exercise and never match a planned workout (RD-17).
+- **Compatible** = equal rep range (`targetRepMin`, `targetRepMax` as copied onto the logged exercise) and the effective-target RIR rule: the anchor's recorded target, else the first recorded target met walking back; an unrecorded target is compatible; two different recorded targets break. Targets are null until Planned Workout Guidance copies them. Set count, session name, weekday, order, and notes never break compatibility. No similarity threshold.
+- **Segment** = the contiguous compatible run walked newest to oldest, stopped at the first incompatible performance. Returning to an old rep range starts a new segment. Deload-week and short performances stay in the run; the engine drops them from its windows, and a normal-week prefill skips deload weeks.
+- **Every reader uses the segment**: the card's offer and Last time (before the occurrence, same deload status), the occurrence call, the finish summary, Today's planned call (a started workout's copied range, else the plan's), the scheduled-deload 90% (base = the segment's last finished normal week, so it never compounds), and each exercise-page call (`nextByWorkout`, and every session row's call judged on its own run). The engine is unchanged.
+- **Exercise-wide, unchanged:** records, PRs, the e1RM and weight trends, goals.
+- **Gym baselines** are still established and corrected exactly as above, but no surface reads them except the account's export (guard: `tests/unit/baseline-read-guard.test.ts`).
