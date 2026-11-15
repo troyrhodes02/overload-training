@@ -17,6 +17,7 @@ import {
   SIGNED_IN_HOME,
   SIGNED_OUT_HOME,
 } from "../src/app-state/RootNavigator";
+import NotFound from "../src/app/+not-found";
 
 type Phase = "signed_out" | "launching" | "signed_in";
 let mockPhase: Phase = "signed_out";
@@ -59,6 +60,7 @@ const routes = {
   "(tabs)/today/index": label("Today"),
   "(tabs)/more/_layout": () => <Stack />,
   "(tabs)/more/index": label("More"),
+  "+not-found": NotFound,
 };
 
 async function launch(phase: Phase, initialUrl = "/") {
@@ -138,5 +140,37 @@ describe("root navigation", () => {
     await act(async () => setPhase("signed_in"));
     expect(await screen.findByText("Today")).toBeTruthy();
     expect(r.getPathname()).toBe("/today");
+  });
+
+  // Checkpoint C on the iPhone: an unknown URL showed Expo Router's
+  // "Unmatched Route", whose Sitemap crashes outside Metro. The app's own
+  // +not-found sends every unknown URL home instead.
+  it("an unknown URL, signed out, goes to Welcome", async () => {
+    const r = await launch("signed_out", "/no/such/screen");
+    expect(await screen.findByText("Welcome")).toBeTruthy();
+    expect(r.getPathname()).toBe("/");
+    expect(
+      screen.queryByText(/Unmatched|Sitemap|could not be found/i),
+    ).toBeNull();
+  });
+
+  it("an unknown URL, signed in, goes to Today", async () => {
+    const r = await launch("signed_in", "/no/such/screen");
+    expect(await screen.findByText("Today")).toBeTruthy();
+    expect(r.getPathname()).toBe("/today");
+    expect(
+      screen.queryByText(/Unmatched|Sitemap|could not be found/i),
+    ).toBeNull();
+  });
+
+  it("the not-found route changes none of the auth transitions", async () => {
+    const r = await launch("signed_out", "/sign-in");
+    await screen.findByText("Sign in screen");
+    await act(async () => setPhase("launching"));
+    await act(async () => setPhase("signed_in"));
+    expect(await screen.findByText("Today")).toBeTruthy();
+    await act(async () => setPhase("signed_out"));
+    expect(await screen.findByText("Welcome")).toBeTruthy();
+    expect(r.getPathname()).toBe("/");
   });
 });

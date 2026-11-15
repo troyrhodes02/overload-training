@@ -38,12 +38,16 @@ jest.mock("../src/config/env", () => ({
     },
   },
   APP_VERSION: "0.1.0",
+  SOURCE_COMMIT: "30b8bb57b8cdba31c41aaba1e75df31625276856",
   webOrigin: () => null,
 }));
 jest.mock("expo-updates", () => ({
   isEmbeddedLaunch: false,
   updateId: "60fd1959-122c-45e1-ba69-3b1d3eb0cd9e",
   channel: "staging",
+  manifest: {
+    metadata: { updateGroup: "60fd1959-122c-45e1-ba69-3b1d3eb0cd9e" },
+  },
   runtimeVersion: "f98506f7aaaaaaaa",
   createdAt: new Date("2026-11-14T18:00:00Z"),
 }));
@@ -105,6 +109,9 @@ describe("the Diagnostics route", () => {
     expect(r.getPathname()).toBe("/more/diagnostics");
     expect(screen.getByText("vdxrmfadikwzodjljbdi")).toBeTruthy();
     expect(screen.getByText("Remove access key")).toBeTruthy();
+    // Jest runs as a development bundle, so it reports Metro, not an update.
+    expect(screen.getByText("Metro (development)")).toBeTruthy();
+    expect(screen.getByText("30b8bb5")).toBeTruthy();
     const json = JSON.stringify(r.toJSON());
     expect(json).not.toContain(SECRET_KEY);
     expect(json).not.toContain(ANON_KEY);

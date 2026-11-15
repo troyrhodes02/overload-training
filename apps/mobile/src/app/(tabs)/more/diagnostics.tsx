@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import * as Updates from "expo-updates";
-import { APP_VERSION, ENV } from "../../../config/env";
+import { APP_VERSION, ENV, SOURCE_COMMIT } from "../../../config/env";
 import { diagnosticsAvailable } from "../../../diagnostics/availability";
 import { runHermesChecks } from "../../../diagnostics/hermes-checks";
+import { describeRunningBundle } from "../../../diagnostics/running-bundle";
 import {
   readStagingKey,
   removeStagingKey,
@@ -35,9 +36,15 @@ export function DiagnosticsScreen() {
   }, []);
   const passed = results.filter((r) => r.ok).length;
   const host = ENV.ok ? ENV.config.apiOrigin.replace(/^https?:\/\//, "") : "—";
-  const update = Updates.isEmbeddedLaunch
-    ? "Embedded bundle"
-    : `Update ${Updates.updateId?.slice(0, 8) ?? "?"}`;
+  const bundle = describeRunningBundle({
+    dev: __DEV__,
+    isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+    updateId: Updates.updateId,
+    manifest: Updates.manifest,
+    channel: Updates.channel,
+    createdAt: Updates.createdAt,
+    commit: SOURCE_COMMIT,
+  });
   const engine = (globalThis as { HermesInternal?: unknown }).HermesInternal
     ? "Hermes"
     : "Not Hermes";
@@ -86,20 +93,18 @@ export function DiagnosticsScreen() {
             ) : null}
           </GroupedList>
         ) : null}
-        <GroupedList header="Updates">
-          <ListRow title="Channel" value={Updates.channel ?? "—"} />
+        <GroupedList
+          header="Updates"
+          footer="Update group and commit name the over-the-air update that is running. Compare them with the publish output."
+        >
+          <ListRow title="Running" value={bundle.source} />
+          <ListRow title="Update group" value={bundle.updateGroup} />
+          <ListRow title="Commit" value={bundle.commit} />
+          <ListRow title="Published" value={bundle.published} />
+          <ListRow title="Channel" value={bundle.channel} />
           <ListRow
             title="Runtime"
             value={Updates.runtimeVersion?.slice(0, 10) ?? "—"}
-          />
-          <ListRow title="Running" value={update} />
-          <ListRow
-            title="Published"
-            value={
-              Updates.createdAt
-                ? Updates.createdAt.toISOString().slice(0, 16).replace("T", " ")
-                : "—"
-            }
           />
         </GroupedList>
         <GroupedList

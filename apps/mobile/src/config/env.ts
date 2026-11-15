@@ -24,6 +24,14 @@ export const ENV: MobileEnvironmentCheck = checkMobileEnvironment({
 /** The running app version, sent as X-Overload-App-Version on every call. */
 export const APP_VERSION: string = Constants.expoConfig?.version ?? "0.0.0";
 
+/**
+ * The commit an over-the-air update was published from, stamped by
+ * `npm run update:staging` (scripts/update-staging.ts). Display only; null in
+ * a Metro bundle or a build.
+ */
+export const SOURCE_COMMIT: string | null =
+  process.env.EXPO_PUBLIC_SOURCE_COMMIT?.trim() || null;
+
 /** The web origin the app links out to ("Open on the web"). */
 export function webOrigin(): string | null {
   return ENV.ok ? ENV.config.apiOrigin : null;

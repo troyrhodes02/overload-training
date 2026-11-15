@@ -79,18 +79,41 @@ When the build finishes, open its page on the iPhone (or scan the QR code) and i
 
 ## 5. Checkpoint C — a staging over-the-air update
 
-An update carries JavaScript, styles, and assets only. It reaches only builds with the same native fingerprint.
+An update carries JavaScript, styles, and assets only. It reaches only builds with the same native fingerprint (the build's **runtime**). Publish from the repository root, from a clean commit that is on GitHub:
 
 ```bash
-npm run update:staging -w @overload/mobile -- --message "21d staging update check"
+npm run mobile:update:staging                     # or: -- --message "Checkpoint C retry"
 ```
 
-On the iPhone, in the dev launcher: **Extensions** (or **Updates**) → branch `staging` → open the newest update. Alternatively, an installed build checks on launch. Then More → Diagnostics → **Running** shows `Update xxxxxxxx` with the update's time, instead of "Embedded bundle".
+The script refuses uncommitted changes, an unpushed commit, any channel, branch, or platform option, anything naming Production, and a runtime that no finished staging development build has. It prints `Runtime f98506f78a: 1 staging development build(s) can receive this update`, then eas-cli's summary: branch `staging`, platform `ios`, the **update group ID**, the **iOS update ID**, and a message that starts with the commit. (Don't use the old `npm run update:staging -w @overload/mobile`: it has none of these guards. It stays only because editing the mobile `package.json` scripts would change the fingerprint and cut this build off from every update. It goes at the next native rebuild.)
+
+**Open the update on the iPhone (SDK 58 dev launcher):**
+
+1. Open **Overload Dev**. If it reopens the last project, shake the phone → **Go home** to reach the launcher.
+2. Tap **Enter URL manually** and enter the channel URL: `https://u.expo.dev/3b322e4a-1bf6-422e-9feb-3aa859dffb46?channel-name=staging`. It opens the newest update on `staging` for this runtime. To pin one update exactly, enter `https://u.expo.dev/update/<iOS update ID>` instead. Typing is easiest from a Note synced from the Mac, or with Universal Clipboard.
+3. The launcher's **Updates** tab is optional. It lists updates only when the launcher is signed in (account icon, top right) to an Expo account that can read the private project `@wtrhodes/overload`. With any other account, Expo's API returns no data, and the tab shows "Error loading updates — Failed to decode response: The data couldn't be read because it is missing". That is an account problem, not an app problem.
+
+**Diagnostics on the update** (More → Diagnostics), exactly:
+
+| Row | Expected |
+| --- | --- |
+| Environment / API / Supabase project | `staging` / the `overload-training-git-staging-…vercel.app` host / `vdxrmfadikwzodjljbdi` |
+| App version / JavaScript engine | `0.1.0` / `Hermes` |
+| Access key | `Stored`, never its value |
+| Running | `EAS update` (Metro reads `Metro (development)`) |
+| Update group | the first 8 characters of the publish's **update group ID** |
+| Commit | the 7 characters at the start of the update message |
+| Published | the publish time, in UTC |
+| Channel | `Not set (opened by URL)`, because the launcher opens an update by its URL, not through the build's channel |
+| Runtime | `f98506f78a` |
+| Hermes checks | `16 of 16 passed.` |
 
 | # | Check | Expected |
 | --- | --- | --- |
-| C1 | Publish | The command prints the `staging` channel and branch, and a group id. Nothing says "production" |
-| C2 | Receive | Diagnostics shows the new update id and time |
+| C1 | Publish | The script prints the receiving build and the staging branch, the update group, and the commit. Nothing says "production" |
+| C2 | Receive | Diagnostics matches the table above, with this publish's group and commit |
+| C3 | Cold launch on the update | Force-quit, reopen, and open the update again. Signed in: Today (never "Unmatched Route"). An unknown link goes home |
+| C4 | Sign out and in on the update | Sign out → Welcome. Sign in → Today |
 
 ## 6. Signup, the reset request, and appearance on staging
 
@@ -111,10 +134,10 @@ Native signup (`POST /api/mobile/v1/accounts`), the reset request (`POST /api/mo
 
 | You changed | Do this |
 | --- | --- |
-| TypeScript, screens, styles, copy, or images in `apps/mobile/src` or `packages/shared` | `npm run update:staging -w @overload/mobile`. No rebuild needed |
+| TypeScript, screens, styles, copy, or images in `apps/mobile/src` or `packages/shared` | `npm run mobile:update:staging` (root). No rebuild needed |
 | A package with native code, a config plugin, `app.config.ts` native fields (name, bundle id, permissions, plugins), or the Expo SDK | `eas build --profile development --platform ios` (iPhone) or `npm run ios -w @overload/mobile` (simulator), then reinstall. The fingerprint changes, so the old build never receives the new update |
 
-`npx expo-doctor` (run from `apps/mobile`) and `eas fingerprint:compare` show whether a change is native.
+`npx expo-doctor` (run from `apps/mobile`) and `eas fingerprint:compare` show whether a change is native. Editing `apps/mobile/package.json` (even its `scripts`) changes the fingerprint too; the publish script refuses when that leaves no receiving build.
 
 ## 8. What stays yours
 
