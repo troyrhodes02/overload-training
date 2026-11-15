@@ -44,6 +44,21 @@ const plan = planStagingUpdate(
 );
 if (!plan.ok) refuse(plan.problems);
 
+// The bundle's public values come from the EAS environment; require them.
+const envCheck = spawnSync(
+  "eas",
+  [
+    "env:exec",
+    "development",
+    "node scripts/check-update-env.ts",
+    "--non-interactive",
+  ],
+  { cwd: mobileDir, stdio: ["ignore", "inherit", "inherit"] },
+);
+if (envCheck.status !== 0) {
+  refuse(["The EAS development environment check failed (above)."]);
+}
+
 const runtime = (
   JSON.parse(
     sh("npx", ["expo-updates", "fingerprint:generate", "--platform", "ios"]),

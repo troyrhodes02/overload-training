@@ -51,6 +51,27 @@ describe("planStagingUpdate", () => {
     );
   });
 
+  it("accepts the message in its other forms", () => {
+    for (const args of [["--message=retry"], ["-m", "retry"]]) {
+      const plan = planStagingUpdate(clean, args);
+      expect(plan.ok && plan.args).toContain("30b8bb5 retry");
+      expect(
+        plan.ok && plan.args.filter((a) => a === "--message"),
+      ).toHaveLength(1);
+    }
+  });
+
+  it("refuses anything that changes what is bundled (a stale dist under HEAD's name)", () => {
+    for (const args of [
+      ["--skip-bundler"],
+      ["--input-dir", "dist"],
+      ["--clear-cache", "--skip-bundler"],
+      ["--message", ""],
+    ]) {
+      expect(planStagingUpdate(clean, args).ok).toBe(false);
+    }
+  });
+
   it("refuses any attempt to pick another channel, branch, or Production", () => {
     for (const args of [
       ["--channel", "production"],
@@ -58,6 +79,8 @@ describe("planStagingUpdate", () => {
       ["--environment=production"],
       ["--auto"],
       ["-p", "all"],
+      ["-pall"],
+      ["--channel=production"],
       ["--message", "to production"],
     ]) {
       expect(planStagingUpdate(clean, args).ok).toBe(false);
