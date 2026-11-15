@@ -1,5 +1,4 @@
 import { Stack } from "expo-router";
-import type { stackScreenOptions } from "../ui/stackOptions";
 
 /** Where a signed-in lifter lands: the Today tab. */
 export const SIGNED_IN_HOME = "/today";
@@ -19,16 +18,10 @@ export const SIGNED_OUT_HOME = "/";
 export function RootNavigator({
   signedIn,
   background,
-  headerOptions = {},
 }: {
   signedIn: boolean;
   background: string;
-  /** The themed native header (the root layout passes stackScreenOptions). */
-  headerOptions?: ReturnType<typeof stackScreenOptions>;
 }) {
-  // The workout and its summary sit on this stack, over the tabs (Pitch 21e
-  // RD-6), with the standard native header and back to the opening tab.
-  const workoutHeader = { ...headerOptions, headerShown: true };
   return (
     <Stack
       screenOptions={{
@@ -38,10 +31,6 @@ export function RootNavigator({
     >
       <Stack.Protected guard={signedIn} redirectTo={SIGNED_OUT_HOME}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="workout/[loggedSessionId]/index"
-          options={workoutHeader}
-        />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn} redirectTo={SIGNED_IN_HOME}>
         <Stack.Screen name="(auth)" />

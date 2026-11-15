@@ -19,7 +19,6 @@ import {
 } from "../api/queries";
 import { decideGate, toLoadable, type Gate } from "../app-state/gate";
 import { RootNavigator } from "../app-state/RootNavigator";
-import { stackScreenOptions } from "../ui/stackOptions";
 import { SessionProvider, useSession } from "../auth/session";
 import { APP_VERSION, ENV } from "../config/env";
 import { runHermesChecks } from "../diagnostics/hermes-checks";
@@ -166,7 +165,6 @@ function Gatekeeper({
           <RootNavigator
             signedIn={gate === "signed_in"}
             background={theme.colors.background}
-            headerOptions={stackScreenOptions(theme)}
           />
         );
     }
