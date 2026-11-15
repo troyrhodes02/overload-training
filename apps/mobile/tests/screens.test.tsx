@@ -10,6 +10,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react-native";
 import { ApiError } from "../src/api/errors";
 import { appConfig, meDto, Providers } from "./harness";
@@ -53,6 +54,9 @@ jest.mock("expo-haptics", () => ({
   NotificationFeedbackType: { Success: "s", Warning: "w" },
 }));
 jest.mock("react-native-webview", () => ({ WebView: () => null }));
+
+/** System's accessible name includes the hint shown under it (RD-30). */
+const SYSTEM = "System, Follows your iPhone's setting";
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -218,6 +222,21 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
   });
 
+  it("M2 explains System on its own row, not in a footer", async () => {
+    await render(
+      <Providers>
+        <AppearanceScreen />
+      </Providers>,
+    );
+    const system = screen.getByRole("button", { name: SYSTEM });
+    expect(
+      within(system).getByText("Follows your iPhone's setting"),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Light" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+    expect(screen.queryByText(/System follows/)).toBeNull();
+  });
+
   it("M2 serializes saves: a tap during a save is queued and the last choice wins", async () => {
     const resolvers: ((v: unknown) => void)[] = [];
     mockApi.request.mockImplementation(
@@ -233,7 +252,7 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     );
     await fireEvent.press(screen.getByRole("button", { name: "Dark" }));
     await fireEvent.press(screen.getByRole("button", { name: "Light" }));
-    await fireEvent.press(screen.getByRole("button", { name: "System" }));
+    await fireEvent.press(screen.getByRole("button", { name: SYSTEM }));
     await fireEvent.press(screen.getByRole("button", { name: "Light" }));
     // Only one save in flight; the newest queued choice goes next.
     expect(mockApi.request).toHaveBeenCalledTimes(1);
@@ -263,13 +282,13 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     );
     await fireEvent.press(screen.getByRole("button", { name: "Dark" }));
     expect(screen.getByRole("button", { name: "Dark" })).toBeSelected();
-    await fireEvent.press(screen.getByRole("button", { name: "System" }));
+    await fireEvent.press(screen.getByRole("button", { name: SYSTEM }));
     // Let the failed save settle before asserting.
     await act(async () => {
       reject(new ApiError("not_found", "There's nothing here.", 404));
       for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
     });
-    expect(screen.getByRole("button", { name: "System" })).toBeSelected();
+    expect(screen.getByRole("button", { name: SYSTEM })).toBeSelected();
     expect(
       screen.queryByText("Couldn't save your appearance. Try again."),
     ).toBeNull();
@@ -290,7 +309,7 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     expect(
       await screen.findByText("Couldn't save your appearance. Try again."),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "System" })).toBeSelected();
+    expect(screen.getByRole("button", { name: SYSTEM })).toBeSelected();
     // The next choice tries again and clears the message while it saves.
     mockApi.request.mockResolvedValue({ appearance: "dark" });
     await fireEvent.press(screen.getByRole("button", { name: "Dark" }));
@@ -313,7 +332,7 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     expect(
       await screen.findByText("Couldn't save your appearance. Try again."),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "System" })).toBeSelected();
+    expect(screen.getByRole("button", { name: SYSTEM })).toBeSelected();
     expect(mockApi.request).toHaveBeenCalledWith("/me/appearance", {
       method: "PUT",
       body: { appearance: "dark" },
