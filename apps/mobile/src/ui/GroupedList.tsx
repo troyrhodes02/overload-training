@@ -64,6 +64,7 @@ export type ListRowAccessory = "chevron" | "check" | "external" | "none";
 
 export function ListRow({
   title,
+  subtitle,
   value,
   accessory = "none",
   tone = "default",
@@ -72,6 +73,8 @@ export function ListRow({
   selected,
 }: {
   title: string;
+  /** A second line under the title that explains this row, as in iOS Settings. */
+  subtitle?: string;
   value?: string;
   accessory?: ListRowAccessory;
   tone?: "default" | "destructive";
@@ -80,6 +83,7 @@ export function ListRow({
   selected?: boolean;
 }) {
   const { colors, spacing, controlHeight } = useTheme();
+  const label = [title, subtitle, value].filter(Boolean).join(", ");
   const content = (
     <View
       style={{
@@ -91,12 +95,16 @@ export function ListRow({
         gap: spacing.sm,
       }}
     >
-      <Text
-        tone={tone === "destructive" ? "destructive" : "default"}
-        style={{ flex: 1 }}
-      >
-        {title}
-      </Text>
+      <View style={{ flex: 1, gap: spacing.xxs }}>
+        <Text tone={tone === "destructive" ? "destructive" : "default"}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text size="sm" tone="muted">
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
       {value ? <Text tone="muted">{value}</Text> : null}
       {accessory === "chevron" ? (
         <Symbol name="chevron.right" size={14} color={colors.mutedForeground} />
@@ -120,10 +128,7 @@ export function ListRow({
   );
   if (!onPress) {
     return (
-      <View
-        accessible
-        accessibilityLabel={value ? `${title}, ${value}` : title}
-      >
+      <View accessible accessibilityLabel={label}>
         {content}
       </View>
     );
@@ -132,7 +137,7 @@ export function ListRow({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={value ? `${title}, ${value}` : title}
+      accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
       accessibilityState={selected === undefined ? undefined : { selected }}
       style={({ pressed }) => ({
