@@ -7,6 +7,8 @@ import { EnvironmentBadge } from "../../ui/EnvironmentBadge";
 import { Text } from "../../ui/Text";
 import { useTheme } from "../../ui/ThemeProvider";
 
+const LOGO_SIZE = 40;
+
 /** S1 Welcome (design §15): one line, two actions, thumb-reachable. */
 export default function WelcomeScreen() {
   const { colors, spacing } = useTheme();
@@ -30,16 +32,20 @@ export default function WelcomeScreen() {
           gap: spacing.md,
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing.sm,
-          }}
-        >
+        {/* The word is centered on its own; the logo hangs off its left
+            edge, outside the centered width (OVE-191). */}
+        <View>
           <Image
             source={require("../../../assets/splash-icon.png")}
-            style={{ width: 40, height: 40 }}
+            style={{
+              position: "absolute",
+              right: "100%",
+              top: "50%",
+              width: LOGO_SIZE,
+              height: LOGO_SIZE,
+              marginTop: -LOGO_SIZE / 2,
+              marginRight: spacing.sm,
+            }}
             accessibilityIgnoresInvertColors
           />
           <Text size="2xl" weight="semibold" accessibilityRole="header">
