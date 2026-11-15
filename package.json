@@ -31,7 +31,8 @@
     "demo:seed": "npm run demo:seed -w @overload/web --",
     "qa:seed": "npm run qa:seed -w @overload/web --",
     "qa:reset": "npm run qa:reset -w @overload/web --",
-    "qa:verify": "npm run qa:verify -w @overload/web --"
+    "qa:verify": "npm run qa:verify -w @overload/web --",
+    "mobile:update:staging": "node apps/mobile/scripts/update-staging.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

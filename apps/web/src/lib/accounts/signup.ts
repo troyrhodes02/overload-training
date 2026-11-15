@@ -118,7 +118,7 @@ export type SignUpDeps = {
   now?: () => Date;
 };
 
-const defaultDeps: SignUpDeps = {
+export const defaultSignUpDeps: SignUpDeps = {
   checkAndIncrement,
   verifyChallenge,
   isUsernameAvailable,
@@ -144,7 +144,7 @@ const defaultDeps: SignUpDeps = {
 
 export async function signUp(
   raw: RawSignUp,
-  deps: SignUpDeps = defaultDeps,
+  deps: SignUpDeps = defaultSignUpDeps,
   env: Record<string, string | undefined> = process.env,
 ): Promise<SignUpOutcome> {
   const mode = signupMode(env);

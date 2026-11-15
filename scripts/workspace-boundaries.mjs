@@ -17,6 +17,10 @@
  *   B6  no manifest declares a scheduler or queue (CLAUDE.md: rejected infra)
  *   B7  React lockstep: one exact React version across workspaces and a single
  *       react / react-dom in the lockfile, so the install has one React runtime
+ *   B8  apps/mobile keeps auth tokens only in the Keychain: no AsyncStorage or
+ *       MMKV dependency (Pitch 21d spec §11)
+ *   B9  in apps/mobile/src, only src/auth/supabase.ts imports supabase-js, so
+ *       nothing in the app can reach a database table (Pitch 21d spec §13)
  */
 import fs from "node:fs";
 import { builtinModules, createRequire } from "node:module";
@@ -64,6 +68,15 @@ export const MOBILE_FORBIDDEN = [
   "@supabase/ssr",
   ...WEB_ONLY_PACKAGES,
 ];
+
+/** B8: storage libraries that would put a token outside the Keychain. */
+export const MOBILE_TOKEN_STORES = [
+  "@react-native-async-storage/async-storage",
+  "react-native-mmkv",
+];
+
+/** B9: the one app module allowed to import supabase-js (auth only). */
+export const MOBILE_SUPABASE_MODULE = "apps/mobile/src/auth/supabase.ts";
 
 /** B6: the list invariant-guards.test.ts bans in the web manifest. */
 export const BANNED_INFRA = [
@@ -142,12 +155,19 @@ const matchesAny = (spec, patterns) => patterns.some((p) => matches(spec, p));
  *   workspaces: { dir: string, manifest: object }[],
  *   lock: object,
  *   sharedSources?: { file: string, code: string }[],
+ *   mobileSources?: { file: string, code: string }[],
  * }} repo
  * @returns {string[]} violations, each naming the rule, workspace and package
  */
 export function checkBoundaries(repo) {
   const errors = [];
-  const { root, workspaces, lock, sharedSources = [] } = repo;
+  const {
+    root,
+    workspaces,
+    lock,
+    sharedSources = [],
+    mobileSources = [],
+  } = repo;
 
   // B1
   const list = root.workspaces;
@@ -235,6 +255,29 @@ export function checkBoundaries(repo) {
       if (matchesAny(dep, MOBILE_FORBIDDEN)) {
         errors.push(
           `B4: apps/mobile depends on "${dep}"; the mobile app reaches data only through the mobile API.`,
+        );
+      }
+    }
+  }
+
+  // B8
+  if (mobile) {
+    for (const dep of declaredDeps(mobile.manifest)) {
+      if (MOBILE_TOKEN_STORES.includes(dep)) {
+        errors.push(
+          `B8: apps/mobile depends on "${dep}"; auth tokens live only in the Keychain (expo-secure-store).`,
+        );
+      }
+    }
+  }
+
+  // B9
+  for (const { file, code } of mobileSources) {
+    if (file === MOBILE_SUPABASE_MODULE) continue;
+    for (const spec of importSpecifiers(code)) {
+      if (spec === "@supabase/supabase-js" || spec.startsWith("@supabase/")) {
+        errors.push(
+          `B9: ${file} imports "${spec}"; only ${MOBILE_SUPABASE_MODULE} may, and it exposes auth only.`,
         );
       }
     }
@@ -441,22 +484,33 @@ export function loadRepo(rootDir) {
       }
     }
   }
-  const sharedSources = [];
-  const walk = (dir) => {
-    if (!fs.existsSync(dir)) return;
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, e.name);
-      if (e.isDirectory()) walk(full);
-      else if (/\.(c|m)?(t|j)sx?$/.test(e.name)) {
-        sharedSources.push({
-          file: path.relative(rootDir, full).split(path.sep).join("/"),
-          code: fs.readFileSync(full, "utf8"),
-        });
+  const collect = (into) => {
+    const walk = (dir) => {
+      if (!fs.existsSync(dir)) return;
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) walk(full);
+        else if (/\.(c|m)?(t|j)sx?$/.test(e.name)) {
+          into.push({
+            file: path.relative(rootDir, full).split(path.sep).join("/"),
+            code: fs.readFileSync(full, "utf8"),
+          });
+        }
       }
-    }
+    };
+    return walk;
   };
-  walk(path.join(rootDir, "packages", "shared", "src"));
-  return { root, workspaces, lock: read("package-lock.json"), sharedSources };
+  const sharedSources = [];
+  collect(sharedSources)(path.join(rootDir, "packages", "shared", "src"));
+  const mobileSources = [];
+  collect(mobileSources)(path.join(rootDir, "apps", "mobile", "src"));
+  return {
+    root,
+    workspaces,
+    lock: read("package-lock.json"),
+    sharedSources,
+    mobileSources,
+  };
 }
 
 if (

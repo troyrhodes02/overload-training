@@ -305,6 +305,9 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       "src/lib/accounts/signup.ts",
       "src/app/signup/actions.ts",
       "src/app/signup/signup-form.tsx",
+      // Pitch 21d: native signup pins the code to null (the app has no invite
+      // field; legacy invite mode reads as closed). Asserted below.
+      "src/lib/api/mobile/accounts.ts",
     ];
     const mentioners = walkCode()
       .filter((f) => rel(f) !== GATE)
@@ -312,6 +315,10 @@ describe("accounts: secrets and sanctioned capabilities (Accounts spec §14.7)",
       .map(rel)
       .sort();
     for (const file of mentioners) expect(SIGNUP_SURFACE).toContain(file);
+    const mobile = read(path.join(REPO_ROOT, "src/lib/api/mobile/accounts.ts"));
+    expect(mobile.match(/\binviteCode\b[^\n]*/g)).toEqual([
+      "inviteCode: null,",
+    ]);
   });
 
   it("only signup asks whether a username is free (the one cross-account question)", () => {
