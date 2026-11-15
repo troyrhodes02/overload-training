@@ -78,14 +78,37 @@ export type ExerciseCardDto = {
   plannedRepRange: { min: number; max: number };
   /**
    * The working weight: the first set's offered weight (Faster Logging UX R6,
-   * R9). Gym-scoped for gym-variable exercises; null for bodyweight or when no
-   * context exists. Display/prefill only — never written on its own.
+   * R9). Since Prescription-Aware Intelligence (spec §7.2) it is only ever a
+   * weight lifted before in THIS recurring workout at a comparable
+   * prescription (gym-scoped for gym-variable exercises); null for bodyweight
+   * or when no such performance exists — never another workout's weight.
+   * Display/prefill only — never written on its own.
    */
   suggestedWeightLbs: number | null;
-  /** True when that weight is this gym's GymExerciseBaseline (captioned "working weight", not "last time"; R27). */
+  /**
+   * Always false since Prescription-Aware Intelligence (RD-9): the gym
+   * baseline is no longer a weight source. Kept so older readers parse.
+   */
   workingWeightFromBaseline: boolean;
-  /** The most recent earlier performance in scope (Faster Logging UX R11). */
+  /**
+   * The most recent earlier comparable performance of this recurring workout
+   * (Faster Logging UX R11; Prescription-Aware Intelligence §7.2). Null when
+   * there is none — then `referencePerformance` may say what else exists.
+   */
   previousPerformance: PreviousPerformanceDto | null;
+  /**
+   * Display-only context when there is no comparable performance: the most
+   * recent other earlier performance of the exercise (another workout, the
+   * same workout at another rep range, or the other deload status).
+   * Never a weight source.
+   */
+  referencePerformance: ReferencePerformanceDto | null;
+  /**
+   * "trusted": `suggestedWeightLbs` is this workout's own last weight.
+   * "reference_only": no trusted weight; `referencePerformance` is shown.
+   * "none": nothing to show or offer.
+   */
+  weightContext: WeightContext;
   /** Marked "Didn't do" (or left with no sets when the workout finished). */
   skipped: boolean;
   /** Planned rows 1..plannedSets, then any logged extra sets. */
@@ -114,7 +137,17 @@ export type PreviousPerformanceDto = {
   gymScoped: boolean;
   /** Set-number order, extras included. Null weight = a bodyweight set. */
   sets: { setNumber: number; weightLbs: number | null; reps: number }[];
+  /** The workout it was logged in ("Push"); null when it had no session. */
+  sessionName: string | null;
+  /** That occurrence's planned rep range (its copied plan context). */
+  repRange: { min: number; max: number };
 };
+
+/** Another performance shown only as labeled reference (never prefilled). */
+export type ReferencePerformanceDto = PreviousPerformanceDto;
+
+/** Where the card's weight came from (Prescription-Aware Intelligence). */
+export type WeightContext = "trusted" | "reference_only" | "none";
 
 export type WorkoutDto = {
   loggedSessionId: string;
@@ -124,6 +157,8 @@ export type WorkoutDto = {
   gymName: string | null;
   gymLocked: boolean;
   isHistoricalDate: boolean;
+  /** The occurrence falls in a scheduled-deload week of its block. */
+  scheduledDeloadWeek: boolean;
   exercises: ExerciseCardDto[];
   complete: boolean;
 };

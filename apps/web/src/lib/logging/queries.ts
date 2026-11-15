@@ -7,11 +7,13 @@ import {
   addDays,
   formatPlanDate,
   formatPlanRange,
+  mesocycleWeekForDate,
   toIsoDate,
 } from "@overload/shared/plan/calendar";
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import { isScheduledDeloadWeek } from "@overload/shared/progression/deload";
+import { cardWeightContext, type CardHistoryRow } from "./card-context";
 import { exerciseHistoryHref } from "@/lib/progression/history-href";
 import {
   isMuscleGroup,
@@ -33,7 +35,6 @@ import type {
   DashboardTodayDto,
   DashboardDto,
   ExerciseCardDto,
-  PreviousPerformanceDto,
   WorkoutDto,
   SwapCandidate,
   SwapContextDto,
@@ -49,6 +50,8 @@ export type {
   DashboardDto,
   ExerciseCardDto,
   PreviousPerformanceDto,
+  ReferencePerformanceDto,
+  WeightContext,
   WorkoutDto,
   SwapCandidate,
   SwapContextDto,
@@ -398,61 +401,69 @@ export async function currentWorkingWeightLbs(
   return w?.lbs ?? null;
 }
 
+/** Whether an occurrence falls in its block's scheduled-deload week. */
+function isDeloadOccurrence(
+  mesocycle: { startDate: Date | null; deloadEveryWeeks: number } | null,
+  dateIso: string,
+): boolean {
+  if (!mesocycle?.startDate) return false;
+  const week =
+    mesocycleWeekForDate(toIsoDate(mesocycle.startDate), dateIso) ?? 1;
+  return isScheduledDeloadWeek(week, mesocycle.deloadEveryWeeks);
+}
+
 /**
- * The most recent earlier LoggedExercise of the PERFORMED exercise with at
- * least one set (Faster Logging UX R11): on or before this workout's date
- * (same date → created earlier), any mesocycle, the current occurrence
- * excluded. A gym-variable exercise looks only at this gym; with no gym there
- * is no machine context at all. Archived exercises and gyms are not filtered.
+ * Every occurrence of the PERFORMED exercise, through the account-scoped
+ * client, shaped for the card's weight context (card-context.ts). Archived
+ * exercises and gyms are not filtered: history keeps them.
  */
-async function previousPerformance(
+async function loadCardHistory(
   account: Account,
-  current: {
-    id: string;
-    exerciseId: string;
-    gymId: string | null;
-    gymVariable: boolean;
-    scheduledFor: Date;
-    createdAt: Date;
-  },
-): Promise<PreviousPerformanceDto | null> {
-  if (current.gymVariable && !current.gymId) return null;
-  const prev = await account.db.loggedExercise.findFirst({
-    where: {
-      exerciseId: current.exerciseId,
-      id: { not: current.id },
-      sets: { some: {} },
-      ...(current.gymVariable ? { gymId: current.gymId } : {}),
-      OR: [
-        { loggedSession: { scheduledFor: { lt: current.scheduledFor } } },
-        {
-          loggedSession: { scheduledFor: current.scheduledFor },
-          createdAt: { lt: current.createdAt },
-        },
-      ],
-    },
-    orderBy: [
-      { loggedSession: { scheduledFor: "desc" } },
-      { createdAt: "desc" },
-    ],
+  exerciseId: string,
+): Promise<CardHistoryRow[]> {
+  const les = await account.db.loggedExercise.findMany({
+    where: { exerciseId },
     select: {
-      loggedSession: { select: { scheduledFor: true } },
+      id: true,
+      createdAt: true,
+      gymId: true,
+      plannedSets: true,
+      targetRepMin: true,
+      targetRepMax: true,
       sets: {
         orderBy: { setNumber: "asc" },
         select: { setNumber: true, weightLbs: true, reps: true },
       },
+      loggedSession: {
+        select: {
+          scheduledFor: true,
+          session: { select: { name: true, lineageId: true } },
+          mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
+        },
+      },
     },
   });
-  if (!prev) return null;
-  return {
-    dateIso: toIsoDate(prev.loggedSession.scheduledFor),
-    gymScoped: current.gymVariable,
-    sets: prev.sets.map((s) => ({
-      setNumber: s.setNumber,
-      weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
-      reps: s.reps,
-    })),
-  };
+  return les.map((le) => {
+    const dateIso = toIsoDate(le.loggedSession.scheduledFor);
+    return {
+      id: le.id,
+      dateIso,
+      createdAtIso: le.createdAt.toISOString(),
+      gymId: le.gymId,
+      lineageId: le.loggedSession.session?.lineageId ?? null,
+      sessionName: le.loggedSession.session?.name ?? null,
+      plannedSets: le.plannedSets,
+      repMin: le.targetRepMin,
+      repMax: le.targetRepMax,
+      scheduledDeload: isDeloadOccurrence(le.loggedSession.mesocycle, dateIso),
+      sets: le.sets.map((x) => ({
+        setNumber: x.setNumber,
+        // A pure bodyweight (NULL) set is never read back as 0.
+        weightLbs: x.weightLbs === null ? null : Number(x.weightLbs),
+        reps: x.reps,
+      })),
+    };
+  });
 }
 
 export async function getWorkout(
@@ -464,7 +475,8 @@ export async function getWorkout(
   const ls = await account.db.loggedSession.findUnique({
     where: { id: loggedSessionId },
     include: {
-      session: { select: { name: true } },
+      session: { select: { name: true, lineageId: true } },
+      mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
       loggedExercises: {
         orderBy: { position: "asc" },
         include: {
@@ -479,6 +491,19 @@ export async function getWorkout(
     },
   });
   if (!ls) return null;
+  const scheduledForIso = toIsoDate(ls.scheduledFor);
+  const scheduledDeloadWeek = isDeloadOccurrence(ls.mesocycle, scheduledForIso);
+  // One history read per performed exercise (an exercise appears once per
+  // workout, but a swap can repeat one across cards).
+  const histories = new Map<string, Promise<CardHistoryRow[]>>();
+  const historyOf = (exerciseId: string) => {
+    let h = histories.get(exerciseId);
+    if (!h) {
+      h = loadCardHistory(account, exerciseId);
+      histories.set(exerciseId, h);
+    }
+    return h;
+  };
 
   const totalSets = ls.loggedExercises.reduce((n, le) => n + le.sets.length, 0);
   const gymLocked = totalSets > 0;
@@ -518,30 +543,22 @@ export async function getWorkout(
           });
         }
       }
-      const [working, previous] = await Promise.all([
-        externalLoad
-          ? workingWeight(
-              account,
-              le.exerciseId,
-              le.gymId,
-              variable,
-              {},
-              {
-                loggedExerciseId: le.id,
-                scheduledFor: ls.scheduledFor,
-                createdAt: le.createdAt,
-              },
-            )
-          : null,
-        previousPerformance(account, {
-          id: le.id,
-          exerciseId: le.exerciseId,
-          gymId: le.gymId,
-          gymVariable: variable,
-          scheduledFor: ls.scheduledFor,
-          createdAt: le.createdAt,
-        }),
-      ]);
+      // This recurring workout's comparable history only (Prescription-
+      // Aware Intelligence §7.2): never another workout's weight, never the
+      // gym baseline.
+      const context = cardWeightContext(await historyOf(le.exerciseId), {
+        id: le.id,
+        dateIso: scheduledForIso,
+        createdAtIso: le.createdAt.toISOString(),
+        exerciseId: le.exerciseId,
+        gymId: le.gymId,
+        lineageId: ls.session?.lineageId ?? null,
+        repMin: le.targetRepMin,
+        repMax: le.targetRepMax,
+        scheduledDeload: scheduledDeloadWeek,
+        gymVariable: variable,
+        externalLoad,
+      });
       return {
         loggedExerciseId: le.id,
         performedExerciseName: le.exercise.name,
@@ -556,9 +573,11 @@ export async function getWorkout(
         plannedSets: le.plannedSets,
         plannedRepRange: { min: le.targetRepMin, max: le.targetRepMax },
         skipped: le.skippedAt !== null,
-        suggestedWeightLbs: working?.lbs ?? null,
-        workingWeightFromBaseline: working?.fromBaseline ?? false,
-        previousPerformance: previous,
+        suggestedWeightLbs: context.suggestedWeightLbs,
+        workingWeightFromBaseline: false,
+        previousPerformance: context.previousPerformance,
+        referencePerformance: context.referencePerformance,
+        weightContext: context.weightContext,
         sets: rows,
       };
     }),
@@ -578,6 +597,7 @@ export async function getWorkout(
     gymName,
     gymLocked,
     isHistoricalDate: toIsoDate(ls.scheduledFor) !== accountToday(account),
+    scheduledDeloadWeek,
     exercises,
     complete: allComplete && ls.status === "complete",
   };
