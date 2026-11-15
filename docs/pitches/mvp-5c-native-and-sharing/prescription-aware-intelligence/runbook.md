@@ -2,9 +2,9 @@
 
 What the owner does outside the codebase. The run applied nothing to any hosted database.
 
-## 1. Migration: `9q_session_lineage`
+## 1. Migrations: `9q_session_lineage` and `9r_session_lineage_default`
 
-Additive and non-destructive. It adds `sessions.lineage_id`, backfills every existing session to its own id, sets NOT NULL, adds a unique index per mesocycle and an index, and adds an immutability trigger. No logged table is touched. Rehearsed on the legacy dataset (`tests/integration/session-lineage-migration.int.test.ts`).
+Additive and non-destructive. It adds `sessions.lineage_id`, backfills every existing session to its own id, sets NOT NULL, adds a unique index per mesocycle and an index, and adds an immutability trigger. No logged table is touched. `9r_session_lineage_default` then gives `lineage_id` a database default (`gen_random_uuid()`, OVE-197), so a writer that omits it, including the application released before this feature, still gets a fresh lineage. Rehearsed on the legacy dataset (`tests/integration/session-lineage-migration.int.test.ts`).
 
 **Order matters.** The new code reads `sessions.lineage_id`. Apply the migration to a database **before** code that reads it is deployed against that database.
 
@@ -56,7 +56,7 @@ No mobile endpoint serves the card or the exercise page yet. The card contract g
 ## 4. Production promotion prerequisites
 
 - The roadmap and PRD list this pitch and give it a number (owner amendment; see the feature PR's owner notes).
-- `9q_session_lineage` applied to Production with a fresh backup, before merging the release PR.
+- `9q_session_lineage` and `9r_session_lineage_default` (database default for `lineage_id`, OVE-197) applied to Production with a fresh backup, before merging the release PR. With `9r`, the application released before this feature keeps creating sessions normally on the migrated schema, so the order is safe and a code rollback needs no database fix.
 - Re-date the release note (`packages/shared/src/release-notes/entries.ts`, id and date) if Production ships after 2026-11-15.
 - Release review per `docs/pipeline/production-promotion-prompt.md`, including the mobile API backward-compatibility check: additive fields only; `ExerciseHistoryDto.next` is null when an exercise has two or more recurring workouts.
 

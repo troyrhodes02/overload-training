@@ -99,3 +99,78 @@ it("leaves row-level security on sessions enabled with no policy", async () => {
     await db.sql(`SELECT 1 FROM pg_policies WHERE tablename = 'sessions'`),
   ).toEqual([]);
 });
+
+describe("9r_session_lineage_default: release backward compatibility (OVE-197, RD-21)", () => {
+  const both = ["9q_session_lineage", "9r_session_lineage_default"];
+
+  it("adds only a database default; existing rows are untouched", async () => {
+    await db.applyMigrations(["9q_session_lineage"]);
+    const afterQ = await snapshot(db);
+    await db.applyMigrations(["9r_session_lineage_default"]);
+    expect(await snapshot(db)).toEqual(afterQ);
+    const [col] = await db.sql(
+      `SELECT is_nullable, column_default FROM information_schema.columns
+        WHERE table_name = 'sessions' AND column_name = 'lineage_id'`,
+    );
+    expect(col).toEqual({
+      is_nullable: "NO",
+      column_default: "gen_random_uuid()",
+    });
+  });
+
+  it("an old-code insert that omits lineage_id succeeds with a fresh, distinct lineage", async () => {
+    await db.applyMigrations(both);
+    const [{ meso }] = await db.sql(
+      `SELECT mesocycle_id AS meso FROM "sessions" LIMIT 1`,
+    );
+    // Exactly the columns the pre-feature application writes: no lineage_id.
+    const insert = (name: string) =>
+      db.sql(
+        `INSERT INTO "sessions" (id, mesocycle_id, name, position, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1, $2, 98, now(), now()) RETURNING id, lineage_id`,
+        [meso, name],
+      );
+    const [a] = await insert("Old-code A");
+    const [b] = await insert("Old-code B");
+    expect(a.lineage_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(a.lineage_id).not.toBe(b.lineage_id);
+    const existing = await db.sql(
+      `SELECT count(*)::int AS n FROM "sessions" WHERE lineage_id IN ($1, $2) AND id NOT IN ($3, $4)`,
+      [a.lineage_id, b.lineage_id, a.id, b.id],
+    );
+    expect(existing[0].n).toBe(0);
+  });
+
+  it("a supplied lineage is kept, uniqueness and immutability still hold", async () => {
+    await db.applyMigrations(both);
+    const [s] = await db.sql(
+      `SELECT id, mesocycle_id AS meso, lineage_id FROM "sessions" ORDER BY id LIMIT 1`,
+    );
+    const [{ other }] = await db.sql(
+      `SELECT id AS other FROM mesocycles WHERE id <> $1 LIMIT 1`,
+      [s.meso],
+    );
+    // A clone-style insert into another block keeps the supplied lineage.
+    const [kept] = await db.sql(
+      `INSERT INTO "sessions" (id, mesocycle_id, name, position, lineage_id, created_at, updated_at)
+       VALUES (gen_random_uuid(), $1, 'Clone', 97, $2, now(), now()) RETURNING lineage_id`,
+      [other, s.lineage_id],
+    );
+    expect(kept.lineage_id).toBe(s.lineage_id);
+    // The same lineage twice in one block is still refused.
+    await expect(
+      db.sql(
+        `INSERT INTO "sessions" (id, mesocycle_id, name, position, lineage_id, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1, 'Twin', 96, $2, now(), now())`,
+        [s.meso, s.lineage_id],
+      ),
+    ).rejects.toThrow(/sessions_mesocycle_id_lineage_id_key/);
+    // A lineage still never changes.
+    await expect(
+      db.sql(
+        `UPDATE "sessions" SET "lineage_id" = gen_random_uuid() WHERE id = $1`,
+        [s.id],
+      ),
+    ).rejects.toThrow(/lineage never changes/);
+  });
+});
