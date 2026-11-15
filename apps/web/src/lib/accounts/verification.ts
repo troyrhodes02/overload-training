@@ -1,5 +1,5 @@
 import "server-only";
-import { headers } from "next/headers";
+import { requestAuthConfirmUrl } from "@/lib/accounts/auth-redirect";
 import { createServerSupabase } from "@/lib/supabase/server";
 import type { Account } from "@/lib/data/account";
 import { getAuthUser } from "@/lib/auth";
@@ -55,83 +55,9 @@ type VerificationSupabaseAuth = {
   }) => Promise<{ error: { code?: string; status?: number } | null }>;
 };
 
-/**
- * Is `host` a deployment we're willing to send a verification link back to?
- * The link must open the SAME deployment the lifter is on (a Vercel preview
- * must verify on that preview, since production does not yet carry this flow),
- * so the redirect host follows the request — but only within an allow-list, so
- * a spoofed Host header can never point the link at an attacker's domain. (It
- * would only ever reach the signed-in account's own inbox, and Supabase's
- * Redirect-URL allow-list is a second gate, but we validate here too.)
- *
- * Allowed: localhost; any `*.vercel.app` (preview + the Vercel prod alias); the
- * configured production host (NEXT_PUBLIC_APP_URL); and any host in
- * OVERLOAD_REDIRECT_HOSTS (comma-separated). Anything else is refused.
- */
-export function isAllowedRedirectHost(
-  host: string,
-  env: Record<string, string | undefined> = process.env,
-): boolean {
-  const bare = host.split(":")[0].trim().toLowerCase();
-  if (!bare) return false;
-  if (bare === "localhost" || bare === "127.0.0.1" || bare === "[::1]")
-    return true;
-  if (bare === "vercel.app" || bare.endsWith(".vercel.app")) return true;
-  const configured = env.NEXT_PUBLIC_APP_URL;
-  if (configured) {
-    try {
-      const confHost = new URL(configured).hostname.toLowerCase();
-      if (confHost === bare) return true;
-      // Also accept the www/apex SIBLING of the same configured domain. A
-      // canonical-www production whose NEXT_PUBLIC_APP_URL is set to the apex
-      // (or vice versa) must still honor the host the lifter is actually on, so
-      // the link returns to that host's /auth/confirm instead of falling back
-      // to a non-canonical origin (which Supabase then rejects, dropping the
-      // lifter on the Site-URL homepage). Bounded to one `www.` toggle of the
-      // configured host — never a different registrable domain.
-      const sibling = confHost.startsWith("www.")
-        ? confHost.slice(4)
-        : `www.${confHost}`;
-      if (sibling === bare) return true;
-    } catch {
-      // ignore a malformed configured URL
-    }
-  }
-  return (env.OVERLOAD_REDIRECT_HOSTS ?? "")
-    .split(",")
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(bare);
-}
-
-/**
- * The absolute `/auth/confirm` URL the verification link returns to, derived
- * from the CURRENT request so a preview verifies on that preview and production
- * on production. The host is validated by isAllowedRedirectHost; anything
- * unexpected falls back to NEXT_PUBLIC_APP_URL (else localhost). This value is
- * passed as Supabase `emailRedirectTo` and surfaces in the email template as
- * `{{ .RedirectTo }}`, so the template host is per-deployment, not the fixed
- * Site URL.
- */
-async function defaultRedirectUrl(): Promise<string> {
-  const fallback = (
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-  ).replace(/\/$/, "");
-  try {
-    const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host");
-    if (!host || !isAllowedRedirectHost(host))
-      return `${fallback}/auth/confirm`;
-    const proto =
-      h.get("x-forwarded-proto") ??
-      (host.startsWith("localhost") || host.startsWith("127.")
-        ? "http"
-        : "https");
-    return `${proto}://${host}/auth/confirm`;
-  } catch {
-    return `${fallback}/auth/confirm`;
-  }
-}
+// The host allow-list and the /auth/confirm URL now live in auth-redirect.ts,
+// shared with password recovery; re-exported for existing callers.
+export { isAllowedRedirectHost } from "@/lib/accounts/auth-redirect";
 
 async function defaultAuth(): Promise<VerificationSupabaseAuth> {
   const supabase = await createServerSupabase();
@@ -155,7 +81,7 @@ async function sessionEmail(): Promise<string | null> {
 const defaultSendDeps: SendVerificationDeps = {
   ownEmail: sessionEmail,
   auth: defaultAuth,
-  redirectUrl: defaultRedirectUrl,
+  redirectUrl: requestAuthConfirmUrl,
 };
 
 /**
