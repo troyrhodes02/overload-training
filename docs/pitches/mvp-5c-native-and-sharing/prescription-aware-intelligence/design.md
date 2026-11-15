@@ -326,7 +326,7 @@ Permanent non-goals: program generation, AI coaching, a rest timer, social featu
 ## 11. User guidance
 
 - **Tour:** no step. The card's anatomy is unchanged and its existing tour step still describes it.
-- **Release note (significant: no):** title "Each workout remembers its own weights". Body: "If an exercise is in two workouts, each one now offers the weight you lifted last time in that workout, and gets its own progress call. Other workouts' numbers show as reference only."
+- **Release note (significant: yes — decided in the spec, RD-15, because the offered weight and calls change):** title "Each workout remembers its own weights". Body: "If an exercise is in two workouts, each one now offers the weight you lifted last time in that workout, and gets its own progress call. Other workouts' numbers show as reference only."
 
 ## 12. Plan placement and client scope
 

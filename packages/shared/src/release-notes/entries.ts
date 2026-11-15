@@ -34,6 +34,21 @@ import type { ReleaseNoteEntry } from "./types";
  * — do not reclassify these development milestones.
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
+  {
+    // Prescription-Aware Intelligence (OVE-192–196, overload-onboarding).
+    // Significant: it changes the weight the card offers and the progress
+    // calls lifters act on (the skill's correctness rule). No tour step: the
+    // logging card's anatomy is unchanged and its step still reads correctly.
+    // PROVISIONAL date: written 2026-11-15 while the feature is on staging.
+    // If it reaches Production on a later day, change the id and date to that
+    // day BEFORE release (it is unpublished until then).
+    id: "2026-11-15-each-workout-remembers-its-weights",
+    date: "2026-11-15",
+    title: "Each workout remembers its own weights",
+    body: "When an exercise is in more than one workout, each workout now offers the weight you last lifted in it and gets its own progress call. Other workouts' numbers show only as reference. Machines offer what you last lifted at that gym, so a recent increase shows up right away.",
+    significant: true,
+    audience: "internal",
+  },
   // Workout Plan Import & Review (Pitch 22): its entry is HELD, not published.
   // The code ships to Production with PLAN_IMPORT_ENABLED off, and a
   // significant entry would open What's New for every account to announce a
