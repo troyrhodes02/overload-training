@@ -147,7 +147,11 @@ describe("reads never surface another account's training", () => {
     const mine = (await getWorkout(a, A.loggedSessionId))!.exercises.find(
       (c) => c.performedExerciseId === lib.chestPress.id,
     )!;
-    expect(mine.suggestedWeightLbs).toBe(120);
+    // Prescription-Aware Intelligence RD-9: the offer comes only from EARLIER
+    // comparable workouts of this recurring workout (never the gym baseline
+    // this workout itself wrote), so A's first workout offers nothing — and
+    // its own logged sets, below, are what it sees.
+    expect(mine.suggestedWeightLbs).toBeNull();
     expect(mine.sets.filter((s) => s.loggedSetId).length).toBe(3);
     expect(mine.sets.map((s) => s.rir)).toEqual([1, 2, null]);
   });

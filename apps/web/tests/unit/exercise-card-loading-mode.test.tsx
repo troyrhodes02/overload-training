@@ -39,6 +39,8 @@ function card(overrides: Partial<ExerciseCardDto>): ExerciseCardDto {
     suggestedWeightLbs: null,
     workingWeightFromBaseline: false,
     previousPerformance: null,
+    referencePerformance: null,
+    weightContext: "none",
     skipped: false,
     sets: [
       {

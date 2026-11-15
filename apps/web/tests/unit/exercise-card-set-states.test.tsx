@@ -92,9 +92,13 @@ function card(overrides: Partial<ExerciseCardDto> = {}): ExerciseCardDto {
     plannedRepRange: { min: 6, max: 8 },
     suggestedWeightLbs: 185,
     workingWeightFromBaseline: false,
+    referencePerformance: null,
+    weightContext: "trusted",
     previousPerformance: {
       dateIso: "2026-10-13",
       gymScoped: false,
+      sessionName: null,
+      repRange: { min: 6, max: 8 },
       sets: [
         { setNumber: 1, weightLbs: 185, reps: 8 },
         { setNumber: 2, weightLbs: 185, reps: 8 },
@@ -249,6 +253,8 @@ describe("no history and gym scope", () => {
         previousPerformance: {
           dateIso: "2026-10-13",
           gymScoped: true,
+          sessionName: null,
+          repRange: { min: 6, max: 8 },
           sets: [
             { setNumber: 1, weightLbs: 50, reps: 12 },
             { setNumber: 2, weightLbs: 50, reps: 12 },
@@ -469,5 +475,84 @@ describe("RIR on the card (RIR Logging & Autoregulation preview §01–§03)", (
     expect(html).toContain("15");
     expect(html).toContain("· 1 RIR");
     expect(groups(html)).toBe(1);
+  });
+});
+
+describe("recurring workouts (Prescription-Aware Intelligence, Screen 1)", () => {
+  const push = {
+    dateIso: "2026-10-17",
+    gymScoped: false,
+    sets: [
+      { setNumber: 1, weightLbs: 255, reps: 5 },
+      { setNumber: 2, weightLbs: 255, reps: 5 },
+      { setNumber: 3, weightLbs: 255, reps: 4 },
+    ],
+    sessionName: "Push",
+    repRange: { min: 3, max: 5 },
+  };
+  const renderIn = (dto: ExerciseCardDto, deload = false) =>
+    renderToStaticMarkup(
+      <ExerciseCard
+        exercise={dto}
+        gymLocked={false}
+        workoutDateIso="2026-10-21"
+        workoutName="Upper"
+        scheduledDeloadWeek={deload}
+      />,
+    );
+
+  it("names the workout a trusted last time came from", () => {
+    const html = renderIn(
+      card({
+        previousPerformance: { ...push, sessionName: "Upper" },
+        suggestedWeightLbs: 255,
+      }),
+    );
+    expect(html).toContain("Last time in Upper · Oct 17 · 255 × 5, 5, 4");
+    expect(html).not.toContain("For reference");
+  });
+
+  it("another workout's numbers are reference only: an empty box, no caption", () => {
+    const html = renderIn(
+      card({
+        previousPerformance: null,
+        suggestedWeightLbs: null,
+        referencePerformance: push,
+        weightContext: "reference_only",
+      }),
+    );
+    expect(html).toContain("Nothing logged in Upper at 6–8 reps yet.");
+    expect(html).toContain(
+      "For reference: Push · 3–5 reps · Oct 17 · 255 × 5, 5, 4",
+    );
+    expect(valueOf(html, "Set 1 weight in pounds")).toBe("");
+    expect(html).not.toContain(">last time<");
+    expect(html).not.toContain(">working weight<");
+  });
+
+  it("a deload week with only normal-week history says so", () => {
+    const html = renderIn(
+      card({
+        previousPerformance: null,
+        suggestedWeightLbs: null,
+        referencePerformance: { ...push, sessionName: "Upper" },
+        weightContext: "reference_only",
+      }),
+      true,
+    );
+    expect(html).toContain("Nothing logged in Upper for a deload week yet.");
+    expect(html).toContain("For reference: Upper · 3–5 reps");
+  });
+
+  it("with nothing anywhere, it is the first time", () => {
+    const html = renderIn(
+      card({
+        previousPerformance: null,
+        suggestedWeightLbs: null,
+        weightContext: "none",
+      }),
+    );
+    expect(html).toContain("First time logging this.");
+    expect(html).not.toContain("For reference");
   });
 });

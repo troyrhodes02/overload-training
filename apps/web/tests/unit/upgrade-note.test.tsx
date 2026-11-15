@@ -122,6 +122,7 @@ describe("Free exercise history renders logged data, not Pro values", () => {
       extraSets: [],
       plannedSets: 2,
       swappedFromName: null,
+      sessionName: null,
       call: "none",
     };
     const html = renderToStaticMarkup(
