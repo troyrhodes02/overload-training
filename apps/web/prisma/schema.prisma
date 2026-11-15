@@ -146,6 +146,12 @@ model Session {
   /// 1 = Monday … 7 = Sunday; null = not on the schedule (spec D41/D42).
   dayOfWeek   Int?     @map("day_of_week")
   position    Int      @default(0)
+  /// Durable identity of a recurring workout across blocks (Prescription-Aware
+  /// Intelligence RD-2..RD-4): fresh on create and duplicate (client-side
+  /// uuid default), copied from the source by cloneMesocycle. Immutable
+  /// (trigger sessions_lineage_id_immutable). Opaque: not a foreign key, never
+  /// accepted from client input.
+  lineageId   String   @default(uuid()) @map("lineage_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -157,7 +163,10 @@ model Session {
 
   // Zero or one session per weekday (NULLs are distinct: any number unscheduled).
   @@unique([mesocycleId, dayOfWeek])
+  // One session per recurring workout in a block (clone copies one per source).
+  @@unique([mesocycleId, lineageId])
   @@index([mesocycleId])
+  @@index([lineageId])
   @@index([userId])
   @@map("sessions")
 }
