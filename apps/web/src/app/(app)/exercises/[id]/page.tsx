@@ -130,8 +130,9 @@ export default async function ExerciseDetailPage({
     history.nextByWorkout.length > 1 ? (
       workoutLines.length > 0 ? (
         <div className="space-y-3">
-          {workoutLines.map(({ w, body }) => (
-            <div key={w.sessionName} className="space-y-1">
+          {workoutLines.map(({ w, body }, i) => (
+            // Two workouts may share a name; the list order is stable.
+            <div key={i} className="space-y-1">
               <p className="text-sm font-medium tabular-nums">
                 {w.sessionName} ·{" "}
                 {formatRepTarget(w.repRange.min, w.repRange.max)} reps

@@ -240,6 +240,15 @@ async function computeExerciseHistory(
       ? rows.filter((r) => (r.perf.gymId ?? NO_GYM) === selected.key)
       : rows;
   const historyRows = scopeRows.map(toHistoryRow);
+  // Segments are cut over EVERY gathered row in scope (review of #227),
+  // exactly as the card, Today, and the summary cut them — a skipped
+  // occurrence with no sets still breaks a run — so the page and the card
+  // never judge one occurrence on different evidence.
+  const segmentScope = !selected
+    ? []
+    : gymVariable
+      ? allRows.filter((r) => (r.perf.gymId ?? NO_GYM) === selected.key)
+      : allRows;
 
   const today = accountToday(account);
   const label = (iso: string) => formatMonthDay(iso, today);
@@ -265,7 +274,7 @@ async function computeExerciseHistory(
         const d = await describeScope(
           account,
           exercise,
-          segmentRows(scopeRows, exercise.id, e.anchor),
+          segmentRows(segmentScope, exercise.id, e.anchor),
           gym,
           "next",
         );
@@ -344,7 +353,7 @@ async function computeExerciseHistory(
   // Each session's call is judged on its own recurring workout's comparable
   // run ending at it — the same evidence its card used (§7.5).
   const performanceById = new Map(
-    scopeRows.map((r) => [r.perf.loggedExerciseId, r]),
+    segmentScope.map((r) => [r.perf.loggedExerciseId, r]),
   );
   const calls = callsBySession(historyRows, {
     externalLoad,
@@ -352,9 +361,12 @@ async function computeExerciseHistory(
     segmentEndingAt: (hr) => {
       const target = performanceById.get(hr.perf.loggedExerciseId);
       return target
-        ? rowSegmentEndingAt(scopeRows, exercise.id, target, gymVariable).map(
-            toHistoryRow,
-          )
+        ? rowSegmentEndingAt(
+            segmentScope,
+            exercise.id,
+            target,
+            gymVariable,
+          ).map(toHistoryRow)
         : [];
     },
   });

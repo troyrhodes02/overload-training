@@ -186,8 +186,10 @@ export function cardWeightContext(
     suggestedWeightLbs,
     previousPerformance,
     referencePerformance,
+    // "trusted" whenever this workout's comparable last time exists — with
+    // its weight in the box when the exercise takes one (bodyweight has none).
     weightContext:
-      suggestedWeightLbs !== null
+      previousPerformance !== null
         ? "trusted"
         : referencePerformance !== null
           ? "reference_only"

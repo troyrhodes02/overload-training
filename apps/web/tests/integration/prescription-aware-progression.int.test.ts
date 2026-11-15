@@ -328,3 +328,61 @@ describe("Scenario J — a corrected past set recomputes on read", () => {
     expect(await db().gymExerciseBaseline.count()).toBe(0);
   });
 });
+
+describe("review of #227 — a past workout keeps its own evidence", () => {
+  it("a completed workout's call survives a later rep-range change, and the page agrees", async () => {
+    const b = await twoWorkoutBlock(account);
+    const log = logger(account, b);
+    await log(b.push.id, SAT[0], TOP_SAT);
+    const done = await log(b.push.id, SAT[1], TOP_SAT);
+    expect((await occ(account, done.loggedExerciseId)).tag).toBe("progress");
+
+    // Push moves to 6–8 and is logged once at the new range.
+    await db().sessionExercise.updateMany({
+      where: { sessionId: b.push.id },
+      data: { targetRepMin: 6, targetRepMax: 8 },
+    });
+    await log(b.push.id, SAT[2], [
+      [235, 8],
+      [235, 8],
+      [235, 8],
+    ]);
+
+    // The earlier Saturday is still judged on the run that ended at it.
+    expect((await occ(account, done.loggedExerciseId)).tag).toBe("progress");
+    const page = (await getExerciseHistory(account, b.exercise.id))!;
+    const row = page.sessions.rows.find((r) => r.dateIso === SAT[1])!;
+    expect(row.call).toBe("progress");
+  });
+
+  it("a skipped workout at another rep range breaks the run on the card and the page alike", async () => {
+    const b = await twoWorkoutBlock(account);
+    const log = logger(account, b);
+    await log(b.upper.id, WED[0], TOP_WED);
+    await log(b.upper.id, WED[1], TOP_WED);
+    // WED[2] planned at 8–10, started, and nothing logged (a skipped day).
+    await db().sessionExercise.updateMany({
+      where: { sessionId: b.upper.id },
+      data: { targetRepMin: 8, targetRepMax: 10 },
+    });
+    await logWorkout(account, {
+      sessionId: b.upper.id,
+      date: WED[2],
+      gymId: b.gym.id,
+      exerciseId: b.exercise.id,
+      sets: [],
+      finish: false,
+    });
+    await db().sessionExercise.updateMany({
+      where: { sessionId: b.upper.id },
+      data: { targetRepMin: 6, targetRepMax: 8 },
+    });
+    const next = await start(account, b, b.upper.id, WED[3]);
+    const card = await occ(account, next.loggedExerciseId);
+    const page = (await getExerciseHistory(account, b.exercise.id))!;
+    const upper = page.nextByWorkout.find((w) => w.sessionName === "Upper")!;
+    // The 8–10 occurrence cut the 6–8 run: no call on either surface.
+    expect(card.tag).toBeNull();
+    expect(upper.next).toMatchObject({ tag: null, recommendation: null });
+  });
+});

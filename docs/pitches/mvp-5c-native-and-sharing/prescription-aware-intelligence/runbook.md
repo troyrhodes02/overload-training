@@ -26,6 +26,10 @@ Then merge the feature PR into `staging` (if the run left it open), or confirm t
 
 Take a backup, then apply with `prisma migrate deploy` from the release runbook, **before** the release PR is merged. The backfill is one `UPDATE` over `sessions` (small table); it takes no lock on logged tables.
 
+### What lifters see right after the release (expected, RD-19)
+
+Blocks cloned before this release are not linked to the block they were cloned from (no automatic relinking, by decision). In such a block, the first time each workout comes up it shows an empty weight box with a "For reference" line, and no progress call until that workout has its own history in the block. Every later occurrence in the block, and every block cloned after the release, links normally. Logged history is untouched and fully visible. Worth a line in the release announcement if you send one.
+
 ## 2. Staging verification (browser)
 
 Use a throwaway overload-dev account (see the Pitch 24 verification notes: provision tool with `HOME` override, demo seed). Create a block with **Push** (Saturday) and **Upper** (Wednesday), both planning Barbell Bench Press: Push 3 × 3–5, Upper 3 × 6–8.

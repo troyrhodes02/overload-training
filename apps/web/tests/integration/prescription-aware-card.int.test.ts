@@ -357,3 +357,22 @@ describe("Scenario L — no cross-account inference", () => {
     ).toBe(230);
   });
 });
+
+describe("review of #227 — weightContext", () => {
+  it("a bodyweight exercise with a comparable last time is 'trusted' with no weight", async () => {
+    const b = await twoWorkoutBlock(account, {
+      equipmentType: "bodyweight",
+      name: "Pull-Ups",
+      upper: { reps: [6, 10] },
+    });
+    await log(account, b, b.upper.id, WED[0], [
+      [null, 8],
+      [null, 7],
+      [null, 7],
+    ]);
+    const card = await cardFor(account, b, b.upper.id, WED[1]);
+    expect(card.suggestedWeightLbs).toBeNull();
+    expect(card.previousPerformance?.sessionName).toBe("Upper");
+    expect(card.weightContext).toBe("trusted");
+  });
+});
