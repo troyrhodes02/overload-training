@@ -243,3 +243,15 @@ export type MissedDayResolutionDto = {
   /** Shift or skip; "log it late" starts a workout instead. */
   outcome: ResolvableMissedDayOutcome;
 };
+
+/** `POST /workouts` (Pitch 21e): the started or resumed workout. */
+export type StartWorkoutResponseDto = { loggedSessionId: string };
+
+/**
+ * `POST /workouts/{loggedSessionId}/complete` (Pitch 21e). Finishing an
+ * already finished workout answers the same and changes nothing.
+ */
+export type CompleteWorkoutResponseDto = {
+  loggedSessionId: string;
+  status: "complete";
+};
