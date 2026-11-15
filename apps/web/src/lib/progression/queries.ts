@@ -139,6 +139,14 @@ export type PerformanceRow = {
   plannedSets: number;
   completed: boolean; // session complete AND all planned working sets present
   /**
+   * Recurring-exercise identity and order (Prescription-Aware Intelligence
+   * §6): the workout's session lineage (null when it had no session), its
+   * session name, and the occurrence's creation time (same-date tie-break).
+   */
+  lineageId: string | null;
+  sessionName: string | null;
+  createdAtIso: string;
+  /**
    * Session complete, regardless of how many planned sets were logged. Strength
    * reads (e1RM trend, goal progress) use this: a set the lifter actually did
    * demonstrates strength even when they stopped short of the plan. The
@@ -177,6 +185,7 @@ export async function gatherRows(
           status: true,
           createdAt: true,
           scheduledFor: true,
+          session: { select: { lineageId: true, name: true } },
           mesocycle: {
             select: { startDate: true, deloadEveryWeeks: true },
           },
@@ -236,6 +245,9 @@ export async function gatherRows(
       plannedExerciseId: le.plannedExerciseId,
       plannedExerciseName: le.plannedExercise.name,
       plannedSets: le.plannedSets,
+      lineageId: le.loggedSession.session?.lineageId ?? null,
+      sessionName: le.loggedSession.session?.name ?? null,
+      createdAtIso: le.createdAt.toISOString(),
       completed,
       finished: le.loggedSession.status === "complete",
     };
