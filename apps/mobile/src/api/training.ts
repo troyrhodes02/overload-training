@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   keepPreviousData,
   useMutation,
@@ -53,9 +55,13 @@ export function useToday() {
   });
 }
 
-export function useWorkout(loggedSessionId: string) {
+export function useWorkout(
+  loggedSessionId: string,
+  opts: { enabled?: boolean } = {},
+) {
   const api = useApi();
   return useQuery<WorkoutViewDto, ApiError>({
+    enabled: opts.enabled ?? true,
     queryKey: TRAINING_KEYS.workout(loggedSessionId),
     queryFn: ({ signal }) =>
       api.request<WorkoutViewDto>(`/workouts/${enc(loggedSessionId)}`, {
@@ -101,6 +107,38 @@ export function useFetchGyms() {
         api.request<GymsResponseDto>("/gyms", { signal }),
       staleTime: 30_000,
     });
+}
+
+/**
+ * After a set: the workout already holds the server's confirmed set, so the
+ * other reads are only marked stale, not refetched (review #6); Today and
+ * History refetch when they are next shown (useRefetchWhenFocused).
+ */
+export function markTrainingStale(
+  client: QueryClient,
+  loggedSessionId: string,
+): Promise<void> {
+  const stale = { refetchType: "none" as const };
+  return Promise.all([
+    client.invalidateQueries({ queryKey: TRAINING_KEYS.today, ...stale }),
+    client.invalidateQueries({ queryKey: ["history-week"], ...stale }),
+    client.invalidateQueries({ queryKey: ["history-workout"], ...stale }),
+    client.invalidateQueries({
+      queryKey: TRAINING_KEYS.workout(loggedSessionId),
+      ...stale,
+    }),
+  ]).then(() => undefined);
+}
+
+/** Refetch a screen's query when the screen comes back into view and is stale. */
+export function useRefetchWhenFocused(queryKey: readonly unknown[]) {
+  const client = useQueryClient();
+  const key = JSON.stringify(queryKey);
+  useFocusEffect(
+    useCallback(() => {
+      void client.refetchQueries({ queryKey: JSON.parse(key), stale: true });
+    }, [client, key]),
+  );
 }
 
 /** Every training read that a write can change. */
@@ -205,7 +243,7 @@ export function useLogSet() {
         TRAINING_KEYS.workout(loggedSessionId),
         (view) => mergeConfirmedSet(view, set),
       );
-      void invalidateTraining(client, loggedSessionId);
+      void markTrainingStale(client, loggedSessionId);
     },
   });
 }

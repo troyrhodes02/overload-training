@@ -218,9 +218,10 @@ describe("a full workout through the API", () => {
       "invalid_state_transition",
     ]);
     expect(await db().loggedSet.count({ where: { loggedExerciseId } })).toBe(1);
-    expect((await readWorkout(account, loggedSessionId)).workout.status).toBe(
-      "complete",
-    );
+    const finished = await readWorkout(account, loggedSessionId);
+    expect(finished.workout.status).toBe("complete");
+    // A finished workout's cards carry no calls (review #5).
+    expect(finished.progression).toEqual([]);
   });
 
   it("finishing with no set logged is refused and changes nothing", async () => {

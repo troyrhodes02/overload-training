@@ -10,16 +10,14 @@ const LONG_DATE = new Intl.DateTimeFormat("en-US", {
 /**
  * Today's date in the account's time zone, as "Saturday, November 14"
  * (design T1). The calendar date comes from the shared `todayIso`, the same
- * function the server uses; only the wording is formatted here, on the UTC
- * midnight of that date so the device zone can't shift it.
+ * function the server uses. The app shows the server's `today`; this stays
+ * for the Hermes date checks (21d spec §12).
  */
 export function accountTodayLabel(
   timeZone: string,
   now: Date = new Date(),
 ): string {
-  const iso = todayIso(timeZone, now);
-  const date = parseIsoDate(iso);
-  return date ? LONG_DATE.format(date) : iso;
+  return longDateLabel(todayIso(timeZone, now));
 }
 
 const WEEKDAY = new Intl.DateTimeFormat("en-US", {

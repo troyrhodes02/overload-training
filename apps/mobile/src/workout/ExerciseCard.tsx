@@ -14,7 +14,6 @@ import type {
 } from "@overload/shared/contracts/logging";
 import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
-import { rirSuffix } from "@overload/shared/logging/rir";
 import { formatWeight, offerCaption } from "@overload/shared/logging/set-entry";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { ApiError } from "../api/errors";
@@ -25,6 +24,7 @@ import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
 import { fontFamily, textSize } from "../ui/theme";
 import { useTheme } from "../ui/ThemeProvider";
+import { setValueLabel, setValueSpoken } from "./labels";
 import {
   cardActiveSet,
   cardContext,
@@ -80,7 +80,8 @@ export function ExerciseCard({
   const [focused, setFocused] = useState<"weight" | "reps" | null>(null);
   const weightRef = useRef<TextInputInstance>(null);
   const repsRef = useRef<TextInputInstance>(null);
-  const focusNext = useRef(false);
+  /** The set whose confirmed save should move focus on (review #1). */
+  const focusAfter = useRef<number | null>(null);
 
   const mode = cardMode(card);
   const needsWeight = card.requiresExternalWeight;
@@ -93,11 +94,15 @@ export function ExerciseCard({
   const saving = logSet.isPending;
   const context = cardContext(card, workout);
 
-  // Focus follows the lifter's own save (never on open): the next set's reps
-  // when its weight is offered, else its weight.
+  // Focus follows the lifter's own save (never on open), and only once the
+  // card SHOWS that set confirmed and the inputs are editable again: the next
+  // set's reps when its weight is offered, else its weight; after the last
+  // planned set the keypad closes.
   useEffect(() => {
-    if (!focusNext.current) return;
-    focusNext.current = false;
+    const n = focusAfter.current;
+    if (n === null || saving) return;
+    if (!card.sets.some((x) => x.setNumber === n && x.saved)) return;
+    focusAfter.current = null;
     if (active === null) {
       Keyboard.dismiss();
       onPlannedSetsDone?.();
@@ -105,7 +110,7 @@ export function ExerciseCard({
     }
     const target = needsWeight && weightText === "" ? weightRef : repsRef;
     target.current?.focus();
-  }, [active, needsWeight, weightText, onPlannedSetsDone]);
+  }, [card.sets, saving, active, needsWeight, weightText, onPlannedSetsDone]);
 
   function setDraft(n: number, patch: Partial<Draft>) {
     setDrafts((d) => ({ ...d, [n]: { ...(d[n] ?? EMPTY), ...patch } }));
@@ -132,6 +137,7 @@ export function ExerciseCard({
     if (!reps.ok) return fail({ field: "reps", message: reps.message });
     setFieldError(null);
     setNotice(null);
+    focusAfter.current = n;
     try {
       await logSet.mutateAsync({
         loggedSessionId: workout.loggedSessionId,
@@ -148,8 +154,8 @@ export function ExerciseCard({
         return rest;
       });
       void haptic.light();
-      focusNext.current = true;
     } catch (error) {
+      focusAfter.current = null;
       void haptic.warning();
       const e =
         error instanceof ApiError
@@ -410,27 +416,15 @@ function EdgeNote({ title, message }: { title: string; message: string }) {
 
 function LoggedRow({ set }: { set: ExerciseCardDto["sets"][number] }) {
   const { colors, spacing } = useTheme();
-  const value =
-    set.weightLbs === null
-      ? `${set.reps} reps`
-      : `${formatWeight(set.weightLbs)} lbs × ${set.reps}`;
-  const rir = rirSuffix(set.rir);
-  const spokenValue =
-    set.weightLbs === null
-      ? `${set.reps} reps`
-      : `${formatWeight(set.weightLbs)} pounds, ${set.reps} reps`;
+  const shown = { ...set, reps: set.reps ?? 0 };
   return (
     <View
       accessible
-      accessibilityLabel={`Set ${set.setNumber}${set.extra ? ", extra" : ""}, ${spokenValue}, logged`}
+      accessibilityLabel={`Set ${set.setNumber}${set.extra ? ", extra" : ""}, ${setValueSpoken(shown)}, logged`}
       style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}
     >
       <Text style={{ width: 48 }}>Set {set.setNumber}</Text>
-      <Text style={{ flex: 1 }}>
-        {value}
-        {rir ? ` ${rir}` : ""}
-        {set.extra ? " · extra" : ""}
-      </Text>
+      <Text style={{ flex: 1 }}>{setValueLabel(shown)}</Text>
       <Symbol
         name="checkmark"
         size={16}

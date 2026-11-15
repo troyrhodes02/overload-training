@@ -6,7 +6,11 @@ import type {
 } from "@overload/shared/contracts/logging";
 import type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
 import type { TodayDto } from "@overload/shared/contracts/views";
-import { useToday } from "../api/training";
+import {
+  TRAINING_KEYS,
+  useRefetchWhenFocused,
+  useToday,
+} from "../api/training";
 import { webOrigin } from "../config/env";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
@@ -27,6 +31,7 @@ import { useStartOrResume, type StartState } from "./useStartWorkout";
 export function TodayView() {
   const { colors, spacing } = useTheme();
   const today = useToday();
+  useRefetchWhenFocused(TRAINING_KEYS.today);
   const starter = useStartOrResume();
 
   const body = (() => {

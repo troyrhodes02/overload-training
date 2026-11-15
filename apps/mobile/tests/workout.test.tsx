@@ -39,6 +39,7 @@ jest.mock("expo-router", () => ({
     return mockRouter;
   },
   useLocalSearchParams: () => ({}),
+  useFocusEffect: () => {},
 }));
 jest.mock("expo-haptics", () => ({
   notificationAsync: jest.fn(async () => {}),

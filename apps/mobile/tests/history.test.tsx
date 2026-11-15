@@ -31,6 +31,7 @@ jest.mock("expo-router", () => ({
     return mockRouter;
   },
   useLocalSearchParams: () => ({}),
+  useFocusEffect: () => {},
 }));
 
 const block = (id: string, name: string) => ({
@@ -218,6 +219,28 @@ describe("moving through all-time history", () => {
     );
   });
 
+  it("a week that fails to load offers a retry and the way back (review #3)", async () => {
+    serve({
+      "/history": activeWeek(),
+      "/history?week=2026-11-02": new ApiError("network", "offline"),
+    });
+    await render(
+      <Providers>
+        <HistoryScreen />
+      </Providers>,
+    );
+    await screen.findByText("Nov 9 – 15");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Previous week" }),
+    );
+    expect(await screen.findByText("Couldn't load that week.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Back to this week" }),
+    );
+    expect(await screen.findByText("Nov 9 – 15")).toBeTruthy();
+  });
+
   it("an account with nothing logged sees the empty state", async () => {
     serve({ "/history": { ...activeWeek(), hasAnyHistory: false } });
     await render(
@@ -300,6 +323,26 @@ const detail = (): LoggedWorkoutDetailViewDto => ({
 });
 
 describe("a logged workout (H2)", () => {
+  it("a workout finished since the row was opened offers no Resume (review #2)", async () => {
+    serve({
+      "/history/ls-old": detail(),
+      "/workouts/ls-old": { workout: { status: "complete" }, progression: [] },
+    });
+    await render(
+      <Providers>
+        <LoggedWorkoutScreen loggedSessionId="ls-old" inProgress />
+      </Providers>,
+    );
+    await screen.findByText("Wednesday, July 8 · Old Gym");
+    await waitFor(() =>
+      expect(
+        mockApi.request.mock.calls.some(([p]) => p === "/workouts/ls-old"),
+      ).toBe(true),
+    );
+    expect(screen.queryByRole("button", { name: "Resume workout" })).toBeNull();
+    expect(screen.queryByText("In progress")).toBeNull();
+  });
+
   it("shows every set as recorded, archived and swapped exercises included", async () => {
     serve({ "/history/ls-old": detail() });
     await render(
@@ -319,8 +362,14 @@ describe("a logged workout (H2)", () => {
     ).toBeTruthy();
   });
 
-  it("an in-progress workout offers Resume", async () => {
-    serve({ "/history/ls-old": detail() });
+  it("an in-progress workout offers Resume — only when the server says so", async () => {
+    serve({
+      "/history/ls-old": detail(),
+      "/workouts/ls-old": {
+        workout: { status: "in_progress" },
+        progression: [],
+      },
+    });
     await render(
       <Providers>
         <LoggedWorkoutScreen loggedSessionId="ls-old" inProgress />
