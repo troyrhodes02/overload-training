@@ -1,4 +1,5 @@
 import "server-only";
+import { requestAuthConfirmUrl } from "@/lib/accounts/auth-redirect";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { type ActionResult } from "@/lib/actions/result";
 import {
@@ -6,6 +7,7 @@ import {
   weakPasswordMessage,
   PASSWORD_ERRORS,
 } from "@overload/shared/accounts/validation";
+import { CHALLENGE_FAILED } from "@overload/shared/accounts/auth-errors";
 import { checkAndIncrement } from "./throttle";
 import { verifyChallenge } from "./turnstile";
 
@@ -91,6 +93,7 @@ export function newPasswordErrorFor(error: {
 type RecoverySupabaseAuth = {
   resetPasswordForEmail: (
     email: string,
+    options?: { redirectTo?: string },
   ) => Promise<{ error: { code?: string; status?: number } | null }>;
   getClaims: () => Promise<{
     data: { claims?: { amr?: unknown } | null } | null;
@@ -112,6 +115,11 @@ export type RequestResetDeps = {
   throttleKey: string;
   /** Builds the Supabase auth client bound to this request's cookies. */
   auth: () => Promise<RecoverySupabaseAuth>;
+  /**
+   * This deployment's /auth/confirm, passed as Supabase `redirectTo` so the
+   * email link returns to the reset flow, never the bare Site URL (21d QA).
+   */
+  redirectUrl: () => Promise<string>;
 };
 
 async function defaultAuth(): Promise<RecoverySupabaseAuth> {
@@ -124,6 +132,7 @@ const defaultRequestDeps: RequestResetDeps = {
   checkAndIncrement,
   throttleKey: "unknown",
   auth: defaultAuth,
+  redirectUrl: requestAuthConfirmUrl,
 };
 
 /**
@@ -138,10 +147,11 @@ export async function requestPasswordReset(
   input: RequestResetInput,
   deps: Partial<RequestResetDeps> = {},
 ): Promise<ActionResult<{ sent: true }>> {
-  const { verifyChallenge, checkAndIncrement, throttleKey, auth } = {
-    ...defaultRequestDeps,
-    ...deps,
-  };
+  const { verifyChallenge, checkAndIncrement, throttleKey, auth, redirectUrl } =
+    {
+      ...defaultRequestDeps,
+      ...deps,
+    };
 
   // Shape first: a malformed email is reported before anything else and never
   // reaches the auth service, so it reveals nothing. The challenge is verified
@@ -154,7 +164,6 @@ export async function requestPasswordReset(
     };
   }
 
-  const CHALLENGE_FAILED = "Couldn't verify you're human. Try again.";
   if (!(await verifyChallenge(input.challengeToken))) {
     return {
       ok: false,
@@ -182,13 +191,18 @@ export async function requestPasswordReset(
   // duration on both paths); deferred as low-risk and out of this pitch's
   // scope. See docs/runs/18-public-accounts-recovery-support-report.md (removed in the docs reorganization; see git history).
   if (allowed) {
-    // Trigger the Supabase recovery email. Its template links to /auth/confirm,
+    // Trigger the Supabase recovery email. Its template links to
+    // `{{ .RedirectTo }}` (this deployment's /auth/confirm),
     // which exchanges the one-time token for the recovery session and continues
     // to /reset-password. Failures are logged by code only — NEVER the address
     // — and never change the result the lifter sees.
     try {
       const authClient = await auth();
-      const { error } = await authClient.resetPasswordForEmail(email.value);
+      // The link must come back to /auth/confirm on this deployment. The URL
+      // depends only on the request, never on the email (no enumeration).
+      const { error } = await authClient.resetPasswordForEmail(email.value, {
+        redirectTo: await redirectUrl(),
+      });
       if (error) {
         console.error(
           `password reset request not sent (${error.code ?? error.status ?? "unknown"})`,

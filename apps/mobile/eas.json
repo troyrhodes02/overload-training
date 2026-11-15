@@ -1,0 +1,27 @@
+{
+  "cli": {
+    "version": ">= 27.7.2",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "staging",
+      "environment": "development",
+      "env": {
+        "EXPO_PUBLIC_OVERLOAD_ENV": "staging"
+      },
+      "ios": {
+        "resourceClass": "default"
+      },
+      "node": "22.23.5"
+    },
+    "development-simulator": {
+      "extends": "development",
+      "ios": {
+        "simulator": true
+      }
+    }
+  }
+}

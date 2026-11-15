@@ -7,6 +7,7 @@ import {
   compareAppVersions,
   minimumAppVersion,
   mobileAppConfig,
+  mobileBotChallenge,
   parseAppVersion,
 } from "@/lib/api/mobile/version";
 import { ApiFailure } from "@/lib/api/mobile/errors";
@@ -60,6 +61,8 @@ describe("mobileAppConfig", () => {
       latestAppVersion: "0.0.0",
       killSwitches: { planImportEnabled: false, maintenance: false },
       signupMode: "closed",
+      // No bypass and no configured key: a challenge is required but unavailable.
+      botChallenge: { provider: "turnstile", siteKey: null, origin: null },
     });
   });
 
@@ -125,11 +128,72 @@ describe("mobileAppConfig", () => {
       expect(json).not.toContain(value);
     }
     expect(Object.keys(mobileAppConfig(env)).sort()).toEqual([
+      "botChallenge",
       "killSwitches",
       "latestAppVersion",
       "minimumAppVersion",
       "signupMode",
     ]);
+  });
+});
+
+describe("mobileBotChallenge (Pitch 21d RD-6)", () => {
+  const production = {
+    VERCEL_ENV: "production",
+    NODE_ENV: "production",
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: "0x4AAAAAAA-public-site-key",
+    TURNSTILE_SECRET_KEY: "0x4AAAAAAA-secret-never-sent",
+    NEXT_PUBLIC_APP_URL: "https://www.overloadtraining.app/some/path",
+  };
+
+  it("carries the public site key and the web origin, never the secret", () => {
+    const challenge = mobileBotChallenge(production);
+    expect(challenge).toEqual({
+      provider: "turnstile",
+      siteKey: "0x4AAAAAAA-public-site-key",
+      origin: "https://www.overloadtraining.app",
+    });
+    expect(JSON.stringify(mobileAppConfig(production))).not.toContain(
+      "secret-never-sent",
+    );
+  });
+
+  it("is null exactly under the web's own Preview / development bypass", () => {
+    expect(
+      mobileBotChallenge({
+        ...production,
+        VERCEL_ENV: "preview",
+        TURNSTILE_DISABLED: "true",
+      }),
+    ).toBeNull();
+    // The flag never bypasses on Production.
+    expect(
+      mobileBotChallenge({ ...production, TURNSTILE_DISABLED: "true" }),
+    ).not.toBeNull();
+    // Without the flag, Preview still requires the challenge.
+    expect(
+      mobileBotChallenge({ ...production, VERCEL_ENV: "preview" }),
+    ).not.toBeNull();
+  });
+
+  it("an unusable origin or key is null, so the app can't skip the check", () => {
+    expect(
+      mobileBotChallenge({
+        ...production,
+        NEXT_PUBLIC_APP_URL: "http://www.overloadtraining.app",
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: "  ",
+      }),
+    ).toEqual({ provider: "turnstile", siteKey: null, origin: null });
+    expect(
+      mobileBotChallenge({ ...production, NEXT_PUBLIC_APP_URL: "not a url" })
+        ?.origin,
+    ).toBeNull();
+    expect(
+      mobileBotChallenge({
+        ...production,
+        NEXT_PUBLIC_APP_URL: "http://localhost:3200",
+      })?.origin,
+    ).toBe("http://localhost:3200");
   });
 });
 

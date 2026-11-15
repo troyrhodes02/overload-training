@@ -42,14 +42,24 @@ const prisma = () => getTestPrisma();
 
 async function trialAccount(
   endsInMs: number,
-  opts: { verified?: boolean; timeZone?: string; userId?: string } = {},
+  opts: {
+    verified?: boolean;
+    timeZone?: string;
+    userId?: string;
+    /**
+     * Where the trial's clock starts. Defaults to the fixed NOW; a test that
+     * reads something resolved on the real clock (getBillingScreen) passes
+     * `new Date()`, or the trial expires once the calendar passes NOW (OVE-190).
+     */
+    from?: Date;
+  } = {},
 ): Promise<Account> {
   const account = opts.userId
     ? await accountFor(opts.userId)
     : await createTestAccount(opts.timeZone ?? "UTC", undefined, {
         entitlement: "none",
       });
-  const endsAt = new Date(NOW.getTime() + endsInMs);
+  const endsAt = new Date((opts.from ?? NOW).getTime() + endsInMs);
   await prisma().entitlement.create({
     data: {
       userId: account.userId,
@@ -174,7 +184,8 @@ describe("subscribing during the free trial", () => {
   );
 
   it("the screen offers Subscribe to an active trial on the web, and not in the app shell", async () => {
-    const account = await trialAccount(4 * DAY);
+    // getBillingScreen resolves on the real clock, so the trial does too.
+    const account = await trialAccount(4 * DAY, { from: new Date() });
     const web = await getBillingScreen(account);
     expect(web.displayState).toBe("trial");
     expect(web.canSubscribe).toBe(true);
