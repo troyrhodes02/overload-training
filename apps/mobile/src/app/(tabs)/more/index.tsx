@@ -3,7 +3,8 @@ import { router, Stack } from "expo-router";
 import { billingCopy } from "@overload/shared/billing/copy";
 import { useMe } from "../../../api/queries";
 import { useSession } from "../../../auth/session";
-import { APP_VERSION, ENV, webOrigin } from "../../../config/env";
+import { APP_VERSION, webOrigin } from "../../../config/env";
+import { diagnosticsAvailable } from "../../../diagnostics/availability";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
 import { Symbol } from "../../../ui/Symbol";
 import { Text } from "../../../ui/Text";
@@ -135,7 +136,7 @@ export default function MoreScreen() {
           <Text size="xs" tone="muted" align="center">
             {`Overload ${APP_VERSION} · Staging`}
           </Text>
-          {ENV.ok ? (
+          {diagnosticsAvailable() ? (
             <View style={{ alignSelf: "stretch" }}>
               <GroupedList>
                 <ListRow

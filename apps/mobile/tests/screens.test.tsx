@@ -5,6 +5,7 @@
  */
 import { Appearance } from "react-native";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -53,7 +54,13 @@ jest.mock("expo-haptics", () => ({
 }));
 jest.mock("react-native-webview", () => ({ WebView: () => null }));
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  // The appearance mirror lives in the Keychain mock; start each test clean.
+  (
+    jest.requireMock("expo-secure-store") as { __store: Map<string, string> }
+  ).__store.clear();
+});
 
 describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
   beforeAll(() => {
@@ -240,6 +247,59 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Light" })).toBeSelected(),
     );
+  });
+
+  it("M2 a superseded save that fails while the newest choice is already saved shows no error", async () => {
+    // Simulator QA on staging: Light was slow and then failed; Dark, tapped
+    // meanwhile, is the saved value, so nothing was lost.
+    let reject: (e: unknown) => void = () => {};
+    mockApi.request.mockImplementation(
+      () => new Promise((_resolve, r) => (reject = r)),
+    );
+    await render(
+      <Providers>
+        <AppearanceScreen />
+      </Providers>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Dark" }));
+    expect(screen.getByRole("button", { name: "Dark" })).toBeSelected();
+    await fireEvent.press(screen.getByRole("button", { name: "System" }));
+    // Let the failed save settle before asserting.
+    await act(async () => {
+      reject(new ApiError("not_found", "There's nothing here.", 404));
+      for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("button", { name: "System" })).toBeSelected();
+    expect(
+      screen.queryByText("Couldn't save your appearance. Try again."),
+    ).toBeNull();
+    // Nothing to send: System is already the saved value.
+    expect(mockApi.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("M2 an endpoint the server doesn't have yet (404 not_found) returns the saved choice and says so", async () => {
+    mockApi.request.mockRejectedValue(
+      new ApiError("not_found", "There's nothing here.", 404),
+    );
+    await render(
+      <Providers>
+        <AppearanceScreen />
+      </Providers>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Light" }));
+    expect(
+      await screen.findByText("Couldn't save your appearance. Try again."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "System" })).toBeSelected();
+    // The next choice tries again and clears the message while it saves.
+    mockApi.request.mockResolvedValue({ appearance: "dark" });
+    await fireEvent.press(screen.getByRole("button", { name: "Dark" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Couldn't save your appearance. Try again."),
+      ).toBeNull(),
+    );
+    expect(screen.getByRole("button", { name: "Dark" })).toBeSelected();
   });
 
   it("M2 applies a choice and returns the saved one when the save fails", async () => {

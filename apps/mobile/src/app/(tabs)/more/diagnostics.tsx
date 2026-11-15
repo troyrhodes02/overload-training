@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import * as Updates from "expo-updates";
 import { APP_VERSION, ENV } from "../../../config/env";
+import { diagnosticsAvailable } from "../../../diagnostics/availability";
 import { runHermesChecks } from "../../../diagnostics/hermes-checks";
 import {
   readStagingKey,
@@ -16,10 +17,16 @@ import { useTheme } from "../../../ui/ThemeProvider";
 
 /**
  * Diagnostics (design M3): read-only facts for the owner's device review.
- * Development and staging builds only; never a token, a key, an email, or a
- * password.
+ * Developer (staging) builds only, decided by `diagnosticsAvailable`; never a
+ * token, a key, an email, or a password.
  */
-export default function DiagnosticsScreen() {
+export default function DiagnosticsRoute() {
+  // The route guard in more/_layout already refuses; this is the last check.
+  if (!diagnosticsAvailable()) return <Redirect href="/more" />;
+  return <DiagnosticsScreen />;
+}
+
+export function DiagnosticsScreen() {
   const { colors, spacing } = useTheme();
   const [results, setResults] = useState(runHermesChecks);
   const [keyStored, setKeyStored] = useState<boolean | null>(null);

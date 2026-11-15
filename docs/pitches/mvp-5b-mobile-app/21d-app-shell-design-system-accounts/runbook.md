@@ -49,9 +49,9 @@ Check, and reply with a pass or fail for each:
 | A2 | Sign in as `overload-staging-tester@example.com` | Lands on **Today** with today's date in the account's zone. A wrong password says "Wrong email or password." and keeps the email |
 | A3 | Tabs | Today, History, Plan, Goals, More: the system tab bar, with honest "comes to the app in a later update" placeholders and "Open on the web" |
 | A4 | More | The tester's name and email, the plan row reads the trial or Pro label (no purchase button), plus Appearance, Exercises, Gyms, Manage account, and Sign out |
-| A5 | Appearance | More → Appearance → Dark, then Light, then System: the whole app, tab bar, and status bar follow. Device Settings → Dark Mode while on System also follows. The choice shows on the web after a reload |
+| A5 | Appearance (on screen) | More → Appearance → Dark, then Light, then System: the whole app, tab bar, and status bar follow each tap at once. Device Settings → Dark Mode while on System also follows. **Before the merge**, staging has no save endpoint, so each choice then returns to the account's saved one with "Couldn't save your appearance. Try again." That is expected; saving is D4 |
 | A6 | Keyboards and safe areas | Sign-in and Create account: fields stay visible above the keyboard, Return moves to the next field, nothing sits under the notch or home indicator |
-| A7 | Diagnostics | More → Diagnostics: API host is the staging URL, Supabase project is `vdxrmfadikwzodjljbdi`, engine is Hermes, and every date check passes |
+| A7 | Diagnostics | More → Diagnostics: API host is the staging URL, Supabase project is `vdxrmfadikwzodjljbdi`, engine is Hermes, every date check passes, and the access key shows only "Stored" (never its value). Diagnostics exists only in staging builds (RD-25) |
 | A8 | Sign out | More → Sign out → confirm, back to Welcome. Relaunch, and you're still signed out |
 
 ## 4. Checkpoint B — Physical iPhone (Apple signing: you, once)
@@ -101,7 +101,7 @@ Native signup (`POST /api/mobile/v1/accounts`), the reset request (`POST /api/mo
 | D1 | Create account with a throwaway `…@example.com` | Lands on Today, signed in. More shows "Pro — trial · 14d". Staging has `TURNSTILE_DISABLED=true` on Preview, so no challenge card shows, exactly as the web hides its widget |
 | D2 | Same email again | "An account with this email already exists. Sign in instead." |
 | D3 | Reset password | The identical "Check your email" text for a real and an unknown email. The real one gets the email; its link opens the **web** reset page |
-| D4 | Appearance | Saves (A5) |
+| D4 | Appearance | Dark, then Light, then System each stay, with no error. Sign out and back in: the last choice returns. The web shows it after a reload |
 
 **Optional, the challenge card itself:** run the web locally with Cloudflare's always-pass test keys (`NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA`, `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`, `NEXT_PUBLIC_APP_URL=http://localhost:3200`, `OVERLOAD_SIGNUP_MODE=public`, and the overload-dev database and Supabase values), with `next build && next start -p 3200`. Then add `EXPO_PUBLIC_LOCAL_API_ORIGIN=http://localhost:3200` to `apps/mobile/.env.local` (simulator) or your Mac's LAN IP (iPhone). Only Metro development bundles honor it. The card shows Cloudflare's test widget, and signup succeeds only after it passes.
 
