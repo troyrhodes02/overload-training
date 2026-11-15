@@ -79,6 +79,10 @@ import { mobileBotChallenge } from "@/lib/api/mobile/version";
 import { POST as signUpRoute } from "@/app/api/mobile/v1/accounts/route";
 import { POST as passwordReset } from "@/app/api/mobile/v1/password-reset/route";
 import { PUT as putAppearance } from "@/app/api/mobile/v1/me/appearance/route";
+import { POST as startWorkoutRoute } from "@/app/api/mobile/v1/workouts/route";
+import { GET as getWorkoutRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/route";
+import { POST as completeWorkoutRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/complete/route";
+import { PUT as putSetRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]/route";
 import { createGoal } from "@/lib/goals/goals";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
 import {
@@ -86,7 +90,11 @@ import {
   logSetAndReconcile,
 } from "@/lib/logging/workflows";
 import { addDays } from "@overload/shared/plan/calendar";
-import type { TodayDto } from "@overload/shared/contracts/views";
+import type {
+  LoggedSetDto,
+  TodayDto,
+  WorkoutViewDto,
+} from "@overload/shared/contracts/views";
 import type { MeDto } from "@overload/shared/contracts/account";
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import { createTestAccount } from "../support/accounts";
@@ -95,9 +103,10 @@ import { endpointKey, MOBILE_ENDPOINTS } from "../../support/mobile-endpoints";
 import { activePlan, library, today as todayIso, type Lib } from "./fixtures";
 import { snapshotAccount } from "./support";
 
+/** Any route method: a static route's params are `{}`, a dynamic one's its segments. */
 type Handler = (
   request: Request,
-  route: { params: Promise<Record<string, never>> },
+  route: { params: Promise<never> },
 ) => Promise<Response>;
 
 const PINNED_ENV = {
@@ -122,7 +131,13 @@ afterAll(() => {
 
 const tokenFor = (userId: string) => `t.${userId}.s`;
 
-type CallInit = { method?: string; json?: unknown; ip?: string };
+type CallInit = {
+  method?: string;
+  json?: unknown;
+  ip?: string;
+  /** Dynamic route segments (Pitch 21e). */
+  params?: Record<string, string>;
+};
 
 async function call(
   handler: Handler,
@@ -141,7 +156,9 @@ async function call(
       headers,
       body: hasBody ? JSON.stringify(opts.json) : undefined,
     }),
-    { params: Promise.resolve({}) },
+    { params: Promise.resolve(opts.params ?? {}) } as {
+      params: Promise<never>;
+    },
   );
   const text = await res.text();
   return {
@@ -221,6 +238,13 @@ function accountEndpointMatrix(
   name: string,
   handler: Handler,
   init: CallInit = {},
+  /**
+   * What a valid account past every gate gets. 200 for a read of one's own
+   * data; an endpoint whose target doesn't exist for a fresh account answers
+   * its own 4xx from the handler (Pitch 21e), which still proves the gates
+   * let it through.
+   */
+  servedStatus = 200,
 ) {
   describe(`${name}: authentication, suspension, version`, () => {
     it("no token, a malformed header, and a rejected token are a JSON 401", async () => {
@@ -300,11 +324,290 @@ function accountEndpointMatrix(
         token: tokenFor(ok.userId),
         version: "3.0.0",
       });
-      expect(r.status).toBe(200);
+      expect(r.status).toBe(servedStatus);
       expect(JSON.parse(JSON.stringify(r.body))).toEqual(r.body);
     });
   });
 }
+
+/** A's workout for today's occurrence, started through the API, and its first exercise. */
+async function aStartsToday(
+  a: Account,
+  plan: Awaited<ReturnType<typeof activePlan>>,
+) {
+  const r = await call(startWorkoutRoute as Handler, {
+    token: tokenFor(a.userId),
+    json: {
+      sessionId: plan.session.id,
+      scheduledFor: todayIso(),
+      gymId: plan.gym.id,
+    },
+  });
+  expect(r.status).toBe(200);
+  const loggedSessionId = r.body.loggedSessionId as string;
+  const first = await getTestPrisma().loggedExercise.findFirstOrThrow({
+    where: { loggedSessionId },
+    orderBy: { position: "asc" },
+  });
+  return { loggedSessionId, loggedExerciseId: first.id };
+}
+
+const loggedSessionCount = (userId: string) =>
+  getTestPrisma().loggedSession.count({ where: { userId } });
+
+/** Pitch 21e: the workout endpoints (spec §11, isolation cases E1–E4). */
+const WORKOUT_CASES: Record<string, () => void> = {
+  "POST api/mobile/v1/workouts": () => {
+    accountEndpointMatrix(
+      "POST /workouts",
+      startWorkoutRoute as Handler,
+      {
+        method: "POST",
+        json: {
+          sessionId: randomUUID(),
+          scheduledFor: "2026-01-05",
+          gymId: randomUUID(),
+        },
+      },
+      // A fresh account has no such gym: the start rule's own refusal.
+      400,
+    );
+    describe("POST /workouts: isolation and retry", () => {
+      it("B can't start A's session, even with its own gym; nothing is created", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const r = await call(startWorkoutRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: {
+            sessionId: plan.session.id,
+            scheduledFor: todayIso(),
+            gymId: bGym.id,
+            userId: a.userId,
+          },
+        });
+        expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+        expect(await loggedSessionCount(b.userId)).toBe(0);
+      });
+
+      it("A can't start with B's gym: it reads as unavailable", async () => {
+        const { a, plan, bGym } = await twoAccounts(lib);
+        const before = await loggedSessionCount(a.userId);
+        const r = await call(startWorkoutRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: {
+            sessionId: plan.session.id,
+            scheduledFor: todayIso(),
+            gymId: bGym.id,
+          },
+        });
+        expect([r.status, r.body.error.code]).toEqual([
+          400,
+          "validation_error",
+        ]);
+        expect(await loggedSessionCount(a.userId)).toBe(before);
+      });
+
+      it("starting twice returns the same workout and creates one", async () => {
+        const { a, plan } = await twoAccounts(lib);
+        const before = await loggedSessionCount(a.userId);
+        const first = await aStartsToday(a, plan);
+        const again = await aStartsToday(a, plan);
+        expect(again.loggedSessionId).toBe(first.loggedSessionId);
+        expect(await loggedSessionCount(a.userId)).toBe(before + 1);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/workouts/[loggedSessionId]": () => {
+    accountEndpointMatrix(
+      "GET /workouts/{id}",
+      getWorkoutRoute as Handler,
+      { params: { loggedSessionId: randomUUID() } },
+      404,
+    );
+    describe("GET /workouts/{id}: isolation and gating", () => {
+      it("another account's workout is a 404 with nothing of A's", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const { loggedSessionId } = await aStartsToday(a, plan);
+        const missing = await call(getWorkoutRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { loggedSessionId: randomUUID() },
+        });
+        const r = await call(getWorkoutRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { loggedSessionId },
+        });
+        // Indistinguishable from a workout that doesn't exist.
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        expect(r.status).toBe(404);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+      });
+
+      it("A reads its own; a Free account's card calls are locked", async () => {
+        const { a, plan } = await twoAccounts(lib);
+        const { loggedSessionId } = await aStartsToday(a, plan);
+        const pro = (
+          await call(getWorkoutRoute as Handler, {
+            token: tokenFor(a.userId),
+            params: { loggedSessionId },
+          })
+        ).body as WorkoutViewDto;
+        expect(pro.workout.loggedSessionId).toBe(loggedSessionId);
+        expect(pro.workout.status).toBe("in_progress");
+        await getTestPrisma().entitlement.deleteMany({
+          where: { userId: a.userId },
+        });
+        const free = (
+          await call(getWorkoutRoute as Handler, {
+            token: tokenFor(a.userId),
+            params: { loggedSessionId },
+          })
+        ).body as WorkoutViewDto;
+        // Capture is Free: the same workout and card weights.
+        expect(free.workout).toEqual(pro.workout);
+        for (const { progression } of free.progression) {
+          expect(progression.tag).toBeNull();
+          expect(progression.recommendation).toBeNull();
+        }
+        expect(
+          free.progression.some(
+            (p) => p.progression.locked === "progression_insights",
+          ),
+        ).toBe(true);
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]":
+    () => {
+      accountEndpointMatrix(
+        "PUT /logged-exercises/{id}/sets/{n}",
+        putSetRoute as Handler,
+        {
+          method: "PUT",
+          json: { weightLbs: 135, reps: 5 },
+          params: { loggedExerciseId: randomUUID(), setNumber: "1" },
+        },
+        404,
+      );
+      describe("PUT /logged-exercises/{id}/sets/{n}: isolation and retry", () => {
+        it("B can't log into A's workout; A's history is unchanged", async () => {
+          const { a, b, plan } = await twoAccounts(lib);
+          const { loggedExerciseId } = await aStartsToday(a, plan);
+          const aSnap = await snapshotAccount(a.userId);
+          const r = await call(putSetRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            json: { weightLbs: 135, reps: 5, userId: a.userId },
+            params: { loggedExerciseId, setNumber: "1" },
+          });
+          expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+          expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+          expect(
+            await getTestPrisma().loggedSet.count({
+              where: { userId: b.userId },
+            }),
+          ).toBe(0);
+        });
+
+        it("an identical re-send is the same set; different values are a 409", async () => {
+          const { a, plan } = await twoAccounts(lib);
+          const { loggedExerciseId } = await aStartsToday(a, plan);
+          const send = (json: unknown) =>
+            call(putSetRoute as Handler, {
+              token: tokenFor(a.userId),
+              method: "PUT",
+              json,
+              params: { loggedExerciseId, setNumber: "1" },
+            });
+          const first = await send({ weightLbs: 137.5, reps: 5 });
+          expect(first.status).toBe(200);
+          const set = first.body as LoggedSetDto;
+          expect(set).toMatchObject({
+            loggedExerciseId,
+            setNumber: 1,
+            weightLbs: 137.5,
+            reps: 5,
+            rir: null,
+          });
+          const replay = await send({ weightLbs: 137.5, reps: 5 });
+          expect([replay.status, (replay.body as LoggedSetDto).id]).toEqual([
+            200,
+            set.id,
+          ]);
+          const different = await send({ weightLbs: 140, reps: 5 });
+          expect([different.status, different.body.error.code]).toEqual([
+            409,
+            "conflict",
+          ]);
+          const stored = await getTestPrisma().loggedSet.findMany({
+            where: { loggedExerciseId },
+          });
+          expect(stored.map((s) => [s.setNumber, Number(s.weightLbs)])).toEqual(
+            [[1, 137.5]],
+          );
+        });
+      });
+    },
+
+  "POST api/mobile/v1/workouts/[loggedSessionId]/complete": () => {
+    accountEndpointMatrix(
+      "POST /workouts/{id}/complete",
+      completeWorkoutRoute as Handler,
+      { method: "POST", params: { loggedSessionId: randomUUID() } },
+      404,
+    );
+    describe("POST /workouts/{id}/complete: isolation and retry", () => {
+      it("B can't finish A's workout; finishing twice keeps the first finish", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const { loggedSessionId, loggedExerciseId } = await aStartsToday(
+          a,
+          plan,
+        );
+        await call(putSetRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          json: { weightLbs: 135, reps: 5 },
+          params: { loggedExerciseId, setNumber: "1" },
+        });
+        const byB = await call(completeWorkoutRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "POST",
+          params: { loggedSessionId },
+        });
+        expect([byB.status, byB.body.error.code]).toEqual([404, "not_found"]);
+        const status = () =>
+          getTestPrisma().loggedSession.findUniqueOrThrow({
+            where: { id: loggedSessionId },
+            select: { status: true, completedAt: true },
+          });
+        expect((await status()).status).toBe("in_progress");
+
+        const done = await call(completeWorkoutRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "POST",
+          params: { loggedSessionId },
+        });
+        expect([done.status, done.body]).toEqual([
+          200,
+          { loggedSessionId, status: "complete" },
+        ]);
+        const first = await status();
+        const again = await call(completeWorkoutRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "POST",
+          params: { loggedSessionId },
+        });
+        expect(again.status).toBe(200);
+        expect(await status()).toEqual(first);
+      });
+    });
+  },
+};
 
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
@@ -667,6 +970,7 @@ const CASES: Record<string, () => void> = {
       });
     });
   },
+  ...WORKOUT_CASES,
 };
 
 // The unknown-path 404, one case per method.

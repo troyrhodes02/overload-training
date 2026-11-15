@@ -89,6 +89,11 @@ const CONTRACTS = [
   jsonSafe<logging.WeekScheduleDto>("logging.WeekScheduleDto"),
   jsonSafe<logging.LoggedWorkoutDetailDto>("logging.LoggedWorkoutDetailDto"),
   jsonSafe<logging.MissedDayResolutionDto>("logging.MissedDayResolutionDto"),
+  // Pitch 21e
+  jsonSafe<logging.StartWorkoutResponseDto>("logging.StartWorkoutResponseDto"),
+  jsonSafe<logging.CompleteWorkoutResponseDto>(
+    "logging.CompleteWorkoutResponseDto",
+  ),
   jsonSafe<plan.MesocycleSummaryDto>("plan.MesocycleSummaryDto"),
   jsonSafe<plan.SessionSummaryDto>("plan.SessionSummaryDto"),
   jsonSafe<plan.PlannedExerciseDto>("plan.PlannedExerciseDto"),
@@ -160,7 +165,7 @@ type Equal<A, B> =
 
 describe("mobile API contracts (Pitch 21b)", () => {
   it("every contract is JSON-safe", () => {
-    expect(CONTRACTS).toHaveLength(96);
+    expect(CONTRACTS).toHaveLength(98);
   });
 
   it("the JSON-safety check refuses what JSON cannot carry", () => {
