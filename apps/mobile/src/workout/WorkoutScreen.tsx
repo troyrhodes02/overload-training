@@ -22,6 +22,7 @@ import {
   unfinishedExercises,
 } from "./card-model";
 import { ExerciseCard } from "./ExerciseCard";
+import { useKeepAboveKeyboard } from "./keep-above-keyboard";
 import { loggedWorkoutHref, summaryHref } from "./routes";
 
 /** The finish confirmation (design F1), with the web runner's rule and copy. */
@@ -72,6 +73,12 @@ export function WorkoutScreen({
   const [finishError, setFinishError] = useState<string | null>(null);
   const scroll = useRef<ScrollViewInstance>(null);
   const finishing = useRef(false);
+  // The active set stays above the keyboard and its keypad bar (OVE-213).
+  const {
+    row: activeRowRef,
+    content: contentRef,
+    reveal: revealActiveRow,
+  } = useKeepAboveKeyboard(scroll, spacing.md);
 
   const workout = query.data?.workout;
   // Open on the first unfinished card once, when the workout first loads
@@ -194,56 +201,63 @@ export function WorkoutScreen({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         style={{ backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
       >
-        <ExerciseProgress
-          exercises={exercises}
-          index={i}
-          line={
-            exercises.length > 0
-              ? `Exercise ${i + 1} of ${exercises.length} · ${dateLine}`
-              : dateLine
-          }
-        />
-        {current ? (
-          <ExerciseCard
-            // Keyed by occurrence, so a draft never leaks to another card.
-            key={current.loggedExerciseId}
-            card={current}
-            workout={workout}
-            position={{ index: i, total: exercises.length }}
+        {/* Measured to find the scroll offset (OVE-213). */}
+        <View ref={contentRef} style={{ padding: spacing.lg, gap: spacing.md }}>
+          <ExerciseProgress
+            exercises={exercises}
+            index={i}
+            line={
+              exercises.length > 0
+                ? `Exercise ${i + 1} of ${exercises.length} · ${dateLine}`
+                : dateLine
+            }
           />
-        ) : (
-          <StateView
-            title="No exercises in this workout."
-            message="Add exercises to the session on the web."
-          />
-        )}
-        {finishError ? <Banner message={finishError} /> : null}
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <Button
-            label="Previous"
-            variant="secondary"
-            disabled={i === 0}
-            onPress={() => go(i - 1)}
-            style={{ minWidth: 104 }}
-          />
-          {!isLast && next ? (
-            <Button
-              label={`Next: ${next.performedExerciseName}`}
-              variant={currentDone ? "primary" : "secondary"}
-              onPress={() => go(i + 1)}
-              style={{ flex: 1 }}
+          {current ? (
+            <ExerciseCard
+              // Keyed by occurrence, so a draft never leaks to another card.
+              key={current.loggedExerciseId}
+              card={current}
+              workout={workout}
+              position={{ index: i, total: exercises.length }}
+              activeRowRef={activeRowRef}
+              onActiveRowLayout={revealActiveRow}
             />
           ) : (
-            <Button
-              label="Finish workout"
-              disabled={!finishable}
-              loading={complete.isPending}
-              onPress={requestFinish}
-              style={{ flex: 1 }}
+            <StateView
+              title="No exercises in this workout."
+              message="Add exercises to the session on the web."
             />
           )}
+          {finishError ? <Banner message={finishError} /> : null}
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Button
+              label="Previous"
+              variant="secondary"
+              disabled={i === 0}
+              onPress={() => go(i - 1)}
+              style={{ minWidth: 104 }}
+            />
+            {!isLast && next ? (
+              <Button
+                // One line at any length or text size: the name truncates and
+                // VoiceOver still reads it whole (OVE-213).
+                label={`Next: ${next.performedExerciseName}`}
+                numberOfLines={1}
+                variant={currentDone ? "primary" : "secondary"}
+                onPress={() => go(i + 1)}
+                style={{ flex: 1 }}
+              />
+            ) : (
+              <Button
+                label="Finish workout"
+                disabled={!finishable}
+                loading={complete.isPending}
+                onPress={requestFinish}
+                style={{ flex: 1 }}
+              />
+            )}
+          </View>
         </View>
       </ScrollView>
     </>
