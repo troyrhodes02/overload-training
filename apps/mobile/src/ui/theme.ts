@@ -5,6 +5,10 @@ import {
   radius,
   type ColorTokens,
 } from "@overload/shared/design/tokens";
+import {
+  statusColors,
+  type StatusColorTokens,
+} from "@overload/shared/design/status-colors";
 import type { Appearance } from "@overload/shared/appearance/appearance";
 
 /**
@@ -68,9 +72,17 @@ export function textSize(size: FontSize): {
   return { fontSize, lineHeight };
 }
 
+/** The shared color tokens plus the status colors kept outside tokens.ts. */
+export type ThemeColors = ColorTokens & StatusColorTokens;
+
+const THEME_COLORS: Record<Scheme, ThemeColors> = {
+  light: { ...tokenColors.light, ...statusColors.light },
+  dark: { ...tokenColors.dark, ...statusColors.dark },
+};
+
 export type Theme = {
   scheme: Scheme;
-  colors: ColorTokens;
+  colors: ThemeColors;
   radius: typeof radius;
   spacing: typeof spacing;
   controlHeight: typeof controlHeight;
@@ -83,7 +95,7 @@ export type Theme = {
 export function buildTheme(scheme: Scheme): Theme {
   return {
     scheme,
-    colors: tokenColors[scheme],
+    colors: THEME_COLORS[scheme],
     radius,
     spacing,
     controlHeight,
