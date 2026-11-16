@@ -46,8 +46,9 @@ if (!plan.ok) refuse(plan.problems);
 
 // The bundle's public values come from the EAS environment; require them.
 const envCheck = spawnSync(
-  "eas",
+  "npx",
   [
+    "eas-cli",
     "env:exec",
     "development",
     "node scripts/check-update-env.ts",
