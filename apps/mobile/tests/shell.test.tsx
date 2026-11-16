@@ -1,5 +1,6 @@
 /** Pitch 21d design T1–T4: honest placeholders, in both appearances. */
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
+import { Linking } from "react-native";
 import { Placeholder } from "../src/screens/Placeholder";
 import { ThemeProvider } from "../src/ui/ThemeProvider";
 
@@ -18,21 +19,30 @@ jest.mock("../src/config/env", () => ({
 }));
 
 describe("Placeholder", () => {
-  it("says the feature is coming and offers the web, with no fake data", async () => {
+  it("has the shared header, says what the web does now, and links there", async () => {
+    const openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
     await render(
       <ThemeProvider>
         <Placeholder
+          eyebrow="Strength targets"
+          title="Goals"
           icon="target"
-          title="Goals come to the app in a later update."
-          message="Set and track your goals on the web now."
+          heading="Set and track goals on the web"
+          message="Goals come to the app in a later update."
+          webItems={["Set a weight and reps target"]}
+          cta="Open Goals on the web"
+          webPath="/goals"
         />
       </ThemeProvider>,
     );
+    expect(await screen.findByRole("header", { name: "Goals" })).toBeTruthy();
+    expect(screen.getByText("Strength targets")).toBeTruthy();
     expect(
-      await screen.findByText("Goals come to the app in a later update."),
+      screen.getByText("Goals come to the app in a later update."),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Open Overload on the web" }),
-    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Goals on the web" }),
+    );
+    expect(openURL).toHaveBeenCalledWith("https://staging.test/goals");
   });
 });

@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  View,
-} from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { router } from "expo-router";
 import type {
   HistoryWeekDto,
@@ -26,6 +21,7 @@ import { GroupedList, ListRow } from "../ui/GroupedList";
 import { SkeletonCard } from "../ui/Skeleton";
 import { LoadErrorState } from "../ui/LoadErrorState";
 import { StateView } from "../ui/StateView";
+import { TabScreen } from "../ui/TabScreen";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
 import { loggedWorkoutHref } from "../workout/routes";
@@ -152,7 +148,7 @@ const openable = (row: HistoryRow) =>
  * where the server says; Earlier blocks jumps to a past block's first week.
  */
 export function HistoryScreen() {
-  const { colors, spacing } = useTheme();
+  const { spacing } = useTheme();
   const [week, setWeek] = useState<string | null>(null);
   const query = useHistoryWeek(week);
   useRefetchWhenFocused(TRAINING_KEYS.historyWeek(week));
@@ -263,20 +259,14 @@ export function HistoryScreen() {
   })();
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
-      refreshControl={
-        <RefreshControl
-          refreshing={query.isRefetching && !query.isPlaceholderData}
-          onRefresh={() => void query.refetch()}
-          tintColor={colors.mutedForeground}
-        />
-      }
+    <TabScreen
+      eyebrow="Every workout you've logged"
+      title="History"
+      refreshing={query.isRefetching && !query.isPlaceholderData}
+      onRefresh={() => void query.refetch()}
     >
       {body}
-    </ScrollView>
+    </TabScreen>
   );
 }
 

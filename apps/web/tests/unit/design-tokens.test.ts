@@ -60,7 +60,7 @@ describe("design tokens match globals.css", () => {
   it("every token has a light and a dark value", () => {
     const keys = (t: ColorTokens) => Object.keys(t).sort();
     expect(keys(colors.light)).toEqual(keys(colors.dark));
-    expect(keys(colors.light)).toHaveLength(21);
+    expect(keys(colors.light)).toHaveLength(22);
   });
 
   it("radius: --radius is lg; sm, md, xl are its steps", () => {

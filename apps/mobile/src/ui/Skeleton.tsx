@@ -34,7 +34,9 @@ export function SkeletonCard({ rows = 4 }: { rows?: number }) {
       accessibilityLabel="Loading"
       style={{
         backgroundColor: colors.card,
-        borderRadius: radius.lg,
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.border,
         padding: spacing.lg,
         gap: spacing.md,
       }}

@@ -6,6 +6,7 @@ import { useSession } from "../../../auth/session";
 import { APP_VERSION, webOrigin } from "../../../config/env";
 import { diagnosticsAvailable } from "../../../diagnostics/availability";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
+import { ScreenHeader } from "../../../ui/ScreenHeader";
 import { Symbol } from "../../../ui/Symbol";
 import { Text } from "../../../ui/Text";
 import { useTheme, useThemeContext } from "../../../ui/ThemeProvider";
@@ -45,11 +46,16 @@ export default function MoreScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "More" }} />
+      <Stack.Screen options={{ title: "More", headerShown: false }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.xl }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.md,
+          paddingBottom: spacing.xxl,
+          gap: spacing.xl,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={me.isRefetching}
@@ -57,6 +63,7 @@ export default function MoreScreen() {
           />
         }
       >
+        <ScreenHeader eyebrow="Account and settings" title="More" />
         {profile && me.data ? (
           <View
             accessible
@@ -64,6 +71,8 @@ export default function MoreScreen() {
             style={{
               backgroundColor: colors.card,
               borderRadius: radius.xl,
+              borderWidth: 1,
+              borderColor: colors.border,
               padding: spacing.lg,
               gap: spacing.xs,
             }}
