@@ -4,7 +4,7 @@
  * a choice. The API client is a fake keyed by path; nothing touches the
  * network.
  */
-import { ActionSheetIOS, Appearance } from "react-native";
+import { ActionSheetIOS, Alert, Appearance } from "react-native";
 import {
   fireEvent,
   render,
@@ -110,8 +110,11 @@ describe.each(["light", "dark"] as const)(
       );
       expect(await screen.findByText("Good morning, Sam.")).toBeTruthy();
       expect(screen.getByText("Saturday, November 14")).toBeTruthy();
+      expect(screen.getByRole("header", { name: "Today" })).toBeTruthy();
       expect(screen.getByText("Push")).toBeTruthy();
-      expect(screen.getByText("Week 3 · 2 exercises")).toBeTruthy();
+      expect(screen.getByText("Week 3")).toBeTruthy();
+      expect(screen.getByText("Ready")).toBeTruthy();
+      expect(screen.getByText("2 exercises")).toBeTruthy();
       expect(screen.getByText("3 × 3–5")).toBeTruthy();
       expect(
         screen.getByRole("button", { name: "Start workout" }),
@@ -136,11 +139,8 @@ describe.each(["light", "dark"] as const)(
           <TodayView />
         </Providers>,
       );
-      expect(
-        await screen.findByText(
-          "In progress · Week 3 · 1 of 2 exercises logged",
-        ),
-      ).toBeTruthy();
+      expect(await screen.findByText("1 of 2 exercises logged")).toBeTruthy();
+      expect(screen.getByText("In progress")).toBeTruthy();
       await fireEvent.press(
         screen.getByRole("button", { name: "Resume workout" }),
       );
@@ -165,7 +165,9 @@ describe.each(["light", "dark"] as const)(
           <TodayView />
         </Providers>,
       );
-      expect(await screen.findByText("Push · Done")).toBeTruthy();
+      expect(await screen.findByText("Push")).toBeTruthy();
+      expect(screen.getByText("Done")).toBeTruthy();
+      expect(screen.getByText("2 of 2 exercises logged")).toBeTruthy();
       expect(
         screen.queryByRole("button", { name: "Start workout" }),
       ).toBeNull();
@@ -182,7 +184,8 @@ describe.each(["light", "dark"] as const)(
           <TodayView />
         </Providers>,
       );
-      expect(await screen.findByText("No lifting planned today.")).toBeTruthy();
+      expect(await screen.findByText("Rest day")).toBeTruthy();
+      expect(screen.getByText("No lifting planned today.")).toBeTruthy();
       await unmount();
 
       serve({ "/today": todayDto({ kind: "no_plan" }) });
@@ -215,10 +218,11 @@ describe.each(["light", "dark"] as const)(
         </Providers>,
       );
       expect(
-        await screen.findByText("You missed Legs on Wednesday."),
+        await screen.findByText("Legs was missed on Wednesday"),
       ).toBeTruthy();
-      // The day below is shown dimmed, and there is no Start to press.
+      // The day below is shown dimmed and waiting, with no Start to press.
       expect(screen.getByText("Push")).toBeTruthy();
+      expect(screen.getByText("Waiting")).toBeTruthy();
       expect(
         screen.queryByRole("button", { name: "Start workout" }),
       ).toBeNull();
@@ -371,5 +375,195 @@ describe("Start (W0, RD-4)", () => {
       await screen.findByText("That workout's day hasn't come yet."),
     ).toBeTruthy();
     expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+});
+
+describe("Missed day: log it late, shift, skip (Checkpoint A, RD-23)", () => {
+  const missed = {
+    mesocycleId: "m-1",
+    sessionId: "s-legs",
+    sessionName: "Legs",
+    missedOn: "2026-11-11",
+    daysAgo: 3,
+  };
+  const missedToday = todayDto({
+    kind: "missed_day",
+    today: "2026-11-14",
+    missed,
+    below: day(),
+    cardio: [],
+  });
+  const PUT_PATH = "/mesocycles/m-1/missed-days/2026-11-11";
+
+  /** Today answers the missed day until a resolution lands, then the day. */
+  function serveMissed(resolve: (body: unknown) => unknown) {
+    let resolved = false;
+    serve({
+      "/today": () => (resolved ? todayDto(day()) : missedToday),
+      [PUT_PATH]: (body: unknown) => {
+        const r = resolve(body);
+        resolved = true;
+        return r;
+      },
+    });
+  }
+
+  /** Alert stand-in: presses the named button of the next alert. */
+  function answerAlert(button: string, times = 1) {
+    return jest
+      .spyOn(Alert, "alert")
+      .mockImplementation((_title, _message, buttons) => {
+        const b = buttons?.find((x) => x.text === button);
+        for (let i = 0; i < times; i++) b?.onPress?.();
+      });
+  }
+
+  async function renderToday() {
+    await render(
+      <Providers>
+        <TodayView />
+      </Providers>,
+    );
+    await screen.findByText("Legs was missed on Wednesday");
+  }
+
+  it("offers the web's three choices with their wording", async () => {
+    serveMissed(() => ({}));
+    await renderToday();
+    for (const name of ["Log it late", "Shift the week", "Skip it"]) {
+      expect(screen.getByRole("button", { name })).toBeTruthy();
+    }
+    expect(
+      screen.getByText("Record the sets you did on Wednesday"),
+    ).toBeTruthy();
+  });
+
+  it("Shift asks first; confirming sends one PUT and Today moves on", async () => {
+    const put = jest.fn(() => ({
+      id: "r1",
+      missedOn: "2026-11-11",
+      outcome: "shifted",
+    }));
+    serveMissed(put);
+    const alert = answerAlert("Shift the week");
+    await renderToday();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Shift the week" }),
+    );
+    expect(alert).toHaveBeenCalledWith(
+      "Shift the rest of this week?",
+      expect.stringContaining("Next week is unchanged."),
+      expect.any(Array),
+    );
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put).toHaveBeenCalledWith({ outcome: "shifted" });
+    expect(
+      await screen.findByText("This week shifted forward a day."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start workout" })).toBeTruthy();
+  });
+
+  it("cancelling the confirmation sends nothing", async () => {
+    const put = jest.fn();
+    serveMissed(put);
+    answerAlert("Cancel");
+    await renderToday();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Shift the week" }),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Skip it" }));
+    expect(put).not.toHaveBeenCalled();
+    expect(screen.getByText("Legs was missed on Wednesday")).toBeTruthy();
+  });
+
+  it("Skip asks first, then sends skipped", async () => {
+    const put = jest.fn(() => ({
+      id: "r1",
+      missedOn: "2026-11-11",
+      outcome: "skipped",
+    }));
+    serveMissed(put);
+    const alert = answerAlert("Skip it");
+    await renderToday();
+    await fireEvent.press(screen.getByRole("button", { name: "Skip it" }));
+    expect(alert).toHaveBeenCalledWith(
+      "Skip Legs?",
+      expect.stringContaining("You can't undo this."),
+      expect.any(Array),
+    );
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith({ outcome: "skipped" }),
+    );
+    expect(
+      await screen.findByText("Skipped Legs. Past weeks stay as planned."),
+    ).toBeTruthy();
+  });
+
+  it("a double confirm sends one request", async () => {
+    const put = jest.fn(() => ({}));
+    serveMissed(put);
+    answerAlert("Skip it", 2);
+    await renderToday();
+    await fireEvent.press(screen.getByRole("button", { name: "Skip it" }));
+    await waitFor(() => expect(put).toHaveBeenCalled());
+    expect(put).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed save keeps the card and says what failed", async () => {
+    serve({
+      "/today": missedToday,
+      [PUT_PATH]: new ApiError("network", "Overload needs a connection."),
+    });
+    answerAlert("Skip it");
+    await renderToday();
+    await fireEvent.press(screen.getByRole("button", { name: "Skip it" }));
+    expect(
+      await screen.findByText(
+        "Couldn't save — Overload needs a connection. Nothing was changed.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Legs was missed on Wednesday")).toBeTruthy();
+  });
+
+  it("Log it late starts the missed date's workout and opens it", async () => {
+    const start = jest.fn(() => ({ loggedSessionId: "ls-late" }));
+    serve({
+      "/today": missedToday,
+      "/gyms": { gyms: [{ id: "g1", name: "Downtown Gym", address: null }] },
+      "/workouts": start,
+    });
+    await renderToday();
+    await fireEvent.press(screen.getByRole("button", { name: "Log it late" }));
+    await waitFor(() =>
+      expect(mockRouter.push).toHaveBeenCalledWith("/workout/ls-late"),
+    );
+    expect(start).toHaveBeenCalledWith({
+      sessionId: "s-legs",
+      scheduledFor: "2026-11-11",
+      gymId: "g1",
+    });
+    expect(
+      mockApi.request.mock.calls.filter(([p]) => p === PUT_PATH),
+    ).toHaveLength(0);
+  });
+
+  it("a missed day over a week ago is named by its date", async () => {
+    serve({
+      "/today": todayDto({
+        kind: "missed_day",
+        today: "2026-11-14",
+        missed: { ...missed, missedOn: "2026-11-04", daysAgo: 10 },
+        below: null,
+        cardio: [],
+      }),
+    });
+    await render(
+      <Providers>
+        <TodayView />
+      </Providers>,
+    );
+    expect(
+      await screen.findByText("Legs was missed on Wednesday, November 4"),
+    ).toBeTruthy();
   });
 });
