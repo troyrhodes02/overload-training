@@ -27,6 +27,12 @@ const sh = (cmd: string, args: string[]) =>
     stdio: ["ignore", "pipe", "ignore"],
   }).trim();
 const git = (...args: string[]) => sh("git", args);
+// EAS CLI through npx, so no global `eas` is needed. `--yes` skips npx's
+// install prompt; eas.json's `cli.version` still gates the version it runs.
+const eas = (args: string[]): [string, string[]] => [
+  "npx",
+  ["--yes", "eas-cli", ...args],
+];
 
 function refuse(problems: string[]): never {
   console.error(`Staging update refused:\n- ${problems.join("\n- ")}`);
@@ -46,13 +52,12 @@ if (!plan.ok) refuse(plan.problems);
 
 // The bundle's public values come from the EAS environment; require them.
 const envCheck = spawnSync(
-  "eas",
-  [
+  ...eas([
     "env:exec",
     "development",
     "node scripts/check-update-env.ts",
     "--non-interactive",
-  ],
+  ]),
   { cwd: mobileDir, stdio: ["ignore", "inherit", "inherit"] },
 );
 if (envCheck.status !== 0) {
@@ -66,15 +71,17 @@ const runtime = (
 ).hash;
 const builds = (
   JSON.parse(
-    sh("eas", [
-      "build:list",
-      "--platform",
-      "ios",
-      "--limit",
-      "20",
-      "--json",
-      "--non-interactive",
-    ]),
+    sh(
+      ...eas([
+        "build:list",
+        "--platform",
+        "ios",
+        "--limit",
+        "20",
+        "--json",
+        "--non-interactive",
+      ]),
+    ),
   ) as {
     status: string;
     buildProfile?: string;
@@ -100,7 +107,7 @@ console.log(
   `Runtime ${runtime.slice(0, 10)}: ${receivers.length} staging development build(s) can receive this update.`,
 );
 
-const run = spawnSync("eas", plan.args, {
+const run = spawnSync(...eas(plan.args), {
   cwd: mobileDir,
   stdio: "inherit",
   env: { ...process.env, ...plan.env },
