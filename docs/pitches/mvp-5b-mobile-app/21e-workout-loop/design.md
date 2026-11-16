@@ -511,3 +511,20 @@ Loading (skeletons or a button spinner), empty (H1; T1's rest and no-plan), erro
 - Errors are inline and haptics confirm saves; no floating toasts (`overload-mobile-ui`).
 - The gym question is an action sheet, asked only when there is a choice.
 - Insight, correction, and completeness features are absent until 21f/21g, and each edge says where to go on the web.
+
+### 15a. Checkpoint A amendment (owner-approved, 2026-11-15)
+
+The owner reviewed the first build on the simulator and approved a refined direction: **premium, minimal, athletic, focused, native**. The approved visual reference is the design canvas (private, owner's account): https://claude.ai/artifact/F7Gppikofu6md54BfzVnrQ. Its data is illustrative. Where it and the layouts above differ, this section and the canvas win (spec RD-23 to RD-26).
+
+- **Every tab root:** an in-screen header (uppercase context line, 30-point title, optional subtitle) instead of the native large title. Today's is the account date, "Today", and the greeting.
+- **Cards:** one surface (card color, token border, `radius.xl`). Status is a chip in words (Ready, In progress, Done, Waiting, Skipped). Section headings are small uppercase ("Also today", "Earlier blocks").
+- **T1 Today:** one workout card. It shows the week (and "Deload week" when it is one) and a chip, the session name in 2xl, "N exercises" or "n of N exercises logged", the planned list with dividers, and its one action. Cardio sits under "Also today". Rest day and No active plan are their own cards.
+- **T1 missed day (RD-23):** an attention-outlined card reading "{Session} was missed on {weekday}" (or the full date when it is more than a week back), with "Choose what happens to it. Today's workout opens after." Three rows follow: *Log it late* ("Record the sets you did on {day}"), *Shift the week* ("Move the rest of this week forward one day"), and *Skip it* ("Mark it missed and move on"). Then the footnote "Shift and Skip ask once more before they change your week." Today's day below is dimmed with a "Waiting" chip.
+- **H1 History:** the header "Every workout you've logged" over "History". A week-switcher card holds chevrons, the range, and the block line. Rows have a date column (MON over 9), the name, and a chip. The empty state says what will appear.
+- **W1 logging:** progress segments over "Exercise n of N · date · gym". The exercise name is 2xl, then the prescription and the context line. Reference-only history sits in an inset panel. The active set is a highlighted row, saved sets are tinted rows with a check, and pending sets are muted.
+- **T3/T4 Plan and Goals:** the header and one card with the web's capabilities, one link (`/plan` and `/goals`), and a line of reassurance. There are no fake controls.
+- **Deviations from the canvas:**
+  - Card radius is the token `radius.xl` (12), not the canvas's 14.
+  - The Today eyebrow is "Week N", without the block name: `DashboardTodayDto` has no block name, and the app doesn't invent one.
+  - The workout card's size line counts exercises, not sets: the dashboard preview has no planned set counts.
+  - Skip confirms, like Shift (the owner's instruction).
