@@ -51,7 +51,9 @@ jest.mock("expo-haptics", () => ({
 type Handler = (opts: { method?: string; body?: unknown }) => unknown;
 function serve(routes: Record<string, unknown | Handler>) {
   mockApi.request.mockImplementation(
-    async (path: string, opts: { method?: string; body?: unknown } = {}) => {
+    async (raw: string, opts: { method?: string; body?: unknown } = {}) => {
+      // The app asks for the core fields (RD-28); routes are keyed without it.
+      const path = raw.replace(/\?fields=core$/, "");
       const r = routes[path];
       if (r === undefined) throw new ApiError("not_found", "nope", 404);
       if (r instanceof Error) throw r;

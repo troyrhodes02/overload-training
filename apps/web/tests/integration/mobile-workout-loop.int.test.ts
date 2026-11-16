@@ -23,11 +23,13 @@ import { POST as completeRoute } from "@/app/api/mobile/v1/workouts/[loggedSessi
 import { PUT as setRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]/route";
 import { GET as historyWeekRoute } from "@/app/api/mobile/v1/history/route";
 import { GET as historyWorkoutRoute } from "@/app/api/mobile/v1/history/[loggedSessionId]/route";
+import { GET as todayRoute } from "@/app/api/mobile/v1/today/route";
 import { cloneMesocycle } from "@/lib/plan/mesocycles";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type { ExerciseCardDto } from "@overload/shared/contracts/logging";
 import type {
   LoggedWorkoutDetailViewDto,
+  TodayDto,
   WorkoutViewDto,
 } from "@overload/shared/contracts/views";
 import { createTestAccount } from "./support/accounts";
@@ -568,5 +570,88 @@ describe("all-time history through the API (E5, E6)", () => {
     const r = await call(historyWeekRoute, account);
     expect(r.status).toBe(200);
     expect((r.body as HistoryWeekDto).hasAnyHistory).toBe(false);
+  });
+});
+
+describe("core fields only (?fields=core, Checkpoint A round 2 RD-28)", () => {
+  const core = "fields=core";
+
+  it("the workout is the full answer's workout, with no calls computed", async () => {
+    const b = await twoWorkoutBlock(account);
+    await logWorkout(account, {
+      sessionId: b.push.id,
+      date: SAT[0],
+      gymId: b.gym.id,
+      exerciseId: b.exercise.id,
+      sets: heavy,
+    });
+    const loggedSessionId = await start(account, b, b.push.id, SAT[1]);
+    const full = await call(workoutRoute, account, {
+      params: { loggedSessionId },
+    });
+    const lean = await call(workoutRoute, account, {
+      params: { loggedSessionId },
+      query: core,
+    });
+    expect(lean.status).toBe(200);
+    expect((full.body as WorkoutViewDto).progression.length).toBeGreaterThan(0);
+    expect(lean.body).toEqual({
+      workout: (full.body as WorkoutViewDto).workout,
+      progression: [],
+    });
+    // Any other value is the full answer.
+    const other = await call(workoutRoute, account, {
+      params: { loggedSessionId },
+      query: "fields=everything",
+    });
+    expect(other.body).toEqual(full.body);
+  });
+
+  it("the logged workout is the full answer's record, with no summary or goals", async () => {
+    const b = await twoWorkoutBlock(account);
+    const { loggedSessionId } = await logWorkout(account, {
+      sessionId: b.push.id,
+      date: SAT[0],
+      gymId: b.gym.id,
+      exerciseId: b.exercise.id,
+      sets: heavy,
+    });
+    const full = await call(historyWorkoutRoute, account, {
+      params: { loggedSessionId },
+    });
+    const lean = await call(historyWorkoutRoute, account, {
+      params: { loggedSessionId },
+      query: core,
+    });
+    expect(lean.status).toBe(200);
+    expect((full.body as LoggedWorkoutDetailViewDto).summary).not.toBeNull();
+    expect(lean.body).toEqual({
+      detail: (full.body as LoggedWorkoutDetailViewDto).detail,
+      summary: null,
+      goals: [],
+    });
+    // Not found stays not found.
+    const missing = await call(historyWorkoutRoute, account, {
+      params: { loggedSessionId: "00000000-0000-4000-8000-000000000000" },
+      query: core,
+    });
+    expect(missing.status).toBe(404);
+  });
+
+  it("Today is the full answer's day and greeting, with no calls, summary, or goals", async () => {
+    await twoWorkoutBlock(account);
+    const full = await call(todayRoute, account);
+    const lean = await call(todayRoute, account, { query: core });
+    expect(lean.status).toBe(200);
+    const f = full.body as TodayDto;
+    expect(lean.body).toEqual({
+      today: f.today,
+      greeting: f.greeting,
+      dashboard: f.dashboard,
+      plannedProgression: [],
+      sessionSummary: null,
+      sessionGoals: [],
+      goals: null,
+    });
   });
 });

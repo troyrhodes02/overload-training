@@ -133,7 +133,9 @@ const block1Week = (): HistoryWeekDto => ({
 });
 
 function serve(routes: Record<string, unknown>) {
-  mockApi.request.mockImplementation(async (path: string) => {
+  mockApi.request.mockImplementation(async (raw: string) => {
+    // The app asks for the core fields (RD-28); routes are keyed without it.
+    const path = raw.replace(/\?fields=core$/, "");
     const r = routes[path];
     if (r === undefined) throw new ApiError("not_found", "nope", 404);
     if (r instanceof Error) throw r;
@@ -377,7 +379,9 @@ describe("a logged workout (H2)", () => {
     await screen.findByText("Wednesday, July 8 · Old Gym");
     await waitFor(() =>
       expect(
-        mockApi.request.mock.calls.some(([p]) => p === "/workouts/ls-old"),
+        mockApi.request.mock.calls.some(
+          ([p]) => p === "/workouts/ls-old?fields=core",
+        ),
       ).toBe(true),
     );
     expect(screen.queryByRole("button", { name: "Resume workout" })).toBeNull();
@@ -412,7 +416,7 @@ describe("a logged workout (H2)", () => {
     "opened as in progress, a cached in-progress copy offers no Resume while the server's answer is %s",
     async (_label, answer) => {
       mockApi.request.mockImplementation(async (path: string) =>
-        path === "/history/ls-old" ? detail() : answer(),
+        path === "/history/ls-old?fields=core" ? detail() : answer(),
       );
       await render(
         <Providers
@@ -431,7 +435,9 @@ describe("a logged workout (H2)", () => {
       await screen.findByText("Wednesday, July 8 · Old Gym");
       await waitFor(() =>
         expect(
-          mockApi.request.mock.calls.some(([p]) => p === "/workouts/ls-old"),
+          mockApi.request.mock.calls.some(
+            ([p]) => p === "/workouts/ls-old?fields=core",
+          ),
         ).toBe(true),
       );
       await act(async () => {});

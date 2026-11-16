@@ -199,7 +199,8 @@ function serve() {
     (raw: string, opts: { method?: string; signal?: AbortSignal } = {}) => {
       const method = opts.method ?? "GET";
       server.requests.push(`${method} ${raw}`);
-      const path = raw;
+      // Answered the same with or without the core-fields query (RD-28).
+      const path = raw.replace(/\?fields=core$/, "");
       return new Promise((resolve, reject) => {
         // The answer reflects the server at the moment it is read, after the
         // round trip, like a real request.
@@ -417,6 +418,36 @@ describe("after the server confirms a finish", () => {
     });
     await screen.findByText("Push complete");
     expect(server.completeCalls).toBe(1);
+  });
+});
+
+describe("what the app asks for", () => {
+  it("Finish asks the server once for Today; Done reuses that answer", async () => {
+    await openWorkoutFromToday();
+    const n0 = server.requests.length;
+    await finish();
+    await fireEvent.press(screen.getByText("Done"));
+    await settle(300);
+    const after = server.requests.slice(n0);
+    expect(
+      after.filter((r) => r === "POST /workouts/ls-1/complete"),
+    ).toHaveLength(1);
+    expect(after.filter((r) => r.startsWith("GET /today"))).toHaveLength(1);
+    expect(screen.getByText("View workout")).toBeTruthy();
+  });
+
+  it("its reads ask for the core fields only: no calls, summaries, or goals (RD-28)", async () => {
+    await openWorkoutFromToday();
+    await finish();
+    await fireEvent.press(screen.getByText("View in History"));
+    await screen.findAllByText("Set 1");
+    const gets = server.requests.filter((r) => r.startsWith("GET "));
+    for (const read of ["/today", `/workouts/${ID}`, `/history/${ID}`]) {
+      expect(gets).toContain(`GET ${read}?fields=core`);
+      expect(gets).not.toContain(`GET ${read}`);
+    }
+    // The week list has no calls to leave out.
+    expect(gets).toContain("GET /history");
   });
 });
 
