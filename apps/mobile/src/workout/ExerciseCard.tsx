@@ -563,21 +563,36 @@ function NumberField({
         </Text>
       </Pressable>
       {/* After its input, so the bar finds it when both mount (OVE-213). */}
-      <InputAccessoryView nativeID={barId}>
+      <InputAccessoryView
+        nativeID={barId}
+        // The bar shows in the keyboard, but React Native also leaves an empty
+        // placeholder view here, absolutely positioned over the inputs. A
+        // RECYCLED placeholder comes back unhidden (its layout reset forces
+        // hidden = NO after updateProps hid it) and swallowed taps meant for
+        // the inputs, so after moving between exercises a field wouldn't focus
+        // (OVE-214). With pointerEvents "none" its hit test returns nil. The
+        // bar's own buttons live in the keyboard, outside the placeholder.
+        style={{ pointerEvents: "none" }}
+      >
         <KeypadBar action={barAction} />
       </InputAccessoryView>
     </>
   );
 }
 
-/** The bar above the keypad: Next on weight, Log set on reps (design §8). */
+/**
+ * The bar above the keypad (design §8): Done on the left hides the keyboard
+ * and keeps the draft (OVE-214); the primary action on the right is Next on
+ * weight, Log set on reps.
+ */
 function KeypadBar({ action }: { action: BarAction }) {
   const { colors, spacing } = useTheme();
   return (
     <View
       style={{
         flexDirection: "row",
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
+        alignItems: "center",
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.xs,
         backgroundColor: colors.card,
@@ -586,8 +601,15 @@ function KeypadBar({ action }: { action: BarAction }) {
       }}
     >
       <Button
-        label={action.label}
+        label="Done"
         variant="text"
+        accessibilityHint="Hides the keyboard. Your numbers stay."
+        onPress={() => Keyboard.dismiss()}
+      />
+      <Button
+        label={action.label}
+        variant="primary"
+        size="md"
         disabled={action.disabled}
         onPress={action.onPress}
       />
