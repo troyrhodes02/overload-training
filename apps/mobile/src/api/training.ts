@@ -281,6 +281,107 @@ export function useLogSet() {
   });
 }
 
+/**
+ * Record a finish the server has CONFIRMED (its 200) in every cached read
+ * that shows the workout, before any screen moves on (Checkpoint A round 2,
+ * owner finding 1). Nothing here is optimistic: it runs only after the
+ * server's answer, and it changes only the workout's status, which that
+ * answer states. A full refetch of each read follows.
+ *
+ * Why it is needed: a refetch alone loses the race. The workout screen is
+ * replaced by the summary as soon as the finish returns, and TanStack cancels
+ * a fetch whose last observer unmounts and restores the cached copy, which
+ * still said "in progress". Today and History can also be holding an answer
+ * read before the finish. Each in-flight read is cancelled first, so an older
+ * answer can't land after this and bring "in progress" back.
+ */
+export async function applyConfirmedCompletion(
+  client: QueryClient,
+  loggedSessionId: string,
+): Promise<void> {
+  const workoutKey = TRAINING_KEYS.workout(loggedSessionId);
+  await Promise.all([
+    client.cancelQueries({ queryKey: workoutKey }),
+    client.cancelQueries({ queryKey: TRAINING_KEYS.today }),
+    client.cancelQueries({ queryKey: ["history-week"] }),
+  ]);
+  client.setQueryData<WorkoutViewDto>(workoutKey, (view) =>
+    view && view.workout.status !== "complete"
+      ? { ...view, workout: { ...view.workout, status: "complete" } }
+      : view,
+  );
+  client.setQueryData<TodayDto>(TRAINING_KEYS.today, (today) =>
+    today ? markTodayComplete(today, loggedSessionId) : today,
+  );
+  client.setQueriesData<HistoryWeekDto>(
+    { queryKey: ["history-week"] },
+    (week) => (week ? markWeekComplete(week, loggedSessionId) : week),
+  );
+}
+
+function completeDay<
+  D extends { kind: string; loggedSessionId: string | null },
+>(day: D, loggedSessionId: string): D {
+  return day.kind === "in_progress" && day.loggedSessionId === loggedSessionId
+    ? { ...day, kind: "complete" }
+    : day;
+}
+
+/** Today with the confirmed finish: the shown day, or the day below a missed one. */
+export function markTodayComplete(
+  today: TodayDto,
+  loggedSessionId: string,
+): TodayDto {
+  const d = today.dashboard;
+  if (d.kind === "missed_day") {
+    return d.below
+      ? {
+          ...today,
+          dashboard: { ...d, below: completeDay(d.below, loggedSessionId) },
+        }
+      : today;
+  }
+  if (d.kind === "in_progress") {
+    return { ...today, dashboard: completeDay(d, loggedSessionId) };
+  }
+  return today;
+}
+
+/** A History week with the confirmed finish on the workout's own row. */
+export function markWeekComplete(
+  week: HistoryWeekDto,
+  loggedSessionId: string,
+): HistoryWeekDto {
+  const v = week.view;
+  if (v.kind === "active") {
+    return {
+      ...week,
+      view: {
+        ...v,
+        days: v.days.map((d) =>
+          d.loggedSessionId === loggedSessionId && d.state === "in_progress"
+            ? { ...d, state: "complete" as const }
+            : d,
+        ),
+      },
+    };
+  }
+  return {
+    ...week,
+    view: {
+      ...v,
+      days: v.days.map((day) => ({
+        ...day,
+        workouts: day.workouts.map((w) =>
+          w.loggedSessionId === loggedSessionId && w.state === "in_progress"
+            ? { ...w, state: "complete" as const }
+            : w,
+        ),
+      })),
+    },
+  };
+}
+
 export function useCompleteWorkout() {
   const api = useApi();
   const client = useQueryClient();
@@ -290,8 +391,13 @@ export function useCompleteWorkout() {
         `/workouts/${enc(loggedSessionId)}/complete`,
         { method: "POST" },
       ),
-    onSuccess: (_data, loggedSessionId) => {
-      void invalidateTraining(client, loggedSessionId);
+    // Awaited: mutateAsync resolves (and the screen moves on) only once every
+    // cached read says finished. The refetches then run in the background.
+    onSuccess: async (_data, loggedSessionId) => {
+      await applyConfirmedCompletion(client, loggedSessionId);
+      // The workout itself isn't refetched: its screen is closing, and the
+      // next open reads it again (staleTime 0).
+      void invalidateTraining(client);
     },
   });
 }
