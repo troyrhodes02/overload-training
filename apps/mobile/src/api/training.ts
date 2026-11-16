@@ -19,11 +19,12 @@ import type {
   ResolveMissedDayRequest,
   StartWorkoutRequest,
 } from "@overload/shared/contracts/requests";
-import type {
-  LoggedSetDto,
-  LoggedWorkoutDetailViewDto,
-  TodayDto,
-  WorkoutViewDto,
+import {
+  CORE_FIELDS_QUERY,
+  type LoggedSetDto,
+  type LoggedWorkoutDetailViewDto,
+  type TodayDto,
+  type WorkoutViewDto,
 } from "@overload/shared/contracts/views";
 import { useApi } from "./ApiProvider";
 import type { ApiError } from "./errors";
@@ -49,11 +50,29 @@ export const TRAINING_KEYS = {
 
 const enc = encodeURIComponent;
 
+/**
+ * This app renders no progression calls, summaries, or goals yet (21g/21i),
+ * so its reads ask for the core fields and the server skips computing them
+ * (Checkpoint A round 2, RD-28). Remove it from a read when a screen starts
+ * rendering one of those.
+ */
+const CORE = `?${CORE_FIELDS_QUERY}`;
+
+/**
+ * How long a Today or History answer counts as current (RD-28): a tab switch
+ * or the return from a workout within it reads the cache instead of asking
+ * again. Every write the app makes marks these reads stale itself
+ * (invalidateTraining, markTrainingStale, applyConfirmedCompletion), which
+ * overrides this, and pull to refresh always asks. The workout never uses it.
+ */
+export const OVERVIEW_STALE_MS = 10_000;
+
 export function useToday() {
   const api = useApi();
   return useQuery<TodayDto, ApiError>({
+    staleTime: OVERVIEW_STALE_MS,
     queryKey: TRAINING_KEYS.today,
-    queryFn: ({ signal }) => api.request<TodayDto>("/today", { signal }),
+    queryFn: ({ signal }) => api.request<TodayDto>(`/today${CORE}`, { signal }),
   });
 }
 
@@ -66,7 +85,7 @@ export function useWorkout(
     enabled: opts.enabled ?? true,
     queryKey: TRAINING_KEYS.workout(loggedSessionId),
     queryFn: ({ signal }) =>
-      api.request<WorkoutViewDto>(`/workouts/${enc(loggedSessionId)}`, {
+      api.request<WorkoutViewDto>(`/workouts/${enc(loggedSessionId)}${CORE}`, {
         signal,
       }),
     staleTime: 0,
@@ -76,6 +95,7 @@ export function useWorkout(
 export function useHistoryWeek(week: string | null) {
   const api = useApi();
   return useQuery<HistoryWeekDto, ApiError>({
+    staleTime: OVERVIEW_STALE_MS,
     queryKey: TRAINING_KEYS.historyWeek(week),
     queryFn: ({ signal }) =>
       api.request<HistoryWeekDto>(
@@ -92,7 +112,7 @@ export function useLoggedWorkout(loggedSessionId: string) {
     queryKey: TRAINING_KEYS.historyWorkout(loggedSessionId),
     queryFn: ({ signal }) =>
       api.request<LoggedWorkoutDetailViewDto>(
-        `/history/${enc(loggedSessionId)}`,
+        `/history/${enc(loggedSessionId)}${CORE}`,
         { signal },
       ),
   });

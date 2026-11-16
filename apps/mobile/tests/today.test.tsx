@@ -78,10 +78,14 @@ const todayDto = (dashboard: DashboardDto): TodayDto => ({
   goals: null,
 });
 
+/** The app asks for the core fields (RD-28); routes here are keyed without it. */
+const stripCore = (path: string) => path.replace(/\?fields=core$/, "");
+
 type Routes = Record<string, unknown | ((body: unknown) => unknown)>;
 function serve(routes: Routes) {
   mockApi.request.mockImplementation(
-    async (path: string, opts: { body?: unknown } = {}) => {
+    async (raw: string, opts: { body?: unknown } = {}) => {
+      const path = stripCore(raw);
       if (!(path in routes)) throw new ApiError("not_found", "nope", 404);
       const r = routes[path];
       if (r instanceof Error) throw r;

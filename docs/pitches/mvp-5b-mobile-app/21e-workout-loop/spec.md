@@ -106,7 +106,9 @@ export type CompleteWorkoutResponseDto = {
 
 `LoggedSetDto` (views.ts) already exists; a server serializer `toLoggedSetDto` (`apps/web/src/lib/api/mobile/serialize.ts`) maps the Prisma row (Decimal → number, Date → ISO string).
 
-**Backward compatibility.** All seven endpoints are new, so no v1 response changes shape. `MOBILE_MIN_APP_VERSION` is not raised. The existing staging build (runtime `f98506f78a`) receives the 21e JavaScript as an over-the-air update (RD-17).
+**Core fields (RD-28).** `GET /today`, E2, and E6 accept an optional `?fields=core` (`CORE_FIELDS_QUERY` in `contracts/views.ts`). The server then skips the calls, summaries, and goals the 21e app doesn't render, returning `plannedProgression: []`, `sessionSummary: null`, `sessionGoals: []`, and `goals: null` (Today), `progression: []` (E2), and `summary: null` with `goals: []` (E6). Goal completion isn't reconciled on that Today read; each set and each finish still reconcile it. Every other field equals the full answer. Without the parameter, or with any other value, the answer is the full one. The app sends it on all three reads; 21g drops it from a read when a screen starts rendering calls.
+
+**Backward compatibility.** All seven endpoints are new, so no v1 response changes shape. `?fields=core` is additive: a client that doesn't send it gets the same answer as before. `MOBILE_MIN_APP_VERSION` is not raised. The existing staging build (runtime `f98506f78a`) receives the 21e JavaScript as an over-the-air update (RD-17).
 
 **Rate limit.** The existing 120 requests per account per minute covers a workout (one set write plus one workout refetch per set); no change.
 
@@ -130,11 +132,11 @@ TanStack Query, the 21d client and retry policy (temporary failures retry twice 
 
 | Key | Query | Notes |
 | --- | --- | --- |
-| `["today"]` | `GET /today` | refetch on focus and foreground |
+| `["today"]` | `GET /today?fields=core` | `staleTime` 10 s (RD-28); refetch on focus and foreground once stale; every write marks it stale |
 | `["gyms"]` | `GET /gyms` | fetched on demand when Start needs it |
-| `["workout", id]` | `GET /workouts/{id}` | `staleTime` 0 |
-| `["history-week", week ?? "current"]` | `GET /history?week=` | `placeholderData: keepPreviousData` while moving between weeks |
-| `["history-workout", id]` | `GET /history/{id}` | |
+| `["workout", id]` | `GET /workouts/{id}?fields=core` | `staleTime` 0 |
+| `["history-week", week ?? "current"]` | `GET /history?week=` | `placeholderData: keepPreviousData` while moving between weeks; `staleTime` 10 s (RD-28) |
+| `["history-workout", id]` | `GET /history/{id}?fields=core` | |
 
 Mutations: `useStartWorkout`, `useLogSet`, `useCompleteWorkout`. After a successful set, the returned `LoggedSetDto` is merged into `["workout", id]` (row `setNumber` → `saved: true`, values and `loggedSetId` from the server), then `["workout", id]`, `["today"]`, and `history-*` are invalidated. After completion (RD-27), the server's confirmed status is first written into `["workout", id]`, `["today"]`, and every cached `history-week` (in-flight reads of those cancelled first), and only then does the screen move to the summary; `["today"]` and `history-*` are then invalidated and refetch. The read-only workout offers Resume only on an answer fetched since it opened. Every key is removed by `clearAccountQueries` on sign-out (it removes all but app-config).
 
@@ -303,6 +305,7 @@ completion    (completion-sync, real router and query defaults, slow fake server
               reopening the finished workout never shows the logging card
               background → foreground keeps Done; a failed finish changes nothing, a retry finishes once
               a double tap sends one completion; nothing reads as done before the server's 200
+              the three reads carry ?fields=core; Finish asks for Today once and Done reuses it (RD-28)
 ```
 
 ### Unverified by a run (owner checkpoints)
@@ -372,6 +375,7 @@ Interactive simulator logging, physical-iPhone logging, force-close and resume o
 | RD-25 | **One semantic `attention` token**: light `#a15c00` (5.2:1 on card, 4.9:1 on background), dark `#e0a33a` (8.3:1, 8.9:1), in `packages/shared/src/design/status-colors.ts` and `globals.css` (`--attention` in every block; the parity test checks globals.css = tokens.ts + status-colors.ts). **Not in `tokens.ts`:** `app.config.ts` imports that file for the splash background, so it is a native fingerprint input, and editing it moved the runtime off `f98506f78a` (OVE-209). A guard pins its bytes; at the next native rebuild the status colors move into `ColorTokens`. Used only for a scheduling problem that needs the lifter (the missed-day card's outline and icon). Never decoration; `primary` unchanged. | `deload` is a progression status and is 3.6:1 on white in light; reusing it would blur two meanings and miss AA. | Owner approval (Checkpoint A, item 3) |
 | RD-26 | **The approved visual refinement** (design §15a): Today's single workout card with week, status chip, size, list, and one action, and an "Also today" section; History's week-switcher card, date-column rows with chips, Earlier blocks; the logging card's progress segments with "Exercise n of N · date · gym", a larger name, reference-only history in its own panel, a highlighted active row, saved rows tinted only after the server's 200; Plan and Goals as deliberate web hand-offs. No offer, prefill, save, or navigation rule changed. | The owner approved the canvas direction and these specific refinements for 21e. | Owner approval (Checkpoint A, item 2); design canvas |
 | RD-27 | **A confirmed finish reaches every screen at once (Checkpoint A round 2, owner finding 1; OVE-210).** On the 200 from `POST /workouts/{id}/complete`, the app cancels in-flight reads of the workout, Today, and History weeks, writes the workout's status as complete into those cached answers (the workout's own, Today's day or the day below a missed day, and its History row), and only then opens the summary; full refetches of Today and History follow. The read-only workout (H2) offers Resume only on a `GET /workouts/{id}` answered since the screen opened. Finish has a synchronous double-tap guard. Nothing is written before the server's answer, and only the status the answer states. | Reproduced: TanStack cancels a fetch whose last observer unmounts (the workout screen is replaced by the summary) and restores the pre-finish copy, and H2 read that cached copy from a disabled query, so "View workout" offered Resume and opening it said the workout was finished. Refetching alone loses the race; the server's answer already says what changed. | Owner finding (2026-11-16); CLAUDE.md "verification honesty" (server is the authority) |
+| RD-28 | **The app asks for core fields only, and Today and History stay current for 10 s (Checkpoint A round 2, owner finding 2; OVE-211).** `?fields=core` on `GET /today`, E2, and E6 (§6) skips what the 21e app doesn't render: progression calls, summaries, and goals. Additive: no parameter means the full answer. Today and History weeks get `staleTime` 10 s, so a tab switch or the return from a workout doesn't fetch again; every app write still marks them stale, and pull to refresh always fetches. The set write (one transaction with its baseline) is unchanged. | Measured against overload-dev, where each round trip is about 50 ms: Today 62 → 14 queries (1.6 s → 0.32 s), opening an in-progress workout 83 → 28 (2.5 s → 0.32 s), the record 46 → 7 (1.2 s → 0.16 s). The rest of the time is the local setup's distance to the database and the development bundle (runbook §2.6). The progression engine's query count and the web's function and database regions are a separate task. | Owner finding (2026-11-16); CLAUDE.md "one backend" (no engine on the phone); 21c additive-only rule |
 
 ## Open Questions
 

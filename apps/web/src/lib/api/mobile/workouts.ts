@@ -39,6 +39,15 @@ import { toLoggedSetDto } from "./serialize";
  * row (a different one is a 409), and finishing twice changes nothing.
  */
 
+/**
+ * `?fields=core` (RD-28; `CORE_FIELDS_QUERY` in the shared contract): the
+ * caller renders no calls, summaries, or goals, so they aren't computed. Any
+ * other value, or none, is the full answer.
+ */
+export function wantsCoreFields(request: Request): boolean {
+  return new URL(request.url).searchParams.get("fields") === "core";
+}
+
 /** Request bodies here are a few fields; anything bigger is refused. */
 export const WORKOUT_BODY_LIMIT = 4 * 1024;
 
@@ -70,12 +79,15 @@ export async function startWorkout(
 export async function readWorkout(
   account: Account,
   loggedSessionId: string,
+  opts: { core?: boolean } = {},
 ): Promise<WorkoutViewDto> {
   // A finished workout's cards need no calls (the app shows it as finished
   // and its calls live in the history summary), so they aren't computed
-  // (review #5); an in-progress workout's stay as the contract defines them.
+  // (review #5); an in-progress workout's stay as the contract defines them,
+  // unless the caller asked for the core fields only (RD-28).
   const view = await getWorkoutView(account, loggedSessionId, {
     skipProgressionWhenComplete: true,
+    skipProgression: opts.core,
   });
   if (!view) throw new ApiFailure("not_found", WORKOUT_NOT_FOUND);
   return view;
@@ -132,7 +144,14 @@ export async function readHistoryWeek(
 export async function readLoggedWorkout(
   account: Account,
   loggedSessionId: string,
+  opts: { core?: boolean } = {},
 ): Promise<LoggedWorkoutDetailViewDto> {
+  if (opts.core) {
+    // The record alone (RD-28): no summary, entitlement, or goal reads.
+    const detail = await getLoggedWorkoutDetail(account, loggedSessionId);
+    if (!detail) throw new ApiFailure("not_found", WORKOUT_NOT_FOUND);
+    return { detail, summary: null, goals: [] };
+  }
   // The detail and the entitlement don't depend on each other (review #7).
   const [detail, entitlement] = await Promise.all([
     getLoggedWorkoutDetail(account, loggedSessionId),

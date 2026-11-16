@@ -56,6 +56,24 @@ export type TodayDto = {
   goals: TodayGoalsDto | null;
 };
 
+/**
+ * The query parameter and value that ask `GET /today`, `GET /workouts/{id}`,
+ * and `GET /history/{id}` for their core fields only (Pitch 21e Checkpoint A
+ * round 2, RD-28). A client that renders no progression calls, summaries, or
+ * goals yet (the 21e app) sends it, and the server skips computing them:
+ *
+ * - Today: `plannedProgression` is `[]`, `sessionSummary` null,
+ *   `sessionGoals` `[]`, and `goals` null; goal completion is not reconciled
+ *   on this read (each set and each finish still reconciles it).
+ * - Workout: `progression` is `[]` (as it already is for a finished workout).
+ * - Logged workout: `summary` is null and `goals` `[]`.
+ *
+ * Every other field is exactly the full answer's. Without the parameter, or
+ * with any other value, the answer is the full one, unchanged, so older and
+ * other clients are unaffected. It never adds Pro data: it only leaves out.
+ */
+export const CORE_FIELDS_QUERY = "fields=core";
+
 /** `GET /workouts/{loggedSessionId}`: the workout runner. */
 export type WorkoutViewDto = {
   workout: WorkoutDto;
