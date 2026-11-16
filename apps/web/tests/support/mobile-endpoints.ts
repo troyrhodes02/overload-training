@@ -52,6 +52,12 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/history/[loggedSessionId]",
     auth: "account",
   },
+  // Pitch 21e Checkpoint A (RD-23): native missed-day resolution
+  {
+    method: "PUT",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/missed-days/[missedOn]",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,

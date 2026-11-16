@@ -85,6 +85,7 @@ import { POST as completeWorkoutRoute } from "@/app/api/mobile/v1/workouts/[logg
 import { GET as historyWeekRoute } from "@/app/api/mobile/v1/history/route";
 import { GET as historyWorkoutRoute } from "@/app/api/mobile/v1/history/[loggedSessionId]/route";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
+import { PUT as resolveMissedDayRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/missed-days/[missedOn]/route";
 import { PUT as putSetRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]/route";
 import { createGoal } from "@/lib/goals/goals";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
@@ -366,6 +367,128 @@ const loggedSessionCount = (userId: string) =>
 
 /** Pitch 21e: the workout endpoints (spec §11, isolation cases E1–E4). */
 const WORKOUT_CASES: Record<string, () => void> = {
+  "PUT api/mobile/v1/mesocycles/[mesocycleId]/missed-days/[missedOn]": () => {
+    accountEndpointMatrix(
+      "PUT /mesocycles/{id}/missed-days/{date}",
+      resolveMissedDayRoute as Handler,
+      {
+        method: "PUT",
+        json: { outcome: "skipped" },
+        params: { mesocycleId: randomUUID(), missedOn: "2026-01-05" },
+      },
+      // A fresh account has no such block: the resolver's own 404.
+      404,
+    );
+    describe("PUT /mesocycles/{id}/missed-days/{date}: isolation and retry", () => {
+      /** A fresh account whose block started last week: last week's day is missed. */
+      async function withMissedDay(label: string) {
+        const account = await createTestAccount();
+        const plan = await activePlan(account, lib, label, {
+          startWeeksAgo: 1,
+        });
+        return { account, plan, missedOn: addDays(todayIso(), -7) };
+      }
+      const put = (
+        token: string,
+        mesocycleId: string,
+        missedOn: string,
+        outcome: unknown = "skipped",
+      ) =>
+        call(resolveMissedDayRoute as Handler, {
+          token,
+          method: "PUT",
+          json: { outcome, userId: undefined },
+          params: { mesocycleId, missedOn },
+        });
+
+      it("B can't resolve A's missed day: a 404 like a missing block, nothing written", async () => {
+        const a = await withMissedDay("Alpha");
+        const b = await createTestAccount();
+        const aSnap = await snapshotAccount(a.account.userId);
+        const missing = await put(tokenFor(b.userId), randomUUID(), a.missedOn);
+        for (const outcome of ["skipped", "shifted"]) {
+          const r = await call(resolveMissedDayRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            // An account id in the body is ignored: the token decides.
+            json: { outcome, userId: a.account.userId },
+            params: { mesocycleId: a.plan.meso.id, missedOn: a.missedOn },
+          });
+          expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+          expect(r.status).toBe(404);
+          for (const marker of aMarkers(a.account, a.plan))
+            expect(r.text).not.toContain(marker);
+        }
+        expect(await snapshotAccount(a.account.userId)).toEqual(aSnap);
+        expect(
+          await getTestPrisma().missedDayResolution.count({
+            where: { userId: { in: [a.account.userId, b.userId] } },
+          }),
+        ).toBe(0);
+        // A's Today still asks about its own missed day.
+        const aToday = await call(today as Handler, {
+          token: tokenFor(a.account.userId),
+        });
+        expect((aToday.body as TodayDto).dashboard.kind).toBe("missed_day");
+      });
+
+      it("A resolves its own day once; B's resolution of its own block never touches A", async () => {
+        const a = await withMissedDay("Alpha");
+        const b = await withMissedDay("Bravo");
+        const r = await put(
+          tokenFor(a.account.userId),
+          a.plan.meso.id,
+          a.missedOn,
+        );
+        expect(r.status).toBe(200);
+        const again = await put(
+          tokenFor(a.account.userId),
+          a.plan.meso.id,
+          a.missedOn,
+        );
+        expect(again.body).toEqual(r.body);
+        const conflict = await put(
+          tokenFor(a.account.userId),
+          a.plan.meso.id,
+          a.missedOn,
+          "shifted",
+        );
+        expect([conflict.status, conflict.body.error.code]).toEqual([
+          409,
+          "conflict",
+        ]);
+        const aSnap = await snapshotAccount(a.account.userId);
+        const bR = await put(
+          tokenFor(b.account.userId),
+          b.plan.meso.id,
+          b.missedOn,
+          "shifted",
+        );
+        expect(bR.status).toBe(200);
+        expect(await snapshotAccount(a.account.userId)).toEqual(aSnap);
+        const rows = await getTestPrisma().missedDayResolution.findMany({
+          where: { userId: { in: [a.account.userId, b.account.userId] } },
+          select: { userId: true, mesocycleId: true, outcome: true },
+        });
+        expect(rows).toHaveLength(2);
+        expect(rows).toEqual(
+          expect.arrayContaining([
+            {
+              userId: a.account.userId,
+              mesocycleId: a.plan.meso.id,
+              outcome: "skipped",
+            },
+            {
+              userId: b.account.userId,
+              mesocycleId: b.plan.meso.id,
+              outcome: "shifted",
+            },
+          ]),
+        );
+      });
+    });
+  },
+
   "GET api/mobile/v1/history": () => {
     accountEndpointMatrix("GET /history", historyWeekRoute as Handler);
     describe("GET /history: isolation", () => {
