@@ -45,7 +45,14 @@ export function LoggedWorkoutScreen({
   // server's answer (review #2), so a workout finished since never offers
   // Resume.
   const status = useWorkout(loggedSessionId, { enabled: inProgress });
-  const resumable = status.data?.workout.status === "in_progress";
+  // Only an answer fetched since this screen opened counts. A disabled or
+  // not-yet-refetched query still returns whatever is cached, and a cached
+  // "in progress" from before a finish must never offer Resume (Checkpoint A
+  // round 2, owner finding 1).
+  const resumable =
+    inProgress &&
+    status.isFetchedAfterMount &&
+    status.data?.workout.status === "in_progress";
   const detail = query.data?.detail;
   const origin = webOrigin();
 

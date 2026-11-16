@@ -13,6 +13,7 @@ import {
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type { LoggedWorkoutDetailViewDto } from "@overload/shared/contracts/views";
 import { ApiError } from "../src/api/errors";
+import { TRAINING_KEYS } from "../src/api/training";
 import { Providers } from "./harness";
 import {
   dateColumn,
@@ -378,6 +379,27 @@ describe("a logged workout (H2)", () => {
         mockApi.request.mock.calls.some(([p]) => p === "/workouts/ls-old"),
       ).toBe(true),
     );
+    expect(screen.queryByRole("button", { name: "Resume workout" })).toBeNull();
+    expect(screen.queryByText("In progress")).toBeNull();
+  });
+
+  it("a cached in-progress copy never offers Resume (Checkpoint A round 2)", async () => {
+    // What the owner hit: the cache still held the workout as it was before
+    // the finish. Without a fresh answer from the server, there is no Resume.
+    serve({ "/history/ls-old": detail() });
+    await render(
+      <Providers
+        seed={(client) =>
+          client.setQueryData(TRAINING_KEYS.workout("ls-old"), {
+            workout: { status: "in_progress" },
+            progression: [],
+          })
+        }
+      >
+        <LoggedWorkoutScreen loggedSessionId="ls-old" inProgress={false} />
+      </Providers>,
+    );
+    await screen.findByText("Wednesday, July 8 · Old Gym");
     expect(screen.queryByRole("button", { name: "Resume workout" })).toBeNull();
     expect(screen.queryByText("In progress")).toBeNull();
   });

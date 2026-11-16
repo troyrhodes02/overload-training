@@ -71,6 +71,7 @@ export function WorkoutScreen({
   const [index, setIndex] = useState<number | null>(null);
   const [finishError, setFinishError] = useState<string | null>(null);
   const scroll = useRef<ScrollViewInstance>(null);
+  const finishing = useRef(false);
 
   const workout = query.data?.workout;
   // Open on the first unfinished card once, when the workout first loads
@@ -134,6 +135,9 @@ export function WorkoutScreen({
   }
 
   async function finish() {
+    // A synchronous guard: a second tap before the re-render sends nothing.
+    if (finishing.current) return;
+    finishing.current = true;
     setFinishError(null);
     try {
       await complete.mutateAsync(loggedSessionId);
@@ -142,6 +146,8 @@ export function WorkoutScreen({
     } catch (error) {
       void haptic.warning();
       setFinishError(finishFailureMessage(error));
+    } finally {
+      finishing.current = false;
     }
   }
 
