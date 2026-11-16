@@ -119,6 +119,16 @@ describe.each(["light", "dark"] as const)(
       jest.spyOn(Appearance, "getColorScheme").mockReturnValue(scheme);
     });
 
+    it("shows where the lifter is: exercise n of N, the date, and the gym", async () => {
+      serve({ "/workouts/ls-1": view() });
+      await open();
+      expect(
+        screen.getByText(
+          /^Exercise 1 of \d+ · Saturday, November 14 · Downtown Gym$/,
+        ),
+      ).toBeTruthy();
+    });
+
     it("trusted: the box offers the server's 255, captioned 'last time'", async () => {
       serve({ "/workouts/ls-1": view() });
       await open();

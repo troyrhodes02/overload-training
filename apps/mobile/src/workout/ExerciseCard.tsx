@@ -22,7 +22,8 @@ import { Button } from "../ui/Button";
 import { haptic } from "../ui/haptics";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
-import { fontFamily, textSize } from "../ui/theme";
+import { Surface } from "../ui/Surface";
+import { fontFamily, textSize, tint } from "../ui/theme";
 import { useTheme } from "../ui/ThemeProvider";
 import { setValueLabel, setValueSpoken } from "./labels";
 import {
@@ -189,41 +190,17 @@ export function ExerciseCard({
   )}${needsWeight ? "" : " · bodyweight, reps only"}${gymLine}`;
 
   return (
-    <View
-      style={{
-        backgroundColor: colors.card,
-        borderRadius: radius.lg,
-        padding: spacing.lg,
-        gap: spacing.md,
-      }}
-    >
+    <Surface style={{ gap: spacing.lg }}>
       <View style={{ gap: spacing.xxs }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "baseline",
-            gap: spacing.sm,
-          }}
+        <Text
+          size="2xl"
+          weight="semibold"
+          accessibilityRole="header"
+          accessibilityHint={`Exercise ${position.index + 1} of ${position.total}`}
         >
-          <Text
-            size="lg"
-            weight="semibold"
-            accessibilityRole="header"
-            style={{ flex: 1 }}
-          >
-            {card.performedExerciseName}
-          </Text>
-          <Text
-            size="xs"
-            tone="muted"
-            accessibilityLabel={`Exercise ${position.index + 1} of ${position.total}`}
-          >
-            {position.index + 1} / {position.total}
-          </Text>
-        </View>
-        <Text size="sm" tone="muted">
-          {scheme}
+          {card.performedExerciseName}
         </Text>
+        <Text tone="muted">{scheme}</Text>
         {card.swapped ? (
           <Text size="xs" tone="muted">
             Swapped from {card.plannedExerciseName}
@@ -243,35 +220,49 @@ export function ExerciseCard({
         />
       ) : (
         <>
-          <View style={{ gap: spacing.xxs }}>
+          <View style={{ gap: spacing.sm }}>
             <Text size="sm" tone="muted">
               {context.line}
             </Text>
             {context.reference ? (
-              <Text
-                size="xs"
-                tone="muted"
-                accessibilityLabel={context.reference.replace(
-                  "For reference:",
-                  "For reference,",
-                )}
+              // Reference-only history (Prescription-Aware RD): its own panel,
+              // never a prefill, so it can't read as this workout's weight.
+              <View
+                style={{
+                  backgroundColor: colors.secondary,
+                  borderRadius: radius.lg,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm,
+                }}
               >
-                {context.reference}
-              </Text>
+                <Text
+                  size="sm"
+                  tone="muted"
+                  accessibilityLabel={context.reference.replace(
+                    "For reference:",
+                    "For reference,",
+                  )}
+                >
+                  {context.reference}
+                </Text>
+              </View>
             ) : null}
           </View>
 
-          <View
-            style={{ height: 1, backgroundColor: colors.border }}
-            accessible={false}
-          />
-
-          <View style={{ gap: spacing.sm }}>
+          <View style={{ gap: spacing.xs }}>
             {card.sets.map((s) =>
               s.saved ? (
                 <LoggedRow key={s.setNumber} set={s} />
               ) : s.setNumber === active ? (
-                <View key={s.setNumber} style={{ gap: spacing.xs }}>
+                <View
+                  key={s.setNumber}
+                  style={{
+                    gap: spacing.xs,
+                    padding: spacing.sm,
+                    borderRadius: radius.lg,
+                    backgroundColor: colors.secondary,
+                  }}
+                >
                   <View
                     style={{
                       flexDirection: "row",
@@ -280,7 +271,7 @@ export function ExerciseCard({
                       flexWrap: "wrap",
                     }}
                   >
-                    <Text weight="medium" style={{ width: 48 }}>
+                    <Text weight="semibold" style={{ width: 48 }}>
                       Set {s.setNumber}
                     </Text>
                     {needsWeight ? (
@@ -342,7 +333,13 @@ export function ExerciseCard({
                   key={s.setNumber}
                   accessible
                   accessibilityLabel={`Set ${s.setNumber}${s.extra ? ", extra" : ""}, not logged yet`}
-                  style={{ flexDirection: "row", gap: spacing.sm }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.sm,
+                    minHeight: 44,
+                    paddingHorizontal: spacing.sm,
+                  }}
                 >
                   <Text tone="muted" style={{ width: 48 }}>
                     Set {s.setNumber}
@@ -396,7 +393,7 @@ export function ExerciseCard({
           </InputAccessoryView>
         </>
       )}
-    </View>
+    </Surface>
   );
 }
 
@@ -415,16 +412,29 @@ function EdgeNote({ title, message }: { title: string; message: string }) {
 }
 
 function LoggedRow({ set }: { set: ExerciseCardDto["sets"][number] }) {
-  const { colors, spacing } = useTheme();
+  const { colors, radius, spacing } = useTheme();
   const shown = { ...set, reps: set.reps ?? 0 };
   return (
     <View
       accessible
       accessibilityLabel={`Set ${set.setNumber}${set.extra ? ", extra" : ""}, ${setValueSpoken(shown)}, logged`}
-      style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+        minHeight: 44,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radius.lg,
+        // A saved set: a quiet primary tint, only after the server's 200.
+        backgroundColor: tint(colors.primary, 0.1),
+      }}
     >
-      <Text style={{ width: 48 }}>Set {set.setNumber}</Text>
-      <Text style={{ flex: 1 }}>{setValueLabel(shown)}</Text>
+      <Text tone="muted" style={{ width: 48 }}>
+        Set {set.setNumber}
+      </Text>
+      <Text weight="medium" style={{ flex: 1 }}>
+        {setValueLabel(shown)}
+      </Text>
       <Symbol
         name="checkmark"
         size={16}
@@ -484,7 +494,7 @@ function NumberField({
           : hasFocus
             ? colors.ring
             : colors.input,
-        backgroundColor: colors.background,
+        backgroundColor: colors.card,
         gap: spacing.xs,
       }}
     >

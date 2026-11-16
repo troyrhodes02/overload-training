@@ -14,7 +14,11 @@ import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type { LoggedWorkoutDetailViewDto } from "@overload/shared/contracts/views";
 import { ApiError } from "../src/api/errors";
 import { Providers } from "./harness";
-import { HistoryScreen, historyRows } from "../src/history/HistoryScreen";
+import {
+  dateColumn,
+  HistoryScreen,
+  historyRows,
+} from "../src/history/HistoryScreen";
 import { LoggedWorkoutScreen } from "../src/history/LoggedWorkoutScreen";
 
 const mockApi = { request: jest.fn() };
@@ -265,6 +269,25 @@ describe("moving through all-time history", () => {
       </Providers>,
     );
     expect(await screen.findByText("No workouts yet.")).toBeTruthy();
+  });
+
+  it("the date column is the server's date, never shifted by the device zone", () => {
+    expect(dateColumn("2026-11-09")).toEqual({ weekday: "MON", day: "9" });
+    expect(dateColumn("2026-07-08")).toEqual({ weekday: "WED", day: "8" });
+  });
+
+  it("an empty account reads as empty, with the shared header", async () => {
+    serve({
+      "/history": { ...activeWeek(), hasAnyHistory: false, earlierBlocks: [] },
+    });
+    await render(
+      <Providers>
+        <HistoryScreen />
+      </Providers>,
+    );
+    expect(await screen.findByText("No workouts yet.")).toBeTruthy();
+    expect(screen.getByRole("header", { name: "History" })).toBeTruthy();
+    expect(screen.getByText("Every workout you've logged")).toBeTruthy();
   });
 
   it("rows keep lifting before cardio on the same date", () => {
