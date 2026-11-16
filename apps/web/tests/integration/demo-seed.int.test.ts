@@ -204,3 +204,27 @@ it("leaves no missed day before the anchor (Today shows the plan, not a prompt)"
     .at(-1)!;
   expect(latest < anchor).toBe(true);
 });
+
+it("stays well inside its transaction budget on a remote database (OVE-212)", async () => {
+  // The seed is one interactive transaction with a 180 s limit, and every
+  // statement in it is a round trip: about 50–60 ms from a laptop to
+  // overload-dev, so about 3,000 statements is the cliff. It needed 2,994
+  // before OVE-212 and timed out; it needs about 2,300 now. Count them.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pg = require("pg") as {
+    Client: { prototype: { query: (...args: unknown[]) => unknown } };
+  };
+  const account = await createTestAccount("UTC");
+  const original = pg.Client.prototype.query;
+  let statements = 0;
+  pg.Client.prototype.query = function (this: unknown, ...args: unknown[]) {
+    statements += 1;
+    return original.apply(this, args);
+  };
+  try {
+    await executeDemoSeed(account, anchor);
+  } finally {
+    pg.Client.prototype.query = original;
+  }
+  expect(statements).toBeLessThan(2_500);
+});
