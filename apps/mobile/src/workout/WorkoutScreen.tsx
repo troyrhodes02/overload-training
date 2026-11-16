@@ -103,7 +103,9 @@ export function WorkoutScreen({
     );
   }
 
-  if (workout.status === "complete") {
+  // Finished by THIS screen: it is already on its way to the summary, so it
+  // keeps showing the workout instead of flashing "finished" as it leaves.
+  if (workout.status === "complete" && !complete.isSuccess) {
     return (
       <Frame title={workout.sessionName}>
         <StateView

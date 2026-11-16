@@ -3,7 +3,8 @@
  * every screen shows the workout as done, and Resume is never offered for it.
  *
  * Runs the real screens on the real Expo Router with the app's own query
- * defaults (staleTime 0) against a fake server that answers after a delay, so
+ * client and each read's own options, against a fake server that answers
+ * after a delay, so
  * screens mount, unmount, and refetch the way they do on the simulator. The
  * tabs layout is NativeTabs (UIKit) in the app; a stack has the same routes.
  */

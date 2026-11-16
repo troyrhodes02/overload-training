@@ -5,6 +5,7 @@
  */
 import { Appearance } from "react-native";
 import {
+  act,
   render,
   screen,
   waitFor,
@@ -403,6 +404,42 @@ describe("a logged workout (H2)", () => {
     expect(screen.queryByRole("button", { name: "Resume workout" })).toBeNull();
     expect(screen.queryByText("In progress")).toBeNull();
   });
+
+  it.each([
+    ["still on its way", () => new Promise(() => {})],
+    ["failed", () => Promise.reject(new ApiError("network", "offline"))],
+  ])(
+    "opened as in progress, a cached in-progress copy offers no Resume while the server's answer is %s",
+    async (_label, answer) => {
+      mockApi.request.mockImplementation(async (path: string) =>
+        path === "/history/ls-old" ? detail() : answer(),
+      );
+      await render(
+        <Providers
+          seed={(client) => {
+            client.setQueryData(TRAINING_KEYS.workout("ls-old"), {
+              workout: { status: "in_progress" },
+              progression: [],
+            });
+            // Cached from earlier, so it is read again on open.
+            void client.invalidateQueries({ refetchType: "none" });
+          }}
+        >
+          <LoggedWorkoutScreen loggedSessionId="ls-old" inProgress />
+        </Providers>,
+      );
+      await screen.findByText("Wednesday, July 8 · Old Gym");
+      await waitFor(() =>
+        expect(
+          mockApi.request.mock.calls.some(([p]) => p === "/workouts/ls-old"),
+        ).toBe(true),
+      );
+      await act(async () => {});
+      expect(
+        screen.queryByRole("button", { name: "Resume workout" }),
+      ).toBeNull();
+    },
+  );
 
   it("shows every set as recorded, archived and swapped exercises included", async () => {
     serve({ "/history/ls-old": detail() });
