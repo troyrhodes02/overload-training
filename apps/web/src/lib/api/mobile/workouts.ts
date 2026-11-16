@@ -7,12 +7,14 @@ import {
 } from "@/lib/logging/workflows";
 import { getWorkoutView } from "@/lib/views/workout";
 import { getHistoryWeek } from "@/lib/logging/history-week";
+import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { getLoggedWorkoutDetail } from "@/lib/logging/queries";
 import { getSessionProgressionSummary } from "@/lib/progression/queries";
 import { getSessionGoalSummary } from "@/lib/goals/queries";
 import { resolveRequestEntitlement } from "@/lib/entitlements/resolve";
 import type {
   CompleteWorkoutResponseDto,
+  MissedDayResolutionDto,
   StartWorkoutResponseDto,
 } from "@overload/shared/contracts/logging";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
@@ -144,4 +146,25 @@ export async function readLoggedWorkout(
     getSessionGoalSummary(account, detail.loggedSessionId),
   ]);
   return { detail, summary, goals };
+}
+
+/**
+ * E7 `PUT /mesocycles/{mesocycleId}/missed-days/{missedOn}` (Checkpoint A,
+ * RD-23): shift or skip a missed day through the web's own resolveMissedDay,
+ * unchanged. It checks the outcome, that the block is the account's (another
+ * account's is "not found"), and that the date is a real, unlogged, unresolved
+ * past day of the active block. Keyed by (mesocycleId, missedOn): the same
+ * outcome again returns the stored resolution; a different one is a conflict.
+ * "Log it late" is E1 with the missed date, not this endpoint.
+ */
+export async function resolveMissedDayFromRequest(
+  account: Account,
+  params: { mesocycleId: string; missedOn: string },
+  body: Record<string, unknown>,
+): Promise<MissedDayResolutionDto> {
+  return resolveMissedDay(account, {
+    mesocycleId: params.mesocycleId,
+    missedOn: params.missedOn,
+    outcome: body.outcome,
+  });
 }
