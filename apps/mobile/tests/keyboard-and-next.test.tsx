@@ -88,14 +88,17 @@ function hosts(type: string, from: Host = root()): Host[] {
 }
 
 const INPUT = "TextInput";
+/** The in-row placeholder React Native leaves where the bar is rendered. */
 const BAR = "RCTInputAccessoryView";
+/** The bar's content, which iOS shows in the keyboard (tests/setup.ts). */
+const KEYBOARD_BAR = "KeyboardAccessoryContent";
 
 function bars() {
   return { inputs: hosts(INPUT), views: hosts(BAR) };
 }
 
 const barFor = (id: string): Host => {
-  const matches = hosts(BAR).filter((v) => v.props.nativeID === id);
+  const matches = hosts(KEYBOARD_BAR).filter((v) => v.props.nativeID === id);
   expect(matches).toHaveLength(1);
   return matches[0]!;
 };
@@ -427,4 +430,170 @@ describe("keeping the active row above the keyboard", () => {
     expect(within(row).getByLabelText("Set 1 weight in pounds")).toBeTruthy();
     expect(row).toBeTruthy();
   });
+});
+
+describe("inputs keep taking taps across exercises (OVE-214)", () => {
+  const three = workout({
+    exercises: [
+      card(),
+      card({
+        loggedExerciseId: "le-pull",
+        performedExerciseName: "Wide-Grip Lat Pulldown",
+        plannedExerciseName: "Wide-Grip Lat Pulldown",
+        plannedSets: 4,
+        sets: rows(4),
+      }),
+      card({
+        loggedExerciseId: "le-curl",
+        performedExerciseName: "Pull-Up",
+        plannedExerciseName: "Pull-Up",
+        requiresExternalWeight: false,
+        suggestedWeightLbs: null,
+        plannedSets: 2,
+        sets: rows(2),
+      }),
+    ],
+  });
+
+  /**
+   * On iOS a recycled placeholder comes back unhidden over the inputs; only
+   * pointerEvents "none" keeps it from taking their taps. Every placeholder,
+   * on every card the lifter reaches, must carry it.
+   */
+  function expectNoPlaceholderTakesTouches() {
+    const placeholders = hosts(BAR);
+    expect(placeholders.length).toBeGreaterThan(0);
+    for (const p of placeholders) {
+      expect(StyleSheet.flatten(p.props.style).pointerEvents).toBe("none");
+    }
+    expectOneBarPerInput();
+  }
+
+  const go = async (name: string) =>
+    fireEvent.press(screen.getByRole("button", { name }));
+
+  it("Next, Previous, Next, and on: every card's inputs have their bars and nothing over them", async () => {
+    serve({ "/workouts/ls-1": view(three) });
+    await open(three);
+    expectNoPlaceholderTakesTouches();
+    await go("Next: Wide-Grip Lat Pulldown");
+    await screen.findByRole("header", { name: "Wide-Grip Lat Pulldown" });
+    expectNoPlaceholderTakesTouches();
+    expect(screen.getByLabelText("Set 1 reps").props.inputAccessoryViewID).toBe(
+      keypadBarId("le-pull", 1, "reps"),
+    );
+    await go("Previous");
+    await screen.findByRole("header", { name: "Barbell Bench Press" });
+    expectNoPlaceholderTakesTouches();
+    await go("Next: Wide-Grip Lat Pulldown");
+    await go("Next: Pull-Up");
+    await screen.findByRole("header", { name: "Pull-Up" });
+    expectNoPlaceholderTakesTouches();
+    // Typing still reaches the field after all that navigation.
+    await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "9");
+    expect(screen.getByLabelText("Set 1 reps").props.value).toBe("9");
+  });
+
+  it("after a saved set, the next set's bar names that set and nothing covers it", async () => {
+    let current = view();
+    serve({
+      "/workouts/ls-1": () => current,
+      "/logged-exercises/le-bench/sets/1": () => {
+        current = view(
+          workout({
+            exercises: [
+              card({
+                sets: rows(3).map((r) =>
+                  r.setNumber === 1
+                    ? {
+                        ...r,
+                        loggedSetId: "set-1",
+                        weightLbs: 255,
+                        reps: 5,
+                        saved: true,
+                      }
+                    : r,
+                ),
+              }),
+            ],
+          }),
+        );
+        return {
+          id: "set-1",
+          loggedExerciseId: "le-bench",
+          setNumber: 1,
+          weightLbs: 255,
+          reps: 5,
+          rir: null,
+          createdAt: "2026-11-14T15:00:00.000Z",
+          updatedAt: "2026-11-14T15:00:00.000Z",
+        };
+      },
+    });
+    await open();
+    await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "5");
+    await fireEvent.press(
+      within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
+        name: "Log set 1",
+      }),
+    );
+    await screen.findByLabelText("Set 1, 255 pounds, 5 reps, logged");
+    expectNoPlaceholderTakesTouches();
+    const bar = within(barFor(keypadBarId("le-bench", 2, "reps")));
+    expect(bar.getByRole("button", { name: "Log set 2" })).toBeTruthy();
+    expect(bar.queryByRole("button", { name: "Log set 1" })).toBeNull();
+  });
+});
+
+describe("Done on the keypad bar (OVE-214)", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("each bar has Done first, then its primary action", async () => {
+    serve({ "/workouts/ls-1": view() });
+    await open();
+    for (const [field, primary] of [
+      ["weight", "Next"],
+      ["reps", "Log set 1"],
+    ] as const) {
+      const names = within(barFor(keypadBarId("le-bench", 1, field)))
+        .getAllByRole("button")
+        .map((b) => b.props.accessibilityLabel as string);
+      expect(names).toEqual(["Done", primary]);
+    }
+  });
+
+  it.each(["weight", "reps"] as const)(
+    "Done on %s hides the keyboard, sends nothing, and keeps the numbers",
+    async (field) => {
+      const dismiss = jest
+        .spyOn(Keyboard, "dismiss")
+        .mockImplementation(() => {});
+      serve({ "/workouts/ls-1": view() });
+      await open();
+      await fireEvent.changeText(
+        screen.getByLabelText("Set 1 weight in pounds"),
+        "262.5",
+      );
+      await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "6");
+      const requests = mockApi.request.mock.calls.length;
+      const done = within(barFor(keypadBarId("le-bench", 1, field))).getByRole(
+        "button",
+        { name: "Done" },
+      );
+      expect(done.props.accessibilityHint).toBe(
+        "Hides the keyboard. Your numbers stay.",
+      );
+      await fireEvent.press(done);
+      expect(dismiss).toHaveBeenCalledTimes(1);
+      expect(mockApi.request.mock.calls.length).toBe(requests);
+      expect(screen.getByLabelText("Set 1 weight in pounds").props.value).toBe(
+        "262.5",
+      );
+      expect(screen.getByLabelText("Set 1 reps").props.value).toBe("6");
+      expect(screen.queryByText(/logged$/)).toBeNull();
+      // The same field takes input again straight away.
+      await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "7");
+      expect(screen.getByLabelText("Set 1 reps").props.value).toBe("7");
+    },
+  );
 });

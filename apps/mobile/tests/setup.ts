@@ -15,3 +15,37 @@ jest.mock("expo-secure-store", () => {
   };
 });
 jest.mock("expo-symbols", () => ({ SymbolView: () => null }));
+
+// InputAccessoryView, modelled the way iOS lays it out (OVE-214): an empty
+// placeholder in the row, carrying the component's style (pointerEvents), and
+// the bar's content in the keyboard, NOT inside that placeholder. The real
+// component renders the content as the placeholder's children, which would let
+// the placeholder's pointerEvents block the bar's buttons in tests although on
+// the device the bar is a different view hierarchy.
+jest.mock(
+  "react-native/Libraries/Components/TextInput/InputAccessoryView",
+  () => {
+    const { createElement, Fragment } =
+      jest.requireActual<typeof import("react")>("react");
+    function InputAccessoryView(props: {
+      nativeID?: string;
+      style?: unknown;
+      children?: import("react").ReactNode;
+    }) {
+      return createElement(
+        Fragment,
+        null,
+        createElement("RCTInputAccessoryView", {
+          nativeID: props.nativeID,
+          style: [props.style, { position: "absolute" }],
+        }),
+        createElement(
+          "KeyboardAccessoryContent",
+          { nativeID: props.nativeID },
+          props.children,
+        ),
+      );
+    }
+    return { __esModule: true, default: InputAccessoryView };
+  },
+);
