@@ -1,15 +1,12 @@
 import { Stack } from "expo-router";
-import { Placeholder } from "../../../screens/Placeholder";
+import { HistoryScreen } from "../../../history/HistoryScreen";
 
-export default function HistoryScreen() {
+/** H1 History (Pitch 21e design §6, §15): all-time, week by week. */
+export default function HistoryRoute() {
   return (
     <>
-      <Stack.Screen options={{ title: "History" }} />
-      <Placeholder
-        icon="clock.arrow.circlepath"
-        title="History comes to the app in a later update."
-        message="Every workout you've logged is on the web now."
-      />
+      <Stack.Screen options={{ title: "History", headerShown: false }} />
+      <HistoryScreen />
     </>
   );
 }

@@ -43,10 +43,13 @@ export function Providers({
   children,
   config = appConfig(),
   me = meDto(),
+  seed,
 }: {
   children: React.ReactNode;
   config?: AppConfigDto;
   me?: MeDto;
+  /** Put answers in the cache before the first render. */
+  seed?: (client: QueryClient) => void;
 }) {
   const client = new QueryClient({
     // No garbage-collection timers, so Jest exits as soon as the tests finish.
@@ -57,6 +60,7 @@ export function Providers({
   });
   client.setQueryData(QUERY_KEYS.appConfig, config);
   client.setQueryData(QUERY_KEYS.me, me);
+  seed?.(client);
   return (
     <SafeAreaProvider
       initialMetrics={{

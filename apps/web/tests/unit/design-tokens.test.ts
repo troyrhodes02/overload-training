@@ -8,6 +8,7 @@ import {
   radius,
   type ColorTokens,
 } from "@overload/shared/design/tokens";
+import { statusColors } from "@overload/shared/design/status-colors";
 import { WEB_SRC } from "../support/code-roots";
 
 /**
@@ -44,23 +45,37 @@ function colorTokens(decls: Record<string, string>): Record<string, string> {
 
 describe("design tokens match globals.css", () => {
   it("light colors are the :root block, every token and nothing else", () => {
-    expect(colorTokens(block(/^:root\s*\{/m))).toEqual(colors.light);
+    expect(colorTokens(block(/^:root\s*\{/m))).toEqual({
+      ...colors.light,
+      ...statusColors.light,
+    });
   });
 
   it("dark colors are the .dark block", () => {
-    expect(colorTokens(block(/^\.dark\s*\{/m))).toEqual(colors.dark);
+    expect(colorTokens(block(/^\.dark\s*\{/m))).toEqual({
+      ...colors.dark,
+      ...statusColors.dark,
+    });
   });
 
   it("System on a dark device uses the same dark colors", () => {
-    expect(colorTokens(block(/^\s*:root:not\(\.light\)\s*\{/m))).toEqual(
-      colors.dark,
-    );
+    expect(colorTokens(block(/^\s*:root:not\(\.light\)\s*\{/m))).toEqual({
+      ...colors.dark,
+      ...statusColors.dark,
+    });
   });
 
   it("every token has a light and a dark value", () => {
     const keys = (t: ColorTokens) => Object.keys(t).sort();
     expect(keys(colors.light)).toEqual(keys(colors.dark));
     expect(keys(colors.light)).toHaveLength(21);
+    // tokens.ts is a native fingerprint input; later colors live apart (RD-25).
+    expect(Object.keys(statusColors.light)).toEqual(
+      Object.keys(statusColors.dark),
+    );
+    for (const k of Object.keys(statusColors.light)) {
+      expect(k in colors.light).toBe(false);
+    }
   });
 
   it("radius: --radius is lg; sm, md, xl are its steps", () => {

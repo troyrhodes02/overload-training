@@ -29,7 +29,8 @@
   both stay legible. Light is the :root default; dark applies via the .dark
   class (the account chose Dark) and, under System, via the OS preference.
   The .light class (the account chose Light) blocks the OS preference.
-  Semantic green/amber/red (progress/deload/destructive) are preserved — blue
+  Semantic green/amber/red (progress/deload/destructive) and the attention
+  amber (a missed workout; Pitch 21e RD-25) are preserved — blue
   never replaces them.
 */
 
@@ -61,6 +62,7 @@
   /* Functional status tokens (semantic; not replaced by the brand blue). */
   --progress: #2f9e6b;
   --deload: #b7791f;
+  --attention: #a15c00;
 }
 
 .dark {
@@ -89,6 +91,7 @@
 
   --progress: #4cc38a;
   --deload: #e0a93b;
+  --attention: #e0a33a;
 }
 
 /* System default: follow the OS when no explicit mode class is set. */
@@ -117,6 +120,7 @@
 
     --progress: #4cc38a;
     --deload: #e0a93b;
+    --attention: #e0a33a;
   }
 }
 
@@ -142,6 +146,7 @@
   --color-ring: var(--ring);
   --color-progress: var(--progress);
   --color-deload: var(--deload);
+  --color-attention: var(--attention);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 

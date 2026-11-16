@@ -4,6 +4,7 @@ import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
+import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import type { EquipmentValue } from "@overload/shared/exercises/taxonomy";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
@@ -191,14 +192,21 @@ async function logSetInTx(
   // conflict — deliberate changes go through editLoggedSet (Decision 14,
   // RIR Logging R10). Checked up front because catching a unique violation would abort the
   // surrounding transaction (Postgres cannot continue an errored transaction).
-  const existing = await tx.loggedSet.findUnique({
-    where: {
-      loggedExerciseId_setNumber: {
-        loggedExerciseId: input.loggedExerciseId,
-        setNumber: input.setNumber,
-      },
-    },
-  });
+  // Only a set number the read above already holds can be a replay, so the
+  // row is fetched only then. A concurrent first insert of the same number
+  // still meets the unique key, which logSet's retry answers like a replay.
+  const existing = loggedExercise.sets.some(
+    (s) => s.setNumber === input.setNumber,
+  )
+    ? await tx.loggedSet.findUnique({
+        where: {
+          loggedExerciseId_setNumber: {
+            loggedExerciseId: input.loggedExerciseId,
+            setNumber: input.setNumber,
+          },
+        },
+      })
+    : null;
   if (existing) {
     if (
       sameWeight(existing.weightLbs, weight) &&
@@ -227,8 +235,12 @@ async function logSetInTx(
 
   // Same transaction: establish/correct the gym baseline if this set completes a
   // gym-variable exercise at a gym (Decisions 18, 46, 57). No-op otherwise.
-  // A bodyweight set has no load to baseline, so it never reaches that path.
-  if (weight !== null) {
+  // A bodyweight set has no load to baseline, so it never reaches that path,
+  // and neither does a set of an exercise that isn't gym-variable: the
+  // baseline step would re-read the exercise and its sets only to return on
+  // that same rule (three round trips per set, the bulk of a long seed).
+  // When this calls it, it still applies every one of its own checks.
+  if (weight !== null && isGymVariable(loggedExercise.exercise)) {
     await applyBaselineOnCompletion(account, input.loggedExerciseId, tx);
   }
 

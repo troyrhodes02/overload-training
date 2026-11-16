@@ -23,11 +23,19 @@ export async function getWorkoutView(
      * to history, so computing them would be wasted; review audit #7).
      */
     skipProgressionWhenComplete?: boolean;
+    /**
+     * Skip every card's call: the mobile app's `?fields=core` (Pitch 21e
+     * RD-28), which renders none yet. The web runner never sets it.
+     */
+    skipProgression?: boolean;
   } = {},
 ): Promise<WorkoutViewDto | null> {
   const workout = await getWorkout(account, loggedSessionId);
   if (!workout) return null;
-  if (opts.skipProgressionWhenComplete && workout.status === "complete") {
+  if (
+    opts.skipProgression ||
+    (opts.skipProgressionWhenComplete && workout.status === "complete")
+  ) {
     return { workout, progression: [] };
   }
   // Only when the cards' calls are computed (release review #8).

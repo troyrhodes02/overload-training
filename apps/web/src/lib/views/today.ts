@@ -58,14 +58,23 @@ function shownDay(dashboard: DashboardDto): DashboardTodayDto | null {
 
 export async function getTodayView(
   account: Account,
-  opts: { now?: Date } = {},
+  opts: {
+    now?: Date;
+    /**
+     * The core fields only: the mobile app's `?fields=core` (Pitch 21e
+     * RD-28). The calls, the summary, and the goals are neither computed nor
+     * returned, and goal completion isn't reconciled on this read. The web
+     * page never sets it.
+     */
+    core?: boolean;
+  } = {},
 ): Promise<TodayDto> {
   // One instant for the greeting's clock and the entitlement.
   const now = opts.now ?? new Date();
   const [dashboard, facts, entitlement] = await Promise.all([
     getTodayDashboard(account),
     getGreetingFacts(account, now),
-    resolveRequestEntitlement(account, now),
+    opts.core ? null : resolveRequestEntitlement(account, now),
   ]);
 
   // Read right after the dashboard, as the web page always did (release
@@ -81,6 +90,18 @@ export async function getTodayView(
     accountKey: account.userId,
     now,
   });
+
+  if (opts.core || !entitlement) {
+    return {
+      today,
+      greeting,
+      dashboard,
+      plannedProgression: [],
+      sessionSummary: null,
+      sessionGoals: [],
+      goals: null,
+    };
+  }
 
   // Goals show ONLY when no training action is pending (Goals R42, R43), and
   // completion is reconciled first so a just-met goal shows its card (R54).
