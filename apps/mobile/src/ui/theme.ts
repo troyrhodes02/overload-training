@@ -5,6 +5,10 @@ import {
   radius,
   type ColorTokens,
 } from "@overload/shared/design/tokens";
+import {
+  statusColors,
+  type StatusColorTokens,
+} from "@overload/shared/design/status-colors";
 import type { Appearance } from "@overload/shared/appearance/appearance";
 
 /**
@@ -38,6 +42,28 @@ export type FontWeight = keyof typeof fontFamily;
 
 export type FontSize = keyof typeof font.sizes;
 
+/**
+ * The in-screen title of a tab (Pitch 21e Checkpoint A, RD-24): one native-
+ * only size above the shared 2xl, between iOS body titles and its 34-point
+ * large title, as on the approved design canvas. Not a shared token: the web
+ * has no equivalent surface.
+ */
+export const screenTitleSize = { fontSize: 30, lineHeight: 36 } as const;
+
+/**
+ * A token color at an opacity, for the quiet tinted fills the design uses
+ * (a saved set, a status chip). Always derived from a token, never a new
+ * color; `alpha` is 0–1.
+ */
+export function tint(color: string, alpha: number): string {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!hex) return color;
+  const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `#${hex[1]}${a}`;
+}
+
 export function textSize(size: FontSize): {
   fontSize: number;
   lineHeight: number;
@@ -46,9 +72,17 @@ export function textSize(size: FontSize): {
   return { fontSize, lineHeight };
 }
 
+/** The shared color tokens plus the status colors kept outside tokens.ts. */
+export type ThemeColors = ColorTokens & StatusColorTokens;
+
+const THEME_COLORS: Record<Scheme, ThemeColors> = {
+  light: { ...tokenColors.light, ...statusColors.light },
+  dark: { ...tokenColors.dark, ...statusColors.dark },
+};
+
 export type Theme = {
   scheme: Scheme;
-  colors: ColorTokens;
+  colors: ThemeColors;
   radius: typeof radius;
   spacing: typeof spacing;
   controlHeight: typeof controlHeight;
@@ -61,7 +95,7 @@ export type Theme = {
 export function buildTheme(scheme: Scheme): Theme {
   return {
     scheme,
-    colors: tokenColors[scheme],
+    colors: THEME_COLORS[scheme],
     radius,
     spacing,
     controlHeight,
