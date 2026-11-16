@@ -5,7 +5,7 @@ import { TodayView } from "../../../today/TodayView";
 export default function TodayScreen() {
   return (
     <>
-      <Stack.Screen options={{ title: "Today" }} />
+      <Stack.Screen options={{ title: "Today", headerShown: false }} />
       <TodayView />
     </>
   );

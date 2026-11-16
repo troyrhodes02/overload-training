@@ -23,7 +23,11 @@ export function GroupedList({
           size="xs"
           weight="medium"
           tone="muted"
-          style={{ paddingHorizontal: spacing.lg, textTransform: "uppercase" }}
+          style={{
+            paddingHorizontal: spacing.xs,
+            letterSpacing: 0.7,
+            textTransform: "uppercase",
+          }}
           accessibilityRole="header"
         >
           {header}
@@ -33,6 +37,8 @@ export function GroupedList({
         style={{
           backgroundColor: colors.card,
           borderRadius: radius.xl,
+          borderWidth: 1,
+          borderColor: colors.border,
           overflow: "hidden",
         }}
       >

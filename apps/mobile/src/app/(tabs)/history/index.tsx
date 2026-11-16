@@ -5,7 +5,7 @@ import { HistoryScreen } from "../../../history/HistoryScreen";
 export default function HistoryRoute() {
   return (
     <>
-      <Stack.Screen options={{ title: "History" }} />
+      <Stack.Screen options={{ title: "History", headerShown: false }} />
       <HistoryScreen />
     </>
   );

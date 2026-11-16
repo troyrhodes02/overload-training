@@ -38,6 +38,28 @@ export type FontWeight = keyof typeof fontFamily;
 
 export type FontSize = keyof typeof font.sizes;
 
+/**
+ * The in-screen title of a tab (Pitch 21e Checkpoint A, RD-24): one native-
+ * only size above the shared 2xl, between iOS body titles and its 34-point
+ * large title, as on the approved design canvas. Not a shared token: the web
+ * has no equivalent surface.
+ */
+export const screenTitleSize = { fontSize: 30, lineHeight: 36 } as const;
+
+/**
+ * A token color at an opacity, for the quiet tinted fills the design uses
+ * (a saved set, a status chip). Always derived from a token, never a new
+ * color; `alpha` is 0–1.
+ */
+export function tint(color: string, alpha: number): string {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!hex) return color;
+  const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `#${hex[1]}${a}`;
+}
+
 export function textSize(size: FontSize): {
   fontSize: number;
   lineHeight: number;

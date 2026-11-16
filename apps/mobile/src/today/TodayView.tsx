@@ -1,4 +1,4 @@
-import { Linking, RefreshControl, ScrollView, View } from "react-native";
+import { Linking, View } from "react-native";
 import { router } from "expo-router";
 import type {
   DashboardDto,
@@ -18,6 +18,7 @@ import { SkeletonCard } from "../ui/Skeleton";
 import { LoadErrorState } from "../ui/LoadErrorState";
 import { StateView } from "../ui/StateView";
 import { Symbol } from "../ui/Symbol";
+import { TabScreen } from "../ui/TabScreen";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
 import { loggedWorkoutHref } from "../workout/routes";
@@ -30,7 +31,6 @@ import { useStartOrResume, type StartState } from "./useStartWorkout";
  * is derived here. No progression calls, goals, or Pro note (21g/21i).
  */
 export function TodayView() {
-  const { colors, spacing } = useTheme();
   const today = useToday();
   useRefetchWhenFocused(TRAINING_KEYS.today);
   const starter = useStartOrResume();
@@ -59,21 +59,17 @@ export function TodayView() {
     return <SkeletonCard />;
   })();
 
+  const view = today.data;
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}
-      refreshControl={
-        <RefreshControl
-          refreshing={today.isRefetching}
-          onRefresh={() => void today.refetch()}
-          tintColor={colors.mutedForeground}
-        />
-      }
+    <TabScreen
+      eyebrow={view ? longDateLabel(view.today) : undefined}
+      title="Today"
+      subtitle={view?.greeting}
+      refreshing={today.isRefetching}
+      onRefresh={() => void today.refetch()}
     >
       {body}
-    </ScrollView>
+    </TabScreen>
   );
 }
 
@@ -94,12 +90,6 @@ function TodayContent({
   const { spacing } = useTheme();
   return (
     <View style={{ gap: spacing.lg }}>
-      <View style={{ gap: spacing.xxs }}>
-        <Text accessibilityRole="header">{view.greeting}</Text>
-        <Text size="sm" tone="muted">
-          {longDateLabel(view.today)}
-        </Text>
-      </View>
       {stale ? (
         <Banner
           tone="info"
