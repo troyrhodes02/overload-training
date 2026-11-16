@@ -2,12 +2,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { colors } from "@overload/shared/design/tokens";
+import { statusColors } from "@overload/shared/design/status-colors";
 import { buildTheme, resolveScheme, tint } from "../src/ui/theme";
 
 describe("native theme", () => {
   it("uses the shared tokens exactly, in both appearances", () => {
-    expect(buildTheme("light").colors).toBe(colors.light);
-    expect(buildTheme("dark").colors).toBe(colors.dark);
+    expect(buildTheme("light").colors).toEqual({
+      ...colors.light,
+      ...statusColors.light,
+    });
+    expect(buildTheme("dark").colors).toEqual({
+      ...colors.dark,
+      ...statusColors.dark,
+    });
   });
 
   it("the account preference overrides the device; system follows it", () => {
@@ -59,7 +66,7 @@ describe("native theme", () => {
       return (hi + 0.05) / (lo + 0.05);
     };
     for (const scheme of ["light", "dark"] as const) {
-      const c = colors[scheme];
+      const c = buildTheme(scheme).colors;
       expect(ratio(c.attention, c.card)).toBeGreaterThanOrEqual(4.5);
       expect(ratio(c.attention, c.background)).toBeGreaterThanOrEqual(4.5);
       // Its own color: never the primary brand accent.

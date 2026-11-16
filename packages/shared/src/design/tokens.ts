@@ -34,12 +34,6 @@ export type ColorTokens = {
   progress: string;
   /** Status: deload, and a stalled lift. */
   deload: string;
-  /**
-   * Status: a scheduling problem that needs the lifter, such as a missed
-   * workout (Pitch 21e Checkpoint A, RD-25). Never decoration, never a second
-   * brand accent; text and icons only, AA on card and background.
-   */
-  attention: string;
 };
 
 export const colors: {
@@ -68,7 +62,6 @@ export const colors: {
     ring: "#0159fd",
     progress: "#2f9e6b",
     deload: "#b7791f",
-    attention: "#a15c00",
   },
   dark: {
     background: "#0b0b0c",
@@ -92,7 +85,6 @@ export const colors: {
     ring: "#2f7bff",
     progress: "#4cc38a",
     deload: "#e0a93b",
-    attention: "#e0a33a",
   },
 };
 
