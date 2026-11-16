@@ -367,6 +367,10 @@ describe("keeping the active row above the keyboard", () => {
         } as unknown as ScrollViewInstance,
       };
       const hook = await renderHook(() => useKeepAboveKeyboard(scroll, 12));
+      hook.result.current.content.current = {
+        // Scrolled 30 down: content y 0 is 30 above the visible top (100).
+        measureInWindow: (cb: (x: number, y: number) => void) => cb(0, 70),
+      } as never;
       hook.result.current.row.current = {
         measureInWindow: (
           cb: (x: number, y: number, w: number, h: number) => void,
@@ -375,13 +379,8 @@ describe("keeping the active row above the keyboard", () => {
       return { hook, scrollTo };
     }
 
-    it("on keyboard show, scrolls the hidden row up from the current offset", async () => {
-      const { hook, scrollTo } = await setup({ y: 420, h: 140 });
-      await act(async () =>
-        hook.result.current.onScroll({
-          nativeEvent: { contentOffset: { x: 0, y: 30 } },
-        } as never),
-      );
+    it("on keyboard show, scrolls the hidden row up from the measured offset", async () => {
+      const { scrollTo } = await setup({ y: 420, h: 140 });
       await act(async () =>
         listeners.keyboardDidShow!({ endCoordinates: { screenY: 500 } }),
       );
@@ -417,7 +416,7 @@ describe("keeping the active row above the keyboard", () => {
         ) => cb(0, 420, 300, 140),
       } as never;
       await act(async () => hook.result.current.reveal());
-      expect(scrollTo).toHaveBeenCalledWith({ y: 0 + 72, animated: true });
+      expect(scrollTo).toHaveBeenCalledWith({ y: 30 + 72, animated: true });
     });
   });
 

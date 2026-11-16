@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import {
   Keyboard,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  type ScrollViewInstance,
   type HostInstance,
+  type ScrollViewInstance,
 } from "react-native";
 
 /**
@@ -32,33 +30,40 @@ export function revealShift(m: {
  * frame changes; this also covers what sits under the input and a row that
  * moves or grows while the keyboard stays up. Everything is measured, never a
  * fixed offset, so name length, set count, Dynamic Type, and screen size
- * don't matter.
+ * don't matter. The scroll offset is measured too (the visible top minus the
+ * content's top), never tracked from throttled scroll events.
  */
 export function useKeepAboveKeyboard(
   scroll: RefObject<ScrollViewInstance | null>,
   margin: number,
 ) {
   const row = useRef<HostInstance | null>(null);
-  const offsetY = useRef(0);
+  /** A View wrapping all of the scroll view's content. */
+  const content = useRef<HostInstance | null>(null);
   const keyboardTop = useRef<number | null>(null);
 
   const reveal = useCallback(() => {
     const top = keyboardTop.current;
     const node = row.current;
+    const inner = content.current;
     const view = scroll.current;
-    if (top === null || !node || !view) return;
+    if (top === null || !node || !inner || !view) return;
     view.measureInWindow((_sx, visibleTop) => {
-      node.measureInWindow((_x, y, _w, h) => {
-        const shift = revealShift({
-          rowTop: y,
-          rowBottom: y + h,
-          keyboardTop: top,
-          visibleTop,
-          margin,
+      inner.measureInWindow((_cx, contentTop) => {
+        node.measureInWindow((_x, y, _w, h) => {
+          const shift = revealShift({
+            rowTop: y,
+            rowBottom: y + h,
+            keyboardTop: top,
+            visibleTop,
+            margin,
+          });
+          if (shift > 0) {
+            // Content y 0 sits at visibleTop - offset in the window.
+            const offset = visibleTop - contentTop;
+            view.scrollTo({ y: offset + shift, animated: true });
+          }
         });
-        if (shift > 0) {
-          view.scrollTo({ y: offsetY.current + shift, animated: true });
-        }
       });
     });
   }, [scroll, margin]);
@@ -76,9 +81,5 @@ export function useKeepAboveKeyboard(
     return () => subs.forEach((s) => s.remove());
   }, [reveal]);
 
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    offsetY.current = e.nativeEvent.contentOffset.y;
-  }, []);
-
-  return { row, reveal, onScroll };
+  return { row, content, reveal };
 }
