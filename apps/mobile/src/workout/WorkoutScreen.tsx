@@ -12,6 +12,7 @@ import { SkeletonCard } from "../ui/Skeleton";
 import { LoadErrorState } from "../ui/LoadErrorState";
 import { StateView } from "../ui/StateView";
 import { Text } from "../ui/Text";
+import { tint } from "../ui/theme";
 import { useTheme } from "../ui/ThemeProvider";
 import {
   canFinish,
@@ -187,9 +188,15 @@ export function WorkoutScreen({
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
       >
-        <Text size="xs" tone="muted">
-          {dateLine}
-        </Text>
+        <ExerciseProgress
+          exercises={exercises}
+          index={i}
+          line={
+            exercises.length > 0
+              ? `Exercise ${i + 1} of ${exercises.length} · ${dateLine}`
+              : dateLine
+          }
+        />
         {current ? (
           <ExerciseCard
             // Keyed by occurrence, so a draft never leaks to another card.
@@ -232,6 +239,57 @@ export function WorkoutScreen({
         </View>
       </ScrollView>
     </>
+  );
+}
+
+/**
+ * Where the lifter is in the workout (Checkpoint A, RD-24): one segment per
+ * exercise, filled once it has nothing left to log or while it's the open
+ * card, then "Exercise n of N · date · gym". The words carry the meaning; the
+ * segments are decoration for sighted users.
+ */
+function ExerciseProgress({
+  exercises,
+  index,
+  line,
+}: {
+  exercises: WorkoutDto["exercises"];
+  index: number;
+  line: string;
+}) {
+  const { colors, spacing } = useTheme();
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {exercises.length > 1 ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ flexDirection: "row", gap: spacing.xs }}
+        >
+          {exercises.map((e, n) => {
+            const finished = cardMode(e) !== "log" || cardActiveSet(e) === null;
+            return (
+              <View
+                key={e.loggedExerciseId}
+                style={{
+                  flex: 1,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: finished
+                    ? colors.primary
+                    : n === index
+                      ? tint(colors.primary, 0.45)
+                      : colors.border,
+                }}
+              />
+            );
+          })}
+        </View>
+      ) : null}
+      <Text size="sm" tone="muted">
+        {line}
+      </Text>
+    </View>
   );
 }
 

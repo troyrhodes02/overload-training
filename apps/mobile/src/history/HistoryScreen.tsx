@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
+import { parseIsoDate } from "@overload/shared/plan/calendar";
 import { router } from "expo-router";
 import type {
   HistoryWeekDto,
@@ -18,6 +19,8 @@ import {
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { GroupedList, ListRow } from "../ui/GroupedList";
+import { Chip, Surface, type ChipTone } from "../ui/Surface";
+import { Symbol } from "../ui/Symbol";
 import { SkeletonCard } from "../ui/Skeleton";
 import { LoadErrorState } from "../ui/LoadErrorState";
 import { StateView } from "../ui/StateView";
@@ -47,6 +50,7 @@ export type HistoryRow =
   | {
       kind: "workout";
       key: string;
+      dateIso: string;
       dateLabel: string;
       sessionName: string;
       state: WeekDayState;
@@ -55,6 +59,7 @@ export type HistoryRow =
   | {
       kind: "cardio";
       key: string;
+      dateIso: string;
       dateLabel: string;
       label: string;
       state: string | null;
@@ -65,7 +70,7 @@ export type HistoryRow =
  * web's grouping). Only what the server sent: nothing is inferred here.
  */
 export function historyRows(week: HistoryWeekDto): HistoryRow[] {
-  const rows: (HistoryRow & { dateIso: string; order: number })[] = [];
+  const rows: (HistoryRow & { order: number })[] = [];
   if (week.view.kind === "active") {
     week.view.days.forEach((d: WeekDayDto, i) =>
       rows.push({
@@ -126,7 +131,7 @@ export function historyRows(week: HistoryWeekDto): HistoryRow[] {
           ? -1
           : 1,
     )
-    .map(({ dateIso: _d, order: _o, ...row }) => row as HistoryRow);
+    .map(({ order: _o, ...row }) => row as HistoryRow);
 }
 
 /** The week header's second line. */
@@ -182,7 +187,7 @@ export function HistoryScreen() {
         <StateView
           icon="clock.arrow.circlepath"
           title="No workouts yet."
-          message="Your logged workouts appear here."
+          message="Finish your first workout and it shows up here, week by week, for as long as you train."
         />
       );
     }
@@ -203,41 +208,32 @@ export function HistoryScreen() {
         ) : null}
         <View style={{ opacity: moving ? 0.5 : 1 }}>
           {rows.length === 0 ? (
-            <Text tone="muted" align="center">
-              Nothing logged this week.
-            </Text>
+            <Surface>
+              <Text tone="muted" align="center">
+                Nothing logged this week.
+              </Text>
+            </Surface>
           ) : (
-            <GroupedList>
-              {rows.map((row) =>
-                row.kind === "workout" ? (
-                  <ListRow
-                    key={row.key}
-                    title={row.sessionName}
-                    subtitle={row.dateLabel}
-                    value={STATE_LABEL[row.state]}
-                    accessory={openable(row) ? "chevron" : "none"}
-                    onPress={
-                      openable(row)
-                        ? () =>
-                            router.push(
-                              loggedWorkoutHref(row.loggedSessionId!) +
-                                (row.state === "in_progress"
-                                  ? "?inProgress=1"
-                                  : ""),
-                            )
-                        : undefined
-                    }
-                  />
-                ) : (
-                  <ListRow
-                    key={row.key}
-                    title={row.label}
-                    subtitle={row.dateLabel}
-                    value={row.state ?? undefined}
-                  />
-                ),
-              )}
-            </GroupedList>
+            <Surface padded={false}>
+              {rows.map((row, i) => (
+                <HistoryRowView
+                  key={row.key}
+                  row={row}
+                  first={i === 0}
+                  onPress={
+                    openable(row) && row.kind === "workout"
+                      ? () =>
+                          router.push(
+                            loggedWorkoutHref(row.loggedSessionId!) +
+                              (row.state === "in_progress"
+                                ? "?inProgress=1"
+                                : ""),
+                          )
+                      : undefined
+                  }
+                />
+              ))}
+            </Surface>
           )}
         </View>
         {data.earlierBlocks.length > 0 ? (
@@ -281,25 +277,46 @@ function WeekHeader({
 }) {
   const { colors, radius, spacing, controlHeight } = useTheme();
   const subtitle = weekSubtitle(week);
-  const arrow = (direction: "prev" | "next", target: string | null) => (
-    <Button
-      label={direction === "prev" ? "‹" : "›"}
-      accessibilityLabel={direction === "prev" ? "Previous week" : "Next week"}
-      variant="secondary"
-      size="md"
-      disabled={target === null || loading}
-      onPress={() => target && onMove(target)}
-      style={{
-        width: controlHeight.touchMin,
-        paddingHorizontal: 0,
-        borderRadius: radius.lg,
-      }}
-    />
-  );
+  const arrow = (direction: "prev" | "next", target: string | null) => {
+    const disabled = target === null || loading;
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          direction === "prev" ? "Previous week" : "Next week"
+        }
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={() => target && onMove(target)}
+        style={({ pressed }) => ({
+          width: controlHeight.touchMin,
+          height: controlHeight.touchMin,
+          borderRadius: radius.lg,
+          backgroundColor: colors.secondary,
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+        })}
+      >
+        <Symbol
+          name={direction === "prev" ? "chevron.left" : "chevron.right"}
+          size={16}
+          color={colors.foreground}
+          weight="semibold"
+        />
+      </Pressable>
+    );
+  };
   return (
     <View style={{ gap: spacing.sm }}>
-      <View
-        style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}
+      <Surface
+        padded={false}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.sm,
+          padding: spacing.xs + 2,
+        }}
       >
         {arrow("prev", week.prevWeekStart)}
         <View style={{ flex: 1, alignItems: "center", gap: spacing.xxs }}>
@@ -318,13 +335,13 @@ function WeekHeader({
             ) : null}
           </View>
           {subtitle ? (
-            <Text size="sm" tone="muted" align="center">
+            <Text size="xs" tone="muted" align="center">
               {subtitle}
             </Text>
           ) : null}
         </View>
         {arrow("next", week.nextWeekStart)}
-      </View>
+      </Surface>
       {!week.isThisWeek ? (
         <View style={{ alignItems: "flex-end" }}>
           <Button
@@ -334,6 +351,108 @@ function WeekHeader({
           />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+const SHORT_WEEKDAY = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  timeZone: "UTC",
+});
+
+/** A server date's column: "MON" over "9" (the server's date, UTC-formatted). */
+export function dateColumn(iso: string): { weekday: string; day: string } {
+  const date = parseIsoDate(iso);
+  if (!date) return { weekday: "", day: iso };
+  return {
+    weekday: SHORT_WEEKDAY.format(date).toUpperCase(),
+    day: String(date.getUTCDate()),
+  };
+}
+
+const STATE_TONE: Record<WeekDayState, ChipTone> = {
+  upcoming: "muted",
+  in_progress: "primary",
+  complete: "progress",
+  skipped: "muted",
+  shifted: "muted",
+};
+
+/** One row of the week: the date column, what it was, and its state as a word. */
+function HistoryRowView({
+  row,
+  first,
+  onPress,
+}: {
+  row: HistoryRow;
+  first: boolean;
+  onPress?: () => void;
+}) {
+  const { colors, spacing } = useTheme();
+  const col = dateColumn(row.dateIso);
+  const title = row.kind === "workout" ? row.sessionName : row.label;
+  const state =
+    row.kind === "workout" ? STATE_LABEL[row.state] : (row.state ?? null);
+  const tone: ChipTone =
+    row.kind === "workout"
+      ? STATE_TONE[row.state]
+      : row.state === "Done"
+        ? "progress"
+        : "muted";
+  const content = (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        minHeight: 60,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderTopWidth: first ? 0 : 1,
+        borderTopColor: colors.border,
+      }}
+    >
+      <View style={{ width: 40, alignItems: "center" }}>
+        <Text
+          size="xs"
+          weight="medium"
+          tone="muted"
+          style={{ letterSpacing: 0.6 }}
+        >
+          {col.weekday}
+        </Text>
+        <Text size="lg" weight="semibold">
+          {col.day}
+        </Text>
+      </View>
+      <View style={{ flex: 1, gap: spacing.xxs }}>
+        <Text weight="medium">{title}</Text>
+        {row.kind === "cardio" ? (
+          <Text size="sm" tone="muted">
+            Cardio
+          </Text>
+        ) : null}
+      </View>
+      {state ? <Chip label={state} tone={tone} /> : null}
+      {onPress ? (
+        <Symbol name="chevron.right" size={13} color={colors.mutedForeground} />
+      ) : null}
+    </View>
+  );
+  const label = `${title}, ${row.dateLabel}${state ? `, ${state}` : ""}`;
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint="Opens this workout"
+      onPress={onPress}
+      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+    >
+      {content}
+    </Pressable>
+  ) : (
+    <View accessible accessibilityLabel={label}>
+      {content}
     </View>
   );
 }
