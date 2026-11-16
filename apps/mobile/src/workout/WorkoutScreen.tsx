@@ -22,6 +22,7 @@ import {
   unfinishedExercises,
 } from "./card-model";
 import { ExerciseCard } from "./ExerciseCard";
+import { useKeepAboveKeyboard } from "./keep-above-keyboard";
 import { loggedWorkoutHref, summaryHref } from "./routes";
 
 /** The finish confirmation (design F1), with the web runner's rule and copy. */
@@ -72,6 +73,8 @@ export function WorkoutScreen({
   const [finishError, setFinishError] = useState<string | null>(null);
   const scroll = useRef<ScrollViewInstance>(null);
   const finishing = useRef(false);
+  // The active set stays above the keyboard and its keypad bar (OVE-213).
+  const keep = useKeepAboveKeyboard(scroll, spacing.md);
 
   const workout = query.data?.workout;
   // Open on the first unfinished card once, when the workout first loads
@@ -193,6 +196,8 @@ export function WorkoutScreen({
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        onScroll={keep.onScroll}
+        scrollEventThrottle={16}
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
       >
@@ -212,6 +217,8 @@ export function WorkoutScreen({
             card={current}
             workout={workout}
             position={{ index: i, total: exercises.length }}
+            activeRowRef={keep.row}
+            onActiveRowLayout={keep.reveal}
           />
         ) : (
           <StateView
@@ -230,7 +237,10 @@ export function WorkoutScreen({
           />
           {!isLast && next ? (
             <Button
+              // One line at any length or text size: the name truncates and
+              // VoiceOver still reads it whole (OVE-213).
               label={`Next: ${next.performedExerciseName}`}
+              numberOfLines={1}
               variant={currentDone ? "primary" : "secondary"}
               onPress={() => go(i + 1)}
               style={{ flex: 1 }}

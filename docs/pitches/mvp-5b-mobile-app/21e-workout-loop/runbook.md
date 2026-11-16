@@ -238,6 +238,24 @@ It prints `Runtime f98506f78a: 1 staging development build(s) can receive this u
 
 Record the results in §5.
 
+### 3.1 Retest after the Checkpoint B corrections (OVE-213)
+
+On the first iPhone run, the logging loop passed, but you found two problems:
+
+- **The keyboard could hide the active set and Log set.** The bar above the keypad was attached to only one input: set 1's weight. Reps never had it, and no input after set 1 did, so Log set sat under the keyboard. Each input now has its own bar, and the screen scrolls so the whole active set stays above the keyboard.
+- **The Next button wrapped long names** onto a second line. It now stays one line and ends in "…".
+
+The fix is JavaScript only (runtime `f98506f78a`), so it reaches the installed build as a staging update. To load it, force-close **Overload Dev**, open it, and check that More → Diagnostics shows the update group and commit from §5. Then, on a fresh demo-seeded account:
+
+| # | Check | Expected |
+| --- | --- | --- |
+| B10 | Weight | Tap set 1's weight. The keypad is the decimal pad, its bar says **Next**, and the whole set row (both boxes and the "last time" caption) sits above the bar with nothing to scroll |
+| B11 | Reps | Tap **Next** in the bar. Reps takes focus on the number pad, the bar says **Log set 1**, and the row stays visible |
+| B12 | Save | Type reps and tap **Log set 1** in the bar. Set 1 turns logged. Set 2's reps (or its weight, when nothing is offered) takes focus, set 2's row sits above the keyboard, and its bar says **Log set 2**. Repeat to the last set: the keypad closes after it |
+| B13 | Error | In Airplane Mode, tap **Log set** in the bar. The message shows inside the set's row above the keyboard, your numbers stay, and nothing turns logged. Turn Airplane Mode off and tap **Log set** again: it saves once |
+| B14 | Long names | On an exercise followed by Wide-Grip Lat Pulldown (or any long name), the button reads "Next: Wide-Grip Lat…" on one line, the same height as Previous. VoiceOver reads the whole name |
+| B15 | Large text | Settings → Accessibility → Display & Text Size → Larger Text, at the largest size: B10–B12 still keep the active row above the keyboard (the boxes may stack), and Next stays one line, cut with "…". Check a small phone if you have one |
+
 ## 4. What stays yours
 
 - Checkpoint A and the merge approval (§2), then B and C on the iPhone (§3).
@@ -255,5 +273,5 @@ Record the results in §5.
 | Round 3 timing, local server on overload-dev | Each database round trip about 50 ms; the sign-in check about 0.27 s per request. Server time full → core: Today (day done) 1.6 s → 0.32 s, Today (in progress) 0.8 s → 0.32 s, opening an in-progress workout 2.5 s → 0.32 s, the workout record 1.2 s → 0.16 s. A set save is about 0.6 s (one transaction, unchanged). End to end through the new build (median of 5): Today (day done) 2.2 s → 0.53 s, Today (pending) 1.15 s → 0.51 s, opening an in-progress workout 2.3 s → 0.52 s, the workout record 1.5 s → 0.36 s | Run, 2026-11-16 (throwaway accounts `21e-perf-1`, `21e-perf-2`) |
 | Demo seed on overload-dev (OVE-212) | It had been timing out at 180 s: 2,994 sequential statements × about 51 ms per round trip. Now 2,298 statements. Seeded `21e-ca-r2-p@example.com` (empty, anchor 2026-11-16) in 153 s end to end. The dry run reads SEEDED with exact fixture counts (2 gyms, 2 blocks, 8 sessions, 22 planned exercises, 32 workouts all complete, 88 logged exercises, 264 sets), and there are 7 gym baselines, all machine or cable | Run, 2026-11-16 |
 | A — Simulator, local API | Round 1: History failed against staging (fixed, OVE-203); titles were missing (fixed, OVE-205). Round 2: the loop worked end to end; a finished workout offered Resume (fixed, OVE-210), and the workout screens were slow (OVE-211, §2.6). **Round 3: passed.** Every §2.5 check passed (A1–A14, B–F): the loop, the summary, Today and History in step at once after Finish with no Resume (the round 2 bug is resolved), faster screens, and Log it late, Shift the week, and Skip it. Merge approved into staging only | Owner, 2026-11-16 |
-| B — iPhone | Not yet run. The update below is ready for it | Owner |
+| B — iPhone | **First run (2026-11-16): functional acceptance passed.** A fresh demo-seeded account started, logged, finished, and reviewed a workout. Today and History showed it done at once, the staging web app showed the same records, the completion bug was gone, and loading was faster. **Two problems were found and corrected (OVE-213):** the keyboard could hide the active set and Log set, and Next wrapped long names (§3.1). **Retest B10–B15: not yet run** | Owner |
 | C — Staging update | **Published.** #237 merged into staging as `98c40be`, and the publisher fix #254 as `04e5cc5`. `npm run mobile:update:staging -- --message "21e Workout Loop"` passed every check: clean pushed commit, the EAS `development` environment reads staging, runtime `f98506f78a`, and 1 staging development build can receive it. Update group `60cff10d-686c-40c0-8c10-ee49cba60556` (iOS update `01a1e59f-3582-7ef6-8591-b0103d9a6e19`), branch and channel `staging`, commit `04e5cc5`, message `04e5cc5 21e Workout Loop`. `staging` is the project's only channel; no Production channel was touched. C1 on the iPhone (Diagnostics shows this group and commit) is the owner's | Run, 2026-11-16 18:29 UTC |
