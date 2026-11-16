@@ -5,6 +5,7 @@ import {
   Pressable,
   TextInput,
   View,
+  type HostInstance,
   type TextInputInstance,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,8 +36,22 @@ import {
   parseWeightText,
 } from "./card-model";
 
-/** The keypad bar's id (one bar, shared by the active row's two inputs). */
-export const KEYPAD_BAR_ID = "overload-set-entry";
+/**
+ * One keypad bar per input, with an id unique to that input (OVE-213). React
+ * Native's InputAccessoryView attaches its bar to the FIRST text input in the
+ * window with its nativeID, once, when the bar mounts. A shared id left reps
+ * and every later set's inputs with no bar, so Log set sat under the keyboard.
+ * Each bar now mounts beside its own input, inside the set's keyed row.
+ */
+export function keypadBarId(
+  loggedExerciseId: string,
+  setNumber: number,
+  field: "weight" | "reps",
+): string {
+  return `overload-set-entry-${loggedExerciseId}-${setNumber}-${field}`;
+}
+
+type BarAction = { label: string; onPress: () => void; disabled?: boolean };
 
 type Draft = { weight: string | null; reps: string };
 const EMPTY: Draft = { weight: null, reps: "" };
@@ -65,12 +80,18 @@ export function ExerciseCard({
   workout,
   position,
   onPlannedSetsDone,
+  activeRowRef,
+  onActiveRowLayout,
 }: {
   card: ExerciseCardDto;
   workout: WorkoutDto;
   position: { index: number; total: number };
   /** Called when a saved set leaves nothing to log on this card. */
   onPlannedSetsDone?: () => void;
+  /** The active set's row, which the screen keeps above the keyboard. */
+  activeRowRef?: React.Ref<HostInstance>;
+  /** The active row moved or changed size (a set saved, an error showed). */
+  onActiveRowLayout?: () => void;
 }) {
   const { colors, radius, spacing } = useTheme();
   const client = useQueryClient();
@@ -78,7 +99,6 @@ export function ExerciseCard({
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [fieldError, setFieldError] = useState<FieldError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [focused, setFocused] = useState<"weight" | "reps" | null>(null);
   const weightRef = useRef<TextInputInstance>(null);
   const repsRef = useRef<TextInputInstance>(null);
   /** The set whose confirmed save should move focus on (review #1). */
@@ -256,6 +276,8 @@ export function ExerciseCard({
               ) : s.setNumber === active ? (
                 <View
                   key={s.setNumber}
+                  ref={activeRowRef}
+                  onLayout={onActiveRowLayout}
                   style={{
                     gap: spacing.xs,
                     padding: spacing.sm,
@@ -277,6 +299,15 @@ export function ExerciseCard({
                     {needsWeight ? (
                       <NumberField
                         ref={weightRef}
+                        barId={keypadBarId(
+                          card.loggedExerciseId,
+                          s.setNumber,
+                          "weight",
+                        )}
+                        barAction={{
+                          label: "Next",
+                          onPress: () => repsRef.current?.focus(),
+                        }}
                         value={weightText}
                         unit="lbs"
                         keyboardType="decimal-pad"
@@ -286,8 +317,6 @@ export function ExerciseCard({
                         }
                         invalid={fieldError?.field === "weight"}
                         editable={!saving}
-                        onFocus={() => setFocused("weight")}
-                        onBlur={() => setFocused(null)}
                         onChangeText={(t) => {
                           setDraft(s.setNumber, { weight: t });
                           if (fieldError?.field === "weight")
@@ -297,14 +326,22 @@ export function ExerciseCard({
                     ) : null}
                     <NumberField
                       ref={repsRef}
+                      barId={keypadBarId(
+                        card.loggedExerciseId,
+                        s.setNumber,
+                        "reps",
+                      )}
+                      barAction={{
+                        label: saving ? "Saving…" : `Log set ${s.setNumber}`,
+                        onPress: () => void confirm(),
+                        disabled: saving,
+                      }}
                       value={draft.reps}
                       unit="reps"
                       keyboardType="number-pad"
                       label={`Set ${s.setNumber} reps`}
                       invalid={fieldError?.field === "reps"}
                       editable={!saving}
-                      onFocus={() => setFocused("reps")}
-                      onBlur={() => setFocused(null)}
                       onChangeText={(t) => {
                         setDraft(s.setNumber, { reps: t });
                         if (fieldError?.field === "reps") setFieldError(null);
@@ -325,6 +362,19 @@ export function ExerciseCard({
                       style={{ marginLeft: 56 }}
                     >
                       {fieldError.message}
+                    </Text>
+                  ) : null}
+                  {notice ? (
+                    // In the active row, so it stays above the keyboard with
+                    // the numbers it kept (OVE-213).
+                    <Text
+                      size="sm"
+                      tone="destructive"
+                      accessibilityRole="alert"
+                      accessibilityLiveRegion="polite"
+                      style={{ marginLeft: 56 }}
+                    >
+                      {notice}
                     </Text>
                   ) : null}
                 </View>
@@ -350,7 +400,7 @@ export function ExerciseCard({
             )}
           </View>
 
-          {notice ? (
+          {notice && active === null ? (
             <Text
               size="sm"
               tone="destructive"
@@ -375,22 +425,6 @@ export function ExerciseCard({
               All {card.plannedSets} sets logged.
             </Text>
           )}
-
-          <InputAccessoryView nativeID={KEYPAD_BAR_ID}>
-            <KeypadBar
-              action={
-                focused === "weight"
-                  ? { label: "Next", onPress: () => repsRef.current?.focus() }
-                  : active !== null
-                    ? {
-                        label: saving ? "Saving…" : `Log set ${active}`,
-                        onPress: () => void confirm(),
-                        disabled: saving,
-                      }
-                    : null
-              }
-            />
-          </InputAccessoryView>
         </>
       )}
     </Surface>
@@ -446,6 +480,9 @@ function LoggedRow({ set }: { set: ExerciseCardDto["sets"][number] }) {
 }
 
 type NumberFieldProps = {
+  /** This input's own keypad bar id and action (OVE-213). */
+  barId: string;
+  barAction: BarAction;
   value: string;
   unit: string;
   keyboardType: "decimal-pad" | "number-pad";
@@ -454,13 +491,13 @@ type NumberFieldProps = {
   invalid: boolean;
   editable: boolean;
   onChangeText: (t: string) => void;
-  onFocus: () => void;
-  onBlur: () => void;
   ref?: React.RefObject<TextInputInstance | null>;
 };
 
 /** A large tabular number input with its unit (design §3 set-entry numerals). */
 function NumberField({
+  barId,
+  barAction,
   value,
   unit,
   keyboardType,
@@ -469,78 +506,72 @@ function NumberField({
   invalid,
   editable,
   onChangeText,
-  onFocus,
-  onBlur,
   ref,
 }: NumberFieldProps) {
   const { colors, radius, spacing } = useTheme();
   const [hasFocus, setHasFocus] = useState(false);
   return (
-    <Pressable
-      onPress={() => ref?.current?.focus()}
-      accessible={false}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        minWidth: 112,
-        flexGrow: 1,
-        flexBasis: 112,
-        minHeight: 52,
-        paddingHorizontal: spacing.md,
-        borderRadius: radius.lg,
-        borderWidth: hasFocus || invalid ? 2 : 1,
-        borderColor: invalid
-          ? colors.destructive
-          : hasFocus
-            ? colors.ring
-            : colors.input,
-        backgroundColor: colors.card,
-        gap: spacing.xs,
-      }}
-    >
-      <TextInput
-        ref={ref}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        inputAccessoryViewID={KEYPAD_BAR_ID}
-        editable={editable}
-        selectTextOnFocus
-        accessibilityLabel={label}
-        accessibilityHint={hint}
-        accessibilityState={{ disabled: !editable }}
-        onFocus={() => {
-          setHasFocus(true);
-          onFocus();
-        }}
-        onBlur={() => {
-          setHasFocus(false);
-          onBlur();
-        }}
-        placeholderTextColor={colors.mutedForeground}
+    <>
+      <Pressable
+        onPress={() => ref?.current?.focus()}
+        accessible={false}
         style={{
-          flex: 1,
-          minHeight: 48,
-          ...textSize("xl"),
-          fontFamily: fontFamily.semibold,
-          fontVariant: ["tabular-nums"],
-          color: colors.foreground,
-          paddingVertical: 0,
+          flexDirection: "row",
+          alignItems: "center",
+          minWidth: 112,
+          flexGrow: 1,
+          flexBasis: 112,
+          minHeight: 52,
+          paddingHorizontal: spacing.md,
+          borderRadius: radius.lg,
+          borderWidth: hasFocus || invalid ? 2 : 1,
+          borderColor: invalid
+            ? colors.destructive
+            : hasFocus
+              ? colors.ring
+              : colors.input,
+          backgroundColor: colors.card,
+          gap: spacing.xs,
         }}
-      />
-      <Text size="sm" tone="muted">
-        {unit}
-      </Text>
-    </Pressable>
+      >
+        <TextInput
+          ref={ref}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          inputAccessoryViewID={barId}
+          editable={editable}
+          selectTextOnFocus
+          accessibilityLabel={label}
+          accessibilityHint={hint}
+          accessibilityState={{ disabled: !editable }}
+          onFocus={() => setHasFocus(true)}
+          onBlur={() => setHasFocus(false)}
+          placeholderTextColor={colors.mutedForeground}
+          style={{
+            flex: 1,
+            minHeight: 48,
+            ...textSize("xl"),
+            fontFamily: fontFamily.semibold,
+            fontVariant: ["tabular-nums"],
+            color: colors.foreground,
+            paddingVertical: 0,
+          }}
+        />
+        <Text size="sm" tone="muted">
+          {unit}
+        </Text>
+      </Pressable>
+      {/* After its input, so the bar finds it when both mount (OVE-213). */}
+      <InputAccessoryView nativeID={barId}>
+        <KeypadBar action={barAction} />
+      </InputAccessoryView>
+    </>
   );
 }
 
 /** The bar above the keypad: Next on weight, Log set on reps (design §8). */
-function KeypadBar({
-  action,
-}: {
-  action: { label: string; onPress: () => void; disabled?: boolean } | null;
-}) {
+function KeypadBar({ action }: { action: BarAction }) {
   const { colors, spacing } = useTheme();
   return (
     <View
@@ -554,14 +585,12 @@ function KeypadBar({
         borderTopColor: colors.border,
       }}
     >
-      {action ? (
-        <Button
-          label={action.label}
-          variant="text"
-          disabled={action.disabled}
-          onPress={action.onPress}
-        />
-      ) : null}
+      <Button
+        label={action.label}
+        variant="text"
+        disabled={action.disabled}
+        onPress={action.onPress}
+      />
     </View>
   );
 }
