@@ -11,12 +11,19 @@ import { workoutHref } from "../workout/routes";
  * Start or resume the day's workout (Pitch 21e design W0; spec RD-4).
  *
  * - Resume: the server already has the workout, so it opens; nothing is sent.
+ * - Log it late (RD-23): the same start, for the missed date.
  * - Start: the server's start rule needs a gym. One active gym is used; two or
  *   more open an action sheet; none is refused before any request.
  *
  * The server keys a workout by (session, date), so a repeated Start returns
  * the same workout. The button is disabled while a start is in flight.
  */
+/** What Start needs: today's day, or a missed day logged late (RD-23). */
+export type StartTarget = Pick<
+  DashboardTodayDto,
+  "sessionId" | "scheduledFor" | "loggedSessionId"
+>;
+
 export type StartState =
   | { kind: "idle" }
   | { kind: "busy" }
@@ -58,7 +65,7 @@ export function useStartOrResume(
   // neither start twice nor push the workout twice.
   const busy = useRef(false);
 
-  async function run(day: DashboardTodayDto) {
+  async function run(day: StartTarget) {
     if (busy.current) return;
     busy.current = true;
     if (day.loggedSessionId) {

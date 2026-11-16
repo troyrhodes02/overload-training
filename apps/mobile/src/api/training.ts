@@ -11,10 +11,12 @@ import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
   CompleteWorkoutResponseDto,
+  MissedDayResolutionDto,
   StartWorkoutResponseDto,
 } from "@overload/shared/contracts/logging";
 import type {
   LogSetRequest,
+  ResolveMissedDayRequest,
   StartWorkoutRequest,
 } from "@overload/shared/contracts/requests";
 import type {
@@ -169,6 +171,37 @@ export function useStartWorkout() {
       }),
     onSuccess: (data) => {
       void invalidateTraining(client, data.loggedSessionId);
+    },
+  });
+}
+
+export type ResolveMissedDayVariables = {
+  mesocycleId: string;
+  missedOn: string;
+  outcome: ResolveMissedDayRequest["outcome"];
+};
+
+/**
+ * Shift or skip a missed day (Pitch 21e Checkpoint A, RD-23): one request to
+ * the web's own resolver, safe to repeat (the same outcome returns the stored
+ * answer). Today and History refetch from the server afterwards; nothing about
+ * the schedule is worked out here.
+ */
+export function useResolveMissedDay() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    MissedDayResolutionDto,
+    ApiError,
+    ResolveMissedDayVariables
+  >({
+    mutationFn: ({ mesocycleId, missedOn, outcome }) =>
+      api.request<MissedDayResolutionDto>(
+        `/mesocycles/${enc(mesocycleId)}/missed-days/${enc(missedOn)}`,
+        { method: "PUT", body: { outcome } },
+      ),
+    onSettled: () => {
+      void invalidateTraining(client);
     },
   });
 }
