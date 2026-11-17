@@ -18,6 +18,11 @@ export type ButtonProps = Omit<PressableProps, "children" | "style"> & {
   loading?: boolean;
   /** Primary account actions are 48 tall (design §3); others 44. */
   size?: "md" | "lg";
+  /**
+   * Caps the label's lines; a longer label ends in an ellipsis inside the
+   * button's width. The accessibility label stays the whole `label`.
+   */
+  numberOfLines?: number;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -27,6 +32,7 @@ export function Button({
   variant = "primary",
   loading = false,
   size = "lg",
+  numberOfLines,
   disabled,
   style,
   ...rest
@@ -74,7 +80,14 @@ export function Button({
       ]}
       {...rest}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          maxWidth: "100%",
+        }}
+      >
         {loading ? (
           <ActivityIndicator
             size="small"
@@ -85,7 +98,13 @@ export function Button({
             }
           />
         ) : null}
-        <Text weight="medium" tone={tone}>
+        <Text
+          weight="medium"
+          tone={tone}
+          numberOfLines={numberOfLines}
+          ellipsizeMode="tail"
+          style={numberOfLines ? { flexShrink: 1 } : undefined}
+        >
           {label}
         </Text>
       </View>

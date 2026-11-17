@@ -29,6 +29,35 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   { method: "POST", route: "api/mobile/v1/accounts", auth: "public" },
   { method: "POST", route: "api/mobile/v1/password-reset", auth: "public" },
   { method: "PUT", route: "api/mobile/v1/me/appearance", auth: "account" },
+  // Pitch 21e
+  { method: "POST", route: "api/mobile/v1/workouts", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/workouts/[loggedSessionId]",
+    auth: "account",
+  },
+  {
+    method: "POST",
+    route: "api/mobile/v1/workouts/[loggedSessionId]/complete",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]",
+    auth: "account",
+  },
+  { method: "GET", route: "api/mobile/v1/history", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/history/[loggedSessionId]",
+    auth: "account",
+  },
+  // Pitch 21e Checkpoint A (RD-23): native missed-day resolution
+  {
+    method: "PUT",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/missed-days/[missedOn]",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,
