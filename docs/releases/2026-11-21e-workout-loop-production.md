@@ -126,6 +126,18 @@ Before the release:
 
 The run holds no Production credentials, so the signed-in checks are the owner's. On the web, as yourself: Today and History read as before, and the next time you train, logging works as usual.
 
+### Result (2026-11-16)
+
+- **Merged:** #261 was squash-merged into `main` as `630d795`.
+- **P1:** Vercel Production deployment `overload-training-cagudqnbi…vercel.app` is **Ready**, aliased to `www.overloadtraining.app`.
+- **P2:** `app-config` answered 200 with the same body as before.
+- **P3:** all seven new endpoints answered 401 `unauthorized` without a token, and `GET /history` with an invalid bearer token also answered 401.
+- **P4:** `/today` and `/today?fields=core` answered 401.
+- **P5:** `/`, `/login`, `/signup`, and `/pricing` answered 200.
+- **P6: unverified.** The Vercel CLI log query returned no records for Production at all, even over the last 48 hours, so it couldn't confirm the logs either way. None of the smoke responses was a 5xx. Check Vercel → Logs in the dashboard.
+- **Owner's check (needs a signed-in account):** Today and History on the web as yourself.
+- **Not performed:** no migration, environment change, Production Expo update, or native build.
+
 ## 8. After the release
 
-`main` is synchronized back into `staging` with a normal merge commit through a PR, the same procedure as #236.
+`main` was synchronized back into `staging` with a normal merge commit through #262 (`85771cd`), the same procedure as #236. The `staging` tree is identical to `main`.
