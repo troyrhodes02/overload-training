@@ -12,3 +12,14 @@ export const loggedWorkoutHref = (loggedSessionId: string) =>
 /** X1 Swap exercise: a modal over the workout (Pitch 21f RD-13). */
 export const swapHref = (loggedSessionId: string, loggedExerciseId: string) =>
   `/workout/${encodeURIComponent(loggedSessionId)}/swap?loggedExerciseId=${encodeURIComponent(loggedExerciseId)}` as const;
+
+/**
+ * E1 Edit set: a modal over the workout or over the logged workout (Pitch 21f
+ * RD-13). `from` says which read already holds the set's stored values.
+ */
+export const editSetHref = (
+  loggedSessionId: string,
+  loggedSetId: string,
+  from: "workout" | "history",
+) =>
+  `/workout/${encodeURIComponent(loggedSessionId)}/edit-set?loggedSetId=${encodeURIComponent(loggedSetId)}&from=${from}` as const;

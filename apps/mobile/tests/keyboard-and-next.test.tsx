@@ -701,3 +701,162 @@ describe("sheets never leave the keypad in a bad state (Pitch 21f)", () => {
     expectNoPlaceholderTakesTouches();
   });
 });
+
+describe("reps in reserve and corrections keep the keypad working (Pitch 21f)", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const withSavedFirst = (id: string, name: string) =>
+    card({
+      loggedExerciseId: id,
+      performedExerciseName: name,
+      plannedExerciseName: name,
+      sets: rows(3).map((r) =>
+        r.setNumber === 1
+          ? {
+              ...r,
+              loggedSetId: `${id}-set-1`,
+              weightLbs: 255,
+              reps: 5,
+              saved: true,
+            }
+          : r,
+      ),
+    });
+  const two = workout({
+    gymLocked: true,
+    exercises: [
+      withSavedFirst("le-bench", "Barbell Bench Press"),
+      withSavedFirst("le-pull", "Wide-Grip Lat Pulldown"),
+    ],
+  });
+
+  it("the RIR row is inside the row the screen keeps above the keyboard", async () => {
+    serve({ "/workouts/ls-1": view() });
+    await open();
+    const row = activeRow(1);
+    expect(
+      within(row).getByRole("button", { name: "Set 1 RIR 2" }),
+    ).toBeTruthy();
+    // Chips are not inputs: the two fields are still the only ones with bars.
+    expect(bars().inputs).toHaveLength(2);
+    expectNoPlaceholderTakesTouches();
+  });
+
+  it("choosing an RIR never hides the keyboard or touches the typed numbers", async () => {
+    const dismiss = jest
+      .spyOn(Keyboard, "dismiss")
+      .mockImplementation(() => {});
+    serve({ "/workouts/ls-1": view() });
+    await open();
+    await fireEvent.changeText(
+      screen.getByLabelText("Set 1 weight in pounds"),
+      "262.5",
+    );
+    await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "6");
+    await fireEvent.press(screen.getByRole("button", { name: "Set 1 RIR 2" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Set 1 RIR 3" }));
+    expect(dismiss).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Set 1 weight in pounds").props.value).toBe(
+      "262.5",
+    );
+    expect(screen.getByLabelText("Set 1 reps").props.value).toBe("6");
+    // The reps bar still logs this set.
+    expect(
+      within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
+        name: "Log set 1",
+      }),
+    ).toBeTruthy();
+    expectNoPlaceholderTakesTouches();
+  });
+
+  it("a saved row hides the keyboard before Edit set opens, and the draft below it stays", async () => {
+    const dismiss = jest
+      .spyOn(Keyboard, "dismiss")
+      .mockImplementation(() => {});
+    serve({ "/workouts/ls-1": view(two) });
+    await open(two);
+    await fireEvent.changeText(screen.getByLabelText("Set 2 reps"), "6");
+    await fireEvent.press(
+      screen.getByLabelText("Set 1, 255 pounds, 5 reps, logged"),
+    );
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    // The workout screen stays mounted under the modal: nothing typed is lost,
+    // and every input keeps its own bar.
+    expect(screen.getByLabelText("Set 2 reps").props.value).toBe("6");
+    expectNoPlaceholderTakesTouches();
+    await fireEvent.changeText(screen.getByLabelText("Set 2 reps"), "7");
+    expect(screen.getByLabelText("Set 2 reps").props.value).toBe("7");
+  });
+
+  it("Next, Previous, Next after that: each card's fields and RIR row are fresh and usable", async () => {
+    jest.spyOn(Keyboard, "dismiss").mockImplementation(() => {});
+    serve({ "/workouts/ls-1": view(two) });
+    await open(two);
+    await fireEvent.press(screen.getByRole("button", { name: "Set 2 RIR 1" }));
+    await fireEvent.press(
+      screen.getByLabelText("Set 1, 255 pounds, 5 reps, logged"),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Next: Wide-Grip Lat Pulldown" }),
+    );
+    await screen.findByRole("header", { name: "Wide-Grip Lat Pulldown" });
+    expectNoPlaceholderTakesTouches();
+    expect(screen.getByLabelText("Set 2 reps").props.inputAccessoryViewID).toBe(
+      keypadBarId("le-pull", 2, "reps"),
+    );
+    // A choice made on the other exercise never follows the lifter here.
+    expect(
+      screen.getByRole("button", { name: "Set 2 RIR 1" }).props
+        .accessibilityState.selected,
+    ).toBe(false);
+    await fireEvent.changeText(screen.getByLabelText("Set 2 reps"), "11");
+    expect(screen.getByLabelText("Set 2 reps").props.value).toBe("11");
+    await fireEvent.press(screen.getByRole("button", { name: "Previous" }));
+    await screen.findByRole("header", { name: "Barbell Bench Press" });
+    expectNoPlaceholderTakesTouches();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Next: Wide-Grip Lat Pulldown" }),
+    );
+    await screen.findByRole("header", { name: "Wide-Grip Lat Pulldown" });
+    expectNoPlaceholderTakesTouches();
+    await fireEvent.changeText(
+      screen.getByLabelText("Set 2 weight in pounds"),
+      "130",
+    );
+    expect(screen.getByLabelText("Set 2 weight in pounds").props.value).toBe(
+      "130",
+    );
+  });
+
+  it("an extra row gets keypad bars of its own, named for that set", async () => {
+    const done = workout({
+      gymLocked: true,
+      exercises: [
+        card({
+          sets: rows(3).map((r) => ({
+            ...r,
+            loggedSetId: `set-${r.setNumber}`,
+            weightLbs: 255,
+            reps: 5,
+            saved: true,
+          })),
+        }),
+      ],
+    });
+    serve({ "/workouts/ls-1": view(done) });
+    await open(done);
+    expect(bars().inputs).toHaveLength(0);
+    await fireEvent.press(screen.getByRole("button", { name: "Add set" }));
+    expectNoPlaceholderTakesTouches();
+    expect(
+      within(barFor(keypadBarId("le-bench", 4, "reps"))).getByRole("button", {
+        name: "Log set 4",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(barFor(keypadBarId("le-bench", 4, "weight"))).getByRole("button", {
+        name: "Next",
+      }),
+    ).toBeTruthy();
+  });
+});
