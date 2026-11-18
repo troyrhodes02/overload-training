@@ -307,7 +307,7 @@ describe("saving a set", () => {
   });
 });
 
-describe("honest edges (RD-21)", () => {
+describe("honest edges (21e RD-21; Pitch 21f gives them their own actions)", () => {
   it("not done and unavailable exercises have no inputs", async () => {
     serve({
       "/workouts/ls-1": view(
@@ -321,11 +321,16 @@ describe("honest edges (RD-21)", () => {
     });
     await open();
     // Everything is passed over, so it opens on the last card.
-    expect(
-      screen.getByText("Unavailable — this exercise was archived."),
-    ).toBeTruthy();
+    expect(screen.getByText("Unavailable — choose a substitute")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Swap exercise" })).toBeTruthy();
+    expect(screen.queryByLabelText("Set 1 reps")).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Previous" }));
-    expect(screen.getByText("Not done today.")).toBeTruthy();
+    expect(
+      screen.getByText("Not done today. It won't count toward progression."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Undo — I'll log it" }),
+    ).toBeTruthy();
     expect(screen.queryByLabelText("Set 1 reps")).toBeNull();
   });
 });
