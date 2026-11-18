@@ -7,6 +7,10 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import type {
+  EditCardioLogResponseDto,
+  LogCardioResponseDto,
+} from "@overload/shared/contracts/cardio";
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
@@ -21,7 +25,9 @@ import type {
 } from "@overload/shared/contracts/logging";
 import type { MuscleGroupValue } from "@overload/shared/exercises/taxonomy";
 import type {
+  EditCardioLogRequest,
   EditLoggedSetRequest,
+  LogCardioRequest,
   LogSetRequest,
   ResolveMissedDayRequest,
   StartWorkoutRequest,
@@ -670,5 +676,56 @@ export function useEditPlannedSets() {
         }),
       ]);
     },
+  });
+}
+
+/** Cardio shows on Today and in History only: both are read again. */
+function invalidateCardioReads(client: QueryClient): Promise<void> {
+  return Promise.all([
+    client.invalidateQueries({ queryKey: TRAINING_KEYS.today }),
+    client.invalidateQueries({ queryKey: ["history-week"] }),
+  ]).then(() => undefined);
+}
+
+export type LogCardioVariables = {
+  mesocycleId: string;
+  scheduledFor: string;
+  body: LogCardioRequest;
+};
+
+/**
+ * Record the cardio done for one planned day (Pitch 21f E14). Keyed by the
+ * day at the server: a repeat returns the stored record untouched, with
+ * `alreadyLogged` true, so a retry can never record it twice.
+ */
+export function useLogCardio() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<LogCardioResponseDto, ApiError, LogCardioVariables>({
+    mutationFn: ({ mesocycleId, scheduledFor, body }) =>
+      api.request<LogCardioResponseDto>(
+        `/mesocycles/${enc(mesocycleId)}/cardio-logs/${enc(scheduledFor)}`,
+        { method: "PUT", body },
+      ),
+    onSuccess: () => void invalidateCardioReads(client),
+  });
+}
+
+export type EditCardioVariables = {
+  cardioLogId: string;
+  body: EditCardioLogRequest;
+};
+
+/** Correct a cardio record's activity and minutes (Pitch 21f E15). */
+export function useEditCardio() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<EditCardioLogResponseDto, ApiError, EditCardioVariables>({
+    mutationFn: ({ cardioLogId, body }) =>
+      api.request<EditCardioLogResponseDto>(
+        `/cardio-logs/${enc(cardioLogId)}`,
+        { method: "PATCH", body },
+      ),
+    onSuccess: () => void invalidateCardioReads(client),
   });
 }

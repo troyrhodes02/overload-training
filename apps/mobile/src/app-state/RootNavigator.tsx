@@ -68,6 +68,7 @@ export function RootNavigator({
           name="workout/[loggedSessionId]/edit-set"
           options={modalHeader}
         />
+        <Stack.Screen name="cardio" options={modalHeader} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn} redirectTo={SIGNED_IN_HOME}>
         <Stack.Screen name="(auth)" />
