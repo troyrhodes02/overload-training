@@ -52,6 +52,9 @@ const CONTRACTS = [
   jsonSafe<account.MePlanDto>("account.MePlanDto"),
   jsonSafe<appConfig.AppConfigDto>("appConfig.AppConfigDto"),
   jsonSafe<cardio.CardioOccurrenceDto>("cardio.CardioOccurrenceDto"),
+  // Pitch 21f
+  jsonSafe<cardio.LogCardioResponseDto>("cardio.LogCardioResponseDto"),
+  jsonSafe<cardio.EditCardioLogResponseDto>("cardio.EditCardioLogResponseDto"),
   jsonSafe<errors.ActionError>("errors.ActionError"),
   jsonSafe<errors.ApiError>("errors.ApiError"),
   jsonSafe<errors.ApiErrorBody>("errors.ApiErrorBody"),
@@ -93,6 +96,13 @@ const CONTRACTS = [
   jsonSafe<logging.StartWorkoutResponseDto>("logging.StartWorkoutResponseDto"),
   jsonSafe<logging.CompleteWorkoutResponseDto>(
     "logging.CompleteWorkoutResponseDto",
+  ),
+  // Pitch 21f
+  jsonSafe<logging.ChangeGymResponseDto>("logging.ChangeGymResponseDto"),
+  jsonSafe<logging.SwapExerciseResponseDto>("logging.SwapExerciseResponseDto"),
+  jsonSafe<logging.SetSkippedResponseDto>("logging.SetSkippedResponseDto"),
+  jsonSafe<logging.EditPlannedSetsResponseDto>(
+    "logging.EditPlannedSetsResponseDto",
   ),
   jsonSafe<plan.MesocycleSummaryDto>("plan.MesocycleSummaryDto"),
   jsonSafe<plan.SessionSummaryDto>("plan.SessionSummaryDto"),
@@ -165,7 +175,7 @@ type Equal<A, B> =
 
 describe("mobile API contracts (Pitch 21b)", () => {
   it("every contract is JSON-safe", () => {
-    expect(CONTRACTS).toHaveLength(98);
+    expect(CONTRACTS).toHaveLength(104);
   });
 
   it("the JSON-safety check refuses what JSON cannot carry", () => {

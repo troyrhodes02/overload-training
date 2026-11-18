@@ -1,17 +1,25 @@
-import { Linking, ScrollView, View } from "react-native";
+import { useState } from "react";
+import { Alert, ScrollView, View } from "react-native";
 import { Stack, router } from "expo-router";
 import type { LoggedWorkoutDetailDto } from "@overload/shared/contracts/logging";
-import { useLoggedWorkout, useWorkout } from "../api/training";
-import { webOrigin } from "../config/env";
+import {
+  useEditPlannedSets,
+  useLoggedWorkout,
+  useWorkout,
+} from "../api/training";
 import { longDateLabel } from "../today/date";
+import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { GroupedList, ListRow } from "../ui/GroupedList";
 import { SkeletonCard } from "../ui/Skeleton";
 import { LoadErrorState } from "../ui/LoadErrorState";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
+import { fewerSetsConfirmation } from "../workout/exercise-actions";
+import { haptic } from "../ui/haptics";
 import { setValueLabel } from "../workout/labels";
-import { workoutHref } from "../workout/routes";
+import { changeFailureMessage } from "../workout/messages";
+import { editSetHref, workoutHref } from "../workout/routes";
 
 /** The section header: the performed name, and what changed about it. */
 export function exerciseHeader(
@@ -26,10 +34,22 @@ export function exerciseHeader(
     .join(" · ");
 }
 
+/** A short exercise: fewer working (not extra) sets logged than planned. */
+export function shortOfPlan(
+  e: LoggedWorkoutDetailDto["exercises"][number],
+): { workingSets: number; plannedSets: number } | null {
+  const workingSets = e.sets.filter((s) => !s.extra).length;
+  return e.sets.length > 0 && workingSets < e.plannedSets
+    ? { workingSets, plannedSets: e.plannedSets }
+    : null;
+}
+
 /**
- * H2 Logged workout (Pitch 21e design §6, §15; RD-16): exactly what was
- * logged, read-only. Archived exercises and gyms show by name. Correcting a
- * set is 21f, so the web is one tap away.
+ * H2 Logged workout (Pitch 21e design §6, §15; Pitch 21f RD-10, RD-12, RD-21):
+ * exactly what was logged, and where it is corrected. A set row opens Edit
+ * set, in a finished workout too. A short exercise can be counted as planned.
+ * Archived exercises and gyms show by name. Nothing here can delete a set or
+ * change its exercise, gym, or date.
  */
 export function LoggedWorkoutScreen({
   loggedSessionId,
@@ -55,7 +75,47 @@ export function LoggedWorkoutScreen({
     status.isFetchedAfterMount &&
     status.data.workout.status === "in_progress";
   const detail = query.data?.detail;
-  const origin = webOrigin();
+  const editPlanned = useEditPlannedSets();
+  const [plannedError, setPlannedError] = useState<{
+    loggedExerciseId: string;
+    message: string;
+  } | null>(null);
+
+  /** Design P1: the one change that can't be undone, so it asks first. */
+  function askFewerSets(e: LoggedWorkoutDetailDto["exercises"][number]) {
+    const short = shortOfPlan(e);
+    const ask = short
+      ? fewerSetsConfirmation({
+          name: e.performedName,
+          plannedSets: short.plannedSets,
+          savedWorkingSets: short.workingSets,
+        })
+      : null;
+    if (!ask) return;
+    Alert.alert(ask.title, ask.message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: ask.confirm,
+        onPress: () => {
+          setPlannedError(null);
+          editPlanned
+            .mutateAsync({
+              loggedSessionId,
+              loggedExerciseId: e.loggedExerciseId,
+              plannedSets: ask.plannedSets,
+            })
+            .then(() => void haptic.light())
+            .catch((error: unknown) => {
+              void haptic.warning();
+              setPlannedError({
+                loggedExerciseId: e.loggedExerciseId,
+                message: changeFailureMessage(error, "change the planned sets"),
+              });
+            });
+        },
+      },
+    ]);
+  }
 
   return (
     <>
@@ -102,35 +162,71 @@ export function LoggedWorkoutScreen({
                 onPress={() => router.push(workoutHref(loggedSessionId))}
               />
             ) : null}
-            {detail.exercises.map((e) => (
-              <GroupedList key={e.loggedExerciseId} header={exerciseHeader(e)}>
-                {e.sets.length === 0 ? (
-                  <ListRow title="Not done" />
-                ) : (
-                  e.sets.map((s) => (
-                    <ListRow
-                      key={s.loggedSetId}
-                      title={`Set ${s.setNumber}`}
-                      value={setValueLabel(s)}
-                    />
-                  ))
-                )}
-              </GroupedList>
-            ))}
+            {detail.exercises.map((e) => {
+              const short = shortOfPlan(e);
+              return (
+                <View key={e.loggedExerciseId} style={{ gap: spacing.sm }}>
+                  <GroupedList header={exerciseHeader(e)}>
+                    {e.sets.length === 0 ? (
+                      <ListRow title="Not done" />
+                    ) : (
+                      e.sets.map((s) => (
+                        <ListRow
+                          key={s.loggedSetId}
+                          title={`Set ${s.setNumber}`}
+                          value={setValueLabel(s)}
+                          accessory="chevron"
+                          accessibilityHint="Opens this set to correct it"
+                          onPress={() =>
+                            router.push(
+                              editSetHref(
+                                loggedSessionId,
+                                s.loggedSetId,
+                                "history",
+                              ),
+                            )
+                          }
+                        />
+                      ))
+                    )}
+                  </GroupedList>
+                  {short ? (
+                    <View
+                      style={{
+                        gap: spacing.xxs,
+                        paddingHorizontal: spacing.xs,
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <Text size="xs" tone="muted">
+                        {short.workingSets} of {short.plannedSets} planned sets
+                        — counts toward your strength trend, not your progress
+                        check.
+                      </Text>
+                      <Button
+                        label="I meant to do fewer"
+                        variant="text"
+                        loading={
+                          editPlanned.isPending &&
+                          editPlanned.variables?.loggedExerciseId ===
+                            e.loggedExerciseId
+                        }
+                        disabled={editPlanned.isPending}
+                        accessibilityLabel={`I meant to do fewer sets of ${e.performedName}`}
+                        onPress={() => askFewerSets(e)}
+                      />
+                    </View>
+                  ) : null}
+                  {plannedError?.loggedExerciseId === e.loggedExerciseId ? (
+                    <Banner message={plannedError.message} />
+                  ) : null}
+                </View>
+              );
+            })}
             <Text size="xs" tone="muted" align="center">
-              Correcting a set comes to the app in a later update.
+              Corrections change this record only. Exercise, gym, and date
+              can&apos;t be changed.
             </Text>
-            {origin ? (
-              <Button
-                label="Edit on the web"
-                variant="text"
-                onPress={() =>
-                  void Linking.openURL(
-                    `${origin}/history/${encodeURIComponent(loggedSessionId)}`,
-                  )
-                }
-              />
-            ) : null}
           </>
         )}
       </ScrollView>

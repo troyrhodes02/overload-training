@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   InputAccessoryView,
   Keyboard,
   Pressable,
@@ -8,6 +9,7 @@ import {
   type HostInstance,
   type TextInputInstance,
 } from "react-native";
+import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   ExerciseCardDto,
@@ -15,10 +17,16 @@ import type {
 } from "@overload/shared/contracts/logging";
 import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
+import { rirSpoken } from "@overload/shared/logging/rir";
 import { formatWeight, offerCaption } from "@overload/shared/logging/set-entry";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { ApiError } from "../api/errors";
-import { invalidateTraining, useLogSet } from "../api/training";
+import {
+  invalidateTraining,
+  useEditPlannedSets,
+  useLogSet,
+  useSetSkipped,
+} from "../api/training";
 import { Button } from "../ui/Button";
 import { haptic } from "../ui/haptics";
 import { Symbol } from "../ui/Symbol";
@@ -26,14 +34,20 @@ import { Text } from "../ui/Text";
 import { Surface } from "../ui/Surface";
 import { fontFamily, textSize, tint } from "../ui/theme";
 import { useTheme } from "../ui/ThemeProvider";
+import { fewerSetsConfirmation, showExerciseActions } from "./exercise-actions";
+import { RirPicker } from "./RirPicker";
 import { setValueLabel, setValueSpoken } from "./labels";
+import { changeFailureMessage, needsRefresh } from "./messages";
+import { editSetHref, swapHref } from "./routes";
 import {
   cardActiveSet,
   cardContext,
   cardMode,
   cardOffer,
+  nextExtraSetNumber,
   parseRepsText,
   parseWeightText,
+  savedWorkingSets,
 } from "./card-model";
 
 /**
@@ -53,19 +67,14 @@ export function keypadBarId(
 
 type BarAction = { label: string; onPress: () => void; disabled?: boolean };
 
-type Draft = { weight: string | null; reps: string };
-const EMPTY: Draft = { weight: null, reps: "" };
+/** `rir` null: not chosen, so nothing is sent and none is recorded (never 0). */
+type Draft = { weight: string | null; reps: string; rir: number | null };
+const EMPTY: Draft = { weight: null, reps: "", rir: null };
 type FieldError = { field: "weight" | "reps"; message: string };
 
 /** The message for a save that never reached a server answer (RD-9). */
 export function saveFailureMessage(error: ApiError): string {
-  if (error.code === "network") {
-    return "Couldn't save — Overload needs a connection. Your numbers are still here.";
-  }
-  if (error.temporary) {
-    return "Couldn't save — Overload isn't responding. Your numbers are still here.";
-  }
-  return error.message;
+  return changeFailureMessage(error, "save", "Your numbers are still here.");
 }
 
 /**
@@ -96,7 +105,15 @@ export function ExerciseCard({
   const { colors, radius, spacing } = useTheme();
   const client = useQueryClient();
   const logSet = useLogSet();
+  const setSkipped = useSetSkipped();
+  const editPlanned = useEditPlannedSets();
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
+  /** The extra set the lifter asked for with Add set (Pitch 21f RD-11). */
+  const [extraRow, setExtraRow] = useState<number | null>(null);
+  /** Add set was just pressed: its new row takes focus once it has inputs. */
+  const focusExtra = useRef(false);
+  /** A swap, skip, or undo that failed or was refused (Pitch 21f). */
+  const [changeError, setChangeError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<FieldError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const weightRef = useRef<TextInputInstance>(null);
@@ -106,13 +123,35 @@ export function ExerciseCard({
 
   const mode = cardMode(card);
   const needsWeight = card.requiresExternalWeight;
-  const active = mode === "log" ? cardActiveSet(card) : null;
+  // Pending only until the server's record holds that set number.
+  const pendingExtra =
+    extraRow !== null && !card.sets.some((s) => s.setNumber === extraRow)
+      ? extraRow
+      : null;
+  const active = mode === "log" ? cardActiveSet(card, pendingExtra) : null;
+  const rows =
+    pendingExtra !== null
+      ? [
+          ...card.sets,
+          {
+            setNumber: pendingExtra,
+            loggedSetId: null,
+            weightLbs: null,
+            reps: null,
+            rir: null,
+            saved: false,
+            extra: true,
+          },
+        ]
+      : card.sets;
   const offer = cardOffer(card);
   const draft = active !== null ? (drafts[active] ?? EMPTY) : EMPTY;
   const weightText =
     draft.weight ?? (offer ? formatWeight(offer.weightLbs) : "");
   const showCaption = needsWeight && draft.weight === null && offer !== null;
   const saving = logSet.isPending;
+  /** The exercise itself is changing: nothing else on the card may be sent. */
+  const changing = setSkipped.isPending || editPlanned.isPending;
   const context = cardContext(card, workout);
 
   // Focus follows the lifter's own save (never on open), and only once the
@@ -133,6 +172,24 @@ export function ExerciseCard({
     target.current?.focus();
   }, [card.sets, saving, active, needsWeight, weightText, onPlannedSetsDone]);
 
+  // Add set: the new extra row's weight is offered ("same as set N"), so
+  // focus goes to reps; with nothing to offer, to weight.
+  useEffect(() => {
+    if (!focusExtra.current || pendingExtra === null) return;
+    if (active !== pendingExtra) return;
+    focusExtra.current = false;
+    const target = needsWeight && weightText === "" ? weightRef : repsRef;
+    target.current?.focus();
+  }, [pendingExtra, active, needsWeight, weightText]);
+
+  function addExtraSet() {
+    const next = nextExtraSetNumber(card);
+    if (next === null) return;
+    setNotice(null);
+    focusExtra.current = true;
+    setExtraRow(next);
+  }
+
   function setDraft(n: number, patch: Partial<Draft>) {
     setDrafts((d) => ({ ...d, [n]: { ...(d[n] ?? EMPTY), ...patch } }));
   }
@@ -143,8 +200,90 @@ export function ExerciseCard({
     (error.field === "weight" ? weightRef : repsRef).current?.focus();
   }
 
+  function openSwap() {
+    // Never while a set is on its way: the server allows a swap only before
+    // the first set, and a swap that overtook a stalled save would leave that
+    // set recorded against the substitute (review finding 2).
+    if (saving || changing) return;
+    Keyboard.dismiss();
+    setChangeError(null);
+    router.push(swapHref(workout.loggedSessionId, card.loggedExerciseId));
+  }
+
+  /** Mark not done, or undo that. The card changes only on the server's 200. */
+  async function markSkipped(skipped: boolean) {
+    if (changing || saving) return;
+    setChangeError(null);
+    try {
+      await setSkipped.mutateAsync({
+        loggedSessionId: workout.loggedSessionId,
+        loggedExerciseId: card.loggedExerciseId,
+        skipped,
+      });
+      void haptic.light();
+    } catch (error) {
+      void haptic.warning();
+      setChangeError(changeFailureMessage(error, "update this exercise"));
+      // Refused because the workout moved on elsewhere: show its real state.
+      if (needsRefresh(error)) {
+        void invalidateTraining(client, workout.loggedSessionId);
+      }
+    }
+  }
+
+  /** More: the rare things to do to this exercise (design §6, RD-14). */
+  async function openMore() {
+    if (saving || changing) return;
+    // Never open a sheet over a half-covered screen.
+    Keyboard.dismiss();
+    const action = await showExerciseActions(card, workout);
+    if (action === "swap") openSwap();
+    else if (action === "skip") await markSkipped(true);
+    else if (action === "fewer_sets") askFewerSets();
+  }
+
+  /**
+   * Count the sets already logged as this workout's plan (design P1, RD-12).
+   * The one change here that can't be undone, so it asks first. The server
+   * lowers this occurrence only and removes no set.
+   */
+  function askFewerSets() {
+    const ask = fewerSetsConfirmation({
+      name: card.performedExerciseName,
+      plannedSets: card.plannedSets,
+      savedWorkingSets: savedWorkingSets(card),
+    });
+    if (!ask) return;
+    Alert.alert(ask.title, ask.message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: ask.confirm,
+        onPress: () => void lowerPlannedSets(ask.plannedSets),
+      },
+    ]);
+  }
+
+  async function lowerPlannedSets(plannedSets: number) {
+    if (changing || saving) return;
+    setChangeError(null);
+    try {
+      await editPlanned.mutateAsync({
+        loggedSessionId: workout.loggedSessionId,
+        loggedExerciseId: card.loggedExerciseId,
+        plannedSets,
+      });
+      void haptic.light();
+    } catch (error) {
+      void haptic.warning();
+      setChangeError(changeFailureMessage(error, "change the planned sets"));
+      if (needsRefresh(error)) {
+        void invalidateTraining(client, workout.loggedSessionId);
+      }
+    }
+  }
+
   async function confirm() {
-    if (active === null || saving) return;
+    if (active === null || saving || changing) return;
     const n = active;
     let weightLbs: number | null = null;
     if (needsWeight) {
@@ -164,10 +303,13 @@ export function ExerciseCard({
         loggedSessionId: workout.loggedSessionId,
         loggedExerciseId: card.loggedExerciseId,
         setNumber: n,
-        // No RIR in 21e (RD-12): omitted is stored as "not recorded".
-        body: needsWeight
-          ? { weightLbs, reps: reps.value }
-          : { reps: reps.value },
+        // An untouched RIR sends no `rir`: the server stores "not recorded",
+        // never 0 (Pitch 21f RD-8). A bodyweight set sends no weight.
+        body: {
+          ...(needsWeight ? { weightLbs } : {}),
+          reps: reps.value,
+          ...(draft.rir !== null ? { rir: draft.rir } : {}),
+        },
       });
       setDrafts((d) => {
         const rest = { ...d };
@@ -196,6 +338,12 @@ export function ExerciseCard({
         fail({ field: "weight", message: details.weightLbs });
       } else if (details.reps) {
         fail({ field: "reps", message: details.reps });
+      } else if (details.rir) {
+        // Not reachable from the chips (an older build): never blame reps.
+        setNotice(details.rir);
+      } else if (details.setNumber) {
+        // The extra-set limit or order: the server's sentence, on the card.
+        setNotice(e.message);
       } else {
         setNotice(saveFailureMessage(e));
       }
@@ -211,33 +359,95 @@ export function ExerciseCard({
 
   return (
     <Surface style={{ gap: spacing.lg }}>
-      <View style={{ gap: spacing.xxs }}>
-        <Text
-          size="2xl"
-          weight="semibold"
-          accessibilityRole="header"
-          accessibilityHint={`Exercise ${position.index + 1} of ${position.total}`}
-        >
-          {card.performedExerciseName}
-        </Text>
-        <Text tone="muted">{scheme}</Text>
-        {card.swapped ? (
-          <Text size="xs" tone="muted">
-            Swapped from {card.plannedExerciseName}
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
+          <Text
+            size="2xl"
+            weight="semibold"
+            tone={mode === "not_done" ? "muted" : "default"}
+            accessibilityRole="header"
+            accessibilityHint={`Exercise ${position.index + 1} of ${position.total}`}
+          >
+            {card.performedExerciseName}
           </Text>
+          <Text tone="muted">{scheme}</Text>
+          {card.swapped ? (
+            <Text size="xs" tone="muted">
+              Swapped from {card.plannedExerciseName}
+            </Text>
+          ) : null}
+        </View>
+        {mode !== "unavailable" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`More for ${card.performedExerciseName}`}
+            accessibilityState={{ disabled: changing || saving }}
+            disabled={changing || saving}
+            hitSlop={4}
+            onPress={() => void openMore()}
+            style={({ pressed }) => ({
+              width: 44,
+              height: 44,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: changing || saving ? 0.5 : pressed ? 0.6 : 1,
+            })}
+          >
+            <Symbol
+              name="ellipsis.circle"
+              size={24}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
         ) : null}
       </View>
 
+      {changeError ? (
+        <Text
+          size="sm"
+          tone="destructive"
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          {changeError}
+        </Text>
+      ) : null}
+
       {mode === "not_done" ? (
-        <EdgeNote
-          title="Not done today."
-          message="To log it, undo that on the web."
-        />
+        <View style={{ gap: spacing.md }}>
+          <Text tone="muted">
+            Not done today. It won&apos;t count toward progression.
+          </Text>
+          <Button
+            label="Undo — I'll log it"
+            variant="secondary"
+            loading={changing}
+            onPress={() => void markSkipped(false)}
+          />
+        </View>
       ) : mode === "unavailable" ? (
-        <EdgeNote
-          title="Unavailable — this exercise was archived."
-          message="Swap it on the web, or finish without it."
-        />
+        <View style={{ gap: spacing.md }}>
+          <View style={{ gap: spacing.xxs }}>
+            <Text tone="destructive" weight="medium">
+              Unavailable — choose a substitute
+            </Text>
+            <Text size="sm" tone="muted">
+              This planned exercise was archived. Pick a substitute to log it.
+              Your plan isn&apos;t changed.
+            </Text>
+          </View>
+          <Button
+            label="Swap exercise"
+            disabled={changing}
+            onPress={openSwap}
+          />
+          <Button
+            label="Didn't do this exercise"
+            variant="text"
+            loading={changing}
+            onPress={() => void markSkipped(true)}
+          />
+        </View>
       ) : (
         <>
           <View style={{ gap: spacing.sm }}>
@@ -270,9 +480,26 @@ export function ExerciseCard({
           </View>
 
           <View style={{ gap: spacing.xs }}>
-            {card.sets.map((s) =>
+            {rows.map((s) =>
               s.saved ? (
-                <LoggedRow key={s.setNumber} set={s} />
+                <LoggedRow
+                  key={s.setNumber}
+                  set={s}
+                  onPress={
+                    s.loggedSetId
+                      ? () => {
+                          Keyboard.dismiss();
+                          router.push(
+                            editSetHref(
+                              workout.loggedSessionId,
+                              s.loggedSetId as string,
+                              "workout",
+                            ),
+                          );
+                        }
+                      : undefined
+                  }
+                />
               ) : s.setNumber === active ? (
                 <View
                   key={s.setNumber}
@@ -293,9 +520,14 @@ export function ExerciseCard({
                       flexWrap: "wrap",
                     }}
                   >
-                    <Text weight="semibold" style={{ width: 48 }}>
-                      Set {s.setNumber}
-                    </Text>
+                    <View style={{ width: 48 }}>
+                      <Text weight="semibold">Set {s.setNumber}</Text>
+                      {s.extra ? (
+                        <Text size="xs" tone="muted">
+                          extra
+                        </Text>
+                      ) : null}
+                    </View>
                     {needsWeight ? (
                       <NumberField
                         ref={weightRef}
@@ -353,6 +585,15 @@ export function ExerciseCard({
                       {offerCaption(offer)}
                     </Text>
                   ) : null}
+                  {/* Optional, inside the row the screen keeps above the
+                      keyboard. It never starts selected and is never carried
+                      from the set before (RD-8). */}
+                  <RirPicker
+                    setNumber={s.setNumber}
+                    value={draft.rir}
+                    disabled={saving}
+                    onChange={(rir) => setDraft(s.setNumber, { rir })}
+                  />
                   {fieldError ? (
                     <Text
                       size="sm"
@@ -418,12 +659,26 @@ export function ExerciseCard({
                 saving ? `Saving set ${active}` : `Log set ${active}`
               }
               loading={saving}
+              disabled={changing}
               onPress={() => void confirm()}
             />
           ) : (
-            <Text size="sm" tone="muted" accessibilityLiveRegion="polite">
-              All {card.plannedSets} sets logged.
-            </Text>
+            <View style={{ gap: spacing.xs, alignItems: "flex-start" }}>
+              <Text size="sm" tone="muted" accessibilityLiveRegion="polite">
+                All {card.plannedSets} sets logged.
+              </Text>
+              {nextExtraSetNumber(card) !== null ? (
+                // More than planned is an extra set: recorded and labelled,
+                // and the plan's count keeps its meaning (RD-11).
+                <Button
+                  label="Add set"
+                  variant="text"
+                  disabled={changing}
+                  accessibilityHint="Adds one extra set beyond the plan"
+                  onPress={addExtraSet}
+                />
+              ) : null}
+            </View>
           )}
         </>
       )}
@@ -431,28 +686,29 @@ export function ExerciseCard({
   );
 }
 
-function EdgeNote({ title, message }: { title: string; message: string }) {
-  const { spacing } = useTheme();
-  return (
-    <View style={{ gap: spacing.xxs }} accessible>
-      <Text tone="muted" weight="medium">
-        {title}
-      </Text>
-      <Text size="sm" tone="muted">
-        {message}
-      </Text>
-    </View>
-  );
-}
-
-function LoggedRow({ set }: { set: ExerciseCardDto["sets"][number] }) {
+/**
+ * A saved set: plain text from the server's record, tinted only after its
+ * 200. Pressing it opens Edit set (Pitch 21f RD-10): a correction of this
+ * row's values, never a new set.
+ */
+function LoggedRow({
+  set,
+  onPress,
+}: {
+  set: ExerciseCardDto["sets"][number];
+  onPress?: () => void;
+}) {
   const { colors, radius, spacing } = useTheme();
   const shown = { ...set, reps: set.reps ?? 0 };
+  const rir = rirSpoken(set.rir);
   return (
-    <View
-      accessible
-      accessibilityLabel={`Set ${set.setNumber}${set.extra ? ", extra" : ""}, ${setValueSpoken(shown)}, logged`}
-      style={{
+    <Pressable
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={`Set ${set.setNumber}${set.extra ? ", extra" : ""}, ${setValueSpoken(shown)}${rir ? `, ${rir}` : ""}, logged`}
+      accessibilityHint={onPress ? "Opens this set to correct it" : undefined}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
         gap: spacing.sm,
@@ -460,12 +716,12 @@ function LoggedRow({ set }: { set: ExerciseCardDto["sets"][number] }) {
         paddingHorizontal: spacing.sm,
         borderRadius: radius.lg,
         // A saved set: a quiet primary tint, only after the server's 200.
-        backgroundColor: tint(colors.primary, 0.1),
-      }}
+        backgroundColor: tint(colors.primary, pressed ? 0.18 : 0.1),
+      })}
     >
-      <Text tone="muted" style={{ width: 48 }}>
-        Set {set.setNumber}
-      </Text>
+      <View style={{ width: 48 }}>
+        <Text tone="muted">Set {set.setNumber}</Text>
+      </View>
       <Text weight="medium" style={{ flex: 1 }}>
         {setValueLabel(shown)}
       </Text>
@@ -475,7 +731,7 @@ function LoggedRow({ set }: { set: ExerciseCardDto["sets"][number] }) {
         color={colors.primary}
         weight="semibold"
       />
-    </View>
+    </Pressable>
   );
 }
 

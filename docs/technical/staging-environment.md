@@ -76,7 +76,9 @@ Use the staging site's normal **signup form** with the dev invite code. That goe
 
 Optional synthetic history for that account: `npm run demo:seed -- --user-id <uuid> --confirm-ref vdxrmfadikwzodjljbdi` (dry run), then add `--execute --confirm-user <uuid>`. See `environment-isolation.md`.
 
-There is deliberately **no** script that creates Auth users directly: the auth-admin facade is restricted to the signup and deletion modules, and a bypass would test something other than what users run.
+For a ready-to-test account in one step, one per scenario (Pitch 21f): `npm run dev:test-account -- --email <name>@example.com --profile <standard|gym|bodyweight|cardio|missed> --confirm-ref vdxrmfadikwzodjljbdi` (dry run), then add `--execute`. It creates the account with the development provisioning tool, seeds the demo story anchored to the account's own today, and writes the password only to `~/.overload-dev/accounts/<email>.txt`. It accepts only reserved test-domain emails and only `overload-dev`, and it never edits, resets, or deletes. The profiles and the commands are in `docs/pitches/mvp-5b-mobile-app/21f-logging-completeness/runbook.md` §2 and §3.
+
+Outside those two development-only tools (`scripts/operator/provision-dev-test-user` and `scripts/dev-test-account`, which reuses it), there is deliberately **no** script that creates Auth users directly: the auth-admin facade is restricted to the signup and deletion modules, and a bypass would test something other than what users run.
 
 ## Smoke test
 
