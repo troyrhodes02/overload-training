@@ -152,7 +152,7 @@ When a set is saved, the sheet's message reads "Sets are logged, so this exercis
 
 | Row | Behavior |
 | --- | --- |
-| Saved | Pressable. Label "Set 1, 185 pounds, 8 reps, 2 reps in reserve, logged. Correct this set". Opens E1. The value reads "185 lbs × 8 · 2 RIR" |
+| Saved | Pressable. Label "Set 1, 185 pounds, 8 reps, 2 reps in reserve, logged", hint "Opens this set to correct it". Opens E1. The value reads "185 lbs × 8 · 2 RIR" |
 | Active | Weight and reps exactly as 21e (offer, caption, keypad bars with Done). Under them, **RIR** |
 | Waiting | "Set 3 —" (unchanged) |
 | Extra, saved | "Set 4" with "extra" beneath; value ends "· extra"; pressable like any saved row |
@@ -254,7 +254,7 @@ Both failures show under the button, keep the card as it was, and can be retried
 
 A system alert:
 
-- Title: "Count 2 sets as today's plan?"
+- Title: "Count 2 sets as the plan for this workout?" (the same words from the workout and from History, where "today" would be wrong)
 - Message: "Barbell Bench Press was planned for 3 sets. This changes this workout only — your plan stays the same, and no logged set is removed. You can't raise it again."
 - Buttons: **Cancel**, **Count 2 sets**.
 
@@ -306,7 +306,7 @@ Cardio rows become pressable where there is something to do: a logged row (any w
 
 | Element | Behavior |
 | --- | --- |
-| Set row | Pressable with a chevron; opens E1. Label "Set 2, 185 pounds, 8 reps, logged. Correct this set" |
+| Set row | Pressable with a chevron; opens E1. Label "Set 2, 185 lbs × 8", hint "Opens this set to correct it" |
 | Short exercise | Under its sets: "2 of 3 planned sets — counts toward your strength trend, not your progress check." and **I meant to do fewer** (opens P1) |
 | Swapped, archived, not done | Unchanged from 21e ("swapped from …", "archived", "Not done") |
 | Footer | "Corrections change this record only. Exercise, gym, and date can't be changed." The "Edit on the web" button and its note are removed |
@@ -339,7 +339,7 @@ State carried: only ids and what the opening screen already displayed. Every mod
 | RIR chips | Tapping never dismisses the keyboard or moves focus |
 | More, Change gym, saved row, Add set | The keyboard is dismissed first, then the sheet or modal opens, so nothing opens over a half-covered screen |
 | Moving between exercises | Unchanged; every field on the next card takes its first tap, including after a modal was opened and closed |
-| E1, C1 | Save and Cancel live in the header. The first field is focused on open (reps for a bodyweight lift). Return on weight moves to reps |
+| E1, C1 | Save and Cancel live in the header. No field is focused on open, so no keyboard appears until the lifter taps a field; tapping one selects its value so typing replaces it |
 | X1 search | Default keyboard with a Search return key; the list scrolls under it and dragging the list dismisses it |
 
 ### Haptics
@@ -376,7 +376,7 @@ iPhone only. At the largest Dynamic Type size: the RIR chips wrap to a second li
 | --- | --- | --- | --- |
 | `ExerciseCard` | `workout/` | amended | More, RIR, pressable saved rows, Add set, Undo, Swap for unavailable |
 | `RirPicker` | `workout/` | new | Card and E1; five chips, clearable |
-| `NumberField` | `workout/` | extracted | Shared by the card and E1 |
+| `NumberField` | `workout/` | unchanged | The card's device-verified input is not touched; E1 and C1 use the shared labelled `TextField` |
 | `exercise-actions` | `workout/` | new | Which More rows a card offers (pure) and the sheet |
 | `SwapScreen` | `workout/` | new | X1 |
 | `EditSetScreen` | `workout/` | new | E1 |

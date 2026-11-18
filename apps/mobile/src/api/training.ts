@@ -12,6 +12,7 @@ import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
   ChangeGymResponseDto,
   CompleteWorkoutResponseDto,
+  EditPlannedSetsResponseDto,
   MissedDayResolutionDto,
   SetSkippedResponseDto,
   StartWorkoutResponseDto,
@@ -20,6 +21,7 @@ import type {
 } from "@overload/shared/contracts/logging";
 import type { MuscleGroupValue } from "@overload/shared/exercises/taxonomy";
 import type {
+  EditLoggedSetRequest,
   LogSetRequest,
   ResolveMissedDayRequest,
   StartWorkoutRequest,
@@ -114,9 +116,13 @@ export function useHistoryWeek(week: string | null) {
   });
 }
 
-export function useLoggedWorkout(loggedSessionId: string) {
+export function useLoggedWorkout(
+  loggedSessionId: string,
+  opts: { enabled?: boolean } = {},
+) {
   const api = useApi();
   return useQuery<LoggedWorkoutDetailViewDto, ApiError>({
+    enabled: opts.enabled ?? true,
     queryKey: TRAINING_KEYS.historyWorkout(loggedSessionId),
     queryFn: ({ signal }) =>
       api.request<LoggedWorkoutDetailViewDto>(
@@ -561,6 +567,108 @@ export function useSetSkipped() {
         (view) => mergeConfirmedSkip(view, answer),
       );
       void markTrainingStale(client, loggedSessionId);
+    },
+  });
+}
+
+/** A logged workout's record with one set's corrected values (the server's). */
+export function mergeCorrectedSet(
+  view: LoggedWorkoutDetailViewDto | undefined,
+  set: LoggedSetDto,
+): LoggedWorkoutDetailViewDto | undefined {
+  if (!view) return view;
+  return {
+    ...view,
+    detail: {
+      ...view.detail,
+      exercises: view.detail.exercises.map((e) =>
+        e.loggedExerciseId !== set.loggedExerciseId
+          ? e
+          : {
+              ...e,
+              sets: e.sets.map((s) =>
+                s.loggedSetId === set.id
+                  ? {
+                      ...s,
+                      weightLbs: set.weightLbs,
+                      reps: set.reps,
+                      rir: set.rir,
+                    }
+                  : s,
+              ),
+            },
+      ),
+    },
+  };
+}
+
+export type EditSetVariables = {
+  loggedSessionId: string;
+  loggedSetId: string;
+  body: EditLoggedSetRequest;
+};
+
+/**
+ * Correct one saved set (Pitch 21f E12): values only, through the server's
+ * one set-writing path. The server's answer replaces the row in the workout
+ * and in its History record; everything else is marked stale, so progression
+ * and trends are read again from the corrected history. Sending the same
+ * correction twice stores the same values.
+ */
+export function useEditSet() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<LoggedSetDto, ApiError, EditSetVariables>({
+    mutationFn: ({ loggedSetId, body }) =>
+      api.request<LoggedSetDto>(`/sets/${enc(loggedSetId)}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: (set, { loggedSessionId }) => {
+      client.setQueryData<WorkoutViewDto>(
+        TRAINING_KEYS.workout(loggedSessionId),
+        (view) => mergeConfirmedSet(view, set),
+      );
+      client.setQueryData<LoggedWorkoutDetailViewDto>(
+        TRAINING_KEYS.historyWorkout(loggedSessionId),
+        (view) => mergeCorrectedSet(view, set),
+      );
+      void markTrainingStale(client, loggedSessionId);
+    },
+  });
+}
+
+export type EditPlannedSetsVariables = {
+  loggedSessionId: string;
+  loggedExerciseId: string;
+  plannedSets: number;
+};
+
+/**
+ * Lower this workout's planned-set count for one exercise (Pitch 21f E13).
+ * The server only ever lowers it, on this occurrence, and removes no set. The
+ * workout and its History record are read again before the caller goes on.
+ */
+export function useEditPlannedSets() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    EditPlannedSetsResponseDto,
+    ApiError,
+    EditPlannedSetsVariables
+  >({
+    mutationFn: ({ loggedExerciseId, plannedSets }) =>
+      api.request<EditPlannedSetsResponseDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/planned-sets`,
+        { method: "PATCH", body: { plannedSets } },
+      ),
+    onSuccess: async (_data, { loggedSessionId }) => {
+      await Promise.all([
+        refreshWorkout(client, loggedSessionId),
+        client.invalidateQueries({
+          queryKey: TRAINING_KEYS.historyWorkout(loggedSessionId),
+        }),
+      ]);
     },
   });
 }

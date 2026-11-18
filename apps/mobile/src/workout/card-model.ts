@@ -46,9 +46,32 @@ export function cardOffer(card: ExerciseCardDto): Offer | null {
   });
 }
 
-/** The planned set that has inputs now (no extra-set entry in 21e, RD-12). */
-export function cardActiveSet(card: ExerciseCardDto): number | null {
-  return activeSetNumber(card.sets, card.plannedSets, null);
+/**
+ * The set that has inputs now: the lowest unlogged planned set; once every
+ * planned set is saved, the pending extra row the lifter asked for with Add
+ * set (Pitch 21f), else none. The shared rule the web card uses.
+ */
+export function cardActiveSet(
+  card: ExerciseCardDto,
+  pendingExtra: number | null = null,
+): number | null {
+  return activeSetNumber(card.sets, card.plannedSets, pendingExtra);
+}
+
+/** Saved planned (not extra) sets: what counts toward the plan's set count. */
+export function savedWorkingSets(card: ExerciseCardDto): number {
+  return card.sets.filter((s) => s.saved && !s.extra).length;
+}
+
+/**
+ * The number an extra set would take: one past the highest row, offered only
+ * once every planned set is saved (the server's own order rule; it also caps
+ * how many extras there can be).
+ */
+export function nextExtraSetNumber(card: ExerciseCardDto): number | null {
+  if (card.sets.length === 0) return null;
+  if (card.sets.some((s) => !s.extra && !s.saved)) return null;
+  return Math.max(...card.sets.map((s) => s.setNumber)) + 1;
 }
 
 /** The context line and, when the server sent one, the reference line. */

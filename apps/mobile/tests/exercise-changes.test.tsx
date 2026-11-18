@@ -107,9 +107,17 @@ describe("which actions a card offers", () => {
     });
   });
 
-  it("a set saved: neither, with the reason", () => {
+  it("a set saved: no swap or skip, with the reason; short of the plan can be counted", () => {
     const partly = card({ sets: [savedRow(1), ...rows(3).slice(1)] });
     expect(exerciseActions(partly, inProgress)).toEqual({
+      actions: ["fewer_sets"],
+      message: SETS_LOGGED_MESSAGE,
+    });
+  });
+
+  it("every planned set saved: nothing left to offer but the reason", () => {
+    const done = card({ sets: [savedRow(1), savedRow(2), savedRow(3)] });
+    expect(exerciseActions(done, inProgress)).toEqual({
       actions: [],
       message: SETS_LOGGED_MESSAGE,
     });
@@ -227,13 +235,13 @@ describe("marking an exercise not done", () => {
     await waitFor(() => expect(reads).toBeGreaterThan(1));
   });
 
-  it("with a set saved the sheet explains the lock and offers only Cancel", async () => {
+  it("with every set saved the sheet explains the lock and offers only Cancel", async () => {
     const sheet = sheetPicks("Cancel");
     serve({
       "/workouts/ls-1": view(
         workout({
           gymLocked: true,
-          exercises: [card({ sets: [savedRow(1), ...rows(3).slice(1)] })],
+          exercises: [card({ sets: [savedRow(1), savedRow(2), savedRow(3)] })],
         }),
       ),
     });
