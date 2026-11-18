@@ -74,13 +74,7 @@ type FieldError = { field: "weight" | "reps"; message: string };
 
 /** The message for a save that never reached a server answer (RD-9). */
 export function saveFailureMessage(error: ApiError): string {
-  if (error.code === "network") {
-    return "Couldn't save — Overload needs a connection. Your numbers are still here.";
-  }
-  if (error.temporary) {
-    return "Couldn't save — Overload isn't responding. Your numbers are still here.";
-  }
-  return error.message;
+  return changeFailureMessage(error, "save", "Your numbers are still here.");
 }
 
 /**
@@ -207,6 +201,10 @@ export function ExerciseCard({
   }
 
   function openSwap() {
+    // Never while a set is on its way: the server allows a swap only before
+    // the first set, and a swap that overtook a stalled save would leave that
+    // set recorded against the substitute (review finding 2).
+    if (saving || changing) return;
     Keyboard.dismiss();
     setChangeError(null);
     router.push(swapHref(workout.loggedSessionId, card.loggedExerciseId));
@@ -235,6 +233,7 @@ export function ExerciseCard({
 
   /** More: the rare things to do to this exercise (design §6, RD-14). */
   async function openMore() {
+    if (saving || changing) return;
     // Never open a sheet over a half-covered screen.
     Keyboard.dismiss();
     const action = await showExerciseActions(card, workout);
@@ -382,8 +381,8 @@ export function ExerciseCard({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`More for ${card.performedExerciseName}`}
-            accessibilityState={{ disabled: changing }}
-            disabled={changing}
+            accessibilityState={{ disabled: changing || saving }}
+            disabled={changing || saving}
             hitSlop={4}
             onPress={() => void openMore()}
             style={({ pressed }) => ({
@@ -391,7 +390,7 @@ export function ExerciseCard({
               height: 44,
               alignItems: "center",
               justifyContent: "center",
-              opacity: changing ? 0.5 : pressed ? 0.6 : 1,
+              opacity: changing || saving ? 0.5 : pressed ? 0.6 : 1,
             })}
           >
             <Symbol

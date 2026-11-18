@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack } from "expo-router";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { formatWeight } from "@overload/shared/logging/set-entry";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
@@ -16,6 +16,7 @@ import { StateView } from "../ui/StateView";
 import { Text } from "../ui/Text";
 import { TextField, type TextInputHandle } from "../ui/TextField";
 import { fontFamily, textSize } from "../ui/theme";
+import { useModalClose } from "../ui/use-modal-close";
 import { useTheme } from "../ui/ThemeProvider";
 import { parseRepsText, parseWeightText } from "./card-model";
 import {
@@ -24,21 +25,8 @@ import {
   findEditableSet,
   type EditableSet,
 } from "./edit-set-model";
+import { changeFailureMessage } from "./messages";
 import { RirPicker } from "./RirPicker";
-
-/** The message for a correction that never reached a server answer. */
-export function correctionFailureMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.code === "network") {
-      return "Couldn't save — Overload needs a connection. Your correction is still here.";
-    }
-    if (error.temporary) {
-      return "Couldn't save — Overload isn't responding. Your correction is still here.";
-    }
-    return error.message;
-  }
-  return "Couldn't save. Your correction is still here.";
-}
 
 /**
  * E1 Edit set (Pitch 21f design §6, §15; RD-9, RD-10, RD-13): correct one
@@ -59,10 +47,17 @@ export function EditSetScreen({
   from: "workout" | "history";
 }) {
   const { spacing } = useTheme();
-  const workout = useWorkout(loggedSessionId, { enabled: from === "workout" });
+  // The opening screen already holds the stored values: read its cache, and
+  // fetch only when there is nothing cached (a cold deep link).
+  const workout = useWorkout(loggedSessionId, {
+    enabled: from === "workout",
+    refetchOnMount: false,
+  });
   const record = useLoggedWorkout(loggedSessionId, {
     enabled: from === "history",
+    refetchOnMount: false,
   });
+  const close = useModalClose();
   const query = from === "workout" ? workout : record;
   const source =
     from === "workout" ? workout.data?.workout : record.data?.detail;
@@ -80,7 +75,7 @@ export function EditSetScreen({
       label="Cancel"
       variant="text"
       accessibilityHint="Closes without changing the set"
-      onPress={() => router.back()}
+      onPress={close}
     />
   );
 
@@ -112,7 +107,7 @@ export function EditSetScreen({
             <StateView
               title="This set isn't available."
               message="It may have changed on another device. Go back and open it again."
-              action={{ label: "Close", onPress: () => router.back() }}
+              action={{ label: "Close", onPress: close }}
             />
           )}
         </View>
@@ -124,6 +119,7 @@ export function EditSetScreen({
       loggedSessionId={loggedSessionId}
       original={original}
       cancel={cancel}
+      close={close}
     />
   );
 }
@@ -134,10 +130,13 @@ function EditSetForm({
   loggedSessionId,
   original,
   cancel,
+  close,
 }: {
   loggedSessionId: string;
   original: EditableSet;
   cancel: React.ReactNode;
+  /** Goes back once, and only while this modal is still open. */
+  close: () => void;
 }) {
   const { colors, spacing } = useTheme();
   const editSet = useEditSet();
@@ -194,13 +193,22 @@ function EditSetForm({
         }),
       });
       void haptic.light();
-      router.back();
+      close();
     } catch (error) {
       void haptic.warning();
       const details = error instanceof ApiError ? error.details : {};
       if (details.weightLbs) fail("weight", details.weightLbs);
       else if (details.reps) fail("reps", details.reps);
-      else setFailure(details.rir ?? correctionFailureMessage(error));
+      else {
+        setFailure(
+          details.rir ??
+            changeFailureMessage(
+              error,
+              "save",
+              "Your correction is still here.",
+            ),
+        );
+      }
     } finally {
       saving.current = false;
     }

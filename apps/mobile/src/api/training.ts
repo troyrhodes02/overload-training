@@ -92,13 +92,18 @@ export function useToday() {
   });
 }
 
-export function useWorkout(
-  loggedSessionId: string,
-  opts: { enabled?: boolean } = {},
-) {
+/**
+ * `refetchOnMount: false` is for a screen that only needs the stored values
+ * another screen already holds (Edit set): it reads the cache and fetches
+ * only when there is nothing cached.
+ */
+type ReadOptions = { enabled?: boolean; refetchOnMount?: boolean };
+
+export function useWorkout(loggedSessionId: string, opts: ReadOptions = {}) {
   const api = useApi();
   return useQuery<WorkoutViewDto, ApiError>({
     enabled: opts.enabled ?? true,
+    refetchOnMount: opts.refetchOnMount ?? true,
     queryKey: TRAINING_KEYS.workout(loggedSessionId),
     queryFn: ({ signal }) =>
       api.request<WorkoutViewDto>(`/workouts/${enc(loggedSessionId)}${CORE}`, {
@@ -124,11 +129,12 @@ export function useHistoryWeek(week: string | null) {
 
 export function useLoggedWorkout(
   loggedSessionId: string,
-  opts: { enabled?: boolean } = {},
+  opts: ReadOptions = {},
 ) {
   const api = useApi();
   return useQuery<LoggedWorkoutDetailViewDto, ApiError>({
     enabled: opts.enabled ?? true,
+    refetchOnMount: opts.refetchOnMount ?? true,
     queryKey: TRAINING_KEYS.historyWorkout(loggedSessionId),
     queryFn: ({ signal }) =>
       api.request<LoggedWorkoutDetailViewDto>(
@@ -523,7 +529,13 @@ export function useSwapExercise() {
         { method: "PUT", body: { newExerciseId } },
       ),
     onSuccess: async (_data, { loggedSessionId, loggedExerciseId }) => {
-      client.removeQueries({ queryKey: ["swap", loggedExerciseId] });
+      // Stale, not removed: the picker is still on screen observing this
+      // list, and removing it would make it fetch again as it closes. The
+      // next open reads a fresh list (review finding 6).
+      void client.invalidateQueries({
+        queryKey: ["swap", loggedExerciseId],
+        refetchType: "none",
+      });
       await refreshWorkout(client, loggedSessionId);
     },
   });
@@ -567,10 +579,13 @@ export function useSetSkipped() {
         `/logged-exercises/${enc(loggedExerciseId)}/skipped`,
         { method: "PUT", body: { skipped } },
       ),
-    onSuccess: (answer, { loggedSessionId }) => {
-      client.setQueryData<WorkoutViewDto>(
-        TRAINING_KEYS.workout(loggedSessionId),
-        (view) => mergeConfirmedSkip(view, answer),
+    onSuccess: async (answer, { loggedSessionId }) => {
+      const key = TRAINING_KEYS.workout(loggedSessionId);
+      // An older read still on its way must not land after this and bring
+      // the previous state back (as applyConfirmedCompletion does).
+      await client.cancelQueries({ queryKey: key });
+      client.setQueryData<WorkoutViewDto>(key, (view) =>
+        mergeConfirmedSkip(view, answer),
       );
       void markTrainingStale(client, loggedSessionId);
     },
@@ -630,14 +645,20 @@ export function useEditSet() {
         method: "PATCH",
         body,
       }),
-    onSuccess: (set, { loggedSessionId }) => {
-      client.setQueryData<WorkoutViewDto>(
-        TRAINING_KEYS.workout(loggedSessionId),
-        (view) => mergeConfirmedSet(view, set),
+    onSuccess: async (set, { loggedSessionId }) => {
+      const workoutKey = TRAINING_KEYS.workout(loggedSessionId);
+      const recordKey = TRAINING_KEYS.historyWorkout(loggedSessionId);
+      // A read that started before the correction would answer with the old
+      // values and overwrite it: cancel it first (review finding 3).
+      await Promise.all([
+        client.cancelQueries({ queryKey: workoutKey }),
+        client.cancelQueries({ queryKey: recordKey }),
+      ]);
+      client.setQueryData<WorkoutViewDto>(workoutKey, (view) =>
+        mergeConfirmedSet(view, set),
       );
-      client.setQueryData<LoggedWorkoutDetailViewDto>(
-        TRAINING_KEYS.historyWorkout(loggedSessionId),
-        (view) => mergeCorrectedSet(view, set),
+      client.setQueryData<LoggedWorkoutDetailViewDto>(recordKey, (view) =>
+        mergeCorrectedSet(view, set),
       );
       void markTrainingStale(client, loggedSessionId);
     },
@@ -679,7 +700,12 @@ export function useEditPlannedSets() {
   });
 }
 
-/** Cardio shows on Today and in History only: both are read again. */
+/**
+ * Cardio shows on Today and in History only: both are read again, and the
+ * save waits for the screens that are open (review finding 4). The form
+ * closes onto a list that already shows the new record, so reopening it at
+ * once starts from what was just saved, never from the values before.
+ */
 function invalidateCardioReads(client: QueryClient): Promise<void> {
   return Promise.all([
     client.invalidateQueries({ queryKey: TRAINING_KEYS.today }),
@@ -707,7 +733,7 @@ export function useLogCardio() {
         `/mesocycles/${enc(mesocycleId)}/cardio-logs/${enc(scheduledFor)}`,
         { method: "PUT", body },
       ),
-    onSuccess: () => void invalidateCardioReads(client),
+    onSuccess: () => invalidateCardioReads(client),
   });
 }
 
@@ -726,6 +752,6 @@ export function useEditCardio() {
         `/cardio-logs/${enc(cardioLogId)}`,
         { method: "PATCH", body },
       ),
-    onSuccess: () => void invalidateCardioReads(client),
+    onSuccess: () => invalidateCardioReads(client),
   });
 }

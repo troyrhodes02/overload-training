@@ -168,6 +168,7 @@ When a set is saved, the sheet's message reads "Sets are logged, so this exercis
 | --- | --- |
 | Not done | Muted name; "Not done today. It won't count toward progression."; **Undo — I'll log it** (secondary). Undo restores the logging rows |
 | Unavailable | "Unavailable — choose a substitute"; "This planned exercise was archived. Pick a substitute to log it. Your plan isn't changed."; **Swap exercise** (primary on the card); **Didn't do this exercise** (text) |
+| Archived after a set was logged | The ordinary logging card: its saved sets stay visible and correctable and the rest can be logged. Swap and skip are locked by the server once a set exists, so "choose a substitute" isn't shown |
 
 Both failures show under the button, keep the card as it was, and can be retried.
 

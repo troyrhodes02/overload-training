@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, View } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack } from "expo-router";
 import {
   CARDIO_TYPE_SUGGESTIONS,
   parseCardioEntry,
@@ -14,22 +14,10 @@ import { StateView } from "../ui/StateView";
 import { Text } from "../ui/Text";
 import { TextField } from "../ui/TextField";
 import { fontFamily, textSize } from "../ui/theme";
+import { useModalClose } from "../ui/use-modal-close";
 import { useTheme } from "../ui/ThemeProvider";
+import { changeFailureMessage } from "../workout/messages";
 import { cardioContextLine, type CardioTarget } from "./cardio-model";
-
-/** The message for a cardio save that never reached a server answer. */
-export function cardioFailureMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.code === "network") {
-      return "Couldn't save — Overload needs a connection. Your entries are still here.";
-    }
-    if (error.temporary) {
-      return "Couldn't save — Overload isn't responding. Your entries are still here.";
-    }
-    return error.message;
-  }
-  return "Couldn't save. Your entries are still here.";
-}
 
 type Errors = { type?: string; durationMin?: string };
 
@@ -42,12 +30,13 @@ type Errors = { type?: string; durationMin?: string };
  */
 export function CardioScreen({ target }: { target: CardioTarget | null }) {
   const { spacing } = useTheme();
+  const close = useModalClose();
   const cancel = (
     <Button
       label="Cancel"
       variant="text"
       accessibilityHint="Closes without saving"
-      onPress={() => router.back()}
+      onPress={close}
     />
   );
   if (!target) {
@@ -58,21 +47,24 @@ export function CardioScreen({ target }: { target: CardioTarget | null }) {
           <StateView
             title="This cardio isn't available."
             message="Go back and open it again."
-            action={{ label: "Close", onPress: () => router.back() }}
+            action={{ label: "Close", onPress: close }}
           />
         </View>
       </>
     );
   }
-  return <CardioForm target={target} cancel={cancel} />;
+  return <CardioForm target={target} cancel={cancel} close={close} />;
 }
 
 function CardioForm({
   target,
   cancel,
+  close,
 }: {
   target: CardioTarget;
   cancel: React.ReactNode;
+  /** Goes back once, and only while this modal is still open. */
+  close: () => void;
 }) {
   const { colors, radius, spacing } = useTheme();
   const logCardio = useLogCardio();
@@ -116,20 +108,22 @@ function CardioForm({
           Alert.alert(
             "Already logged",
             "This cardio was recorded earlier. Tap it to correct it.",
-            [{ text: "OK", onPress: () => router.back() }],
+            [{ text: "OK", onPress: close }],
           );
           return;
         }
       }
       void haptic.light();
-      router.back();
+      close();
     } catch (error) {
       void haptic.warning();
       const details = error instanceof ApiError ? error.details : {};
       if (details.type || details.durationMin) {
         setErrors({ type: details.type, durationMin: details.durationMin });
       } else {
-        setFailure(cardioFailureMessage(error));
+        setFailure(
+          changeFailureMessage(error, "save", "Your entries are still here."),
+        );
       }
     } finally {
       saving.current = false;

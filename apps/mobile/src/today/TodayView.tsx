@@ -172,27 +172,20 @@ function DashboardBlock({
         return <CardioDay entries={dashboard.cardio} week={dashboard.week} />;
       }
       return (
-        <View style={{ gap: spacing.xl }}>
-          <Surface style={{ gap: spacing.md }}>
-            <Eyebrow>{`Week ${dashboard.week}`}</Eyebrow>
-            <View style={{ flexDirection: "row", gap: spacing.md }}>
-              <Symbol
-                name="moon.zzz"
-                size={24}
-                color={colors.mutedForeground}
-              />
-              <View style={{ flex: 1, gap: spacing.xxs }}>
-                <Text size="lg" weight="semibold" accessibilityRole="header">
-                  Rest day
-                </Text>
-                <Text size="sm" tone="muted">
-                  No lifting planned today.
-                </Text>
-              </View>
+        <Surface style={{ gap: spacing.md }}>
+          <Eyebrow>{`Week ${dashboard.week}`}</Eyebrow>
+          <View style={{ flexDirection: "row", gap: spacing.md }}>
+            <Symbol name="moon.zzz" size={24} color={colors.mutedForeground} />
+            <View style={{ flex: 1, gap: spacing.xxs }}>
+              <Text size="lg" weight="semibold" accessibilityRole="header">
+                Rest day
+              </Text>
+              <Text size="sm" tone="muted">
+                No lifting planned today.
+              </Text>
             </View>
-          </Surface>
-          <CardioSection entries={dashboard.cardio} />
-        </View>
+          </View>
+        </Surface>
       );
     case "missed_day":
       return (

@@ -115,12 +115,20 @@ export function parseRepsText(text: string): number {
 export type CardMode = "log" | "not_done" | "unavailable";
 
 /**
- * How a card renders: marked not done (with Undo), an archived planned
- * exercise that needs a substitute (Pitch 21f: Swap), or loggable.
+ * How a card renders: marked not done (with Undo), an archived exercise that
+ * needs a substitute (Pitch 21f: Swap), or loggable.
+ *
+ * An exercise archived AFTER a set was logged stays loggable (Pitch 21f
+ * RD-28): the server locks swap and skip once a set exists, so "choose a
+ * substitute" would offer two actions it refuses, and would hide sets that
+ * are already history. Archiving removes an exercise from pickers, never
+ * from a workout it is already part of.
  */
 export function cardMode(card: ExerciseCardDto): CardMode {
   if (card.skipped) return "not_done";
-  if (card.performedArchived) return "unavailable";
+  if (card.performedArchived && !card.sets.some((s) => s.saved)) {
+    return "unavailable";
+  }
   return "log";
 }
 
