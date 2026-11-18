@@ -312,7 +312,7 @@ Run on the physical iPhone on the staging update (§1 D). "Web" means the stagin
 5. History → this week: the cardio line reads Done. ‹ to last week: one cardio line reads **Missed**; tap it → Log cardio → Save: it reads Done. A line marked **Upcoming** can't be tapped.
 6. **Web:** History shows the same cardio lines with the same type and minutes.
 7. **Negative:** in Log cardio clear Activity and set Minutes to 0 → "Enter the activity." and "Enter whole minutes, 1 or more." under their fields; nothing saves.
-8. Two days after seeding, the same account shows a **cardio-only day**: a "Cardio" card with a primary **Log cardio**.
+8. **Cardio-only day (optional, two days later):** the Bike is planned on a rest day two days after seeding. Open the account that day and settle the two lifting days in between (Skip it, twice): Today then shows a "Cardio" card with a primary **Log cardio** instead of the rest card.
 
 ### 15 to 17. Missed day (`21f-missed-late`, `-shift`, `-skip`)
 
@@ -341,7 +341,7 @@ After each case above, the staging web app shows the same workout, sets, RIR, sw
 
 ### 22. Isolation (`21f-isolation-a`, `21f-isolation-b`)
 
-1. As `-a`: start Upper A, log a set, swap an exercise, log today's... (it has no cardio; that's fine).
+1. As `-a`: start Upper A, log a set, and swap an exercise.
 2. Sign out, sign in as `-b`: Today shows its own Upper A, Ready, not started. History holds only its own workouts. Nothing of `-a`'s is visible anywhere.
 3. On the web, signed in as `-b`, paste the URL of one of `-a`'s workouts (copy it while signed in as `-a`): it reads not found.
 
