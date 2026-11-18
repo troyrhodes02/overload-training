@@ -62,7 +62,7 @@ The server locks the gym and the swap once a set exists, and locks new sets once
 | Swapped | "Swapped from Barbell Bench Press" under the name, muted | Card and History |
 | Not done | Muted name, "Not done today." and **Undo** | No chip color; it is a fact, not an error |
 | Unavailable (archived, no substitute) | "Unavailable — choose a substitute", destructive text, **Swap exercise** | |
-| Gym locked | The **Change gym** control is replaced by a lock glyph and "locked" | After the first set |
+| Gym locked | The **Change gym** control is removed; the gym stays in the progress line | After the first set |
 | Cardio logged | Check, the record, "Planned 20 min" under it when different | |
 | Cardio missed | Muted "Missed" and **Log** | A fact, never a prompt |
 
@@ -123,8 +123,8 @@ Modals are native modal screens on the root stack: they slide up over whatever o
 | Element | Behavior |
 | --- | --- |
 | Progress line | "Exercise 2 of 4 · Tuesday, November 17 · Northside Strength" (unchanged) |
-| **Change gym** (text button, right of the gym line's row) | Shown only while the server says the gym is not locked (no set saved in this workout). Fetches the account's gyms, then opens the action sheet "Where are you training?" with the current gym marked "(current)". Choosing another sends it; the workout reloads, so every machine and cable card shows that gym's history |
-| Locked | Once any set is saved the control is replaced by a lock glyph, read by VoiceOver as "Gym locked. Sets are logged." |
+| **Change gym** (text button, under the progress line) | Shown only while the server says the gym is not locked (no set saved in this workout). Fetches the account's gyms, then opens the action sheet "Where are you training?" with the current gym marked "(current)". Choosing another sends it; the workout reloads, so every machine and cable card shows that gym's history |
+| Locked | Once any set is saved the control is gone. The gym stays in the progress line, as in 21e, and on each machine and cable card |
 | One gym | The sheet is not opened; an inline note reads "This is your only gym. Add another on the web." |
 | Failure | An inline banner above the card: "Couldn't change the gym. …" with the client's network wording; nothing changes |
 
@@ -199,7 +199,7 @@ Both failures show under the button, keep the card as it was, and can be retried
 | --- | --- |
 | Header | Title "Swap exercise"; **Cancel** on the left closes with nothing changed |
 | Context | "Instead of Barbell Bench Press" and "Planned: Chest · today only, your plan stays the same" |
-| Muscle group chips | One horizontally scrolling row of every muscle group, in the library's order. Opens with the planned exercise's group selected and scrolled into view. Tapping another loads that group's list |
+| Muscle group chips | One horizontally scrolling row of every muscle group: the planned exercise's group first and selected, then the rest in the library's order. Tapping another loads that group's list |
 | Search | A search field over the list; filters the loaded group by name as the lifter types; a clear button |
 | List | Every active exercise the account can see in the selected group (the library and the account's own), except the one already on the card; favorites first with a star, then by name. Rows are 56 tall |
 | Choosing a row | Sends the swap. On the server's answer the modal closes and the card shows the new exercise with "Swapped from …" and its own history for this workout |
@@ -433,8 +433,9 @@ Built with `overload-mobile-ui` on the 21d and 21e system: `Surface` cards, `Chi
 ┌──────────────────────────────────┐
 │ ‹ Today      Upper A      Finish │ standard header
 │ ▬▬▬▬ ▬▬▬▬ ──── ────              │ progress segments
-│ Exercise 2 of 4 · Tue, Nov 17    │ sm muted
-│ Northside Strength   Change gym  │ sm muted · text button (before any set)
+│ Exercise 2 of 4 · Tue, Nov 17 ·  │ sm muted (the 21e line, unchanged)
+│ Northside Strength               │
+│ Change gym                       │ text button (before any set only)
 │ ┌──────────────────────────────┐ │
 │ │ Wide-Grip Lat Pulldown   (•••)│ │ 2xl semibold · More, 44×44
 │ │ 3 × 10–12 · Northside Strength│ │ muted
@@ -456,7 +457,7 @@ Built with `overload-mobile-ui` on the 21d and 21e system: `Surface` cards, `Chi
 └──────────────────────────────────┘
 ```
 
-- **After the first set:** the Change gym button becomes a lock glyph.
+- **After the first set:** the Change gym button is gone; the gym stays in the progress line.
 - **All planned sets saved:** "All 3 sets logged." then a text button **Add set**; an extra row reads "Set 4 · extra".
 - **Bodyweight:** no weight box; "3 × 8–10 · bodyweight, reps only"; RIR as usual.
 - **Fixed target:** "3 × 10".

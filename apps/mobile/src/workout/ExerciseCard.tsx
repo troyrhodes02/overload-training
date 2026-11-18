@@ -8,6 +8,7 @@ import {
   type HostInstance,
   type TextInputInstance,
 } from "react-native";
+import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   ExerciseCardDto,
@@ -18,7 +19,7 @@ import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { formatWeight, offerCaption } from "@overload/shared/logging/set-entry";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { ApiError } from "../api/errors";
-import { invalidateTraining, useLogSet } from "../api/training";
+import { invalidateTraining, useLogSet, useSetSkipped } from "../api/training";
 import { Button } from "../ui/Button";
 import { haptic } from "../ui/haptics";
 import { Symbol } from "../ui/Symbol";
@@ -26,7 +27,10 @@ import { Text } from "../ui/Text";
 import { Surface } from "../ui/Surface";
 import { fontFamily, textSize, tint } from "../ui/theme";
 import { useTheme } from "../ui/ThemeProvider";
+import { showExerciseActions } from "./exercise-actions";
 import { setValueLabel, setValueSpoken } from "./labels";
+import { changeFailureMessage, needsRefresh } from "./messages";
+import { swapHref } from "./routes";
 import {
   cardActiveSet,
   cardContext,
@@ -96,7 +100,10 @@ export function ExerciseCard({
   const { colors, radius, spacing } = useTheme();
   const client = useQueryClient();
   const logSet = useLogSet();
+  const setSkipped = useSetSkipped();
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
+  /** A swap, skip, or undo that failed or was refused (Pitch 21f). */
+  const [changeError, setChangeError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<FieldError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const weightRef = useRef<TextInputInstance>(null);
@@ -113,6 +120,8 @@ export function ExerciseCard({
     draft.weight ?? (offer ? formatWeight(offer.weightLbs) : "");
   const showCaption = needsWeight && draft.weight === null && offer !== null;
   const saving = logSet.isPending;
+  /** The exercise itself is changing: nothing else on the card may be sent. */
+  const changing = setSkipped.isPending;
   const context = cardContext(card, workout);
 
   // Focus follows the lifter's own save (never on open), and only once the
@@ -143,8 +152,44 @@ export function ExerciseCard({
     (error.field === "weight" ? weightRef : repsRef).current?.focus();
   }
 
+  function openSwap() {
+    Keyboard.dismiss();
+    setChangeError(null);
+    router.push(swapHref(workout.loggedSessionId, card.loggedExerciseId));
+  }
+
+  /** Mark not done, or undo that. The card changes only on the server's 200. */
+  async function markSkipped(skipped: boolean) {
+    if (changing || saving) return;
+    setChangeError(null);
+    try {
+      await setSkipped.mutateAsync({
+        loggedSessionId: workout.loggedSessionId,
+        loggedExerciseId: card.loggedExerciseId,
+        skipped,
+      });
+      void haptic.light();
+    } catch (error) {
+      void haptic.warning();
+      setChangeError(changeFailureMessage(error, "update this exercise"));
+      // Refused because the workout moved on elsewhere: show its real state.
+      if (needsRefresh(error)) {
+        void invalidateTraining(client, workout.loggedSessionId);
+      }
+    }
+  }
+
+  /** More: the rare things to do to this exercise (design §6, RD-14). */
+  async function openMore() {
+    // Never open a sheet over a half-covered screen.
+    Keyboard.dismiss();
+    const action = await showExerciseActions(card, workout);
+    if (action === "swap") openSwap();
+    else if (action === "skip") await markSkipped(true);
+  }
+
   async function confirm() {
-    if (active === null || saving) return;
+    if (active === null || saving || changing) return;
     const n = active;
     let weightLbs: number | null = null;
     if (needsWeight) {
@@ -211,33 +256,95 @@ export function ExerciseCard({
 
   return (
     <Surface style={{ gap: spacing.lg }}>
-      <View style={{ gap: spacing.xxs }}>
-        <Text
-          size="2xl"
-          weight="semibold"
-          accessibilityRole="header"
-          accessibilityHint={`Exercise ${position.index + 1} of ${position.total}`}
-        >
-          {card.performedExerciseName}
-        </Text>
-        <Text tone="muted">{scheme}</Text>
-        {card.swapped ? (
-          <Text size="xs" tone="muted">
-            Swapped from {card.plannedExerciseName}
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <View style={{ flex: 1, gap: spacing.xxs }}>
+          <Text
+            size="2xl"
+            weight="semibold"
+            tone={mode === "not_done" ? "muted" : "default"}
+            accessibilityRole="header"
+            accessibilityHint={`Exercise ${position.index + 1} of ${position.total}`}
+          >
+            {card.performedExerciseName}
           </Text>
+          <Text tone="muted">{scheme}</Text>
+          {card.swapped ? (
+            <Text size="xs" tone="muted">
+              Swapped from {card.plannedExerciseName}
+            </Text>
+          ) : null}
+        </View>
+        {mode !== "unavailable" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`More for ${card.performedExerciseName}`}
+            accessibilityState={{ disabled: changing }}
+            disabled={changing}
+            hitSlop={4}
+            onPress={() => void openMore()}
+            style={({ pressed }) => ({
+              width: 44,
+              height: 44,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: changing ? 0.5 : pressed ? 0.6 : 1,
+            })}
+          >
+            <Symbol
+              name="ellipsis.circle"
+              size={24}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
         ) : null}
       </View>
 
+      {changeError ? (
+        <Text
+          size="sm"
+          tone="destructive"
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          {changeError}
+        </Text>
+      ) : null}
+
       {mode === "not_done" ? (
-        <EdgeNote
-          title="Not done today."
-          message="To log it, undo that on the web."
-        />
+        <View style={{ gap: spacing.md }}>
+          <Text tone="muted">
+            Not done today. It won&apos;t count toward progression.
+          </Text>
+          <Button
+            label="Undo — I'll log it"
+            variant="secondary"
+            loading={changing}
+            onPress={() => void markSkipped(false)}
+          />
+        </View>
       ) : mode === "unavailable" ? (
-        <EdgeNote
-          title="Unavailable — this exercise was archived."
-          message="Swap it on the web, or finish without it."
-        />
+        <View style={{ gap: spacing.md }}>
+          <View style={{ gap: spacing.xxs }}>
+            <Text tone="destructive" weight="medium">
+              Unavailable — choose a substitute
+            </Text>
+            <Text size="sm" tone="muted">
+              This planned exercise was archived. Pick a substitute to log it.
+              Your plan isn&apos;t changed.
+            </Text>
+          </View>
+          <Button
+            label="Swap exercise"
+            disabled={changing}
+            onPress={openSwap}
+          />
+          <Button
+            label="Didn't do this exercise"
+            variant="text"
+            loading={changing}
+            onPress={() => void markSkipped(true)}
+          />
+        </View>
       ) : (
         <>
           <View style={{ gap: spacing.sm }}>
@@ -418,6 +525,7 @@ export function ExerciseCard({
                 saving ? `Saving set ${active}` : `Log set ${active}`
               }
               loading={saving}
+              disabled={changing}
               onPress={() => void confirm()}
             />
           ) : (
@@ -428,20 +536,6 @@ export function ExerciseCard({
         </>
       )}
     </Surface>
-  );
-}
-
-function EdgeNote({ title, message }: { title: string; message: string }) {
-  const { spacing } = useTheme();
-  return (
-    <View style={{ gap: spacing.xxs }} accessible>
-      <Text tone="muted" weight="medium">
-        {title}
-      </Text>
-      <Text size="sm" tone="muted">
-        {message}
-      </Text>
-    </View>
   );
 }
 

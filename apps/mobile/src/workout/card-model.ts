@@ -92,8 +92,8 @@ export function parseRepsText(text: string): number {
 export type CardMode = "log" | "not_done" | "unavailable";
 
 /**
- * How a card renders (RD-21): marked not done on the web, an archived planned
- * exercise with no substitute (swap is 21f), or loggable.
+ * How a card renders: marked not done (with Undo), an archived planned
+ * exercise that needs a substitute (Pitch 21f: Swap), or loggable.
  */
 export function cardMode(card: ExerciseCardDto): CardMode {
   if (card.skipped) return "not_done";

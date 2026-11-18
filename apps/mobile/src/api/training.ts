@@ -10,10 +10,15 @@ import {
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
+  ChangeGymResponseDto,
   CompleteWorkoutResponseDto,
   MissedDayResolutionDto,
+  SetSkippedResponseDto,
   StartWorkoutResponseDto,
+  SwapContextDto,
+  SwapExerciseResponseDto,
 } from "@overload/shared/contracts/logging";
+import type { MuscleGroupValue } from "@overload/shared/exercises/taxonomy";
 import type {
   LogSetRequest,
   ResolveMissedDayRequest,
@@ -46,6 +51,9 @@ export const TRAINING_KEYS = {
     ["history-week", week ?? "current"] as const,
   historyWorkout: (loggedSessionId: string) =>
     ["history-workout", loggedSessionId] as const,
+  /** The swap picker's list for one muscle group (null: the planned group). */
+  swap: (loggedExerciseId: string, muscle: MuscleGroupValue | null) =>
+    ["swap", loggedExerciseId, muscle ?? "planned"] as const,
 };
 
 const enc = encodeURIComponent;
@@ -418,6 +426,141 @@ export function useCompleteWorkout() {
       // The workout itself isn't refetched: its screen is closing, and the
       // next open reads it again (staleTime 0).
       void invalidateTraining(client);
+    },
+  });
+}
+
+/**
+ * After a write that changes what the workout's cards say (its gym, an
+ * exercise swapped or marked not done): Today and History are marked stale,
+ * and the workout is read again from the server and WAITED for, so the screen
+ * shows the server's answer, never a guess (Pitch 21f spec §7).
+ */
+export async function refreshWorkout(
+  client: QueryClient,
+  loggedSessionId: string,
+): Promise<void> {
+  const stale = { refetchType: "none" as const };
+  void client.invalidateQueries({ queryKey: TRAINING_KEYS.today, ...stale });
+  void client.invalidateQueries({ queryKey: ["history-week"], ...stale });
+  void client.invalidateQueries({ queryKey: ["history-workout"], ...stale });
+  await client.invalidateQueries({
+    queryKey: TRAINING_KEYS.workout(loggedSessionId),
+  });
+}
+
+export type ChangeGymVariables = { loggedSessionId: string; gymId: string };
+
+/**
+ * Change where the workout is logged (Pitch 21f E8). The server allows it
+ * only while the workout has no set; setting the same gym again is harmless.
+ */
+export function useChangeGym() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<ChangeGymResponseDto, ApiError, ChangeGymVariables>({
+    mutationFn: ({ loggedSessionId, gymId }) =>
+      api.request<ChangeGymResponseDto>(
+        `/workouts/${enc(loggedSessionId)}/gym`,
+        { method: "PUT", body: { gymId } },
+      ),
+    onSuccess: (_data, { loggedSessionId }) =>
+      refreshWorkout(client, loggedSessionId),
+  });
+}
+
+/** The swap picker's candidates for one muscle group (Pitch 21f E9). */
+export function useSwapCandidates(
+  loggedExerciseId: string,
+  muscle: MuscleGroupValue | null,
+) {
+  const api = useApi();
+  return useQuery<SwapContextDto, ApiError>({
+    queryKey: TRAINING_KEYS.swap(loggedExerciseId, muscle),
+    queryFn: ({ signal }) =>
+      api.request<SwapContextDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/swap-candidates${
+          muscle ? `?muscle=${enc(muscle)}` : ""
+        }`,
+        { signal },
+      ),
+    staleTime: 60_000,
+    // The last group's list stays (dimmed) while the next one loads.
+    placeholderData: keepPreviousData,
+  });
+}
+
+export type SwapExerciseVariables = {
+  loggedSessionId: string;
+  loggedExerciseId: string;
+  newExerciseId: string;
+};
+
+/**
+ * Swap what is performed in this occurrence (Pitch 21f E10). The plan is
+ * never written. The workout is read again before the picker closes, so the
+ * card shows the substitute with its own history.
+ */
+export function useSwapExercise() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<SwapExerciseResponseDto, ApiError, SwapExerciseVariables>({
+    mutationFn: ({ loggedExerciseId, newExerciseId }) =>
+      api.request<SwapExerciseResponseDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/exercise`,
+        { method: "PUT", body: { newExerciseId } },
+      ),
+    onSuccess: async (_data, { loggedSessionId, loggedExerciseId }) => {
+      client.removeQueries({ queryKey: ["swap", loggedExerciseId] });
+      await refreshWorkout(client, loggedSessionId);
+    },
+  });
+}
+
+export type SetSkippedVariables = {
+  loggedSessionId: string;
+  loggedExerciseId: string;
+  skipped: boolean;
+};
+
+/** The cached workout with one card's confirmed not-done state. */
+export function mergeConfirmedSkip(
+  view: WorkoutViewDto | undefined,
+  answer: SetSkippedResponseDto,
+): WorkoutViewDto | undefined {
+  if (!view) return view;
+  return {
+    ...view,
+    workout: {
+      ...view.workout,
+      exercises: view.workout.exercises.map((e) =>
+        e.loggedExerciseId === answer.loggedExerciseId
+          ? { ...e, skipped: answer.skipped }
+          : e,
+      ),
+    },
+  };
+}
+
+/**
+ * Mark an exercise not done, or undo that (Pitch 21f E11). The card changes
+ * only on the server's answer, with the state that answer states.
+ */
+export function useSetSkipped() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<SetSkippedResponseDto, ApiError, SetSkippedVariables>({
+    mutationFn: ({ loggedExerciseId, skipped }) =>
+      api.request<SetSkippedResponseDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/skipped`,
+        { method: "PUT", body: { skipped } },
+      ),
+    onSuccess: (answer, { loggedSessionId }) => {
+      client.setQueryData<WorkoutViewDto>(
+        TRAINING_KEYS.workout(loggedSessionId),
+        (view) => mergeConfirmedSkip(view, answer),
+      );
+      void markTrainingStale(client, loggedSessionId);
     },
   });
 }

@@ -8,3 +8,7 @@ export const summaryHref = (loggedSessionId: string) =>
 /** H2 lives in the History tab (RD-16). */
 export const loggedWorkoutHref = (loggedSessionId: string) =>
   `/history/${encodeURIComponent(loggedSessionId)}` as const;
+
+/** X1 Swap exercise: a modal over the workout (Pitch 21f RD-13). */
+export const swapHref = (loggedSessionId: string, loggedExerciseId: string) =>
+  `/workout/${encodeURIComponent(loggedSessionId)}/swap?loggedExerciseId=${encodeURIComponent(loggedExerciseId)}` as const;
