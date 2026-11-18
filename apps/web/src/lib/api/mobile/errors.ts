@@ -63,6 +63,15 @@ export function apiJson(
   });
 }
 
+/**
+ * A request whose SHAPE is wrong (a field of the wrong type): 400
+ * `validation_error`, with the message on that field. The one definition the
+ * mobile adapters share, so every endpoint answers a shape error alike.
+ */
+export function shapeError(field: string, message: string): ApiFailure {
+  return new ApiFailure("validation_error", message, { [field]: message });
+}
+
 /** `{ error: { code, message, details? } }` with the failure's status. */
 export function apiErrorResponse(failure: ApiFailure): Response {
   const body: ApiErrorBody = {

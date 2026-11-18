@@ -23,7 +23,7 @@ import type {
   SwapExerciseResponseDto,
 } from "@overload/shared/contracts/logging";
 import type { LoggedSetDto } from "@overload/shared/contracts/views";
-import { ApiFailure } from "./errors";
+import { ApiFailure, shapeError } from "./errors";
 import { toLoggedSetDto } from "./serialize";
 
 /**
@@ -39,10 +39,6 @@ import { toLoggedSetDto } from "./serialize";
  * logging cardio is keyed by its day, so a retry on a weak connection writes
  * nothing more.
  */
-
-function shapeError(field: string, message: string): ApiFailure {
-  return new ApiFailure("validation_error", message, { [field]: message });
-}
 
 /**
  * E8 `PUT /workouts/{loggedSessionId}/gym`: where this workout is logged.

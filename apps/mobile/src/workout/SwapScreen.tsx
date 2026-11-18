@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, ScrollView, TextInput, View } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack } from "expo-router";
 import type {
   SwapCandidate,
   SwapContextDto,
@@ -20,6 +20,7 @@ import { StateView } from "../ui/StateView";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
 import { fontFamily, textSize } from "../ui/theme";
+import { useModalClose } from "../ui/use-modal-close";
 import { useTheme } from "../ui/ThemeProvider";
 import { changeFailureMessage } from "./messages";
 
@@ -65,6 +66,7 @@ export function SwapScreen({
   const query = useSwapCandidates(loggedExerciseId, muscle);
   const swap = useSwapExercise();
   const choosing = useRef(false);
+  const close = useModalClose();
 
   const context: SwapContextDto | undefined = query.data;
   const shown = useMemo(
@@ -84,7 +86,7 @@ export function SwapScreen({
         newExerciseId: candidate.id,
       });
       void haptic.light();
-      router.back();
+      close();
     } catch (error) {
       void haptic.warning();
       setFailure(changeFailureMessage(error, "swap the exercise"));
@@ -102,7 +104,7 @@ export function SwapScreen({
             label="Cancel"
             variant="text"
             accessibilityHint="Closes without changing the workout"
-            onPress={() => router.back()}
+            onPress={close}
           />
         ),
       }}

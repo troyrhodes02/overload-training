@@ -3,6 +3,7 @@ import type {
   ExerciseCardDto,
   WorkoutDto,
 } from "@overload/shared/contracts/logging";
+import { savedWorkingSets } from "./card-model";
 
 /**
  * What the card's More button offers (Pitch 21f design §6, RD-14). The rows
@@ -33,7 +34,7 @@ export function exerciseActions(
     const short = fewerSetsConfirmation({
       name: card.performedExerciseName,
       plannedSets: card.plannedSets,
-      savedWorkingSets: card.sets.filter((s) => s.saved && !s.extra).length,
+      savedWorkingSets: savedWorkingSets(card),
     });
     return {
       actions: short ? ["fewer_sets"] : [],
