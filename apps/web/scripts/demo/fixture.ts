@@ -276,13 +276,206 @@ export type DemoWorkout = {
   weekIndex: number;
 };
 
+/**
+ * FIXTURE VARIANTS (Pitch 21f, spec §11). The same story, arranged so one
+ * scenario is ready to test on the anchor date. `standard` is the fixture
+ * above, unchanged. Each variant is still entirely synthetic, holds facts
+ * only, and is written through the same application write modules.
+ *
+ *  - `gym`: the split is ordered so UPPER B is the anchor day's workout. Its
+ *    machine and cable lifts were trained at Northside and at Riverside with
+ *    different weights, its dumbbell lift is the same anywhere, and a third
+ *    gym, Harbor Barbell, has no history at all.
+ *  - `bodyweight`: Upper A is a barbell lift, a bodyweight lift (Pullups), a
+ *    fixed-target lift (Incline Dumbbell Press, 3 x 10), and a bodyweight abs
+ *    lift with a fixed target (Crunches, 3 x 15), each with the full history.
+ *  - `cardio`: the active block also plans cardio on Upper A's day and on a
+ *    rest day, logged through the trained weeks (one longer than planned, one
+ *    left unlogged), so the anchor day has cardio waiting beside lifting.
+ */
+export const DEMO_VARIANTS = [
+  "standard",
+  "gym",
+  "bodyweight",
+  "cardio",
+] as const;
+export type DemoVariant = (typeof DEMO_VARIANTS)[number];
+
+export function isDemoVariant(value: unknown): value is DemoVariant {
+  return (
+    typeof value === "string" &&
+    (DEMO_VARIANTS as readonly string[]).includes(value)
+  );
+}
+
+/** Library exercises only a variant uses, by free-exercise-db source id. */
+export const VARIANT_LIBRARY = {
+  PULLUPS: "Pullups", // bodyweight: reps only, no weight
+  CRUNCHES: "Crunches", // bodyweight abs
+} as const;
+
+export type FixtureExercise = DemoExercise | keyof typeof VARIANT_LIBRARY;
+export type FixtureGym = DemoGym | "harbor";
+
+/** One exercise's sets in one workout: weight (null = bodyweight) and reps. */
+export type FixturePerf = readonly [
+  weightLbs: number | null,
+  reps: readonly number[],
+];
+
+export type FixtureSlot = {
+  ex: FixtureExercise;
+  sets: number;
+  repMin: number;
+  repMax: number;
+};
+
+export type FixtureSession = {
+  key: DemoSession["key"];
+  name: string;
+  dayOffset: number;
+  slots: FixtureSlot[];
+};
+
+export type FixtureCardio = {
+  /** Days after the block's start date (fixes the weekday). */
+  dayOffset: number;
+  type: string;
+  durationMin: number;
+};
+
+export type FixtureCardioLog = {
+  /** Trained week of the ACTIVE block, 1-based. */
+  week: number;
+  dayOffset: number;
+  type: string;
+  durationMin: number;
+};
+
+export type DemoFixture = {
+  variant: DemoVariant;
+  /** Exactly the library exercises this variant plans. */
+  library: Partial<Record<FixtureExercise, string>>;
+  gyms: Partial<Record<FixtureGym, { name: string }>>;
+  sessions: FixtureSession[];
+  performances: Partial<Record<FixtureExercise, readonly FixturePerf[]>>;
+  /** Planned cardio of the active (last) block. */
+  plannedCardio: readonly FixtureCardio[];
+  cardioLogs: readonly FixtureCardioLog[];
+};
+
+/** Bodyweight reps by trained-week index (index 4 is the deload week). */
+const BODYWEIGHT_PERFORMANCES: Record<
+  keyof typeof VARIANT_LIBRARY,
+  readonly FixturePerf[]
+> = {
+  PULLUPS: [
+    [null, [8, 7, 6]],
+    [null, [8, 8, 7]],
+    [null, [9, 8, 8]],
+    [null, [9, 9, 8]],
+    [null, [8, 8, 8]],
+    [null, [10, 9, 8]],
+    [null, [10, 9, 9]],
+    [null, [10, 10, 9]],
+  ],
+  CRUNCHES: [
+    [null, [15, 14, 12]],
+    [null, [15, 15, 13]],
+    [null, [15, 15, 14]],
+    [null, [15, 15, 15]],
+    [null, [12, 12, 12]],
+    [null, [15, 15, 14]],
+    [null, [15, 15, 15]],
+    [null, [15, 15, 15]],
+  ],
+};
+
+/** The gym variant's day order: Upper B first, so it is the anchor's workout. */
+const GYM_DAY_OFFSETS: Record<DemoSession["key"], number> = {
+  upperB: 0,
+  lowerB: 1,
+  upperA: 3,
+  lowerA: 4,
+};
+
+const CARDIO_PLAN: readonly FixtureCardio[] = [
+  { dayOffset: 0, type: "Incline Walk", durationMin: 20 },
+  { dayOffset: 2, type: "Bike", durationMin: 30 },
+];
+
+/**
+ * Cardio done in the active block's trained weeks. Week 2's walk ran longer
+ * than planned; week 3's bike is left unlogged, so History shows it missed
+ * (a fact, never a prompt).
+ */
+const CARDIO_LOGS: readonly FixtureCardioLog[] = [
+  { week: 1, dayOffset: 0, type: "Incline Walk", durationMin: 20 },
+  { week: 1, dayOffset: 2, type: "Bike", durationMin: 30 },
+  { week: 2, dayOffset: 0, type: "Incline Walk", durationMin: 25 },
+  { week: 2, dayOffset: 2, type: "Bike", durationMin: 30 },
+  { week: 3, dayOffset: 0, type: "Incline Walk", durationMin: 20 },
+];
+
+function libraryFor(
+  sessions: FixtureSession[],
+): Partial<Record<FixtureExercise, string>> {
+  const all = { ...DEMO_LIBRARY, ...VARIANT_LIBRARY };
+  const out: Partial<Record<FixtureExercise, string>> = {};
+  // Keep the base library's order, so `standard` resolves exactly as before.
+  for (const key of Object.keys(all) as FixtureExercise[]) {
+    if (sessions.some((s) => s.slots.some((slot) => slot.ex === key))) {
+      out[key] = all[key];
+    }
+  }
+  return out;
+}
+
+/** The whole fixture for one variant. Pure. */
+export function demoFixture(variant: DemoVariant = "standard"): DemoFixture {
+  let sessions: FixtureSession[] = DEMO_SESSIONS;
+  if (variant === "gym") {
+    sessions = DEMO_SESSIONS.map((s) => ({
+      ...s,
+      dayOffset: GYM_DAY_OFFSETS[s.key],
+    }));
+  } else if (variant === "bodyweight") {
+    sessions = DEMO_SESSIONS.map((s) =>
+      s.key !== "upperA"
+        ? s
+        : {
+            ...s,
+            slots: [
+              { ex: "BENCH", sets: 3, repMin: 6, repMax: 8 },
+              { ex: "PULLUPS", sets: 3, repMin: 8, repMax: 10 },
+              { ex: "INCLINE_DB", sets: 3, repMin: 10, repMax: 10 },
+              { ex: "CRUNCHES", sets: 3, repMin: 15, repMax: 15 },
+            ],
+          },
+    );
+  }
+  return {
+    variant,
+    library: libraryFor(sessions),
+    gyms:
+      variant === "gym"
+        ? { ...DEMO_GYMS, harbor: { name: "Harbor Barbell" } }
+        : DEMO_GYMS,
+    sessions,
+    performances: { ...DEMO_PERFORMANCES, ...BODYWEIGHT_PERFORMANCES },
+    plannedCardio: variant === "cardio" ? CARDIO_PLAN : [],
+    cardioLogs: variant === "cardio" ? CARDIO_LOGS : [],
+  };
+}
+
 /** Every workout in the history, oldest first. Pure. */
-export function demoWorkouts(): DemoWorkout[] {
+export function demoWorkouts(variant: DemoVariant = "standard"): DemoWorkout[] {
+  const { sessions } = demoFixture(variant);
   const out: DemoWorkout[] = [];
   let weekIndex = 0;
   for (const block of DEMO_BLOCKS) {
     for (let week = 0; week < block.weeksTrained; week++, weekIndex++) {
-      for (const session of DEMO_SESSIONS) {
+      for (const session of sessions) {
         const daysBeforeAnchor =
           block.startDaysBeforeAnchor - (week * 7 + session.dayOffset);
         out.push({
@@ -312,13 +505,16 @@ export type DemoCounts = {
   loggedSets: number;
   customExercises: number;
   goals: number;
+  plannedCardio: number;
+  cardioLogs: number;
 };
 
 /** The exact rows a successful seed creates (for the dry run and the tests). */
-export function expectedCounts(): DemoCounts {
-  const workouts = demoWorkouts();
+export function expectedCounts(variant: DemoVariant = "standard"): DemoCounts {
+  const fixture = demoFixture(variant);
+  const workouts = demoWorkouts(variant);
   const slotsPer = (key: DemoSession["key"]) =>
-    DEMO_SESSIONS.find((s) => s.key === key)!.slots;
+    fixture.sessions.find((s) => s.key === key)!.slots;
   const loggedExercises = workouts.reduce(
     (n, w) => n + slotsPer(w.session).length,
     0,
@@ -328,16 +524,18 @@ export function expectedCounts(): DemoCounts {
     0,
   );
   return {
-    gyms: Object.keys(DEMO_GYMS).length,
+    gyms: Object.keys(fixture.gyms).length,
     mesocycles: DEMO_BLOCKS.length,
-    sessions: DEMO_BLOCKS.length * DEMO_SESSIONS.length,
+    sessions: DEMO_BLOCKS.length * fixture.sessions.length,
     sessionExercises:
       DEMO_BLOCKS.length *
-      DEMO_SESSIONS.reduce((n, s) => n + s.slots.length, 0),
+      fixture.sessions.reduce((n, s) => n + s.slots.length, 0),
     loggedSessions: workouts.length,
     loggedExercises,
     loggedSets,
     customExercises: 0,
     goals: 0,
+    plannedCardio: fixture.plannedCardio.length,
+    cardioLogs: fixture.cardioLogs.length,
   };
 }
