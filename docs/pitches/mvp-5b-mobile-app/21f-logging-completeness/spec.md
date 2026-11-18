@@ -321,7 +321,7 @@ Edit         E12 weight and reps → same id, loggedExerciseId, setNumber, creat
              identical PATCH twice → identical stored values, one row
              on a COMPLETE workout → 200; the workout stays complete; completedAt unchanged
              no baseline replay: edit a set of a machine exercise whose baseline exists → the GymExerciseBaseline row is byte-identical
-             derived values follow: the History detail and the exercise's computed e1RM read the corrected numbers on the next read
+             derived values follow: the History detail and the next occurrence's last-time line read the corrected numbers on the next read
              an unknown or malformed id → 404
 Planned sets lower 3 → 2 with 2 sets logged → 200, plannedSets 2, both LoggedSets intact, the SessionExercise still 3
              2 → 2 → 200 no-op; 2 → 3 → 400; 0, 1.5, "2" → 400; a later Start of the same session copies 3 again

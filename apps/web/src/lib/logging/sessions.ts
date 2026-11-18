@@ -271,6 +271,10 @@ export async function setExerciseSkipped(
       "Sets are logged for this exercise, so it can't be marked as not done.",
     );
   }
+  // Already not done: a repeated request (a retry on a weak connection) keeps
+  // the moment it was first marked, so the same request twice writes nothing
+  // more (Pitch 21f RD-3; mobile audit).
+  if (input.skipped && le.skippedAt !== null) return;
   await tx.loggedExercise.update({
     where: { id: le.id },
     data: { skippedAt: input.skipped ? new Date() : null },
