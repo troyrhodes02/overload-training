@@ -7,14 +7,27 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import type {
+  EditCardioLogResponseDto,
+  LogCardioResponseDto,
+} from "@overload/shared/contracts/cardio";
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
+  ChangeGymResponseDto,
   CompleteWorkoutResponseDto,
+  EditPlannedSetsResponseDto,
   MissedDayResolutionDto,
+  SetSkippedResponseDto,
   StartWorkoutResponseDto,
+  SwapContextDto,
+  SwapExerciseResponseDto,
 } from "@overload/shared/contracts/logging";
+import type { MuscleGroupValue } from "@overload/shared/exercises/taxonomy";
 import type {
+  EditCardioLogRequest,
+  EditLoggedSetRequest,
+  LogCardioRequest,
   LogSetRequest,
   ResolveMissedDayRequest,
   StartWorkoutRequest,
@@ -46,6 +59,9 @@ export const TRAINING_KEYS = {
     ["history-week", week ?? "current"] as const,
   historyWorkout: (loggedSessionId: string) =>
     ["history-workout", loggedSessionId] as const,
+  /** The swap picker's list for one muscle group (null: the planned group). */
+  swap: (loggedExerciseId: string, muscle: MuscleGroupValue | null) =>
+    ["swap", loggedExerciseId, muscle ?? "planned"] as const,
 };
 
 const enc = encodeURIComponent;
@@ -76,13 +92,18 @@ export function useToday() {
   });
 }
 
-export function useWorkout(
-  loggedSessionId: string,
-  opts: { enabled?: boolean } = {},
-) {
+/**
+ * `refetchOnMount: false` is for a screen that only needs the stored values
+ * another screen already holds (Edit set): it reads the cache and fetches
+ * only when there is nothing cached.
+ */
+type ReadOptions = { enabled?: boolean; refetchOnMount?: boolean };
+
+export function useWorkout(loggedSessionId: string, opts: ReadOptions = {}) {
   const api = useApi();
   return useQuery<WorkoutViewDto, ApiError>({
     enabled: opts.enabled ?? true,
+    refetchOnMount: opts.refetchOnMount ?? true,
     queryKey: TRAINING_KEYS.workout(loggedSessionId),
     queryFn: ({ signal }) =>
       api.request<WorkoutViewDto>(`/workouts/${enc(loggedSessionId)}${CORE}`, {
@@ -106,9 +127,14 @@ export function useHistoryWeek(week: string | null) {
   });
 }
 
-export function useLoggedWorkout(loggedSessionId: string) {
+export function useLoggedWorkout(
+  loggedSessionId: string,
+  opts: ReadOptions = {},
+) {
   const api = useApi();
   return useQuery<LoggedWorkoutDetailViewDto, ApiError>({
+    enabled: opts.enabled ?? true,
+    refetchOnMount: opts.refetchOnMount ?? true,
     queryKey: TRAINING_KEYS.historyWorkout(loggedSessionId),
     queryFn: ({ signal }) =>
       api.request<LoggedWorkoutDetailViewDto>(
@@ -419,5 +445,313 @@ export function useCompleteWorkout() {
       // next open reads it again (staleTime 0).
       void invalidateTraining(client);
     },
+  });
+}
+
+/**
+ * After a write that changes what the workout's cards say (its gym, an
+ * exercise swapped or marked not done): Today and History are marked stale,
+ * and the workout is read again from the server and WAITED for, so the screen
+ * shows the server's answer, never a guess (Pitch 21f spec §7).
+ */
+export async function refreshWorkout(
+  client: QueryClient,
+  loggedSessionId: string,
+): Promise<void> {
+  const stale = { refetchType: "none" as const };
+  void client.invalidateQueries({ queryKey: TRAINING_KEYS.today, ...stale });
+  void client.invalidateQueries({ queryKey: ["history-week"], ...stale });
+  void client.invalidateQueries({ queryKey: ["history-workout"], ...stale });
+  await client.invalidateQueries({
+    queryKey: TRAINING_KEYS.workout(loggedSessionId),
+  });
+}
+
+export type ChangeGymVariables = { loggedSessionId: string; gymId: string };
+
+/**
+ * Change where the workout is logged (Pitch 21f E8). The server allows it
+ * only while the workout has no set; setting the same gym again is harmless.
+ */
+export function useChangeGym() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<ChangeGymResponseDto, ApiError, ChangeGymVariables>({
+    mutationFn: ({ loggedSessionId, gymId }) =>
+      api.request<ChangeGymResponseDto>(
+        `/workouts/${enc(loggedSessionId)}/gym`,
+        { method: "PUT", body: { gymId } },
+      ),
+    onSuccess: (_data, { loggedSessionId }) =>
+      refreshWorkout(client, loggedSessionId),
+  });
+}
+
+/** The swap picker's candidates for one muscle group (Pitch 21f E9). */
+export function useSwapCandidates(
+  loggedExerciseId: string,
+  muscle: MuscleGroupValue | null,
+) {
+  const api = useApi();
+  return useQuery<SwapContextDto, ApiError>({
+    queryKey: TRAINING_KEYS.swap(loggedExerciseId, muscle),
+    queryFn: ({ signal }) =>
+      api.request<SwapContextDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/swap-candidates${
+          muscle ? `?muscle=${enc(muscle)}` : ""
+        }`,
+        { signal },
+      ),
+    staleTime: 60_000,
+    // The last group's list stays (dimmed) while the next one loads.
+    placeholderData: keepPreviousData,
+  });
+}
+
+export type SwapExerciseVariables = {
+  loggedSessionId: string;
+  loggedExerciseId: string;
+  newExerciseId: string;
+};
+
+/**
+ * Swap what is performed in this occurrence (Pitch 21f E10). The plan is
+ * never written. The workout is read again before the picker closes, so the
+ * card shows the substitute with its own history.
+ */
+export function useSwapExercise() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<SwapExerciseResponseDto, ApiError, SwapExerciseVariables>({
+    mutationFn: ({ loggedExerciseId, newExerciseId }) =>
+      api.request<SwapExerciseResponseDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/exercise`,
+        { method: "PUT", body: { newExerciseId } },
+      ),
+    onSuccess: async (_data, { loggedSessionId, loggedExerciseId }) => {
+      // Stale, not removed: the picker is still on screen observing this
+      // list, and removing it would make it fetch again as it closes. The
+      // next open reads a fresh list (review finding 6).
+      void client.invalidateQueries({
+        queryKey: ["swap", loggedExerciseId],
+        refetchType: "none",
+      });
+      await refreshWorkout(client, loggedSessionId);
+    },
+  });
+}
+
+export type SetSkippedVariables = {
+  loggedSessionId: string;
+  loggedExerciseId: string;
+  skipped: boolean;
+};
+
+/** The cached workout with one card's confirmed not-done state. */
+export function mergeConfirmedSkip(
+  view: WorkoutViewDto | undefined,
+  answer: SetSkippedResponseDto,
+): WorkoutViewDto | undefined {
+  if (!view) return view;
+  return {
+    ...view,
+    workout: {
+      ...view.workout,
+      exercises: view.workout.exercises.map((e) =>
+        e.loggedExerciseId === answer.loggedExerciseId
+          ? { ...e, skipped: answer.skipped }
+          : e,
+      ),
+    },
+  };
+}
+
+/**
+ * Mark an exercise not done, or undo that (Pitch 21f E11). The card changes
+ * only on the server's answer, with the state that answer states.
+ */
+export function useSetSkipped() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<SetSkippedResponseDto, ApiError, SetSkippedVariables>({
+    mutationFn: ({ loggedExerciseId, skipped }) =>
+      api.request<SetSkippedResponseDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/skipped`,
+        { method: "PUT", body: { skipped } },
+      ),
+    onSuccess: async (answer, { loggedSessionId }) => {
+      const key = TRAINING_KEYS.workout(loggedSessionId);
+      // An older read still on its way must not land after this and bring
+      // the previous state back (as applyConfirmedCompletion does).
+      await client.cancelQueries({ queryKey: key });
+      client.setQueryData<WorkoutViewDto>(key, (view) =>
+        mergeConfirmedSkip(view, answer),
+      );
+      void markTrainingStale(client, loggedSessionId);
+    },
+  });
+}
+
+/** A logged workout's record with one set's corrected values (the server's). */
+export function mergeCorrectedSet(
+  view: LoggedWorkoutDetailViewDto | undefined,
+  set: LoggedSetDto,
+): LoggedWorkoutDetailViewDto | undefined {
+  if (!view) return view;
+  return {
+    ...view,
+    detail: {
+      ...view.detail,
+      exercises: view.detail.exercises.map((e) =>
+        e.loggedExerciseId !== set.loggedExerciseId
+          ? e
+          : {
+              ...e,
+              sets: e.sets.map((s) =>
+                s.loggedSetId === set.id
+                  ? {
+                      ...s,
+                      weightLbs: set.weightLbs,
+                      reps: set.reps,
+                      rir: set.rir,
+                    }
+                  : s,
+              ),
+            },
+      ),
+    },
+  };
+}
+
+export type EditSetVariables = {
+  loggedSessionId: string;
+  loggedSetId: string;
+  body: EditLoggedSetRequest;
+};
+
+/**
+ * Correct one saved set (Pitch 21f E12): values only, through the server's
+ * one set-writing path. The server's answer replaces the row in the workout
+ * and in its History record; everything else is marked stale, so progression
+ * and trends are read again from the corrected history. Sending the same
+ * correction twice stores the same values.
+ */
+export function useEditSet() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<LoggedSetDto, ApiError, EditSetVariables>({
+    mutationFn: ({ loggedSetId, body }) =>
+      api.request<LoggedSetDto>(`/sets/${enc(loggedSetId)}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: async (set, { loggedSessionId }) => {
+      const workoutKey = TRAINING_KEYS.workout(loggedSessionId);
+      const recordKey = TRAINING_KEYS.historyWorkout(loggedSessionId);
+      // A read that started before the correction would answer with the old
+      // values and overwrite it: cancel it first (review finding 3).
+      await Promise.all([
+        client.cancelQueries({ queryKey: workoutKey }),
+        client.cancelQueries({ queryKey: recordKey }),
+      ]);
+      client.setQueryData<WorkoutViewDto>(workoutKey, (view) =>
+        mergeConfirmedSet(view, set),
+      );
+      client.setQueryData<LoggedWorkoutDetailViewDto>(recordKey, (view) =>
+        mergeCorrectedSet(view, set),
+      );
+      void markTrainingStale(client, loggedSessionId);
+    },
+  });
+}
+
+export type EditPlannedSetsVariables = {
+  loggedSessionId: string;
+  loggedExerciseId: string;
+  plannedSets: number;
+};
+
+/**
+ * Lower this workout's planned-set count for one exercise (Pitch 21f E13).
+ * The server only ever lowers it, on this occurrence, and removes no set. The
+ * workout and its History record are read again before the caller goes on.
+ */
+export function useEditPlannedSets() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    EditPlannedSetsResponseDto,
+    ApiError,
+    EditPlannedSetsVariables
+  >({
+    mutationFn: ({ loggedExerciseId, plannedSets }) =>
+      api.request<EditPlannedSetsResponseDto>(
+        `/logged-exercises/${enc(loggedExerciseId)}/planned-sets`,
+        { method: "PATCH", body: { plannedSets } },
+      ),
+    onSuccess: async (_data, { loggedSessionId }) => {
+      await Promise.all([
+        refreshWorkout(client, loggedSessionId),
+        client.invalidateQueries({
+          queryKey: TRAINING_KEYS.historyWorkout(loggedSessionId),
+        }),
+      ]);
+    },
+  });
+}
+
+/**
+ * Cardio shows on Today and in History only: both are read again, and the
+ * save waits for the screens that are open (review finding 4). The form
+ * closes onto a list that already shows the new record, so reopening it at
+ * once starts from what was just saved, never from the values before.
+ */
+function invalidateCardioReads(client: QueryClient): Promise<void> {
+  return Promise.all([
+    client.invalidateQueries({ queryKey: TRAINING_KEYS.today }),
+    client.invalidateQueries({ queryKey: ["history-week"] }),
+  ]).then(() => undefined);
+}
+
+export type LogCardioVariables = {
+  mesocycleId: string;
+  scheduledFor: string;
+  body: LogCardioRequest;
+};
+
+/**
+ * Record the cardio done for one planned day (Pitch 21f E14). Keyed by the
+ * day at the server: a repeat returns the stored record untouched, with
+ * `alreadyLogged` true, so a retry can never record it twice.
+ */
+export function useLogCardio() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<LogCardioResponseDto, ApiError, LogCardioVariables>({
+    mutationFn: ({ mesocycleId, scheduledFor, body }) =>
+      api.request<LogCardioResponseDto>(
+        `/mesocycles/${enc(mesocycleId)}/cardio-logs/${enc(scheduledFor)}`,
+        { method: "PUT", body },
+      ),
+    onSuccess: () => invalidateCardioReads(client),
+  });
+}
+
+export type EditCardioVariables = {
+  cardioLogId: string;
+  body: EditCardioLogRequest;
+};
+
+/** Correct a cardio record's activity and minutes (Pitch 21f E15). */
+export function useEditCardio() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<EditCardioLogResponseDto, ApiError, EditCardioVariables>({
+    mutationFn: ({ cardioLogId, body }) =>
+      api.request<EditCardioLogResponseDto>(
+        `/cardio-logs/${enc(cardioLogId)}`,
+        { method: "PATCH", body },
+      ),
+    onSuccess: () => invalidateCardioReads(client),
   });
 }

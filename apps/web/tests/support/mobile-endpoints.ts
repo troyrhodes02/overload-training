@@ -58,6 +58,47 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/mesocycles/[mesocycleId]/missed-days/[missedOn]",
     auth: "account",
   },
+  // Pitch 21f: logging completeness
+  {
+    method: "PUT",
+    route: "api/mobile/v1/workouts/[loggedSessionId]/gym",
+    auth: "account",
+  },
+  {
+    method: "GET",
+    route: "api/mobile/v1/logged-exercises/[loggedExerciseId]/swap-candidates",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/logged-exercises/[loggedExerciseId]/exercise",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/logged-exercises/[loggedExerciseId]/skipped",
+    auth: "account",
+  },
+  {
+    method: "PATCH",
+    route: "api/mobile/v1/logged-exercises/[loggedExerciseId]/planned-sets",
+    auth: "account",
+  },
+  {
+    method: "PATCH",
+    route: "api/mobile/v1/sets/[loggedSetId]",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/cardio-logs/[scheduledFor]",
+    auth: "account",
+  },
+  {
+    method: "PATCH",
+    route: "api/mobile/v1/cardio-logs/[cardioLogId]",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,

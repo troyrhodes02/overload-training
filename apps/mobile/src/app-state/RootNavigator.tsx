@@ -29,6 +29,14 @@ export function RootNavigator({
   // The workout and its summary sit on this stack, over the tabs (Pitch 21e
   // RD-6), with the standard native header and back to the opening tab.
   const workoutHeader = { ...headerOptions, headerShown: true };
+  // A modal slides up over the screen that opened it, which stays mounted
+  // underneath, and carries its own Cancel and confirming action in its
+  // header, where the keyboard can never cover them (Pitch 21f RD-13).
+  const modalHeader = {
+    ...workoutHeader,
+    presentation: "modal" as const,
+    headerBackVisible: false,
+  };
   return (
     <Stack
       screenOptions={{
@@ -51,6 +59,16 @@ export function RootNavigator({
             gestureEnabled: false,
           }}
         />
+        {/* Pitch 21f (RD-13): a modal over the workout, with header actions. */}
+        <Stack.Screen
+          name="workout/[loggedSessionId]/swap"
+          options={modalHeader}
+        />
+        <Stack.Screen
+          name="workout/[loggedSessionId]/edit-set"
+          options={modalHeader}
+        />
+        <Stack.Screen name="cardio" options={modalHeader} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn} redirectTo={SIGNED_IN_HOME}>
         <Stack.Screen name="(auth)" />

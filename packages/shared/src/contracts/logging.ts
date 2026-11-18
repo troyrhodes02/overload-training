@@ -255,3 +255,33 @@ export type CompleteWorkoutResponseDto = {
   loggedSessionId: string;
   status: "complete";
 };
+
+/**
+ * `PUT /workouts/{loggedSessionId}/gym` (Pitch 21f): the gym every exercise of
+ * the workout is now logged at. Allowed only while the workout has no set.
+ */
+export type ChangeGymResponseDto = { loggedSessionId: string; gymId: string };
+
+/**
+ * `PUT /logged-exercises/{loggedExerciseId}/exercise` (Pitch 21f): the
+ * exercise performed in this occurrence now. The planned one never changes.
+ */
+export type SwapExerciseResponseDto = {
+  loggedExerciseId: string;
+  exerciseId: string;
+};
+
+/** `PUT /logged-exercises/{loggedExerciseId}/skipped` (Pitch 21f). */
+export type SetSkippedResponseDto = {
+  loggedExerciseId: string;
+  skipped: boolean;
+};
+
+/**
+ * `PATCH /logged-exercises/{loggedExerciseId}/planned-sets` (Pitch 21f): this
+ * occurrence's planned-set count after the call. The plan is never written.
+ */
+export type EditPlannedSetsResponseDto = {
+  loggedExerciseId: string;
+  plannedSets: number;
+};

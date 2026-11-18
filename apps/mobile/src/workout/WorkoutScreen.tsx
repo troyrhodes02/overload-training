@@ -1,10 +1,22 @@
 import { useCallback, useRef, useState } from "react";
-import { Alert, ScrollView, View, type ScrollViewInstance } from "react-native";
+import {
+  Alert,
+  Keyboard,
+  ScrollView,
+  View,
+  type ScrollViewInstance,
+} from "react-native";
 import { Stack, router } from "expo-router";
 import type { WorkoutDto } from "@overload/shared/contracts/logging";
 import { ApiError } from "../api/errors";
-import { useCompleteWorkout, useWorkout } from "../api/training";
+import {
+  useChangeGym,
+  useCompleteWorkout,
+  useFetchGyms,
+  useWorkout,
+} from "../api/training";
 import { longDateLabel } from "../today/date";
+import { pickGymFromSheet } from "../today/useStartWorkout";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { haptic } from "../ui/haptics";
@@ -23,6 +35,7 @@ import {
 } from "./card-model";
 import { ExerciseCard } from "./ExerciseCard";
 import { useKeepAboveKeyboard } from "./keep-above-keyboard";
+import { changeFailureMessage } from "./messages";
 import { loggedWorkoutHref, summaryHref } from "./routes";
 
 /** The finish confirmation (design F1), with the web runner's rule and copy. */
@@ -71,6 +84,13 @@ export function WorkoutScreen({
   const complete = useCompleteWorkout();
   const [index, setIndex] = useState<number | null>(null);
   const [finishError, setFinishError] = useState<string | null>(null);
+  const changeGym = useChangeGym();
+  const fetchGyms = useFetchGyms();
+  const [gymNote, setGymNote] = useState<{
+    tone: "error" | "info";
+    message: string;
+  } | null>(null);
+  const choosingGym = useRef(false);
   const scroll = useRef<ScrollViewInstance>(null);
   const finishing = useRef(false);
   // The active set stays above the keyboard and its keypad bar (OVE-213).
@@ -160,6 +180,47 @@ export function WorkoutScreen({
     }
   }
 
+  /**
+   * Change where this workout is logged (Pitch 21f RD-5): the same sheet Start
+   * uses, only while the server says the gym isn't locked. The workout is read
+   * again afterwards, so every machine and cable card shows that gym's history.
+   */
+  async function chooseGym() {
+    if (choosingGym.current || !workout) return;
+    choosingGym.current = true;
+    Keyboard.dismiss();
+    setGymNote(null);
+    try {
+      const { gyms } = await fetchGyms();
+      if (gyms.length <= 1) {
+        setGymNote({
+          tone: "info",
+          message: "This is your only gym. Add another on the web.",
+        });
+        return;
+      }
+      const index = await pickGymFromSheet(
+        gyms.map((g) =>
+          g.name === workout.gymName ? `${g.name} (current)` : g.name,
+        ),
+      );
+      const gym = index === null ? null : gyms[index];
+      if (!gym) return;
+      await changeGym.mutateAsync({ loggedSessionId, gymId: gym.id });
+      void haptic.light();
+    } catch (error) {
+      void haptic.warning();
+      setGymNote({
+        tone: "error",
+        message: changeFailureMessage(error, "change the gym"),
+      });
+      // Refused (a set was logged meanwhile): show the workout as it is.
+      void query.refetch();
+    } finally {
+      choosingGym.current = false;
+    }
+  }
+
   function requestFinish() {
     if (!finishable || complete.isPending || !workout) return;
     const confirm = finishConfirmation(workout);
@@ -213,6 +274,22 @@ export function WorkoutScreen({
                 : dateLine
             }
           />
+          {!workout.gymLocked && workout.gymName ? (
+            // Before the first set only: after it the server locks the gym,
+            // and the gym stays in the line above.
+            <View style={{ alignItems: "flex-start" }}>
+              <Button
+                label="Change gym"
+                variant="text"
+                loading={changeGym.isPending}
+                accessibilityHint={`This workout is at ${workout.gymName}. You can change it until the first set is logged.`}
+                onPress={() => void chooseGym()}
+              />
+            </View>
+          ) : null}
+          {gymNote ? (
+            <Banner tone={gymNote.tone} message={gymNote.message} />
+          ) : null}
           {current ? (
             <ExerciseCard
               // Keyed by occurrence, so a draft never leaks to another card.

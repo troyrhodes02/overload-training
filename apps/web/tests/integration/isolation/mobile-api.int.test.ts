@@ -87,6 +87,17 @@ import { GET as historyWorkoutRoute } from "@/app/api/mobile/v1/history/[loggedS
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import { PUT as resolveMissedDayRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/missed-days/[missedOn]/route";
 import { PUT as putSetRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/sets/[setNumber]/route";
+import { PUT as changeGymRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/gym/route";
+import { GET as swapCandidatesRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/swap-candidates/route";
+import { PUT as swapExerciseRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/exercise/route";
+import { PUT as setSkippedRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/skipped/route";
+import { PATCH as plannedSetsRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/planned-sets/route";
+import { PATCH as editSetRoute } from "@/app/api/mobile/v1/sets/[loggedSetId]/route";
+import { PUT as logCardioRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/cardio-logs/[scheduledFor]/route";
+import { PATCH as editCardioRoute } from "@/app/api/mobile/v1/cardio-logs/[cardioLogId]/route";
+import { createCustomExercise } from "@/lib/exercises/exercises";
+import { logCardio } from "@/lib/cardio/cardio-logs";
+import type { SwapContextDto } from "@overload/shared/contracts/logging";
 import { createGoal } from "@/lib/goals/goals";
 import { startOrResumeWorkout } from "@/lib/logging/sessions";
 import {
@@ -843,6 +854,426 @@ const WORKOUT_CASES: Record<string, () => void> = {
   },
 };
 
+/**
+ * Pitch 21f: the logging-completeness endpoints (spec §12, isolation cases
+ * E8–E15). For every write, B naming A's record must get exactly what it gets
+ * for a record that doesn't exist, and A's rows must not change.
+ */
+async function expectLikeMissing(
+  a: Account,
+  plan: Awaited<ReturnType<typeof activePlan>>,
+  foreign: () => ReturnType<typeof call>,
+  missing: () => ReturnType<typeof call>,
+) {
+  const aSnap = await snapshotAccount(a.userId);
+  const m = await missing();
+  const r = await foreign();
+  expect([r.status, r.body]).toEqual([m.status, m.body]);
+  expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+  for (const marker of aMarkers(a, plan)) expect(r.text).not.toContain(marker);
+  expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+}
+
+/** One of A's finished sets (twoAccounts logs two full workouts). */
+const aLoggedSet = (a: Account) =>
+  getTestPrisma().loggedSet.findFirstOrThrow({
+    where: { userId: a.userId },
+    orderBy: [{ createdAt: "asc" }, { setNumber: "asc" }],
+  });
+
+const LOGGING_CASES: Record<string, () => void> = {
+  "PUT api/mobile/v1/workouts/[loggedSessionId]/gym": () => {
+    accountEndpointMatrix(
+      "PUT /workouts/{id}/gym",
+      changeGymRoute as Handler,
+      {
+        method: "PUT",
+        json: { gymId: randomUUID() },
+        params: { loggedSessionId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /workouts/{id}/gym: isolation", () => {
+      it("B can't change the gym of A's workout, even to its own gym", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const { loggedSessionId } = await aStartsToday(a, plan);
+        const put = (id: string) =>
+          call(changeGymRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            json: { gymId: bGym.id, userId: a.userId },
+            params: { loggedSessionId: id },
+          });
+        await expectLikeMissing(
+          a,
+          plan,
+          () => put(loggedSessionId),
+          () => put(randomUUID()),
+        );
+      });
+
+      it("A can't move its workout to B's gym: it reads as unavailable", async () => {
+        const { a, plan, bGym } = await twoAccounts(lib);
+        const { loggedSessionId } = await aStartsToday(a, plan);
+        const aSnap = await snapshotAccount(a.userId);
+        const put = (gymId: string) =>
+          call(changeGymRoute as Handler, {
+            token: tokenFor(a.userId),
+            method: "PUT",
+            json: { gymId },
+            params: { loggedSessionId },
+          });
+        const missing = await put(randomUUID());
+        const foreign = await put(bGym.id);
+        expect([foreign.status, foreign.body]).toEqual([
+          missing.status,
+          missing.body,
+        ]);
+        expect([foreign.status, foreign.body.error.code]).toEqual([
+          400,
+          "validation_error",
+        ]);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/logged-exercises/[loggedExerciseId]/swap-candidates":
+    () => {
+      accountEndpointMatrix(
+        "GET /logged-exercises/{id}/swap-candidates",
+        swapCandidatesRoute as Handler,
+        { params: { loggedExerciseId: randomUUID() } },
+        404,
+      );
+      describe("GET /logged-exercises/{id}/swap-candidates: isolation", () => {
+        it("another account's exercise occurrence is a 404 with nothing of A's", async () => {
+          const { a, b, plan } = await twoAccounts(lib);
+          const { loggedExerciseId } = await aStartsToday(a, plan);
+          const get = (id: string) =>
+            call(swapCandidatesRoute as Handler, {
+              token: tokenFor(b.userId),
+              params: { loggedExerciseId: id },
+            });
+          await expectLikeMissing(
+            a,
+            plan,
+            () => get(loggedExerciseId),
+            () => get(randomUUID()),
+          );
+        });
+
+        it("lists the library and the account's own exercises, never another account's", async () => {
+          const { a, b, plan } = await twoAccounts(lib);
+          const bCustom = await createCustomExercise(b, {
+            name: "Bravo Secret Press",
+            primaryMuscle: "chest",
+            equipmentType: "other",
+          });
+          const { loggedExerciseId } = await aStartsToday(a, plan);
+          const r = await call(swapCandidatesRoute as Handler, {
+            token: tokenFor(a.userId),
+            params: { loggedExerciseId },
+            query: "muscle=chest",
+          });
+          expect(r.status).toBe(200);
+          const ctx = r.body as SwapContextDto;
+          const ids = ctx.candidates.map((c) => c.id);
+          expect(ids).toContain(plan.custom.id);
+          expect(ids).toContain(lib.incline.id);
+          expect(ids).not.toContain(bCustom.id);
+          expect(r.text).not.toContain("Bravo Secret Press");
+        });
+      });
+    },
+
+  "PUT api/mobile/v1/logged-exercises/[loggedExerciseId]/exercise": () => {
+    accountEndpointMatrix(
+      "PUT /logged-exercises/{id}/exercise",
+      swapExerciseRoute as Handler,
+      {
+        method: "PUT",
+        json: { newExerciseId: randomUUID() },
+        params: { loggedExerciseId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /logged-exercises/{id}/exercise: isolation", () => {
+      it("B can't swap A's exercise", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const { loggedExerciseId } = await aStartsToday(a, plan);
+        const put = (id: string) =>
+          call(swapExerciseRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            json: { newExerciseId: lib.incline.id, userId: a.userId },
+            params: { loggedExerciseId: id },
+          });
+        await expectLikeMissing(
+          a,
+          plan,
+          () => put(loggedExerciseId),
+          () => put(randomUUID()),
+        );
+      });
+
+      it("A can't swap to B's custom exercise: it reads as unavailable", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const bCustom = await createCustomExercise(b, {
+          name: "Bravo Secret Press",
+          primaryMuscle: "chest",
+          equipmentType: "other",
+        });
+        const { loggedExerciseId } = await aStartsToday(a, plan);
+        const aSnap = await snapshotAccount(a.userId);
+        const put = (newExerciseId: string) =>
+          call(swapExerciseRoute as Handler, {
+            token: tokenFor(a.userId),
+            method: "PUT",
+            json: { newExerciseId },
+            params: { loggedExerciseId },
+          });
+        const missing = await put(randomUUID());
+        const foreign = await put(bCustom.id);
+        expect([foreign.status, foreign.body]).toEqual([
+          missing.status,
+          missing.body,
+        ]);
+        expect(foreign.status).toBe(400);
+        expect(foreign.text).not.toContain("Bravo");
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/logged-exercises/[loggedExerciseId]/skipped": () => {
+    accountEndpointMatrix(
+      "PUT /logged-exercises/{id}/skipped",
+      setSkippedRoute as Handler,
+      {
+        method: "PUT",
+        json: { skipped: true },
+        params: { loggedExerciseId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /logged-exercises/{id}/skipped: isolation", () => {
+      it("B can't mark A's exercise not done, or undo it", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const { loggedExerciseId } = await aStartsToday(a, plan);
+        for (const skipped of [true, false]) {
+          const put = (id: string) =>
+            call(setSkippedRoute as Handler, {
+              token: tokenFor(b.userId),
+              method: "PUT",
+              json: { skipped, userId: a.userId },
+              params: { loggedExerciseId: id },
+            });
+          await expectLikeMissing(
+            a,
+            plan,
+            () => put(loggedExerciseId),
+            () => put(randomUUID()),
+          );
+        }
+      });
+    });
+  },
+
+  "PATCH api/mobile/v1/logged-exercises/[loggedExerciseId]/planned-sets":
+    () => {
+      accountEndpointMatrix(
+        "PATCH /logged-exercises/{id}/planned-sets",
+        plannedSetsRoute as Handler,
+        {
+          method: "PATCH",
+          json: { plannedSets: 1 },
+          params: { loggedExerciseId: randomUUID() },
+        },
+        404,
+      );
+      describe("PATCH /logged-exercises/{id}/planned-sets: isolation", () => {
+        it("B can't lower the planned sets of A's logged exercise", async () => {
+          const { a, b, plan } = await twoAccounts(lib);
+          const le = await getTestPrisma().loggedExercise.findFirstOrThrow({
+            where: { userId: a.userId },
+          });
+          const patch = (id: string) =>
+            call(plannedSetsRoute as Handler, {
+              token: tokenFor(b.userId),
+              method: "PATCH",
+              json: { plannedSets: 1, userId: a.userId },
+              params: { loggedExerciseId: id },
+            });
+          await expectLikeMissing(
+            a,
+            plan,
+            () => patch(le.id),
+            () => patch(randomUUID()),
+          );
+        });
+      });
+    },
+
+  "PATCH api/mobile/v1/sets/[loggedSetId]": () => {
+    accountEndpointMatrix(
+      "PATCH /sets/{id}",
+      editSetRoute as Handler,
+      {
+        method: "PATCH",
+        json: { weightLbs: 100, reps: 5 },
+        params: { loggedSetId: randomUUID() },
+      },
+      404,
+    );
+    describe("PATCH /sets/{id}: isolation", () => {
+      it("B can't correct A's logged set: a 404 like a missing set, nothing changed", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const set = await aLoggedSet(a);
+        const patch = (id: string) =>
+          call(editSetRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PATCH",
+            json: { weightLbs: 999, reps: 1, rir: 0, userId: a.userId },
+            params: { loggedSetId: id },
+          });
+        await expectLikeMissing(
+          a,
+          plan,
+          () => patch(set.id),
+          () => patch(randomUUID()),
+        );
+        expect(
+          await getTestPrisma().loggedSet.count({
+            where: { userId: b.userId },
+          }),
+        ).toBe(0);
+      });
+
+      it("A corrects its own set, and a Free account can too", async () => {
+        const { a } = await twoAccounts(lib);
+        const set = await aLoggedSet(a);
+        await getTestPrisma().entitlement.deleteMany({
+          where: { userId: a.userId },
+        });
+        const r = await call(editSetRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PATCH",
+          json: { weightLbs: 140, reps: 6 },
+          params: { loggedSetId: set.id },
+        });
+        expect(r.status).toBe(200);
+        expect(r.body as LoggedSetDto).toMatchObject({
+          id: set.id,
+          weightLbs: 140,
+          reps: 6,
+        });
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/mesocycles/[mesocycleId]/cardio-logs/[scheduledFor]":
+    () => {
+      accountEndpointMatrix(
+        "PUT /mesocycles/{id}/cardio-logs/{date}",
+        logCardioRoute as Handler,
+        {
+          method: "PUT",
+          json: { type: "Incline walk", durationMin: 20 },
+          params: { mesocycleId: randomUUID(), scheduledFor: "2026-01-05" },
+        },
+        404,
+      );
+      describe("PUT /mesocycles/{id}/cardio-logs/{date}: isolation and retry", () => {
+        const put = (
+          token: string,
+          mesocycleId: string,
+          json: unknown = { type: "Incline walk", durationMin: 25 },
+        ) =>
+          call(logCardioRoute as Handler, {
+            token,
+            method: "PUT",
+            json,
+            params: { mesocycleId, scheduledFor: todayIso() },
+          });
+        const cardioCount = (userId: string) =>
+          getTestPrisma().cardioLog.count({ where: { userId } });
+
+        it("B can't log A's planned cardio: a 404 like a missing block, no record", async () => {
+          const { a, b, plan } = await twoAccounts(lib);
+          await expectLikeMissing(
+            a,
+            plan,
+            () =>
+              put(tokenFor(b.userId), plan.meso.id, {
+                type: "Incline walk",
+                durationMin: 25,
+                userId: a.userId,
+              }),
+            () => put(tokenFor(b.userId), randomUUID()),
+          );
+          expect(await cardioCount(a.userId)).toBe(0);
+          expect(await cardioCount(b.userId)).toBe(0);
+        });
+
+        it("A logs its own once; a repeat returns the stored record", async () => {
+          const { a, plan } = await twoAccounts(lib);
+          const first = await put(tokenFor(a.userId), plan.meso.id);
+          expect([first.status, first.body.alreadyLogged]).toEqual([
+            200,
+            false,
+          ]);
+          const again = await put(tokenFor(a.userId), plan.meso.id, {
+            type: "Bike",
+            durationMin: 99,
+          });
+          expect(again.body).toEqual({
+            cardioLogId: first.body.cardioLogId,
+            alreadyLogged: true,
+          });
+          expect(await cardioCount(a.userId)).toBe(1);
+        });
+      });
+    },
+
+  "PATCH api/mobile/v1/cardio-logs/[cardioLogId]": () => {
+    accountEndpointMatrix(
+      "PATCH /cardio-logs/{id}",
+      editCardioRoute as Handler,
+      {
+        method: "PATCH",
+        json: { type: "Bike", durationMin: 30 },
+        params: { cardioLogId: randomUUID() },
+      },
+      404,
+    );
+    describe("PATCH /cardio-logs/{id}: isolation", () => {
+      it("B can't correct A's cardio record", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const { cardioLogId } = await logCardio(a, {
+          mesocycleId: plan.meso.id,
+          scheduledFor: todayIso(),
+          type: "Incline walk",
+          durationMin: 20,
+        });
+        const patch = (id: string) =>
+          call(editCardioRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PATCH",
+            json: { type: "Stolen", durationMin: 1, userId: a.userId },
+            params: { cardioLogId: id },
+          });
+        await expectLikeMissing(
+          a,
+          plan,
+          () => patch(cardioLogId),
+          () => patch(randomUUID()),
+        );
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -1205,6 +1636,7 @@ const CASES: Record<string, () => void> = {
     });
   },
   ...WORKOUT_CASES,
+  ...LOGGING_CASES,
 };
 
 // The unknown-path 404, one case per method.
