@@ -7,6 +7,12 @@ import type {
   LoggedHistoryDay,
 } from "@overload/shared/contracts/history";
 import type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
+import {
+  cardioHref,
+  cardioLabel,
+  cardioTarget,
+  type CardioTarget,
+} from "../cardio/cardio-model";
 import type {
   WeekDayDto,
   WeekDayState,
@@ -45,7 +51,7 @@ const CARDIO_LABEL: Record<CardioOccurrenceDto["state"], string> = {
   missed: "Missed",
 };
 
-/** One row of the week list: a workout or a read-only cardio line. */
+/** One row of the week list: a workout or a cardio line. */
 export type HistoryRow =
   | {
       kind: "workout";
@@ -63,6 +69,11 @@ export type HistoryRow =
       dateLabel: string;
       label: string;
       state: string | null;
+      /**
+       * What tapping the line opens (Pitch 21f): a record to correct, or a
+       * due day to log. Null for a day that hasn't come.
+       */
+      target: CardioTarget | null;
     };
 
 /**
@@ -92,8 +103,9 @@ export function historyRows(week: HistoryWeekDto): HistoryRow[] {
         dateIso: c.dateIso,
         order: 1,
         dateLabel: c.dateLabel,
-        label: `${shown.type} · ${shown.durationMin} min`,
+        label: cardioLabel(shown),
         state: CARDIO_LABEL[c.state] ?? null,
+        target: cardioTarget(c),
       });
     });
   } else {
@@ -117,8 +129,16 @@ export function historyRows(week: HistoryWeekDto): HistoryRow[] {
           dateIso: d.dateIso,
           order: 1,
           dateLabel: d.dayLabel,
-          label: `${c.type} · ${c.durationMin} min`,
+          label: cardioLabel(c),
           state: "Done",
+          // An earlier block's record: its plan isn't part of this read.
+          target: {
+            mode: "edit",
+            cardioLogId: c.cardioLogId,
+            dateLabel: d.dayLabel,
+            logged: { type: c.type, durationMin: c.durationMin },
+            planned: null,
+          },
         }),
       );
     });
@@ -229,7 +249,9 @@ export function HistoryScreen() {
                                 ? "?inProgress=1"
                                 : ""),
                           )
-                      : undefined
+                      : row.kind === "cardio" && row.target
+                        ? () => router.push(cardioHref(row.target!))
+                        : undefined
                   }
                 />
               ))}
@@ -444,7 +466,13 @@ function HistoryRowView({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityHint="Opens this workout"
+      accessibilityHint={
+        row.kind === "workout"
+          ? "Opens this workout"
+          : row.target?.mode === "edit"
+            ? "Opens this cardio to correct it"
+            : "Opens this cardio to log it"
+      }
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
     >
