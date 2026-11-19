@@ -18,6 +18,7 @@ import {
 } from "../api/training";
 import { longDateLabel } from "../today/date";
 import { pickGymFromSheet } from "../today/useStartWorkout";
+import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { haptic } from "../ui/haptics";
@@ -274,6 +275,9 @@ export function WorkoutScreen({
       >
         {/* Measured to find the scroll offset (OVE-213). */}
         <View ref={contentRef} style={{ padding: spacing.lg, gap: spacing.md }}>
+          {/* The server says this workout's date is in a scheduled-deload
+              week (Pitch 21g RD-11); every plan sees it. */}
+          {workout.scheduledDeloadWeek ? <DeloadWeekBanner /> : null}
           <ExerciseProgress
             exercises={exercises}
             index={i}

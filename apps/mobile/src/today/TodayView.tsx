@@ -35,6 +35,7 @@ import { TabScreen } from "../ui/TabScreen";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
 import { loggedWorkoutHref } from "../workout/routes";
+import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { longDateLabel, weekdayLabel } from "./date";
 import { useStartOrResume, type StartState } from "./useStartWorkout";
 
@@ -216,6 +217,11 @@ function DashboardBlock({
     default:
       return (
         <View style={{ gap: spacing.xl }}>
+          {/* Planned recovery across the split (Pitch 21g RD-11): the server's
+              flag for the day, every plan, until the day is done. */}
+          {dashboard.scheduledDeloadWeek && dashboard.kind !== "complete" ? (
+            <DeloadWeekBanner />
+          ) : null}
           <WorkoutCard day={dashboard}>
             <DayActions day={dashboard} stale={stale} starter={starter} />
           </WorkoutCard>
