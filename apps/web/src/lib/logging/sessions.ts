@@ -2,6 +2,7 @@ import "server-only";
 import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
+import { lockWorkoutForUpdate } from "@/lib/data/locks";
 import {
   mesocycleWeekForDate,
   parseIsoDate,
@@ -78,6 +79,9 @@ export async function startOrResumeWorkout(
     select: { id: true },
   });
   if (existing) {
+    // Serialize with a set being saved (OVE-220): the gym moves only while
+    // the workout truly has no set.
+    await lockWorkoutForUpdate(account, tx, { loggedSessionId: existing.id });
     const setCount = await tx.loggedSet.count({
       where: { loggedExercise: { loggedSessionId: existing.id } },
     });
@@ -139,6 +143,10 @@ export async function changeGym(
     return void (await account.db.$transaction((t) =>
       changeGym(account, input, t),
     ));
+  // Serialize with a set being saved in this workout (OVE-220).
+  await lockWorkoutForUpdate(account, tx, {
+    loggedSessionId: input.loggedSessionId,
+  });
   const workout = isUuid(input.loggedSessionId)
     ? await tx.loggedSession.findUnique({
         where: { id: input.loggedSessionId },
@@ -179,6 +187,12 @@ export async function swapExercise(
     return void (await account.db.$transaction((t) =>
       swapExercise(account, input, t),
     ));
+
+  // Serialize with a first set being saved (OVE-220): the "no sets yet"
+  // check below and the swap are then one step.
+  await lockWorkoutForUpdate(account, tx, {
+    loggedExerciseId: input.loggedExerciseId,
+  });
 
   const le = isUuid(input.loggedExerciseId)
     ? await tx.loggedExercise.findUnique({
@@ -243,6 +257,11 @@ export async function setExerciseSkipped(
     return void (await account.db.$transaction((t) =>
       setExerciseSkipped(account, input, t),
     ));
+
+  // Serialize with a set being saved (OVE-220).
+  await lockWorkoutForUpdate(account, tx, {
+    loggedExerciseId: input.loggedExerciseId,
+  });
 
   const le = isUuid(input.loggedExerciseId)
     ? await tx.loggedExercise.findUnique({
@@ -321,6 +340,11 @@ export async function editPlannedSets(
       "Planned sets must be a whole number above 0.",
     );
   }
+  // Serialize with a set being saved (OVE-220): logSet's set-number range
+  // and baseline step read plannedSets.
+  await lockWorkoutForUpdate(account, tx, {
+    loggedExerciseId: input.loggedExerciseId,
+  });
   const le = await tx.loggedExercise.findUnique({
     where: { id: input.loggedExerciseId },
     select: { id: true, plannedSets: true },
@@ -362,6 +386,12 @@ export async function completeWorkout(
     return void (await account.db.$transaction((t) =>
       completeWorkout(account, input, t),
     ));
+
+  // Serialize with a set being saved (OVE-220): no set lands after the
+  // workout is finished, and none is missed by the "not done" stamp below.
+  await lockWorkoutForUpdate(account, tx, {
+    loggedSessionId: input.loggedSessionId,
+  });
 
   const ls = isUuid(input.loggedSessionId)
     ? await tx.loggedSession.findUnique({
