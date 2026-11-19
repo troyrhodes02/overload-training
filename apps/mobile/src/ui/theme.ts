@@ -72,6 +72,23 @@ export function textSize(size: FontSize): {
   return { fontSize, lineHeight };
 }
 
+/**
+ * The type size for text a lifter TYPES into. A single-line iOS text field
+ * must not carry a line height: UIKit draws the editing text of a field with
+ * a fixed line height off its baseline, so the bottoms of letters (g, y, p, @)
+ * are clipped while the field is focused and look fine once it isn't
+ * (owner report, sign-in email, 2026-11-18). The field then sizes its line
+ * from the font itself, at every Dynamic Type size. A multiline field wraps
+ * like ordinary text and keeps the line height.
+ */
+export function inputTextSize(
+  size: FontSize,
+  opts: { multiline?: boolean } = {},
+): { fontSize: number; lineHeight?: number } {
+  const [fontSize, lineHeight] = font.sizes[size];
+  return opts.multiline ? { fontSize, lineHeight } : { fontSize };
+}
+
 /** The shared color tokens plus the status colors kept outside tokens.ts. */
 export type ThemeColors = ColorTokens & StatusColorTokens;
 
