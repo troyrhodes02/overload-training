@@ -15,7 +15,12 @@ export const DELOAD_WEEK_BANNER = `Deload week · ${Math.round(
  * voices"). It shows only when the SERVER's workout or day says the date is
  * in a deload week; the phone never works the calendar out itself.
  */
-export function DeloadWeekBanner() {
+export function DeloadWeekBanner({
+  message = DELOAD_WEEK_BANNER,
+}: {
+  /** The summary's line instead of the week banner (one look, two places). */
+  message?: string;
+} = {}) {
   const { colors, radius, spacing } = useTheme();
   return (
     <View
@@ -28,7 +33,7 @@ export function DeloadWeekBanner() {
       }}
     >
       <Text size="sm" weight="medium" tone="muted">
-        {DELOAD_WEEK_BANNER}
+        {message}
       </Text>
     </View>
   );

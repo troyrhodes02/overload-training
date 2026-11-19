@@ -1,6 +1,6 @@
 import type { LoggedWorkoutDetailDto } from "@overload/shared/contracts/logging";
 import type { SessionProgressionSummaryDto } from "@overload/shared/contracts/progression";
-import { chipFor, callWord, type InsightChip } from "./insight-model";
+import { callView, type CallView } from "./insight-model";
 
 /**
  * The full summary's rows (Pitch 21g design §6, spec §7; RD-10, RD-18). No
@@ -10,13 +10,7 @@ import { chipFor, callWord, type InsightChip } from "./insight-model";
  * isn't in the record.
  */
 
-export type SummaryCall = {
-  chip: InsightChip | null;
-  strong: boolean;
-  action: string;
-  evidence: string;
-  spokenWord: string;
-};
+export type SummaryCall = CallView;
 
 export type SummaryRow = {
   exercise: LoggedWorkoutDetailDto["exercises"][number];
@@ -47,15 +41,7 @@ export function summaryRows(
     const rec = c.recommendation;
     return {
       exercise,
-      call: rec
-        ? {
-            chip: chipFor(c.tag),
-            strong: rec.tone === "strong",
-            action: rec.action,
-            evidence: rec.evidence,
-            spokenWord: callWord(rec, c.tag),
-          }
-        : null,
+      call: rec ? callView(rec, c.tag) : null,
     };
   });
 }

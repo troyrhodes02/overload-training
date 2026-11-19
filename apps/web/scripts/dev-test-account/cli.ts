@@ -180,8 +180,9 @@ async function main() {
       console.log(`  plan now: ${await planLabel(before)}`);
       const plan = await planAccess(direct, userId, access);
       if (plan.refusal) fail(`\nREFUSED. ${plan.refusal} Nothing was changed.`);
+      const verb = args.execute ? "" : "would ";
       console.log(
-        `  switch:   ${plan.action === "nothing" ? `already ${access === "pro" ? "Pro" : "Free"}: nothing to do` : plan.action === "revoke-comp" ? "would end its comp Pro (Free)" : "would grant comp Pro (no Stripe)"}`,
+        `  switch:   ${plan.action === "nothing" ? `already ${access === "pro" ? "Pro" : "Free"}: nothing to do` : plan.action === "revoke-comp" ? `${verb}end its comp Pro (Free)` : `${verb}grant comp Pro (no Stripe)`}`,
       );
       if (!args.execute) {
         console.log("\nNothing written. Re-run with --execute to switch it.");
@@ -198,6 +199,16 @@ async function main() {
     );
 
     const plan = await planProvision(direct, auth, input);
+    // The Free scenario needs an account with no Pro at all (review #9): an
+    // existing account's comp, trial, or billing would leave it Pro.
+    if (spec.access === "free" && plan.userId) {
+      const free = await planAccess(direct, plan.userId, "free");
+      if (free.activeComps > 0 || free.activeTrial || free.billingRows > 0) {
+        fail(
+          `\nRefusing: this account already has Pro (${free.activeComps > 0 ? "comp" : free.activeTrial ? "a trial" : "a billing record"}), so it can't be the Free scenario. Use a new email${free.activeComps > 0 && !free.activeTrial && free.billingRows === 0 ? ", or run --access free first" : ""}. Nothing was changed.`,
+        );
+      }
+    }
     console.log(
       `  account:  ${plan.authUser === "exists" ? `exists (${plan.userId}); its password is not changed` : `would be created (email pre-confirmed, no email sent, ${spec.access === "free" ? "Free: no comp" : "comp Pro"})`}`,
     );

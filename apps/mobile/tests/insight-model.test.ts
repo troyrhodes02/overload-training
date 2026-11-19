@@ -140,10 +140,33 @@ describe("insightFor", () => {
     ).toEqual({ kind: "locked" });
   });
 
-  it("a fetch in flight shows loading, even over a cached call (RD-5)", () => {
+  it("the first load shows loading", () => {
+    expect(
+      insightFor(
+        { isFetching: true, isError: false, hasData: false },
+        undefined,
+      ),
+    ).toEqual({ kind: "loading" });
+  });
+
+  it("after a write that can change the call, the cached call gives way to loading (RD-5)", () => {
+    expect(
+      insightFor(
+        {
+          isFetching: true,
+          isError: false,
+          hasData: true,
+          isInvalidated: true,
+        },
+        call(),
+      ),
+    ).toEqual({ kind: "loading" });
+  });
+
+  it("an ordinary re-check keeps the shown call until the answer lands (RD-7, review #1)", () => {
     expect(
       insightFor({ isFetching: true, isError: false, hasData: true }, call()),
-    ).toEqual({ kind: "loading" });
+    ).toMatchObject({ kind: "call", action: "Try 185 lb today (+5 lb)" });
   });
 
   it("offline (a paused read) shows the error, never the cached call (RD-6)", () => {

@@ -26,7 +26,7 @@ export function useProNoteDismissed(surface: ProNoteSurface): boolean {
   return useSyncExternalStore(subscribe, () => dismissed.has(surface));
 }
 
-/** Tests only: forget every dismissal. */
+/** Forget every dismissal: on sign-out (clearAccountQueries) and in tests. */
 export function resetProNotes(): void {
   dismissed = new Set();
   listeners.forEach((l) => l());
