@@ -59,6 +59,15 @@ type Mode =
 const FIELDS = ["plannedSets", "targetRepMin", "targetRepMax"] as const;
 type Field = (typeof FIELDS)[number];
 
+/** A touch-first screen (a phone or tablet), where focusing a field opens the on-screen keyboard. */
+export function isTouchScreen(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
 /**
  * Sets and a target rep range — or one fixed target (Workout Logging
  * Refinements RD-7), saved as a range with equal ends — for one exercise in a
@@ -211,7 +220,23 @@ export function PlannedExerciseDialog({
 
   return (
     <Dialog open={open} onOpenChange={reset}>
-      <DialogContent>
+      <DialogContent
+        // A phone's screen can be shorter than this dialog (and the keyboard
+        // takes half of it): the dialog scrolls inside the viewport, so
+        // Replace, Remove, and Save are always reachable.
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto"
+        onOpenAutoFocus={(event) => {
+          // Editing on a touch screen: don't open the keyboard over the
+          // dialog. It would cover Replace exercise and Remove from session,
+          // the reason most people open it on a phone. The dialog itself
+          // takes focus; the fields are one tap away. With a mouse and a
+          // keyboard nothing changes: Sets is focused, as before.
+          if (mode.kind === "edit" && isTouchScreen()) {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement | null)?.focus();
+          }
+        }}
+      >
         <form onSubmit={onSubmit} noValidate className="grid gap-4">
           <DialogHeader className="text-left">
             <DialogTitle className="flex items-center gap-2">
