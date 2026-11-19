@@ -19,7 +19,7 @@ import { SkeletonCard } from "../ui/Skeleton";
 import { StateView } from "../ui/StateView";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
-import { fontFamily, textSize } from "../ui/theme";
+import { fontFamily, inputTextSize } from "../ui/theme";
 import { useModalClose } from "../ui/use-modal-close";
 import { useTheme } from "../ui/ThemeProvider";
 import { changeFailureMessage } from "./messages";
@@ -203,7 +203,7 @@ export function SwapScreen({
                 paddingHorizontal: spacing.md,
                 color: colors.foreground,
                 fontFamily: fontFamily.regular,
-                ...textSize("base"),
+                ...inputTextSize("base"),
               }}
             />
           ) : null}
