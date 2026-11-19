@@ -906,6 +906,7 @@ async function computeOccurrenceProgression(
         externalLoad,
         deloadLoadLbs: suggestion?.lbs ?? null,
       }),
+      insufficientNote: null,
     };
   }
 
@@ -935,6 +936,13 @@ async function computeOccurrenceProgression(
     suggestion,
     historyHref,
     recommendation,
+    // The exercise page's own not-enough-history line (Pitch 21g RD-3): set
+    // only by the engine's `insufficient` evidence, so it can never stand in
+    // for a call. A machine's line names this occurrence's gym.
+    insufficientNote: insufficientNote(
+      decision.evidence,
+      gymVariable ? (le.gym?.name ?? null) : null,
+    ),
   };
 }
 

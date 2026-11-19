@@ -14,6 +14,7 @@ import {
   useCompleteWorkout,
   useFetchGyms,
   useWorkout,
+  useWorkoutInsights,
 } from "../api/training";
 import { longDateLabel } from "../today/date";
 import { pickGymFromSheet } from "../today/useStartWorkout";
@@ -34,6 +35,7 @@ import {
   unfinishedExercises,
 } from "./card-model";
 import { ExerciseCard } from "./ExerciseCard";
+import { callForCard, insightFor } from "./insight-model";
 import { useKeepAboveKeyboard } from "./keep-above-keyboard";
 import { changeFailureMessage } from "./messages";
 import { loggedWorkoutHref, summaryHref } from "./routes";
@@ -101,6 +103,13 @@ export function WorkoutScreen({
   } = useKeepAboveKeyboard(scroll, spacing.md);
 
   const workout = query.data?.workout;
+  // The cards' calls (Pitch 21g RD-1, RD-2): a separate read of the gated
+  // workout, only while it's in progress. Logging never waits for it.
+  const insights = useWorkoutInsights(loggedSessionId, {
+    enabled: workout?.status === "in_progress",
+  });
+  /** Which cards show their evidence, by occurrence; kept across Next/Previous. */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Open on the first unfinished card once, when the workout first loads
   // (state adjusted during render, so there is no auto-advance afterwards).
   if (workout && index === null) setIndex(initialExerciseIndex(workout));
@@ -299,6 +308,26 @@ export function WorkoutScreen({
               position={{ index: i, total: exercises.length }}
               activeRowRef={activeRowRef}
               onActiveRowLayout={revealActiveRow}
+              insight={{
+                view: insightFor(
+                  {
+                    isFetching: insights.isFetching,
+                    isError: insights.isError,
+                    hasData: insights.data !== undefined,
+                  },
+                  callForCard(
+                    insights.data?.progression,
+                    current.loggedExerciseId,
+                  ),
+                ),
+                expanded: expanded[current.loggedExerciseId] === true,
+                onToggle: () =>
+                  setExpanded((e) => ({
+                    ...e,
+                    [current.loggedExerciseId]: !e[current.loggedExerciseId],
+                  })),
+                onRetry: () => void insights.refetch(),
+              }}
             />
           ) : (
             <StateView
