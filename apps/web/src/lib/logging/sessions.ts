@@ -79,6 +79,9 @@ export async function startOrResumeWorkout(
     select: { id: true },
   });
   if (existing) {
+    // Serialize with a set being saved (OVE-220): the gym moves only while
+    // the workout truly has no set.
+    await lockWorkoutForUpdate(account, tx, { loggedSessionId: existing.id });
     const setCount = await tx.loggedSet.count({
       where: { loggedExercise: { loggedSessionId: existing.id } },
     });
@@ -337,6 +340,11 @@ export async function editPlannedSets(
       "Planned sets must be a whole number above 0.",
     );
   }
+  // Serialize with a set being saved (OVE-220): logSet's set-number range
+  // and baseline step read plannedSets.
+  await lockWorkoutForUpdate(account, tx, {
+    loggedExerciseId: input.loggedExerciseId,
+  });
   const le = await tx.loggedExercise.findUnique({
     where: { id: input.loggedExerciseId },
     select: { id: true, plannedSets: true },

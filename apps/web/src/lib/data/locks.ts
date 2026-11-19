@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { isUuid } from "@/lib/actions/result";
 import type { MesocycleStatusValue } from "@overload/shared/enums";
 import type { Account } from "./account";
@@ -34,19 +35,37 @@ export async function lockMesocycleForUpdate(
   return rows[0] ?? null;
 }
 
+type HeldLocks = { sessions: Set<string>; exercises: Set<string> };
+/** Workouts (and their exercises) already locked, per open transaction. */
+const held = new WeakMap<object, HeldLocks>();
+
+function heldBy(tx: AccountTx): HeldLocks {
+  let h = held.get(tx);
+  if (!h) {
+    h = { sessions: new Set(), exercises: new Set() };
+    held.set(tx, h);
+  }
+  return h;
+}
+
 /**
- * SELECT … FOR UPDATE on one of the acting account's workouts (a
- * LoggedSession), named either directly or through one of its logged
- * exercises, inside the caller's transaction (OVE-220).
+ * Lock one of the acting account's workouts (a LoggedSession) for the rest of
+ * the caller's transaction, named directly or through one of its logged
+ * exercises (OVE-220).
  *
  * Every write that checks a workout's state and then depends on it — log a
- * set, swap or skip an exercise, change the gym, finish — takes this one lock
- * FIRST, so two requests for the same workout run one after the other and a
- * check can't be overtaken by a write it was guarding against. Without it, a
- * swap and a first set sent together could both pass their "no sets yet"
- * check, leaving the set stored against the substitute it was never performed
- * as; a gym change could move a just-saved set to another gym; and a set could
- * land in a workout that had just been finished.
+ * set, swap or skip an exercise, change the gym (directly or on resume),
+ * lower the planned sets, finish — takes this one lock FIRST, so two requests
+ * for the same workout run one after the other and a check can't be
+ * overtaken by a write it was guarding against. Without it, a swap and a
+ * first set sent together could both pass their "no sets yet" check, leaving
+ * the set stored against a substitute it was never performed as; a gym
+ * change could move a just-saved set to another gym; and a set could land in
+ * a workout that had just been finished. A static guard
+ * (tests/unit/workout-lock-guard.test.ts) keeps every such write on it.
+ *
+ * `FOR NO KEY UPDATE`: these writes conflict with each other, but not with
+ * the key-share lock a new logged exercise takes on its workout.
  *
  * One lock per workout, always taken first, so these writes can't deadlock on
  * each other. Another account's workout or exercise is simply not found
@@ -61,54 +80,31 @@ export async function lockMesocycleForUpdate(
  * Only ever called with a transaction: outside one, a lock would end with
  * its own statement.
  */
-type HeldLocks = { sessions: Set<string>; exercises: Set<string> };
-const held = new WeakMap<object, HeldLocks>();
-
-function heldBy(tx: AccountTx): HeldLocks {
-  let h = held.get(tx);
-  if (!h) {
-    h = { sessions: new Set(), exercises: new Set() };
-    held.set(tx, h);
-  }
-  return h;
-}
-
 export async function lockWorkoutForUpdate(
   account: Account,
   tx: AccountTx,
   ref: { loggedSessionId: string } | { loggedExerciseId: string },
 ): Promise<boolean> {
   const h = heldBy(tx);
-  let rows: { id: string; exerciseIds: string[] }[];
-  if ("loggedSessionId" in ref) {
-    if (!isUuid(ref.loggedSessionId)) return false;
-    if (h.sessions.has(ref.loggedSessionId)) return true;
-    rows = await tx.$queryRaw<{ id: string; exerciseIds: string[] }[]>`
-      SELECT ls."id",
-        ARRAY(SELECT le."id"::text FROM "logged_exercises" le
-              WHERE le."logged_session_id" = ls."id") AS "exerciseIds"
-      FROM "logged_sessions" ls
-      WHERE ls."id" = ${ref.loggedSessionId}::uuid
-        AND ls."user_id" = ${account.userId}::uuid
-      FOR UPDATE OF ls`;
-  } else {
-    if (!isUuid(ref.loggedExerciseId)) return false;
-    if (h.exercises.has(ref.loggedExerciseId)) return true;
-    rows = await tx.$queryRaw<{ id: string; exerciseIds: string[] }[]>`
-      SELECT ls."id",
-        ARRAY(SELECT x."id"::text FROM "logged_exercises" x
-              WHERE x."logged_session_id" = ls."id") AS "exerciseIds"
-      FROM "logged_sessions" ls
-      JOIN "logged_exercises" le ON le."logged_session_id" = ls."id"
-      WHERE le."id" = ${ref.loggedExerciseId}::uuid
-        AND le."user_id" = ${account.userId}::uuid
-        AND ls."user_id" = ${account.userId}::uuid
-      FOR UPDATE OF ls`;
-  }
+  const bySession = "loggedSessionId" in ref;
+  const id = bySession ? ref.loggedSessionId : ref.loggedExerciseId;
+  if (!isUuid(id)) return false;
+  if ((bySession ? h.sessions : h.exercises).has(id)) return true;
+  const target = bySession
+    ? Prisma.sql`ls."id" = ${id}::uuid`
+    : Prisma.sql`ls."id" = (SELECT le."logged_session_id" FROM "logged_exercises" le
+        WHERE le."id" = ${id}::uuid AND le."user_id" = ${account.userId}::uuid)`;
+  const rows = await tx.$queryRaw<{ id: string; exerciseIds: string[] }[]>`
+    SELECT ls."id",
+      ARRAY(SELECT x."id"::text FROM "logged_exercises" x
+            WHERE x."logged_session_id" = ls."id") AS "exerciseIds"
+    FROM "logged_sessions" ls
+    WHERE ${target} AND ls."user_id" = ${account.userId}::uuid
+    FOR NO KEY UPDATE OF ls`;
   const row = rows[0];
   if (!row) return false;
   h.sessions.add(row.id);
-  for (const id of row.exerciseIds) h.exercises.add(id);
+  for (const x of row.exerciseIds) h.exercises.add(x);
   return true;
 }
 

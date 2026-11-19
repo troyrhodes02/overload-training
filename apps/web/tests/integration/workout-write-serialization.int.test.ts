@@ -13,6 +13,7 @@ import { logSet } from "@/lib/logging/logged-sets";
 import {
   changeGym,
   completeWorkout,
+  editPlannedSets,
   setExerciseSkipped,
   startOrResumeWorkout,
   swapExercise,
@@ -81,10 +82,20 @@ const firstSet = (loggedExerciseId: string) => ({
   reps: 8,
 });
 
+/** Is any connection to this test database waiting on a lock right now? */
+async function someoneWaitsOnALock(): Promise<boolean> {
+  const rows = await getTestPrisma().$queryRaw<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM pg_stat_activity
+    WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+  return (rows[0]?.n ?? 0) > 0;
+}
+
 /**
- * Run `first` inside a transaction that stays open until `second` has been
- * sent and given time to (wrongly) finish, then commit it. Returns how
- * `second` settled, and whether it settled while `first` was still open.
+ * Run `first` inside a transaction that stays open while `second` is sent.
+ * It is released as soon as `second` either settles (it didn't wait: no
+ * serialization) or is SEEN waiting on a lock in Postgres (it did), or after
+ * 10 s. Returns how `second` settled, whether it was seen waiting on a lock,
+ * and whether it settled while `first` was still open.
  */
 async function overlap(
   first: (
@@ -102,32 +113,38 @@ async function overlap(
   });
   const firstTx = account.db.$transaction(
     async (tx) => {
-      await first(tx);
-      ready();
+      try {
+        await first(tx);
+      } finally {
+        // Even if `first` throws, so its error surfaces below.
+        ready();
+      }
       await held;
     },
-    { timeout: 20_000 },
+    { timeout: 30_000 },
   );
   await firstDone;
-  let settledWhileOpen = false;
-  let open = true;
+  let settled = false;
   const outcome = second().then(
     () => {
-      settledWhileOpen = open;
+      settled = true;
       return { ok: true as const };
     },
     (error: unknown) => {
-      settledWhileOpen = open;
+      settled = true;
       return { ok: false as const, error };
     },
   );
-  // Long enough for an unserialized write to have finished against the open
-  // transaction; a serialized one is still waiting on the lock.
-  await new Promise((r) => setTimeout(r, 750));
-  open = false;
+  let waited = false;
+  const deadline = Date.now() + 10_000;
+  while (!settled && !waited && Date.now() < deadline) {
+    waited = await someoneWaitsOnALock();
+    if (!waited) await new Promise((r) => setTimeout(r, 25));
+  }
+  const settledWhileOpen = settled;
   release();
   await firstTx;
-  return { ...(await outcome), settledWhileOpen };
+  return { ...(await outcome), waited, settledWhileOpen };
 }
 
 const code = (r: { ok: boolean; error?: unknown }) =>
@@ -144,7 +161,8 @@ describe("OVE-220: one workout's writes run one after the other", () => {
           newExerciseId: substituteId,
         }),
     );
-    expect([r.settledWhileOpen, code(r)]).toEqual([
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
       false,
       "invalid_state_transition",
     ]);
@@ -167,7 +185,11 @@ describe("OVE-220: one workout's writes run one after the other", () => {
         ),
       () => logSet(account, firstSet(le.id)),
     );
-    expect([r.settledWhileOpen, code(r)]).toEqual([false, "ok"]);
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
+      false,
+      "ok",
+    ]);
     const after = await getTestPrisma().loggedExercise.findUniqueOrThrow({
       where: { id: le.id },
       include: { sets: true },
@@ -186,7 +208,8 @@ describe("OVE-220: one workout's writes run one after the other", () => {
         ),
       () => logSet(account, firstSet(le.id)),
     );
-    expect([r.settledWhileOpen, code(r)]).toEqual([
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
       false,
       "invalid_state_transition",
     ]);
@@ -204,7 +227,8 @@ describe("OVE-220: one workout's writes run one after the other", () => {
       () =>
         setExerciseSkipped(account, { loggedExerciseId: le.id, skipped: true }),
     );
-    expect([r.settledWhileOpen, code(r)]).toEqual([
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
       false,
       "invalid_state_transition",
     ]);
@@ -220,7 +244,8 @@ describe("OVE-220: one workout's writes run one after the other", () => {
       (tx) => logSet(account, firstSet(le.id), tx),
       () => changeGym(account, { loggedSessionId, gymId: otherGymId }),
     );
-    expect([r.settledWhileOpen, code(r)]).toEqual([
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
       false,
       "invalid_state_transition",
     ]);
@@ -237,7 +262,8 @@ describe("OVE-220: one workout's writes run one after the other", () => {
       (tx) => completeWorkout(account, { loggedSessionId }, tx),
       () => logSet(account, { ...firstSet(le.id), setNumber: 2 }),
     );
-    expect([r.settledWhileOpen, code(r)]).toEqual([
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
       false,
       "invalid_state_transition",
     ]);
@@ -246,6 +272,49 @@ describe("OVE-220: one workout's writes run one after the other", () => {
         where: { loggedExerciseId: le.id },
       }),
     ).toBe(1);
+  });
+
+  it("a resume at another gym while the first set is saving waits, then leaves the gym alone", async () => {
+    const { le } = await startToday();
+    const r = await overlap(
+      (tx) => logSet(account, firstSet(le.id), tx),
+      () =>
+        startOrResumeWorkout(account, {
+          sessionId,
+          scheduledFor: today,
+          gymId: otherGymId,
+        }),
+    );
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
+      false,
+      "ok",
+    ]);
+    const after = await getTestPrisma().loggedExercise.findUniqueOrThrow({
+      where: { id: le.id },
+    });
+    expect(after.gymId).toBe(gymId);
+  });
+
+  it("lowering the planned sets while a set is saving waits for it", async () => {
+    const { le } = await startToday();
+    await logSet(account, firstSet(le.id));
+    await logSet(account, { ...firstSet(le.id), setNumber: 2 });
+    const r = await overlap(
+      (tx) => logSet(account, { ...firstSet(le.id), setNumber: 3 }, tx),
+      () =>
+        editPlannedSets(account, { loggedExerciseId: le.id, plannedSets: 2 }),
+    );
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      true,
+      false,
+      "ok",
+    ]);
+    const after = await getTestPrisma().loggedExercise.findUniqueOrThrow({
+      where: { id: le.id },
+      include: { sets: true },
+    });
+    expect([after.plannedSets, after.sets.length]).toEqual([2, 3]);
   });
 
   it("two sets of one workout still both save (the lock only orders them)", async () => {
@@ -281,7 +350,11 @@ describe("OVE-220: one workout's writes run one after the other", () => {
             throw new Error("locked another account's workout");
         }),
     );
-    expect([r.settledWhileOpen, code(r)]).toEqual([true, "ok"]);
+    expect([r.waited, r.settledWhileOpen, code(r)]).toEqual([
+      false,
+      true,
+      "ok",
+    ]);
     // And the other account's swap of this exercise is not found, as before.
     await expect(
       swapExercise(other, {
