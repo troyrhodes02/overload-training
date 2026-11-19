@@ -10,7 +10,7 @@ Eight new endpoints are additive under `/api/mobile/v1` (spec §6):
 - `PATCH /sets/{id}`, `PATCH /logged-exercises/{id}/planned-sets`
 - `PUT /mesocycles/{id}/cardio-logs/{date}`, `PATCH /cardio-logs/{id}`
 
-One web module changed by one rule: marking an exercise not done twice keeps the first time it was marked (spec RD-3). No web screen changed.
+One web module changed by one rule: marking an exercise not done twice keeps the first time it was marked (spec RD-3). The final fixes (§8) also serialize every workout write (OVE-220), fix the plan builder's exercise dialog on a phone (OVE-221), and count planned cardio in the account's timezone (OVE-223).
 
 One new repository command, for development only: `npm run dev:test-account` (§3).
 
@@ -92,8 +92,8 @@ Metro should be **stopped** (or simply not used): the phone loads the published 
 | --- | --- |
 | Environment / API / Supabase project | `staging` / the `overload-training-git-staging-…vercel.app` host / `vdxrmfadikwzodjljbdi` |
 | Running | `EAS update` |
-| Update group | the first 8 characters of the group in §7 |
-| Commit | the first 7 characters of the commit in §7 |
+| Update group | `edc93cdd` (the latest, §7) |
+| Commit | `9ca6dc3` |
 | Runtime | `f98506f78a` |
 
 If Diagnostics shows an older group, force-close Overload Dev and open the URL again.
@@ -361,7 +361,7 @@ On any account: finish a workout → the summary → **Done** → Today shows Do
 - **A draft is dropped when you move to another exercise** (typed numbers and an RIR choice that weren't logged), as on the web. It survives opening and closing a sheet or modal.
 - **The planned count can only go down**, and only to the sets already logged. More than planned is an extra set. There is no plan editing on the phone.
 - **Adding a gym or a custom exercise is still on the web** (21h). With one gym, Change gym says so.
-- **Cardio planned in the evening (US time) doesn't appear until the next day.** A planned cardio row counts from its creation date in UTC. This is existing web behavior, not part of this slice (owner notes).
+- **Cardio planned in the evening (US time)** used to appear only the next day (the UTC creation date). Fixed before the release by OVE-223 (§8).
 - **No progression calls, deload banner, or Pro note on the phone yet** (21g).
 
 ## 6. What stays yours
@@ -374,7 +374,57 @@ On any account: finish a workout → the summary → **Done** → Today shows Do
 
 | Checkpoint | Result | Who, when |
 | --- | --- | --- |
-| Automated | See the feature PR's owner notes (#264) for the suite results of the final commit | Run, 2026-11-17 |
-| Test-account command on `overload-dev` | Each profile created once as a throwaway `21f-verify-*@example.com` account and read back through a local API server on `overload-dev` (results in the owner notes) | Run, 2026-11-17 |
-| Staging merge and update | Staging commit, update group, update id, and runtime: in the feature PR's owner notes (#264) | Run, 2026-11-17 |
-| iPhone acceptance (§4) | **Not run.** Owner | — |
+| Automated, feature (`ad91193`) | Full suite green: web unit 2,695, mobile 369, integration 1,271; build, bundle scan, iOS export; fingerprint `f98506f78a` | Run, 2026-11-17 |
+| Test-account command on `overload-dev` | Each profile created once as a throwaway `21f-verify-*@example.com` account and read back through a local API server: 43 of 43 | Run, 2026-11-17 |
+| Staging merge and first update | #264 squash-merged as `ad91193`; update group `29a655b8-9e6d-4a10-99cc-e50eaab72c13`, runtime `f98506f78a` | Run, 2026-11-17 |
+| iPhone acceptance (§4) | **Passed for the functional checks the owner ran** (see below). Not confirmed: 22 (isolation on the phone) and 23 (appearance, larger text, VoiceOver) | Owner, 2026-11-17 to 2026-11-18 |
+| Final fixes merged (§8) | #271 (OVE-220), #272 (OVE-221), #273 (OVE-222), #274 (OVE-223); `staging` at `9ca6dc3` | Run, 2026-11-18 |
+| Automated, final (`9ca6dc3`) | Full suite green: web unit 2,707, mobile 375, integration 1,286 (105 suites), workspace boundaries 23; lint, typecheck, format, `next build`, client-bundle scan, iOS export; fingerprint `f98506f78a` | Run, 2026-11-18 |
+| Fixes on `overload-dev` | OVE-220 6 of 6, OVE-221 12 of 12, OVE-223 5 of 5 (§8) | Run, 2026-11-18 |
+| Final staging update | Group `edc93cdd-cf33-4e43-a3b6-116c84422137`, iOS update `01a1f13e-7998-75ab-bec6-e095110ba2c7`, channel and branch `staging`, commit `9ca6dc3`, runtime `f98506f78a`; the publisher found 1 staging development build that can receive it | Run, 2026-11-18 |
+| OVE-222 on the iPhone (§8) | **Not run.** Owner | — |
+| Production release | `docs/releases/2026-11-21f-logging-completeness-production.md` | Run, 2026-11-18 |
+
+**Owner's iPhone results (as reported, 2026-11-18):** gym selection and gym-specific machine history; the gym locking after sets are saved; swapping; skipping; optional RIR entry, editing, and clearing; editing sets of a finished workout; extra sets and reducing planned sets; bodyweight lifts and fixed rep targets; cardio logging with the staging web in step; missed-day handling; network failure and retry; force-close and resume. All worked.
+
+## 8. Final fixes before Production (2026-11-18)
+
+| Ticket | PR | What was wrong | What changed |
+| --- | --- | --- | --- |
+| OVE-220 | #271 | A swap (or skip, gym change, resume, planned-set edit, finish) and a set sent together for one workout could both pass their checks, so a set could be stored against a substitute, at another gym, or in a finished workout | One row lock on the workout, taken first by every write to it; a static guard keeps new writes on it. No schema change |
+| OVE-221 | #272 | On a phone, the plan builder's exercise dialog focused Sets, and the keyboard covered Replace exercise and Remove from session in a dialog that couldn't scroll | On a touch screen, editing opens without focusing a field; the dialog scrolls within the screen. Desktop unchanged |
+| OVE-222 | #273 | iPhone text fields cut the bottoms of letters while focused: a single-line field carried a fixed line height, and the focus border shrank the text area | No line height on single-line fields; the focus border takes its extra point from the padding. JavaScript only |
+| OVE-223 | #274 | Planned cardio counted from its UTC creation date, so cardio added on a US evening didn't show that day | The account's timezone, as for sessions. No stored value changes; a cardio log always shows |
+
+**Verified by the run on `overload-dev`** (local production build of `staging` at `9ca6dc3`, disposable `21f-rel-*@example.com` accounts):
+
+- **OVE-220:** real concurrent requests through the mobile API.
+  - Skip and first set sent together: 6 races, never both accepted.
+  - No exercise ended up both not done and holding a set.
+  - Two sets sent together both saved.
+  - A retried set answered 200 and added nothing.
+  - Finish and a set sent together: the late set was refused.
+- **OVE-221:** Chrome emulating a 390 × 844 touch screen. Physical phone not used.
+  - No field focused on open; Replace and Remove in view.
+  - At 390 × 420 the dialog scrolled to Remove.
+  - Cancel changed nothing; Replace swapped the exercise in place; Remove took out only that exercise.
+  - Desktop still focused Sets.
+- **OVE-223:** at 6:30 pm in Chicago (already the next day in UTC), cardio added for today through the plan UI showed on Today. It could be logged for today, and then showed as done.
+
+### Check OVE-222 on the iPhone (staging update `edc93cdd`)
+
+1. Open Overload Dev on the staging URL (§1 D). More → Diagnostics shows Update group `edc93cdd` and Commit `9ca6dc3`. If not, force-close the app and open the URL again.
+2. More → Sign out. On **Sign in**, tap Email and type an address with descenders, such as `gary.pyle@example.com`. While the field is focused, the bottoms of g, y, p, and @ are whole. Tap Password: the email still reads the same, now unfocused.
+3. Type in Password: the dots are whole and vertically centered. Submit a wrong password: the red error border keeps the text whole.
+4. Repeat in **Create account** (each field), in **Edit set** (tap a saved set), in **Log cardio** (the Activity field), and in **Swap exercise** (Search exercises).
+5. Repeat steps 2 and 4 in **Dark** (More → Appearance) and at the largest **Larger Text** size (Settings → Accessibility → Display & Text Size).
+
+### Production checks for the owner (after the release)
+
+Signed in as yourself on `https://www.overloadtraining.app`:
+
+1. **Plan builder on your phone's browser:** open a plan → a session → tap an exercise. Replace exercise and Remove from session are visible with no keyboard open. Replace one exercise, remove another, and check the session reads as expected. Cancel changes nothing.
+2. **Today and History:** Today shows today's workout or rest day as before; History shows your weeks, workouts, sets, and cardio as before.
+3. **Existing workouts:** open two or three past workouts; every set, weight, rep, RIR, swap, and gym reads as it did.
+4. **Logging on the web:** the next time you train, log sets, swap, mark an exercise not done, and finish as usual. Correct a past set from History.
+5. **Runtime logs:** Vercel → overload-training → Logs, Production, since the deploy: no new errors.
