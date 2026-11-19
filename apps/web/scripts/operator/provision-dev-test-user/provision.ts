@@ -75,6 +75,11 @@ export type ProvisionInput = {
   username: string;
   timeZone: string;
   now?: Date;
+  /**
+   * False creates the account on the Free plan: no comp Pro (Pitch 21g
+   * `free`). Default true, the tool's original behavior.
+   */
+  grantPro?: boolean;
 };
 
 export type ProvisionPlan = {
@@ -91,7 +96,7 @@ export type ProvisionResult = {
   /** Present only when THIS run generated one (a new Auth user). */
   password?: string;
   profile: "created" | "existed";
-  proComp: "granted" | "already-active";
+  proComp: "granted" | "already-active" | "not-granted";
 };
 
 export async function planProvision(
@@ -187,7 +192,9 @@ export async function executeProvision(
         where: { userId: id, source: "comp", revokedAt: null },
         select: { id: true },
       });
-      if (!comp) {
+      // A Free test account (Pitch 21g `free`) is created with no comp at
+      // all: with no Pro entitlement of any kind, its plan is Free.
+      if (!comp && input.grantPro !== false) {
         await tx.entitlement.create({
           data: {
             userId: id,
@@ -204,7 +211,7 @@ export async function executeProvision(
       }
       return {
         profile: existing ? "existed" : "created",
-        comp: !comp,
+        comp: !comp && input.grantPro !== false,
       } as const;
     });
     return {
@@ -212,7 +219,11 @@ export async function executeProvision(
       userId: id,
       ...(password ? { password } : {}),
       profile: outcome.profile,
-      proComp: outcome.comp ? "granted" : "already-active",
+      proComp: outcome.comp
+        ? "granted"
+        : input.grantPro === false
+          ? "not-granted"
+          : "already-active",
     };
   } catch (error) {
     if (createdAuth) {

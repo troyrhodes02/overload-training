@@ -344,16 +344,23 @@ describe("fixture variants", () => {
         "seeded",
         expectedCounts(variant),
       ]);
-      // Every workout is finished, and nothing is logged on the anchor.
+      // Every workout before the anchor is finished. Only `recovery` (Pitch
+      // 21g) leaves one workout open, and only today's.
       const sessions = await getTestPrisma().loggedSession.findMany({
         where: { userId: account.userId },
       });
-      expect(sessions.every((s) => s.status === "complete")).toBe(true);
-      expect(
-        sessions.every(
-          (s) => s.scheduledFor.toISOString().slice(0, 10) < anchor,
-        ),
-      ).toBe(true);
+      const day = (s: { scheduledFor: Date }) =>
+        s.scheduledFor.toISOString().slice(0, 10);
+      const past = sessions.filter((s) => day(s) < anchor);
+      const today = sessions.filter((s) => day(s) >= anchor);
+      expect(past.every((s) => s.status === "complete")).toBe(true);
+      if (demoFixture(variant).inProgressToday) {
+        expect(today.map((s) => [day(s), s.status])).toEqual([
+          [anchor, "in_progress"],
+        ]);
+      } else {
+        expect(today).toEqual([]);
+      }
       // Seeding again writes nothing.
       const before = await snapshot(account.userId);
       await expect(executeDemoSeed(account, anchor, variant)).rejects.toThrow(
@@ -373,6 +380,13 @@ describe("fixture variants", () => {
     for (const other of ["gym", "cardio"] as const) {
       expect((await inspectDemoTarget(account, other)).state).toBe("conflict");
     }
+    // Pitch 21g: variants with standard's plan and counts but other sets.
+    const hold = await seeded("hold");
+    expect(expectedCounts("hold")).toEqual(expectedCounts("standard"));
+    for (const other of ["standard", "edit", "rir"] as const) {
+      expect((await inspectDemoTarget(hold, other)).state).toBe("conflict");
+    }
+    expect((await inspectDemoTarget(hold, "hold")).state).toBe("seeded");
     const before = await snapshot(account.userId);
     await expect(executeDemoSeed(account, anchor, "standard")).rejects.toThrow(
       DemoSeedConflict,
