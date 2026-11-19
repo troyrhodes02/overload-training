@@ -52,30 +52,64 @@ export async function lockMesocycleForUpdate(
  * each other. Another account's workout or exercise is simply not found
  * (false), exactly like a missing one; the caller's own scoped read then
  * answers not_found.
+ *
+ * A row lock is held until the transaction ends, so taking it again in the
+ * same transaction changes nothing. The first lock records the workout and
+ * its exercises against the transaction, and later writes in that
+ * transaction (a seed logging a whole workout, a finish after its sets) skip
+ * the repeat query: one statement per workout, not per set (OVE-212 budget).
+ * Only ever called with a transaction: outside one, a lock would end with
+ * its own statement.
  */
+type HeldLocks = { sessions: Set<string>; exercises: Set<string> };
+const held = new WeakMap<object, HeldLocks>();
+
+function heldBy(tx: AccountTx): HeldLocks {
+  let h = held.get(tx);
+  if (!h) {
+    h = { sessions: new Set(), exercises: new Set() };
+    held.set(tx, h);
+  }
+  return h;
+}
+
 export async function lockWorkoutForUpdate(
   account: Account,
   tx: AccountTx,
   ref: { loggedSessionId: string } | { loggedExerciseId: string },
 ): Promise<boolean> {
+  const h = heldBy(tx);
+  let rows: { id: string; exerciseIds: string[] }[];
   if ("loggedSessionId" in ref) {
     if (!isUuid(ref.loggedSessionId)) return false;
-    const rows = await tx.$queryRaw<{ id: string }[]>`
-      SELECT "id" FROM "logged_sessions"
-      WHERE "id" = ${ref.loggedSessionId}::uuid
-        AND "user_id" = ${account.userId}::uuid
-      FOR UPDATE`;
-    return rows.length > 0;
+    if (h.sessions.has(ref.loggedSessionId)) return true;
+    rows = await tx.$queryRaw<{ id: string; exerciseIds: string[] }[]>`
+      SELECT ls."id",
+        ARRAY(SELECT le."id"::text FROM "logged_exercises" le
+              WHERE le."logged_session_id" = ls."id") AS "exerciseIds"
+      FROM "logged_sessions" ls
+      WHERE ls."id" = ${ref.loggedSessionId}::uuid
+        AND ls."user_id" = ${account.userId}::uuid
+      FOR UPDATE OF ls`;
+  } else {
+    if (!isUuid(ref.loggedExerciseId)) return false;
+    if (h.exercises.has(ref.loggedExerciseId)) return true;
+    rows = await tx.$queryRaw<{ id: string; exerciseIds: string[] }[]>`
+      SELECT ls."id",
+        ARRAY(SELECT x."id"::text FROM "logged_exercises" x
+              WHERE x."logged_session_id" = ls."id") AS "exerciseIds"
+      FROM "logged_sessions" ls
+      JOIN "logged_exercises" le ON le."logged_session_id" = ls."id"
+      WHERE le."id" = ${ref.loggedExerciseId}::uuid
+        AND le."user_id" = ${account.userId}::uuid
+        AND ls."user_id" = ${account.userId}::uuid
+      FOR UPDATE OF ls`;
   }
-  if (!isUuid(ref.loggedExerciseId)) return false;
-  const rows = await tx.$queryRaw<{ id: string }[]>`
-    SELECT ls."id" FROM "logged_sessions" ls
-    JOIN "logged_exercises" le ON le."logged_session_id" = ls."id"
-    WHERE le."id" = ${ref.loggedExerciseId}::uuid
-      AND le."user_id" = ${account.userId}::uuid
-      AND ls."user_id" = ${account.userId}::uuid
-    FOR UPDATE OF ls`;
-  return rows.length > 0;
+  const row = rows[0];
+  if (!row) return false;
+  h.sessions.add(row.id);
+  for (const id of row.exerciseIds) h.exercises.add(id);
+  return true;
 }
 
 /**
