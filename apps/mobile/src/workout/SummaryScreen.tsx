@@ -1,8 +1,18 @@
 import { ScrollView, View } from "react-native";
 import { Stack, router } from "expo-router";
 import type { SessionGoalRowDto } from "@overload/shared/contracts/goals";
-import { useHistoryInsights, useLoggedWorkout } from "../api/training";
-import { exerciseHeader, shortOfPlan } from "../history/LoggedWorkoutScreen";
+import {
+  TRAINING_KEYS,
+  useHistoryInsights,
+  useInsightReadState,
+  useLoggedWorkout,
+} from "../api/training";
+import {
+  exerciseHeader,
+  shortOfPlan,
+  shortOfPlanText,
+} from "../history/LoggedWorkoutScreen";
+import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { ProNote } from "../insights/ProNote";
 import { ProgressChip } from "../insights/ProgressChip";
 import { longDateLabel } from "../today/date";
@@ -41,17 +51,24 @@ export function SummaryScreen({
 }: {
   loggedSessionId: string;
 }) {
-  const { colors, radius, spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const query = useLoggedWorkout(loggedSessionId);
   const insights = useHistoryInsights(loggedSessionId);
+  const read = useInsightReadState(
+    insights,
+    TRAINING_KEYS.historyInsights(loggedSessionId),
+  );
   const detail = query.data?.detail;
   const summary = insights.data?.summary ?? null;
   const goals = insights.data?.goals ?? [];
-  // A read waiting for the connection is not current either (RD-6).
-  const callsReady =
-    !insights.isFetching && !insights.isPaused && insights.isSuccess;
-  const callsFailed =
-    insights.isPaused || (!insights.isFetching && insights.isError);
+  // The same rule as the card (insightFor): a read waiting for the
+  // connection or one that failed is never shown as current (RD-6); an
+  // ordinary re-check keeps the answer shown until the new one lands (review
+  // #2); a write that changed the evidence shows loading.
+  const callsLoading =
+    !read.isPaused && read.isFetching && (!read.hasData || read.isInvalidated);
+  const callsFailed = read.isPaused || (!read.isFetching && read.isError);
+  const callsReady = read.hasData && !callsLoading && !callsFailed;
 
   const done = () => {
     router.dismissAll();
@@ -101,18 +118,7 @@ export function SummaryScreen({
         {detail ? (
           <>
             {callsReady && summary?.scheduledDeloadWeek ? (
-              <View
-                style={{
-                  backgroundColor: colors.muted,
-                  borderRadius: radius.lg,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.sm,
-                }}
-              >
-                <Text size="sm" tone="muted">
-                  {SUMMARY_DELOAD_LINE}
-                </Text>
-              </View>
+              <DeloadWeekBanner message={SUMMARY_DELOAD_LINE} />
             ) : null}
 
             <View style={{ gap: spacing.sm }}>
@@ -125,9 +131,7 @@ export function SummaryScreen({
                       row={row}
                       first={i === 0}
                       callsLoading={
-                        insights.isFetching &&
-                        !insights.isPaused &&
-                        row.exercise.sets.length > 0
+                        callsLoading && row.exercise.sets.length > 0
                       }
                     />
                   ),
@@ -225,8 +229,7 @@ function ExerciseRow({
       )}
       {short ? (
         <Text size="xs" tone="muted">
-          {short.workingSets} of {short.plannedSets} planned sets — counts
-          toward your strength trend, not your progress check.
+          {shortOfPlanText(short)}
         </Text>
       ) : null}
       {callsLoading ? (

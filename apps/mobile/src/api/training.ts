@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useFocusEffect } from "expo-router";
 import {
   keepPreviousData,
@@ -171,6 +171,40 @@ export function useHistoryInsights(loggedSessionId: string) {
         { signal },
       ),
   });
+}
+
+/**
+ * The state the insight models read (Pitch 21g), and a re-check each time the
+ * screen comes back into view after the first (review #6): a screen that
+ * stayed mounted under a modal or another tab asks again on return. The
+ * first focus is skipped because mounting already fetches.
+ */
+export function useInsightReadState(
+  query: {
+    isFetching: boolean;
+    isError: boolean;
+    isPaused: boolean;
+    data: unknown;
+    refetch: () => Promise<unknown>;
+  },
+  queryKey: readonly unknown[],
+) {
+  const client = useQueryClient();
+  const seen = useRef(false);
+  const refetch = query.refetch;
+  useFocusEffect(
+    useCallback(() => {
+      if (seen.current) void refetch();
+      seen.current = true;
+    }, [refetch]),
+  );
+  return {
+    isFetching: query.isFetching,
+    isError: query.isError,
+    isPaused: query.isPaused,
+    hasData: query.data !== undefined,
+    isInvalidated: client.getQueryState(queryKey)?.isInvalidated ?? false,
+  };
 }
 
 /** Every insight read (both kinds, every workout). */

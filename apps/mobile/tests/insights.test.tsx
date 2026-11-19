@@ -13,7 +13,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react-native";
-import type { QueryClient } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import type { OccurrenceProgressionDto } from "@overload/shared/contracts/progression";
 import type {
   LoggedSetDto,
@@ -21,7 +21,12 @@ import type {
 } from "@overload/shared/contracts/views";
 import { ApiError } from "../src/api/errors";
 import { invalidateInsights } from "../src/api/training";
-import { resetProNotes } from "../src/insights/pro-note-store";
+import {
+  dismissProNote,
+  resetProNotes,
+  useProNoteDismissed,
+} from "../src/insights/pro-note-store";
+import { clearAccountQueries } from "../src/api/queries";
 import { WorkoutScreen } from "../src/workout/WorkoutScreen";
 import { Providers } from "./harness";
 import { card, view, workout } from "./fixtures/workout";
@@ -409,5 +414,48 @@ describe("a Free account's card", () => {
       ),
     ).toBeTruthy();
     expect(screen.queryByText("Try 260 lb today (+5 lb)")).toBeNull();
+  });
+});
+
+describe("review fixes (Pitch 21g audit)", () => {
+  it("a re-check (back to the screen, back from the background) keeps the call on screen until the answer lands", async () => {
+    let answer: ((v: WorkoutViewDto) => void) | null = null;
+    let first = true;
+    serve({
+      [CORE]: view(twoCards()),
+      [FULL]: () => {
+        if (first) {
+          first = false;
+          return withCalls([progress()]);
+        }
+        return new Promise<WorkoutViewDto>((r) => (answer = r));
+      },
+    });
+    await open();
+    await screen.findByText("Try 260 lb today (+5 lb)");
+    // A refetch that isn't an invalidation (what focus and foreground do).
+    void client.refetchQueries({ queryKey: ["workout-insights", ID] });
+    await waitFor(() => expect(answer).not.toBeNull());
+    expect(screen.getByText("Try 260 lb today (+5 lb)")).toBeTruthy();
+    expect(screen.queryByTestId("insight-loading")).toBeNull();
+    await act(async () => answer!(withCalls([locked("le-bench")])));
+    expect(
+      await screen.findByText(
+        "Progress, hold, and deload calls for this lift are part of Pro.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("signing out forgets a dismissed Pro note, so the next account sees it", async () => {
+    const seen: boolean[] = [];
+    function Probe() {
+      seen.push(useProNoteDismissed("exercise-card"));
+      return null;
+    }
+    await render(<Probe />);
+    await act(async () => dismissProNote("exercise-card"));
+    expect(seen.at(-1)).toBe(true);
+    await act(async () => clearAccountQueries(new QueryClient()));
+    expect(seen.at(-1)).toBe(false);
   });
 });

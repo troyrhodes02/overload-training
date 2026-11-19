@@ -13,6 +13,8 @@ import {
   useChangeGym,
   useCompleteWorkout,
   useFetchGyms,
+  TRAINING_KEYS,
+  useInsightReadState,
   useWorkout,
   useWorkoutInsights,
 } from "../api/training";
@@ -109,6 +111,10 @@ export function WorkoutScreen({
   const insights = useWorkoutInsights(loggedSessionId, {
     enabled: workout?.status === "in_progress",
   });
+  const insightRead = useInsightReadState(
+    insights,
+    TRAINING_KEYS.workoutInsights(loggedSessionId),
+  );
   /** Which cards show their evidence, by occurrence; kept across Next/Previous. */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Open on the first unfinished card once, when the workout first loads
@@ -314,12 +320,7 @@ export function WorkoutScreen({
               onActiveRowLayout={revealActiveRow}
               insight={{
                 view: insightFor(
-                  {
-                    isFetching: insights.isFetching,
-                    isError: insights.isError,
-                    isPaused: insights.isPaused,
-                    hasData: insights.data !== undefined,
-                  },
+                  insightRead,
                   callForCard(
                     insights.data?.progression,
                     current.loggedExerciseId,

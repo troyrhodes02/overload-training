@@ -83,14 +83,22 @@ export type InsightReadState = {
   isPaused?: boolean;
   /** An answer has arrived at least once. */
   hasData: boolean;
+  /**
+   * A write that can change the call marked this read stale
+   * (invalidateInsights), so the answer on screen is known to be old.
+   */
+  isInvalidated?: boolean;
 };
 
 /**
  * What the card shows for one exercise. Order matters:
  *
- *  1. a fetch in flight → loading, so an older call is never shown as current
- *     while a newer one is on its way (after a correction, a gym change, an
- *     entitlement change, a return to the screen);
+ *  1. a fetch in flight with no answer yet, or after a write that can change
+ *     the call (a correction, a gym change, a swap) → loading, so a call
+ *     known to be old is never shown as current. An ordinary re-check (back
+ *     to the screen, back from the background) keeps the answer shown until
+ *     the new one lands, so the block never jumps under the lifter's thumb
+ *     (RD-7; review #1); a locked or changed answer replaces it on arrival;
  *  2. the latest fetch failed, or is waiting for a connection → error, even
  *     when an older answer is cached (RD-6: a read that couldn't happen never
  *     shows a stale conclusion as current; a paused read resumes, and loads,
@@ -105,24 +113,32 @@ export function insightFor(
   call: OccurrenceProgressionDto | undefined,
 ): InsightView {
   if (read.isPaused) return { kind: "error" };
-  if (read.isFetching) return { kind: "loading" };
+  if (read.isFetching && (!read.hasData || read.isInvalidated))
+    return { kind: "loading" };
   if (read.isError) return { kind: "error" };
   if (!read.hasData || !call) return { kind: "none" };
   if (call.locked !== null) return { kind: "locked" };
   const rec = call.recommendation;
-  if (rec) {
-    return {
-      kind: "call",
-      chip: chipFor(call.tag),
-      strong: rec.tone === "strong",
-      action: rec.action,
-      evidence: rec.evidence,
-      spokenWord: callWord(rec, call.tag),
-    };
-  }
+  if (rec) return { kind: "call", ...callView(rec, call.tag) };
   const note = call.insufficientNote ?? null;
   if (note) return { kind: "insufficient", note };
   return { kind: "none" };
+}
+
+export type CallView = Omit<Extract<InsightView, { kind: "call" }>, "kind">;
+
+/** One server call as both the card and the summary show it (review #7). */
+export function callView(
+  rec: RecommendationDto,
+  tag: ProgressionTag | null,
+): CallView {
+  return {
+    chip: chipFor(tag),
+    strong: rec.tone === "strong",
+    action: rec.action,
+    evidence: rec.evidence,
+    spokenWord: callWord(rec, tag),
+  };
 }
 
 /** The call for one card, out of the workout's gated `progression` list. */

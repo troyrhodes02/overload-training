@@ -116,7 +116,7 @@ Each account is disposable and lives only in `overload-dev`. It's seeded with th
 
 A **profile** changes only facts (the sets lifted, their RIR, or the block's deload cadence), so that today the unchanged engine reaches one call. Every promise below was checked through the gated card reader by `tests/integration/dev-test-account-profiles.int.test.ts` (19 tests, passing). The command also prints an **engine check** for the account it just made.
 
-Today's workout is **Upper A** unless noted: Barbell Bench Press 3 × 6–8, Standing Military Press 3 × 6–8, Incline Dumbbell Press 3 × 8–12, and Wide-Grip Lat Pulldown 3 × 10–12 (a cable: its call is per gym). The default gym is Northside Strength.
+Today's workout is **Upper A** unless noted: Barbell Bench Press (shown in the app as **Barbell Bench Press - Medium Grip**; "Bench" below) 3 × 6–8, Standing Military Press 3 × 6–8, Incline Dumbbell Press 3 × 8–12, and Wide-Grip Lat Pulldown 3 × 10–12 (a cable: its call is per gym). The default gym is Northside Strength.
 
 | Email | Profile | Plan | Verified starting state (today's card) |
 | --- | --- | --- | --- |
