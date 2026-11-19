@@ -3,6 +3,7 @@ import { accountToday, type Account } from "@/lib/data/account";
 import type { AccountDb, AccountTx } from "@/lib/data/account-db";
 import { DomainError, isUuid } from "@/lib/actions/result";
 import {
+  isoDateInZone,
   mesocycleWeekForDate,
   parseIsoDate,
   toIsoDate,
@@ -120,7 +121,8 @@ async function logCardioInTx(
     dayOfWeek: p.dayOfWeek,
     type: p.type,
     durationMin: p.durationMin,
-    createdIso: toIsoDate(p.createdAt),
+    // Same floor as the reads (getCardioWeek): the account's calendar day.
+    createdIso: isoDateInZone(p.createdAt, account.timeZone),
   }));
   const occurrence =
     week === null

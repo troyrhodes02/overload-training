@@ -7,6 +7,12 @@ import type {
   MissedDayInfo,
 } from "@overload/shared/contracts/logging";
 import type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
+import {
+  cardioHref,
+  cardioLabel,
+  cardioTarget,
+  plannedComparison,
+} from "../cardio/cardio-model";
 import type { TodayDto } from "@overload/shared/contracts/views";
 import {
   TRAINING_KEYS,
@@ -160,28 +166,26 @@ function DashboardBlock({
         />
       );
     case "rest":
+      // A cardio-only day: the cardio is the day's training, so it is the
+      // focal block with the primary action (Pitch 21f; the web's layout).
+      if (dashboard.cardio.length > 0) {
+        return <CardioDay entries={dashboard.cardio} week={dashboard.week} />;
+      }
       return (
-        <View style={{ gap: spacing.xl }}>
-          <Surface style={{ gap: spacing.md }}>
-            <Eyebrow>{`Week ${dashboard.week}`}</Eyebrow>
-            <View style={{ flexDirection: "row", gap: spacing.md }}>
-              <Symbol
-                name="moon.zzz"
-                size={24}
-                color={colors.mutedForeground}
-              />
-              <View style={{ flex: 1, gap: spacing.xxs }}>
-                <Text size="lg" weight="semibold" accessibilityRole="header">
-                  Rest day
-                </Text>
-                <Text size="sm" tone="muted">
-                  No lifting planned today.
-                </Text>
-              </View>
+        <Surface style={{ gap: spacing.md }}>
+          <Eyebrow>{`Week ${dashboard.week}`}</Eyebrow>
+          <View style={{ flexDirection: "row", gap: spacing.md }}>
+            <Symbol name="moon.zzz" size={24} color={colors.mutedForeground} />
+            <View style={{ flex: 1, gap: spacing.xxs }}>
+              <Text size="lg" weight="semibold" accessibilityRole="header">
+                Rest day
+              </Text>
+              <Text size="sm" tone="muted">
+                No lifting planned today.
+              </Text>
             </View>
-          </Surface>
-          <CardioSection entries={dashboard.cardio} />
-        </View>
+          </View>
+        </Surface>
       );
     case "missed_day":
       return (
@@ -578,48 +582,147 @@ function MissedDayCard({
   );
 }
 
-/** Planned cardio, read-only: logging it is 21f. */
-function CardioSection({ entries }: { entries: CardioOccurrenceDto[] }) {
+const openCardio = (entry: CardioOccurrenceDto) => {
+  const target = cardioTarget(entry);
+  if (target) router.push(cardioHref(target));
+};
+
+/**
+ * One cardio line (Pitch 21f design T1): the plan with a Log action, or the
+ * record (and the plan, when it differs) which opens for correction. Type and
+ * minutes only: no tag, total, or timer.
+ */
+function CardioRow({
+  entry,
+  first,
+  showLog,
+}: {
+  entry: CardioOccurrenceDto;
+  first: boolean;
+  /** False on a cardio-only day, where the primary button logs it. */
+  showLog: boolean;
+}) {
   const { colors, spacing } = useTheme();
+  const shown = entry.log ?? entry.planned;
+  const comparison = plannedComparison(entry);
+  const content = (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+        minHeight: 60,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        borderTopWidth: first ? 0 : 1,
+        borderTopColor: colors.border,
+      }}
+    >
+      <Symbol
+        name={entry.log ? "checkmark" : "figure.run"}
+        size={18}
+        color={entry.log ? colors.progress : colors.mutedForeground}
+      />
+      <View style={{ flex: 1, gap: spacing.xxs }}>
+        <Text>{cardioLabel(shown)}</Text>
+        <Text size="sm" tone="muted">
+          {entry.log ? (comparison ?? "Cardio · logged") : "Planned cardio"}
+        </Text>
+      </View>
+      {entry.log ? (
+        <Symbol name="chevron.right" size={13} color={colors.mutedForeground} />
+      ) : showLog ? (
+        <Button
+          label="Log"
+          variant="secondary"
+          size="md"
+          accessibilityLabel={`Log cardio: ${entry.planned.type}, ${entry.dateLabel}`}
+          onPress={() => openCardio(entry)}
+        />
+      ) : null}
+    </View>
+  );
+  if (!entry.log) return content;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Cardio logged: ${entry.log.type}, ${entry.log.durationMin} minutes, ${entry.dateLabel}`}
+      accessibilityHint="Opens this cardio to correct it"
+      onPress={() => openCardio(entry)}
+      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
+/** Cardio beside the day's lifting: lifting keeps the primary action. */
+function CardioSection({ entries }: { entries: CardioOccurrenceDto[] }) {
+  const { spacing } = useTheme();
   if (entries.length === 0) return null;
   return (
     <View style={{ gap: spacing.sm }}>
       <SectionHeader title="Also today" />
       <Surface padded={false}>
-        {entries.map((c, i) => {
-          const shown = c.log ?? c.planned;
-          return (
-            <View
-              key={`${c.mesocycleId}-${c.scheduledFor}`}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.md,
-                paddingHorizontal: spacing.lg,
-                paddingVertical: spacing.md,
-                borderTopWidth: i > 0 ? 1 : 0,
-                borderTopColor: colors.border,
-              }}
-            >
-              <Symbol
-                name="figure.run"
-                size={18}
-                color={colors.mutedForeground}
-              />
-              <View style={{ flex: 1, gap: spacing.xxs }}>
-                <Text>
-                  {shown.type} · {shown.durationMin} min
-                </Text>
-                <Text size="sm" tone="muted">
-                  {c.log
-                    ? "Cardio · logged"
-                    : "Planned cardio · log it on the web for now"}
-                </Text>
-              </View>
-            </View>
-          );
-        })}
+        {entries.map((c, i) => (
+          <CardioRow
+            key={`${c.mesocycleId}-${c.scheduledFor}`}
+            entry={c}
+            first={i === 0}
+            showLog
+          />
+        ))}
       </Surface>
+    </View>
+  );
+}
+
+/** A cardio-only day: the cardio is the day, with the primary action. */
+function CardioDay({
+  entries,
+  week,
+}: {
+  entries: CardioOccurrenceDto[];
+  week: number;
+}) {
+  const { spacing } = useTheme();
+  const pending = entries.filter((e) => !e.log);
+  return (
+    <View style={{ gap: spacing.lg }}>
+      <Surface padded={false}>
+        <View
+          style={{
+            gap: spacing.xxs,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.lg,
+            paddingBottom: spacing.sm,
+          }}
+        >
+          <Eyebrow>{`Week ${week}`}</Eyebrow>
+          <Text size="lg" weight="semibold" accessibilityRole="header">
+            {pending.length === 0 ? "Cardio complete" : "Cardio"}
+          </Text>
+          <Text size="sm" tone="muted">
+            No lifting planned today.
+          </Text>
+        </View>
+        {entries.map((c, i) => (
+          <CardioRow
+            key={`${c.mesocycleId}-${c.scheduledFor}`}
+            entry={c}
+            first={i === 0}
+            showLog={false}
+          />
+        ))}
+      </Surface>
+      {pending.map((c) => (
+        <Button
+          key={`${c.mesocycleId}-${c.scheduledFor}`}
+          label={pending.length > 1 ? `Log ${c.planned.type}` : "Log cardio"}
+          accessibilityLabel={`Log cardio: ${c.planned.type}, ${c.dateLabel}`}
+          onPress={() => openCardio(c)}
+        />
+      ))}
     </View>
   );
 }

@@ -23,7 +23,8 @@
     "demo:seed": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/demo/cli.ts",
     "qa:seed": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/qa-fixture/cli.ts seed",
     "qa:reset": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/qa-fixture/cli.ts reset",
-    "qa:verify": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/qa-fixture/cli.ts verify"
+    "qa:verify": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/qa-fixture/cli.ts verify",
+    "dev:test-account": "tsx --require ./scripts/demo/server-only-shim.cjs scripts/dev-test-account/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.6.0",

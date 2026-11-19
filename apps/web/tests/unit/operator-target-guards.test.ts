@@ -55,6 +55,7 @@ describe("every operator connection is identity-guarded", () => {
       [
         "prisma/seed.ts",
         "scripts/demo/cli.ts",
+        "scripts/dev-test-account/cli.ts",
         "scripts/import/real-plan/cli.ts",
         "scripts/operator/account-ownership/cli.ts",
         "scripts/operator/founding-members/cli.ts",
@@ -97,6 +98,8 @@ describe("production policy per tool (no implicit production fallback)", () => {
     "scripts/demo/guard.ts": "refuse",
     "scripts/operator/provision-dev-test-user/cli.ts": "refuse",
     "scripts/qa-fixture/cli.ts": "refuse",
+    // Pitch 21f: disposable development test accounts.
+    "scripts/dev-test-account/cli.ts": "refuse",
     "prisma/seed/target-guard.ts": "explicit-opt-in",
     "scripts/import/real-plan/cli.ts": "explicit-opt-in",
     "scripts/operator/founding-members/cli.ts": "explicit-opt-in",

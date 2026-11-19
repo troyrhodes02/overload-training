@@ -23,7 +23,7 @@ import type {
   LoggedWorkoutDetailViewDto,
   WorkoutViewDto,
 } from "@overload/shared/contracts/views";
-import { ApiFailure } from "./errors";
+import { ApiFailure, shapeError } from "./errors";
 import { toLoggedSetDto } from "./serialize";
 
 /**
@@ -52,10 +52,6 @@ export function wantsCoreFields(request: Request): boolean {
 export const WORKOUT_BODY_LIMIT = 4 * 1024;
 
 const WORKOUT_NOT_FOUND = "That workout doesn't exist.";
-
-function shapeError(field: string, message: string): ApiFailure {
-  return new ApiFailure("validation_error", message, { [field]: message });
-}
 
 /** E1 `POST /workouts`: start, or resume the workout already started. */
 export async function startWorkout(

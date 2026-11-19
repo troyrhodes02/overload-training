@@ -461,8 +461,14 @@ describe("a logged workout (H2)", () => {
     expect(screen.getByText("Chin-Up · swapped from Pull-Up")).toBeTruthy();
     expect(screen.getByLabelText("Not done")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Resume workout" })).toBeNull();
+    // Pitch 21f (RD-21): sets are corrected here, so the web hand-off is gone.
     expect(
-      screen.getByRole("button", { name: "Edit on the web" }),
+      screen.queryByRole("button", { name: "Edit on the web" }),
+    ).toBeNull();
+    expect(
+      screen.getByText(
+        "Corrections change this record only. Exercise, gym, and date can't be changed.",
+      ),
     ).toBeTruthy();
   });
 

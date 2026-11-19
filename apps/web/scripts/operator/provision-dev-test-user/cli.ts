@@ -128,7 +128,8 @@ export function guardProvisionTarget(
   return target;
 }
 
-function supabaseAdmin(url: string, key: string): AuthAdmin {
+/** The Auth admin calls this tool needs, over the service-role client. */
+export function supabaseAdmin(url: string, key: string): AuthAdmin {
   const admin = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   }).auth.admin;

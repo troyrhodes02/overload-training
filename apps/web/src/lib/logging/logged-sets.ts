@@ -3,6 +3,7 @@ import { Prisma, type LoggedSet } from "@prisma/client";
 import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
+import { lockWorkoutForUpdate } from "@/lib/data/locks";
 import { applyBaselineOnCompletion } from "@/lib/gyms/baselines";
 import { isGymVariable } from "@overload/shared/exercises/gym-variable";
 import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
@@ -135,6 +136,13 @@ async function logSetInTx(
   input: LogSetInput,
   tx: Db,
 ): Promise<LoggedSet> {
+  // The workout's lock first (OVE-220): a swap, skip, gym change, or finish
+  // of this workout either completes before this set's checks run or waits
+  // until the set is committed, so the set is always stored against the
+  // exercise, gym, and open workout it was performed in.
+  await lockWorkoutForUpdate(account, tx, {
+    loggedExerciseId: input.loggedExerciseId,
+  });
   const loggedExercise = isUuid(input.loggedExerciseId)
     ? await tx.loggedExercise.findUnique({
         where: { id: input.loggedExerciseId },
