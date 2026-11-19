@@ -4,7 +4,7 @@
  * the SERVER's flag, and in that week no reactive chip shows: the card says
  * the server's quiet deload-week line instead.
  */
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import type {
   DashboardDto,
   DashboardTodayDto,
@@ -28,9 +28,12 @@ jest.mock("../src/config/env", () => ({
   APP_VERSION: "0.1.0",
   webOrigin: () => "https://staging.test",
 }));
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
-  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
+  get router() {
+    return mockRouter;
+  },
   useLocalSearchParams: () => ({}),
   useFocusEffect: () => {},
 }));
@@ -183,6 +186,12 @@ describe("Today (T1)", () => {
   it("not once the day is done, and never in an ordinary week", async () => {
     await show(day({ kind: "complete", loggedSessionId: "ls-1" }));
     expect(screen.queryByText(DELOAD_WEEK_BANNER)).toBeNull();
+  });
+
+  it("a done day offers its summary (Pitch 21g), a read only", async () => {
+    await show(day({ kind: "complete", loggedSessionId: "ls-1" }));
+    await fireEvent.press(screen.getByRole("button", { name: "View summary" }));
+    expect(mockRouter.push).toHaveBeenCalledWith("/workout/ls-1/summary");
   });
 
   it("an ordinary week has no banner", async () => {
