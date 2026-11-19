@@ -30,6 +30,17 @@ export type OccurrenceProgressionDto = {
   recommendation: RecommendationDto | null;
   /** Plans, Billing: the Pro capability withheld on a Free account (RD-9). */
   locked: Capability | null;
+  /**
+   * Insights in the Workout (Pitch 21g RD-3): the not-enough-history line,
+   * built by the existing `insufficientNote()` from the engine's
+   * `insufficient` evidence ("Not enough history yet at Riverside Fitness: 1
+   * of 2 complete sessions."); null for any other call and in a
+   * scheduled-deload week. A statement about the lifter's own logged data,
+   * not a call, so the gate keeps it on a Free account (as `gateHistory` keeps
+   * the exercise page's note). Optional so an older server's answer still
+   * type-checks: a client treats absent as null.
+   */
+  insufficientNote?: string | null;
 };
 
 export type SessionProgressionSummaryDto = {

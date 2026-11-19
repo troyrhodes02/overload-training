@@ -44,6 +44,14 @@ export function shortOfPlan(
     : null;
 }
 
+/** The short-of-plan sentence, shared with the summary (Pitch 21g). */
+export function shortOfPlanText(short: {
+  workingSets: number;
+  plannedSets: number;
+}): string {
+  return `${short.workingSets} of ${short.plannedSets} planned sets — counts toward your strength trend, not your progress check.`;
+}
+
 /**
  * H2 Logged workout (Pitch 21e design §6, §15; Pitch 21f RD-10, RD-12, RD-21):
  * exactly what was logged, and where it is corrected. A set row opens Edit
@@ -199,9 +207,7 @@ export function LoggedWorkoutScreen({
                       }}
                     >
                       <Text size="xs" tone="muted">
-                        {short.workingSets} of {short.plannedSets} planned sets
-                        — counts toward your strength trend, not your progress
-                        check.
+                        {shortOfPlanText(short)}
                       </Text>
                       <Button
                         label="I meant to do fewer"

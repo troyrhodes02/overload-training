@@ -430,8 +430,8 @@ describe("finishing (F1, RD-13)", () => {
   });
 });
 
-describe("the summary (S1, RD-14)", () => {
-  it("shows the name, counts, and each exercise, with no call", async () => {
+describe("the summary (S1, 21e RD-14 → 21g RD-10)", () => {
+  it("shows the name, counts, and each exercise as recorded, with no call when the server has none", async () => {
     serve({
       "/history/ls-1": {
         detail: {
@@ -490,10 +490,13 @@ describe("the summary (S1, RD-14)", () => {
       screen.getByText("Saturday, November 14 · Downtown Gym"),
     ).toBeTruthy();
     expect(screen.getByText("1 exercise · 3 sets")).toBeTruthy();
-    expect(
-      screen.getByLabelText("Barbell Bench Press, 255 × 5, 5, 4"),
-    ).toBeTruthy();
-    expect(screen.getByLabelText("Lateral Raise, Not done")).toBeTruthy();
+    // The saved sets, as History lists them (21g: one line per set).
+    expect(await screen.findByText("1  255 lbs × 5")).toBeTruthy();
+    expect(screen.getByText("2  255 lbs × 5")).toBeTruthy();
+    expect(screen.getByText("3  255 lbs × 4")).toBeTruthy();
+    expect(screen.getByText("Lateral Raise")).toBeTruthy();
+    expect(screen.getByText("Not done")).toBeTruthy();
+    expect(screen.queryByText(/next time/)).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Done" }));
     expect(mockRouter.dismissAll).toHaveBeenCalled();
     expect(mockRouter.navigate).toHaveBeenCalledWith("/today");

@@ -436,16 +436,26 @@ describe("what the app asks for", () => {
     expect(screen.getByText("View workout")).toBeTruthy();
   });
 
-  it("its reads ask for the core fields only: no calls, summaries, or goals (RD-28)", async () => {
+  it("logging and History read the core fields; the calls are one separate read (RD-28, 21g RD-1/RD-2)", async () => {
     await openWorkoutFromToday();
+    const opened = server.requests.filter((r) => r.startsWith("GET "));
+    // The runner: the core read for logging, and ONE separate gated read
+    // for the cards' calls.
+    expect(opened).toContain(`GET /workouts/${ID}?fields=core`);
+    expect(opened.filter((r) => r === `GET /workouts/${ID}`)).toHaveLength(1);
+    const n0 = server.requests.length;
     await finish();
+    // Finishing never asks for the finished runner's "today" calls again.
+    expect(
+      server.requests.slice(n0).filter((r) => r === `GET /workouts/${ID}`),
+    ).toHaveLength(0);
     await fireEvent.press(screen.getByText("View in History"));
     await screen.findAllByText("Set 1");
     const gets = server.requests.filter((r) => r.startsWith("GET "));
-    for (const read of ["/today", `/workouts/${ID}`, `/history/${ID}`]) {
-      expect(gets).toContain(`GET ${read}?fields=core`);
-      expect(gets).not.toContain(`GET ${read}`);
-    }
+    // Today and the History record still ask for the core fields only.
+    expect(gets).toContain("GET /today?fields=core");
+    expect(gets).not.toContain("GET /today");
+    expect(gets).toContain(`GET /history/${ID}?fields=core`);
     // The week list has no calls to leave out.
     expect(gets).toContain("GET /history");
   });

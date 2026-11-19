@@ -8,8 +8,47 @@ import os from "node:os";
 import path from "node:path";
 import { checkUsername } from "@overload/shared/accounts/validation";
 import { addDays } from "@overload/shared/plan/calendar";
-import type { DemoVariant } from "../demo/fixture";
+import type { DemoVariant, FixtureExercise } from "../demo/fixture";
 import { isQaTestEmail } from "../qa-fixture/rules";
+
+/**
+ * What the UNCHANGED engine must say about one of today's lifts (Pitch 21g
+ * spec §11). `call` is the card's state; `action` is the server's exact
+ * sentence on the card (and on Today's planned list, which advises the same
+ * "today"). Checked by the command's engine check and, through the card
+ * reader, by tests/integration/dev-test-account-profiles.int.test.ts.
+ */
+export type CallExpectation = {
+  ex: FixtureExercise;
+  call:
+    | "progress"
+    | "hold"
+    | "stalled"
+    | "reassess"
+    | "deload"
+    | "deload_week"
+    | "insufficient"
+    | "locked";
+  action?: string;
+  rirEffect?: "held_at_limit" | "released_stall";
+};
+
+type Profile = {
+  variant: DemoVariant;
+  anchorOffsetDays: number;
+  /** The account's plan when created. Default Pro (comp). */
+  access?: "pro" | "free";
+  /** Today's workout is in a scheduled-deload week (Pitch 21g). */
+  deloadWeek?: boolean;
+  expect?: readonly CallExpectation[];
+};
+
+/** The standard story's calls on today's Upper A. */
+const STANDARD_CALLS: readonly CallExpectation[] = [
+  { ex: "BENCH", call: "progress", action: "Try 185 lb today (+5 lb)" },
+  { ex: "OHP", call: "deload", action: "Lower the weight today" },
+  { ex: "INCLINE_DB", call: "hold", action: "Stay at 60 lb today" },
+];
 
 /**
  * One disposable account per thing to test. A profile is a demo seed variant
@@ -29,10 +68,120 @@ export const PROFILES = {
    * opens on a real missed day with Lower A waiting.
    */
   missed: { variant: "standard", anchorOffsetDays: -1 },
-} as const satisfies Record<
-  string,
-  { variant: DemoVariant; anchorOffsetDays: number }
->;
+
+  // ── Pitch 21g: insight scenarios. Today's workout is Upper A (Barbell Bench
+  //    Press, Standing Military Press, Incline Dumbbell Press, Wide-Grip Lat
+  //    Pulldown) unless noted. Every call comes from real logged history.
+  /** Bench: Progress, "Try 185 lb today"; Military Press Deload; Incline Hold. */
+  progress: {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    expect: STANDARD_CALLS,
+  },
+  /** Bench last time 180 × 8, 7, 7 → Hold. */
+  hold: {
+    variant: "hold",
+    anchorOffsetDays: 0,
+    expect: [{ ex: "BENCH", call: "hold", action: "Stay at 180 lb today" }],
+  },
+  /** Bench below 6 reps two Upper A's running → reactive Deload. */
+  "reactive-deload": {
+    variant: "reactive-deload",
+    anchorOffsetDays: 0,
+    expect: [{ ex: "BENCH", call: "deload", action: "Lower the weight today" }],
+  },
+  /** RIR changes three calls: held at the limit, stall released, stall kept. */
+  rir: {
+    variant: "rir",
+    anchorOffsetDays: 0,
+    expect: [
+      {
+        ex: "BENCH",
+        call: "hold",
+        action: "Stay at 180 lb today",
+        rirEffect: "held_at_limit",
+      },
+      {
+        ex: "OHP",
+        call: "progress",
+        action: "Try 115 lb today (+5 lb)",
+        rirEffect: "released_stall",
+      },
+      { ex: "INCLINE_DB", call: "stalled", action: "Stay at 60 lb today" },
+    ],
+  },
+  /** Today is week 4 of a block that deloads every 4th week. */
+  "scheduled-deload": {
+    variant: "scheduled-deload",
+    anchorOffsetDays: 0,
+    deloadWeek: true,
+    expect: [
+      { ex: "BENCH", call: "deload_week", action: "Deload week: 160 lb (90%)" },
+      // Its history is a reactive deload: suppressed in the deload week.
+      { ex: "OHP", call: "deload_week", action: "Deload week: 100 lb (90%)" },
+    ],
+  },
+  /** Last week was the deload week; today calls resume. */
+  "post-deload": {
+    variant: "post-deload",
+    anchorOffsetDays: 0,
+    deloadWeek: false,
+    expect: [
+      { ex: "BENCH", call: "progress", action: "Try 180 lb today (+5 lb)" },
+    ],
+  },
+  /** A new block a week old: 1 of the 2 complete sessions a call needs. */
+  insufficient: {
+    variant: "insufficient",
+    anchorOffsetDays: 0,
+    expect: [
+      { ex: "BENCH", call: "insufficient" },
+      { ex: "OHP", call: "insufficient" },
+      { ex: "INCLINE_DB", call: "insufficient" },
+    ],
+  },
+  /** Bench last time 180 × 8, 8, 7 at RIR 1, 1, 0: correct it and watch the call move. */
+  edit: {
+    variant: "edit",
+    anchorOffsetDays: 0,
+    expect: [{ ex: "BENCH", call: "hold", action: "Stay at 180 lb today" }],
+  },
+  /** The standard story on the Free plan: every call withheld (locked). */
+  free: {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    access: "free",
+    expect: [
+      { ex: "BENCH", call: "locked" },
+      { ex: "OHP", call: "locked" },
+      { ex: "INCLINE_DB", call: "locked" },
+    ],
+  },
+  /** The standard story, Pro; switch it with --access free / --access pro. */
+  entitlement: {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    expect: STANDARD_CALLS,
+  },
+  /** The standard story: finish it with a swap and a skip to read the summary. */
+  summary: { variant: "standard", anchorOffsetDays: 0, expect: STANDARD_CALLS },
+  /** Today's Upper A already started: Bench sets 1–2 logged. */
+  recovery: {
+    variant: "recovery",
+    anchorOffsetDays: 0,
+    expect: [
+      { ex: "BENCH", call: "progress", action: "Try 185 lb today (+5 lb)" },
+    ],
+  },
+  /** One of two accounts with different data (the standard story). */
+  "isolation-a": {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    expect: STANDARD_CALLS,
+  },
+  /** The other: bodyweight lifts (Pullups, Crunches). */
+  "isolation-b": { variant: "bodyweight", anchorOffsetDays: 0 },
+} as const satisfies Record<string, Profile>;
 
 export type ProfileName = keyof typeof PROFILES;
 export const PROFILE_NAMES = Object.keys(PROFILES) as ProfileName[];
@@ -40,6 +189,23 @@ export const PROFILE_NAMES = Object.keys(PROFILES) as ProfileName[];
 export function isProfileName(value: unknown): value is ProfileName {
   return typeof value === "string" && value in PROFILES;
 }
+
+/** A profile's full description (optional fields made explicit). */
+export function profileOf(
+  name: ProfileName,
+): Required<Omit<Profile, "deloadWeek">> & { deloadWeek: boolean | null } {
+  const p: Profile = PROFILES[name];
+  return {
+    variant: p.variant,
+    anchorOffsetDays: p.anchorOffsetDays,
+    access: p.access ?? "pro",
+    deloadWeek: p.deloadWeek ?? null,
+    expect: p.expect ?? [],
+  };
+}
+
+export const ACCESS_VALUES = ["pro", "free"] as const;
+export type AccessValue = (typeof ACCESS_VALUES)[number];
 
 /** The fixture's "today" for a profile, from the account's own calendar date. */
 export function anchorFor(
@@ -54,6 +220,7 @@ const VALUE_FLAGS = new Set([
   "--profile",
   "--username",
   "--confirm-ref",
+  "--access",
 ]);
 
 export type TestAccountArgs = {
@@ -61,6 +228,8 @@ export type TestAccountArgs = {
   profile: string | undefined;
   username: string | undefined;
   confirmRef: string | undefined;
+  /** Pitch 21g: switch an existing test account to Pro or Free instead. */
+  access?: string;
   execute: boolean;
   unexpected: string[];
 };
@@ -81,6 +250,9 @@ export function parseArgs(argv: string[]): TestAccountArgs {
     profile: values["--profile"]?.trim().toLowerCase(),
     username: values["--username"]?.trim().toLowerCase(),
     confirmRef: values["--confirm-ref"],
+    ...(values["--access"] !== undefined
+      ? { access: values["--access"].trim().toLowerCase() }
+      : {}),
     execute,
     unexpected,
   };
@@ -109,6 +281,13 @@ export function argsProblem(args: TestAccountArgs): string | null {
     return "--email <address> is required: the account is always named explicitly.";
   if (!isQaTestEmail(args.email))
     return "Refusing: the email is not on a reserved test domain (example.com/.net/.org, or *.test, *.example, *.invalid, *.localhost). This tool only ever creates disposable test accounts.";
+  if (args.access !== undefined) {
+    if (args.profile !== undefined || args.username !== undefined)
+      return "--access switches an existing test account's plan; it takes no --profile or --username.";
+    if (!(ACCESS_VALUES as readonly string[]).includes(args.access))
+      return "--access must be pro or free.";
+    return null;
+  }
   if (!isProfileName(args.profile))
     return `--profile is required: one of ${PROFILE_NAMES.join(", ")}.`;
   const username = checkUsername(args.username ?? usernameFor(args.email));

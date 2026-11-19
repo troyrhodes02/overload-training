@@ -16,6 +16,7 @@ import type {
 import type { Appearance } from "@overload/shared/appearance/appearance";
 import { useApi } from "./ApiProvider";
 import { ApiError } from "./errors";
+import { resetProNotes } from "../insights/pro-note-store";
 
 /**
  * The query layer (spec §6, RD-16). Temporary failures retry twice; nothing
@@ -69,6 +70,9 @@ export const QUERY_KEYS = {
  * sign-out, because the gate waits for the config).
  */
 export function clearAccountQueries(client: QueryClient): void {
+  // Presentation state belongs to the account too (Pitch 21g review #3): a
+  // Pro note one account dismissed must show for the next one.
+  resetProNotes();
   client.removeQueries({
     predicate: (query) => query.queryKey[0] !== QUERY_KEYS.appConfig[0],
   });
