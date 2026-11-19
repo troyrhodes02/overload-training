@@ -32,6 +32,8 @@ import { haptic } from "../ui/haptics";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
 import { Surface } from "../ui/Surface";
+import { InsightBlock } from "../insights/InsightBlock";
+import type { InsightView } from "./insight-model";
 import { fontFamily, textSize, tint } from "../ui/theme";
 import { useTheme } from "../ui/ThemeProvider";
 import { fewerSetsConfirmation, showExerciseActions } from "./exercise-actions";
@@ -91,6 +93,7 @@ export function ExerciseCard({
   onPlannedSetsDone,
   activeRowRef,
   onActiveRowLayout,
+  insight,
 }: {
   card: ExerciseCardDto;
   workout: WorkoutDto;
@@ -101,6 +104,16 @@ export function ExerciseCard({
   activeRowRef?: React.Ref<HostInstance>;
   /** The active row moved or changed size (a set saved, an error showed). */
   onActiveRowLayout?: () => void;
+  /**
+   * This card's call (Pitch 21g), shown only while the card is loggable. The
+   * card never reads it for input: the weight box keeps its own offer.
+   */
+  insight?: {
+    view: InsightView;
+    expanded: boolean;
+    onToggle: () => void;
+    onRetry: () => void;
+  };
 }) {
   const { colors, radius, spacing } = useTheme();
   const client = useQueryClient();
@@ -478,6 +491,15 @@ export function ExerciseCard({
               </View>
             ) : null}
           </View>
+
+          {insight ? (
+            <InsightBlock
+              view={insight.view}
+              expanded={insight.expanded}
+              onToggle={insight.onToggle}
+              onRetry={insight.onRetry}
+            />
+          ) : null}
 
           <View style={{ gap: spacing.xs }}>
             {rows.map((s) =>

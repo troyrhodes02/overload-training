@@ -43,7 +43,13 @@ export function Surface({
   );
 }
 
-export type ChipTone = "primary" | "muted" | "attention" | "progress";
+export type ChipTone =
+  | "primary"
+  | "muted"
+  | "attention"
+  | "progress"
+  /** A reactive Deload and a stalled lift (Pitch 21g), never a deload week. */
+  | "deload";
 
 /** A small status chip: "Ready", "Done", "Skipped" (always words, never color alone). */
 export function Chip({
@@ -61,7 +67,9 @@ export function Chip({
         ? colors.attention
         : tone === "progress"
           ? colors.progress
-          : colors.mutedForeground;
+          : tone === "deload"
+            ? colors.deload
+            : colors.mutedForeground;
   return (
     <View
       style={{
