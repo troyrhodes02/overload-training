@@ -34,7 +34,7 @@ export type PlannedCardioInput = {
   dayOfWeek: number;
   type: string;
   durationMin: number;
-  /** UTC calendar date the plan row was created (the occurrence floor). */
+  /** The calendar date the plan row was created, in the account's timezone (the occurrence floor). */
   createdIso: string;
 };
 
