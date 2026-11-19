@@ -34,7 +34,7 @@ import { Symbol } from "../ui/Symbol";
 import { TabScreen } from "../ui/TabScreen";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
-import { loggedWorkoutHref } from "../workout/routes";
+import { loggedWorkoutHref, summaryHref } from "../workout/routes";
 import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { longDateLabel, weekdayLabel } from "./date";
 import { useStartOrResume, type StartState } from "./useStartWorkout";
@@ -243,11 +243,19 @@ function DayActions({
   const { spacing } = useTheme();
   if (day.kind === "complete") {
     return day.loggedSessionId ? (
-      <Button
-        label="View workout"
-        variant="secondary"
-        onPress={() => router.push(loggedWorkoutHref(day.loggedSessionId!))}
-      />
+      <View style={{ gap: spacing.xs }}>
+        <Button
+          label="View workout"
+          variant="secondary"
+          onPress={() => router.push(loggedWorkoutHref(day.loggedSessionId!))}
+        />
+        {/* The finished day's summary (Pitch 21g): a read, never a finish. */}
+        <Button
+          label="View summary"
+          variant="text"
+          onPress={() => router.push(summaryHref(day.loggedSessionId!))}
+        />
+      </View>
     ) : null;
   }
   return (
