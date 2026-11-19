@@ -3,6 +3,7 @@ import { type Account } from "@/lib/data/account";
 import {
   addDays,
   formatPlanDate,
+  isoDateInZone,
   parseIsoDate,
   toIsoDate,
 } from "@overload/shared/plan/calendar";
@@ -47,7 +48,10 @@ export async function getCardioWeek(
       dayOfWeek: p.dayOfWeek,
       type: p.type,
       durationMin: p.durationMin,
-      createdIso: toIsoDate(p.createdAt),
+      // The day it was added, in the account's timezone (as a session's,
+      // OVE-147): cardio planned on a Chicago evening counts from that day,
+      // not from the next UTC day.
+      createdIso: isoDateInZone(p.createdAt, account.timeZone),
     })),
     logs.map((l) => ({
       id: l.id,
