@@ -75,6 +75,12 @@ export type InsightReadState = {
   isFetching: boolean;
   /** The LATEST fetch failed. */
   isError: boolean;
+  /**
+   * A fetch is waiting for the connection (TanStack pauses reads while the
+   * phone is offline instead of failing them). Optional for callers that
+   * never pause.
+   */
+  isPaused?: boolean;
   /** An answer has arrived at least once. */
   hasData: boolean;
 };
@@ -85,8 +91,10 @@ export type InsightReadState = {
  *  1. a fetch in flight → loading, so an older call is never shown as current
  *     while a newer one is on its way (after a correction, a gym change, an
  *     entitlement change, a return to the screen);
- *  2. the latest fetch failed → error, even when an older answer is cached
- *     (RD-6: a failed read never shows a stale conclusion);
+ *  2. the latest fetch failed, or is waiting for a connection → error, even
+ *     when an older answer is cached (RD-6: a read that couldn't happen never
+ *     shows a stale conclusion as current; a paused read resumes, and loads,
+ *     on its own once the phone is back online);
  *  3. `locked` → the Pro note (the server withheld the call);
  *  4. a recommendation → the call;
  *  5. the server's not-enough-history line;
@@ -96,6 +104,7 @@ export function insightFor(
   read: InsightReadState,
   call: OccurrenceProgressionDto | undefined,
 ): InsightView {
+  if (read.isPaused) return { kind: "error" };
   if (read.isFetching) return { kind: "loading" };
   if (read.isError) return { kind: "error" };
   if (!read.hasData || !call) return { kind: "none" };

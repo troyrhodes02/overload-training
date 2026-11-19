@@ -47,8 +47,11 @@ export function SummaryScreen({
   const detail = query.data?.detail;
   const summary = insights.data?.summary ?? null;
   const goals = insights.data?.goals ?? [];
-  const callsReady = !insights.isFetching && insights.isSuccess;
-  const callsFailed = !insights.isFetching && insights.isError;
+  // A read waiting for the connection is not current either (RD-6).
+  const callsReady =
+    !insights.isFetching && !insights.isPaused && insights.isSuccess;
+  const callsFailed =
+    insights.isPaused || (!insights.isFetching && insights.isError);
 
   const done = () => {
     router.dismissAll();
@@ -122,7 +125,9 @@ export function SummaryScreen({
                       row={row}
                       first={i === 0}
                       callsLoading={
-                        insights.isFetching && row.exercise.sets.length > 0
+                        insights.isFetching &&
+                        !insights.isPaused &&
+                        row.exercise.sets.length > 0
                       }
                     />
                   ),
