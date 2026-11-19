@@ -338,6 +338,23 @@ describe("planned / occurrence / summary marker only when a call was withheld", 
     };
     expect(gateOccurrence(occ, false).locked).toBeNull();
   });
+  it("occurrence: the not-enough-history line is the lifter's own data, kept on Free and never a marker (21g RD-3)", () => {
+    const note = "Not enough history yet: 1 of 2 complete sessions.";
+    const occ = {
+      loggedExerciseId: "le1",
+      scheduledDeloadWeek: false,
+      tag: null,
+      rirEffect: null,
+      suggestion: null,
+      historyHref: null,
+      recommendation: null,
+      insufficientNote: note,
+    };
+    const free = gateOccurrence(occ, false);
+    expect(free.insufficientNote).toBe(note);
+    expect(free.locked).toBeNull();
+    expect(gateOccurrence(occ, true).insufficientNote).toBe(note);
+  });
   it("summary: no exercise with a call means no marker", () => {
     expect(
       gateSessionSummary(

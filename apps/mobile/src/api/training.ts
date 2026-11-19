@@ -59,6 +59,15 @@ export const TRAINING_KEYS = {
     ["history-week", week ?? "current"] as const,
   historyWorkout: (loggedSessionId: string) =>
     ["history-workout", loggedSessionId] as const,
+  /**
+   * Pitch 21g (RD-1, RD-2): the same reads WITHOUT `?fields=core`, kept
+   * apart from the reads logging uses, for the gated calls only. A slow,
+   * failed, or locked call can then never delay or repaint the card.
+   */
+  workoutInsights: (loggedSessionId: string) =>
+    ["workout-insights", loggedSessionId] as const,
+  historyInsights: (loggedSessionId: string) =>
+    ["history-insights", loggedSessionId] as const,
   /** The swap picker's list for one muscle group (null: the planned group). */
   swap: (loggedExerciseId: string, muscle: MuscleGroupValue | null) =>
     ["swap", loggedExerciseId, muscle ?? "planned"] as const,
@@ -67,10 +76,9 @@ export const TRAINING_KEYS = {
 const enc = encodeURIComponent;
 
 /**
- * This app renders no progression calls, summaries, or goals yet (21g/21i),
- * so its reads ask for the core fields and the server skips computing them
- * (Checkpoint A round 2, RD-28). Remove it from a read when a screen starts
- * rendering one of those.
+ * The reads logging and History use ask for the core fields, so the server
+ * skips computing calls, summaries, and goals (Checkpoint A round 2, RD-28).
+ * The calls are read separately, by the insight reads below (Pitch 21g).
  */
 const CORE = `?${CORE_FIELDS_QUERY}`;
 
@@ -111,6 +119,87 @@ export function useWorkout(loggedSessionId: string, opts: ReadOptions = {}) {
       }),
     staleTime: 0,
   });
+}
+
+/**
+ * How every insight read behaves (Pitch 21g RD-5, RD-13): never fresh from
+ * the cache. Each mount, each return to the screen, and each return of the
+ * app to the foreground asks the server again, so a changed entitlement or a
+ * corrected set is never shown from an older answer.
+ */
+const INSIGHT_READ = {
+  staleTime: 0,
+  refetchOnMount: "always",
+  refetchOnWindowFocus: "always",
+} as const;
+
+/**
+ * The workout's calls (Pitch 21g): `GET /workouts/{id}` without core fields,
+ * whose `progression` is the server's GATED call per card (`locked` and no
+ * Pro value on a Free account). Only `progression` is read from it; the
+ * workout itself always comes from `useWorkout`.
+ */
+export function useWorkoutInsights(
+  loggedSessionId: string,
+  opts: { enabled?: boolean } = {},
+) {
+  const api = useApi();
+  return useQuery<WorkoutViewDto, ApiError>({
+    ...INSIGHT_READ,
+    enabled: opts.enabled ?? true,
+    queryKey: TRAINING_KEYS.workoutInsights(loggedSessionId),
+    queryFn: ({ signal }) =>
+      api.request<WorkoutViewDto>(`/workouts/${enc(loggedSessionId)}`, {
+        signal,
+      }),
+  });
+}
+
+/**
+ * A finished workout's next-time calls and the goals it moved (Pitch 21g):
+ * `GET /history/{id}` without core fields. Only `summary` and `goals` are
+ * read from it; the record itself always comes from `useLoggedWorkout`.
+ */
+export function useHistoryInsights(loggedSessionId: string) {
+  const api = useApi();
+  return useQuery<LoggedWorkoutDetailViewDto, ApiError>({
+    ...INSIGHT_READ,
+    queryKey: TRAINING_KEYS.historyInsights(loggedSessionId),
+    queryFn: ({ signal }) =>
+      api.request<LoggedWorkoutDetailViewDto>(
+        `/history/${enc(loggedSessionId)}`,
+        { signal },
+      ),
+  });
+}
+
+/** Every insight read (both kinds, every workout). */
+const INSIGHT_PREFIXES = [["workout-insights"], ["history-insights"]] as const;
+
+/**
+ * Mark every insight read stale (Pitch 21g RD-5): a shown one reads again at
+ * once, a hidden one when it is next shown. For writes that can change a
+ * call: a gym change, a swap, Not done or its undo, and any set or planned-set
+ * correction. Logging a set doesn't call this: today's call is judged on
+ * finished workouts only.
+ */
+export function invalidateInsights(
+  client: QueryClient,
+  opts: { exceptFinished?: string } = {},
+): Promise<void> {
+  // A workout that was just finished has no "today" calls left to show: its
+  // runner is closing, and its next-time calls are the summary's read.
+  const finishedKey = opts.exceptFinished
+    ? JSON.stringify(TRAINING_KEYS.workoutInsights(opts.exceptFinished))
+    : null;
+  return Promise.all(
+    INSIGHT_PREFIXES.map((queryKey) =>
+      client.invalidateQueries({
+        queryKey: [...queryKey],
+        predicate: (q) => JSON.stringify(q.queryKey) !== finishedKey,
+      }),
+    ),
+  ).then(() => undefined);
 }
 
 export function useHistoryWeek(week: string | null) {
@@ -193,6 +282,7 @@ export function useRefetchWhenFocused(queryKey: readonly unknown[]) {
 export function invalidateTraining(
   client: QueryClient,
   loggedSessionId?: string,
+  opts: { exceptFinished?: string } = {},
 ): Promise<void> {
   return Promise.all([
     client.invalidateQueries({ queryKey: TRAINING_KEYS.today }),
@@ -203,6 +293,7 @@ export function invalidateTraining(
           queryKey: TRAINING_KEYS.workout(loggedSessionId),
         })
       : Promise.resolve(),
+    invalidateInsights(client, opts),
   ]).then(() => undefined);
 }
 
@@ -350,6 +441,11 @@ export async function applyConfirmedCompletion(
     client.cancelQueries({ queryKey: workoutKey }),
     client.cancelQueries({ queryKey: TRAINING_KEYS.today }),
     client.cancelQueries({ queryKey: ["history-week"] }),
+    // The runner's calls are "today" calls; the finished workout's are read
+    // by the summary (Pitch 21g).
+    client.cancelQueries({
+      queryKey: TRAINING_KEYS.workoutInsights(loggedSessionId),
+    }),
   ]);
   client.setQueryData<WorkoutViewDto>(workoutKey, (view) =>
     view && view.workout.status !== "complete"
@@ -442,8 +538,10 @@ export function useCompleteWorkout() {
     onSuccess: async (_data, loggedSessionId) => {
       await applyConfirmedCompletion(client, loggedSessionId);
       // The workout itself isn't refetched: its screen is closing, and the
-      // next open reads it again (staleTime 0).
-      void invalidateTraining(client);
+      // next open reads it again (staleTime 0). Nor are its "today" calls.
+      void invalidateTraining(client, undefined, {
+        exceptFinished: loggedSessionId,
+      });
     },
   });
 }
@@ -462,6 +560,8 @@ export async function refreshWorkout(
   void client.invalidateQueries({ queryKey: TRAINING_KEYS.today, ...stale });
   void client.invalidateQueries({ queryKey: ["history-week"], ...stale });
   void client.invalidateQueries({ queryKey: ["history-workout"], ...stale });
+  // What the cards say may have changed too (Pitch 21g RD-5).
+  void invalidateInsights(client);
   await client.invalidateQueries({
     queryKey: TRAINING_KEYS.workout(loggedSessionId),
   });
@@ -588,6 +688,7 @@ export function useSetSkipped() {
         mergeConfirmedSkip(view, answer),
       );
       void markTrainingStale(client, loggedSessionId);
+      void invalidateInsights(client);
     },
   });
 }
@@ -661,6 +762,8 @@ export function useEditSet() {
         mergeCorrectedSet(view, set),
       );
       void markTrainingStale(client, loggedSessionId);
+      // A corrected set or RIR can change any call (Pitch 21g RD-5).
+      void invalidateInsights(client);
     },
   });
 }
