@@ -398,7 +398,19 @@ Run these in order. **(H)** marks a high-risk check: a wrong result there would 
 
 ## 7. Verification record
 
-Recorded at the end of the run (§9).
+Run of 2026-11-18, on the feature branch tip `5b1fe83` (the same tree as `staging` `4e33392`):
+
+| Check | Result |
+| --- | --- |
+| `npm run format:check`, `npm run lint`, `npm run typecheck` | pass (lint: 0 errors, 1 pre-existing warning in `history-week.ts`) |
+| `npm test`: web unit, mobile, workspace boundaries | 2,715 + 429 passed; boundaries OK |
+| `npm run test:integration` (isolation, entitlements, history integrity, engine, deload, 21g suites) | 1,324 passed, 107 suites |
+| `npm run build` (placeholder env), `verify:client-bundle` | pass; no server secret in `.next/static` |
+| `npm run bundle:ios -w @overload/mobile` | exported |
+| Runtime fingerprint (`expo-updates fingerprint:generate --platform ios`) | `f98506f78a`, unchanged |
+| Real overload-dev runs | `21g-verify-rir` and `21g-verify-free`: ENGINE CHECK PASSED; `--access free` → every lift locked, `--access pro` → the same calls back |
+| Staging API, read-only (`vercel curl`) | `app-config` 200; an unauthenticated workout read 401; Free `GET /today`: every entry `[null, null, "progression_insights"]`; Pro: the profile's exact calls |
+| Simulator and physical iPhone | **not run by the pipeline**: §4 is yours |
 
 ## 8. Native runtime
 
@@ -406,4 +418,24 @@ No native dependency and no change to `tokens.ts`, `app.config.ts`, or `apps/mob
 
 ## 9. Delivery record
 
-_Filled in after the staging merge and the staging update._
+| Item | Value |
+| --- | --- |
+| Feature PR | #279, squash-merged into `staging` as **`4e33392`** (2026-11-18) |
+| Ticket PRs | #280 OVE-224, #281 OVE-225, #282 OVE-226, #283 OVE-227, #284 review fixes |
+| Staging web deployment | Vercel: success, for `4e33392` |
+| Staging update group | **`406719de-1482-455b-8b3e-d5da0765db0f`** |
+| iOS update ID | `01a1f1c6-8c42-7407-badd-7897d87653fd` |
+| Channel / branch | `staging` / `staging` |
+| Commit | `4e33392` |
+| Runtime | `f98506f78acfef2f8bfc764d2e31f16475e2f501` (`f98506f78a`) |
+| Compatible builds | 1: EAS development build `86e673d0` (the one on your iPhone) |
+| Update URL | `https://u.expo.dev/3b322e4a-1bf6-422e-9feb-3aa859dffb46?channel-name=staging` |
+| Dashboard | https://expo.dev/accounts/wtrhodes/projects/overload/updates/406719de-1482-455b-8b3e-d5da0765db0f |
+
+More → Diagnostics on the iPhone must show update group `406719de`, commit `4e33392`, and runtime `f98506f78a`.
+
+**Throwaway verification accounts** made by the run (overload-dev, password files in `~/.overload-dev/accounts/`):
+- `21g-verify-rir@example.com`: Pro, after a Free → Pro round trip.
+- `21g-verify-free@example.com`: Free.
+
+You can use them, or make fresh ones (§3).
