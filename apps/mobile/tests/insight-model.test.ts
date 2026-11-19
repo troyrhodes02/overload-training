@@ -146,6 +146,15 @@ describe("insightFor", () => {
     ).toEqual({ kind: "loading" });
   });
 
+  it("offline (a paused read) shows the error, never the cached call (RD-6)", () => {
+    expect(
+      insightFor(
+        { isFetching: false, isError: false, isPaused: true, hasData: true },
+        call(),
+      ),
+    ).toEqual({ kind: "error" });
+  });
+
   it("a failed read shows the error, never the cached call (RD-6)", () => {
     expect(
       insightFor({ isFetching: false, isError: true, hasData: true }, call()),

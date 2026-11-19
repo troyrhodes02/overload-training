@@ -12,13 +12,19 @@ import {
   ACCOUNTS_DIR,
   PROFILES,
   PROFILE_NAMES,
+  profileOf,
   anchorFor,
   argsProblem,
   credentialsFileFor,
   parseArgs,
   usernameFor,
 } from "../../scripts/dev-test-account/profiles";
-import { DEMO_VARIANTS } from "../../scripts/demo/fixture";
+import { DEMO_VARIANTS, demoFixture } from "../../scripts/demo/fixture";
+import {
+  compareCall,
+  observedState,
+  type ObservedCall,
+} from "../../scripts/dev-test-account/engine-check";
 import { writeCredentialsFile } from "../../scripts/operator/provision-dev-test-user/cli";
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -40,6 +46,21 @@ describe("profiles", () => {
       "bodyweight",
       "cardio",
       "missed",
+      // Pitch 21g insight scenarios.
+      "progress",
+      "hold",
+      "reactive-deload",
+      "rir",
+      "scheduled-deload",
+      "post-deload",
+      "insufficient",
+      "edit",
+      "free",
+      "entitlement",
+      "summary",
+      "recovery",
+      "isolation-a",
+      "isolation-b",
     ]);
     for (const name of PROFILE_NAMES) {
       expect(DEMO_VARIANTS).toContain(PROFILES[name].variant);
@@ -54,6 +75,90 @@ describe("profiles", () => {
     expect(anchorFor("missed", "2026-11-17")).toBe("2026-11-16");
     expect(anchorFor("missed", "2026-12-01")).toBe("2026-11-30");
     expect(PROFILES.missed.variant).toBe("standard");
+  });
+});
+
+describe("Pitch 21g profiles", () => {
+  it("only `free` starts on the Free plan; every other profile is Pro", () => {
+    for (const name of PROFILE_NAMES) {
+      expect(profileOf(name).access).toBe(name === "free" ? "free" : "pro");
+    }
+  });
+
+  it("every 21g profile is anchored to today and promises calls on lifts its fixture plans today", () => {
+    for (const name of PROFILE_NAMES.slice(5)) {
+      const p = profileOf(name);
+      expect(p.anchorOffsetDays).toBe(0);
+      const upperA = demoFixture(p.variant).sessions.find(
+        (s) => s.key === "upperA",
+      )!;
+      for (const e of p.expect) {
+        expect(upperA.slots.map((s) => s.ex)).toContain(e.ex);
+      }
+    }
+  });
+
+  it("isolation-a and isolation-b hold different training data", () => {
+    const a = demoFixture(profileOf("isolation-a").variant);
+    const b = demoFixture(profileOf("isolation-b").variant);
+    expect(a.library).not.toEqual(b.library);
+  });
+});
+
+describe("the engine check (pure)", () => {
+  const call = (over: Partial<ObservedCall> = {}): ObservedCall => ({
+    tag: null,
+    rirEffect: null,
+    suggestion: null,
+    recommendation: null,
+    locked: null,
+    ...over,
+  });
+  it("reads the state from the server's fields only", () => {
+    expect(observedState(call({ locked: "progression_insights" }))).toBe(
+      "locked",
+    );
+    expect(observedState(call())).toBe("insufficient");
+    expect(
+      observedState(
+        call({ suggestion: { lbs: 160, kind: "scheduled_deload" } }),
+      ),
+    ).toBe("deload_week");
+    expect(
+      observedState(
+        call({ tag: "stalled", recommendation: { kind: "hold", action: "x" } }),
+      ),
+    ).toBe("stalled");
+    expect(
+      observedState(call({ recommendation: { kind: "hold", action: "x" } })),
+    ).toBe("hold");
+  });
+  it("reports a wrong state, a wrong RIR effect, or a wrong sentence", () => {
+    const progress = call({
+      tag: "progress",
+      recommendation: { kind: "progress", action: "Try 185 lb today (+5 lb)" },
+    });
+    expect(
+      compareCall(
+        { ex: "BENCH", call: "progress", action: "Try 185 lb today (+5 lb)" },
+        progress,
+      ),
+    ).toBeNull();
+    expect(compareCall({ ex: "BENCH", call: "hold" }, progress)).toMatch(
+      /expected hold, engine says progress/,
+    );
+    expect(
+      compareCall(
+        { ex: "BENCH", call: "progress", rirEffect: "released_stall" },
+        progress,
+      ),
+    ).toMatch(/RIR effect/);
+    expect(
+      compareCall(
+        { ex: "BENCH", call: "progress", action: "Try 190" },
+        progress,
+      ),
+    ).toMatch(/expected "Try 190"/);
   });
 });
 
@@ -181,6 +286,24 @@ describe("the password file", () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("--access (Pitch 21g RD-16)", () => {
+  const access = (...extra: string[]) =>
+    args("--email", "21g-entitlement@example.com", ...extra);
+  it("switches an existing test account: needs pro or free, and no profile", () => {
+    expect(argsProblem(access("--access", "free"))).toBeNull();
+    expect(argsProblem(access("--access", "PRO"))).toBeNull();
+    expect(argsProblem(access("--access", "admin"))).toMatch(/pro or free/);
+    expect(
+      argsProblem(access("--access", "free", "--profile", "progress")),
+    ).toMatch(/takes no --profile/);
+  });
+  it("still refuses a non-test email", () => {
+    expect(
+      argsProblem(args("--email", "someone@gmail.com", "--access", "free")),
+    ).toMatch(/reserved test domain/);
   });
 });
 

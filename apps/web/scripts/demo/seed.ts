@@ -8,7 +8,6 @@ import { addSession, addSessionExercise } from "@/lib/plan/sessions";
 import { completeWorkout, startOrResumeWorkout } from "@/lib/logging/sessions";
 import { logSet } from "@/lib/logging/logged-sets";
 import {
-  DEMO_BLOCKS,
   demoFixture,
   demoWorkouts,
   expectedCounts,
@@ -112,7 +111,7 @@ async function foreignRows(account: Account): Promise<number> {
  */
 function expectedPlan(fixture: DemoFixture): string[] {
   const lines: string[] = [];
-  for (let i = 0; i < DEMO_BLOCKS.length; i++) {
+  for (let i = 0; i < fixture.blocks.length; i++) {
     for (const session of fixture.sessions) {
       for (const slot of session.slots) {
         lines.push(
@@ -122,6 +121,58 @@ function expectedPlan(fixture: DemoFixture): string[] {
     }
   }
   return lines.sort();
+}
+
+/**
+ * Every logged set as "exercise source id|weight|reps|rir" lines (Pitch 21g).
+ * Several insight variants share `standard`'s plan and row counts and differ
+ * only in what was lifted, so the sets themselves are compared too: an
+ * account seeded with `hold` never reads as `standard`.
+ */
+function expectedSets(fixture: DemoFixture, variant: DemoVariant): string[] {
+  const lines: string[] = [];
+  const line = (
+    ex: FixtureExercise,
+    w: number | null,
+    reps: number,
+    rir: number | null,
+  ) => `${fixture.library[ex]}|${w ?? "bw"}|${reps}|${rir ?? "-"}`;
+  for (const w of demoWorkouts(variant)) {
+    const session = fixture.sessions.find((s) => s.key === w.session)!;
+    for (const slot of session.slots) {
+      const [weight, reps, rir] = fixture.performances[slot.ex]![w.weekIndex];
+      for (let i = 0; i < slot.sets; i++) {
+        lines.push(line(slot.ex, weight, reps[i], rir?.[i] ?? null));
+      }
+    }
+  }
+  const open = fixture.inProgressToday;
+  if (open) {
+    for (const [ex, sets] of Object.entries(open.sets) as [
+      FixtureExercise,
+      readonly (readonly [number | null, number])[],
+    ][]) {
+      for (const [w, reps] of sets) lines.push(line(ex, w, reps, null));
+    }
+  }
+  return lines.sort();
+}
+
+async function actualSets(account: Account): Promise<string[]> {
+  const sets = await account.db.loggedSet.findMany({
+    select: {
+      weightLbs: true,
+      reps: true,
+      rir: true,
+      loggedExercise: { select: { exercise: { select: { sourceId: true } } } },
+    },
+  });
+  return sets
+    .map(
+      (x) =>
+        `${x.loggedExercise.exercise.sourceId}|${x.weightLbs === null ? "bw" : Number(x.weightLbs)}|${x.reps}|${x.rir ?? "-"}`,
+    )
+    .sort();
 }
 
 async function actualPlan(account: Account): Promise<string[]> {
@@ -153,12 +204,14 @@ export async function inspectDemoTarget(
   const total = Object.values(counts).reduce((a, b) => a + b, 0) + foreign;
   if (total === 0) return { state: "empty", counts, expected };
 
-  const [gyms, mesocycles, plan] = await Promise.all([
+  const [gyms, mesocycles, plan, sets] = await Promise.all([
     account.db.gym.findMany({ select: { name: true } }),
     account.db.mesocycle.findMany({ select: { name: true } }),
     actualPlan(account),
+    actualSets(account),
   ]);
   const wantPlan = expectedPlan(fixture);
+  const wantSets = expectedSets(fixture, variant);
   const sameNames = (have: string[], want: string[]) =>
     have.length === want.length &&
     [...have].sort().every((n, i) => n === [...want].sort()[i]);
@@ -170,13 +223,15 @@ export async function inspectDemoTarget(
     ) &&
     sameNames(
       mesocycles.map((m) => m.name),
-      DEMO_BLOCKS.map((b) => b.name),
+      fixture.blocks.map((b) => b.name),
     ) &&
     (Object.keys(expected) as (keyof DemoCounts)[]).every(
       (k) => counts[k] === expected[k],
     ) &&
     plan.length === wantPlan.length &&
-    plan.every((line, i) => line === wantPlan[i]);
+    plan.every((line, i) => line === wantPlan[i]) &&
+    sets.length === wantSets.length &&
+    sets.every((line, i) => line === wantSets[i]);
   if (isFixture) return { state: "seeded", counts, expected };
   return {
     state: "conflict",
@@ -235,7 +290,8 @@ export async function executeDemoSeed(
   }
   const fixture = demoFixture(variant);
   const library = await resolveLibrary(account, fixture);
-  const activeBlock = DEMO_BLOCKS[DEMO_BLOCKS.length - 1];
+  const blocks = fixture.blocks;
+  const activeBlock = blocks[blocks.length - 1];
 
   await account.db.$transaction(
     async (tx) => {
@@ -251,7 +307,8 @@ export async function executeDemoSeed(
 
       const workouts = demoWorkouts(variant);
       let activeId: string | null = null;
-      for (const block of DEMO_BLOCKS) {
+      let activeSessionIds: Record<string, string> = {};
+      for (const block of blocks) {
         const startIso = addDays(anchorIso, -block.startDaysBeforeAnchor);
         const { id: mesocycleId } = await createMesocycle(
           account,
@@ -343,9 +400,10 @@ export async function executeDemoSeed(
             const le = loggedExercises.find(
               (x) => x.plannedExerciseId === library[slot.ex],
             )!;
-            const [weightLbs, reps] =
+            const [weightLbs, reps, rir] =
               fixture.performances[slot.ex]![w.weekIndex];
             for (let i = 0; i < slot.sets; i++) {
+              const setRir = rir?.[i] ?? null;
               await logSet(
                 account,
                 {
@@ -354,6 +412,8 @@ export async function executeDemoSeed(
                   // A bodyweight set has no weight: stored NULL, never 0.
                   ...(weightLbs === null ? {} : { weightLbs }),
                   reps: reps[i],
+                  // Recorded RIR only (21g `rir`, `edit`); unrecorded stays NULL.
+                  ...(setRir === null ? {} : { rir: setRir }),
                 },
                 tx,
               );
@@ -361,6 +421,8 @@ export async function executeDemoSeed(
           }
           await completeWorkout(account, { loggedSessionId }, tx);
         }
+
+        if (block.key === activeBlock.key) activeSessionIds = sessionIds;
 
         // Cardio done in the active block, through the real write path, by
         // each planned day's own date (the cardio variant).
@@ -376,6 +438,45 @@ export async function executeDemoSeed(
                 ),
                 type: log.type,
                 durationMin: log.durationMin,
+              },
+              tx,
+            );
+          }
+        }
+      }
+
+      // Today's workout left in progress (21g `recovery`): started on the
+      // anchor date and partly logged, never finished — as a lifter leaves it.
+      const open = fixture.inProgressToday;
+      if (open) {
+        const { loggedSessionId } = await startOrResumeWorkout(
+          account,
+          {
+            sessionId: activeSessionIds[open.session],
+            scheduledFor: anchorIso,
+            gymId: gymIds[open.gym],
+          },
+          tx,
+        );
+        const loggedExercises = await tx.loggedExercise.findMany({
+          where: { loggedSessionId },
+          select: { id: true, plannedExerciseId: true },
+        });
+        for (const [ex, sets] of Object.entries(open.sets) as [
+          FixtureExercise,
+          readonly (readonly [number | null, number])[],
+        ][]) {
+          const le = loggedExercises.find(
+            (x) => x.plannedExerciseId === library[ex],
+          )!;
+          for (const [i, [weightLbs, reps]] of sets.entries()) {
+            await logSet(
+              account,
+              {
+                loggedExerciseId: le.id,
+                setNumber: i + 1,
+                ...(weightLbs === null ? {} : { weightLbs }),
+                reps,
               },
               tx,
             );

@@ -317,6 +317,7 @@ export function WorkoutScreen({
                   {
                     isFetching: insights.isFetching,
                     isError: insights.isError,
+                    isPaused: insights.isPaused,
                     hasData: insights.data !== undefined,
                   },
                   callForCard(

@@ -11,7 +11,16 @@
  *   … --execute                                      # creates and seeds
  *   … --username <name>                              # optional (default: from the email)
  *
- * Profiles: standard, gym, bodyweight, cardio, missed (profiles.ts).
+ * Profiles (profiles.ts): standard, gym, bodyweight, cardio, missed (21f), and
+ * the Pitch 21g insight scenarios: progress, hold, reactive-deload, rir,
+ * scheduled-deload, post-deload, insufficient, edit, free, entitlement,
+ * summary, recovery, isolation-a, isolation-b. After seeding, an ENGINE
+ * CHECK prints today's calls as the gated server reader states them and
+ * compares them with the profile's promise (exit code 2 on a mismatch).
+ *
+ *   … --email <existing test account> --access free|pro --confirm-ref …
+ *     switches that account's comp Pro off or on (21g RD-16; access.ts),
+ *     then prints its plan and the engine check again.
  *
  * It adds no write path of its own. The account is created by the
  * provisioning tool's own module (a confirmed auth user, its profile, comp
@@ -51,12 +60,13 @@ import {
   planProvision,
 } from "../operator/provision-dev-test-user/provision";
 import {
-  PROFILES,
   anchorFor,
   argsProblem,
   credentialsFileFor,
   parseArgs,
+  profileOf,
   usernameFor,
+  type AccessValue,
   type ProfileName,
 } from "./profiles";
 
@@ -70,9 +80,11 @@ async function main() {
   const problem = argsProblem(args);
   if (problem) fail(problem);
   const email = args.email!;
-  const profile = args.profile as ProfileName;
+  const access = args.access as AccessValue | undefined;
+  const profile = (args.profile ?? "standard") as ProfileName;
   const username = args.username ?? usernameFor(email);
-  const { variant } = PROFILES[profile];
+  const spec = profileOf(profile);
+  const { variant } = spec;
 
   // Guards FIRST, before any module that could open a connection is loaded.
   let target: VerifiedTarget;
@@ -105,6 +117,8 @@ async function main() {
   const { todayIso } = await import("@overload/shared/plan/calendar");
   const { executeDemoSeed, formatInspection, inspectDemoTarget } =
     await import("../demo/seed");
+  const { engineReport, planLabel } = await import("./engine-report");
+  const { executeAccess, planAccess } = await import("./access");
 
   // The provisioner uses the direct connection; the seed, like the demo seed,
   // the runtime (pooled) one.
@@ -122,18 +136,70 @@ async function main() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
-    const input = { email, username, timeZone: DEFAULT_TIME_ZONE };
+    const input = {
+      email,
+      username,
+      timeZone: DEFAULT_TIME_ZONE,
+      grantPro: spec.access === "pro",
+    };
     const file = credentialsFileFor(email);
+
+    /** Print today's calls as the server says them; mismatch → exit 2. */
+    const check = async (userId: string) => {
+      const account = await accountFor(userId, pooled);
+      console.log(`  plan:     ${await planLabel(account)}`);
+      const report = await engineReport(
+        account,
+        access ? { expect: [], deloadWeek: null } : spec,
+      );
+      console.log("\nEngine check (the gated server reader, read-only):");
+      for (const line of report.lines) console.log(line);
+      if (report.problems.length > 0) {
+        console.log("\nENGINE CHECK MISMATCH:");
+        for (const p of report.problems) console.log(`  - ${p}`);
+        console.log(
+          "The data is real and was kept. Use a NEW email for a fresh account, and report this.",
+        );
+        process.exitCode = 2;
+      } else if (!access && spec.expect.length > 0) {
+        console.log("ENGINE CHECK PASSED");
+      }
+    };
 
     console.log(
       `Overload dev test account — ${args.execute ? "EXECUTE" : "DRY RUN (no changes)"}  target=${describeTarget(target)}`,
     );
     console.log(`  email:    ${email}`);
-    console.log(`  profile:  ${profile} (fixture: ${variant})`);
+
+    if (access) {
+      // Switch an EXISTING test account's plan (Pitch 21g RD-16).
+      const userId = await auth.findUserIdByEmail(email);
+      if (!userId)
+        fail("\nRefusing: no account has that email. Nothing was changed.");
+      const before = await accountFor(userId, pooled);
+      console.log(`  plan now: ${await planLabel(before)}`);
+      const plan = await planAccess(direct, userId, access);
+      if (plan.refusal) fail(`\nREFUSED. ${plan.refusal} Nothing was changed.`);
+      console.log(
+        `  switch:   ${plan.action === "nothing" ? `already ${access === "pro" ? "Pro" : "Free"}: nothing to do` : plan.action === "revoke-comp" ? "would end its comp Pro (Free)" : "would grant comp Pro (no Stripe)"}`,
+      );
+      if (!args.execute) {
+        console.log("\nNothing written. Re-run with --execute to switch it.");
+        return;
+      }
+      await executeAccess(direct, userId, plan);
+      console.log("\nSwitched. The next read of any screen uses the new plan.");
+      await check(userId);
+      return;
+    }
+
+    console.log(
+      `  profile:  ${profile} (fixture: ${variant}; ${spec.access === "free" ? "Free plan" : "Pro, comp"})`,
+    );
 
     const plan = await planProvision(direct, auth, input);
     console.log(
-      `  account:  ${plan.authUser === "exists" ? `exists (${plan.userId}); its password is not changed` : "would be created (email pre-confirmed, no email sent, comp Pro)"}`,
+      `  account:  ${plan.authUser === "exists" ? `exists (${plan.userId}); its password is not changed` : `would be created (email pre-confirmed, no email sent, ${spec.access === "free" ? "Free: no comp" : "comp Pro"})`}`,
     );
 
     if (!args.execute) {
@@ -200,6 +266,7 @@ async function main() {
         ? `Password file (owner-only, never printed): ${file}`
         : "No password file for this account on this Mac (it was created elsewhere).",
     );
+    await check(provisioned.userId);
   } catch (error) {
     if (error instanceof TargetRefused || error instanceof ProvisionRefused)
       fail(`\n${error.message}`);
