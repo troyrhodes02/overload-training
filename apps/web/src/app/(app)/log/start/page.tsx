@@ -4,7 +4,7 @@ import { listActiveGyms } from "@/lib/gyms/queries";
 import { listUnfinishedWorkouts } from "@/lib/logging/queries";
 import { GymPicker } from "@/components/logging/gym-picker";
 import { Button } from "@/components/ui/button";
-import { requireAccount } from "@/lib/data/account";
+import { accountToday, requireAccount } from "@/lib/data/account";
 import { startWhileUnfinished } from "@overload/shared/logging/unfinished";
 
 export const metadata = { title: "Start workout · Overload" };
@@ -30,7 +30,10 @@ export default async function StartWorkoutPage({
     const unfinished = await listUnfinishedWorkouts(account);
     const latest = unfinished[0];
     if (latest) {
-      const copy = startWhileUnfinished(latest);
+      const copy = startWhileUnfinished(latest, {
+        scheduledFor,
+        today: accountToday(account),
+      });
       const onward = `/log/start?${new URLSearchParams({
         sessionId,
         scheduledFor,

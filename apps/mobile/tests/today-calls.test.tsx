@@ -203,6 +203,10 @@ describe("plannedCalls attaches calls only to the same day and lifts", () => {
         today(day(), pro),
       ),
     ).toBeNull();
+    // Invalidated by a write, not yet refetching: none (review #3).
+    expect(
+      plannedCalls(day(), { ...ok, isInvalidated: true }, today(day(), pro)),
+    ).toBeNull();
     // An ordinary re-check keeps them.
     expect(
       plannedCalls(day(), { ...ok, isFetching: true }, today(day(), pro)),

@@ -145,9 +145,7 @@ async function loggedPreview(
   });
   let setsLogged = 0;
   const exercises = les.map((le) => {
-    const valid = le.sets.filter(
-      (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
-    ).length;
+    const valid = workingSetCount(le.sets, le.plannedSets);
     setsLogged += valid;
     return {
       name: le.exercise.name,
@@ -170,12 +168,22 @@ async function loggedPreview(
 export async function listUnfinishedWorkouts(
   account: Account,
   today: string = accountToday(account),
+  opts: {
+    /**
+     * Workouts Today already shows as its own day (review of the 21g
+     * corrections #1): a shifted occurrence trained today is stored under
+     * its authored, earlier date, and must not ALSO read as unfinished.
+     */
+    excludeIds?: readonly string[];
+  } = {},
 ): Promise<UnfinishedWorkoutDto[]> {
+  const excluded = (opts.excludeIds ?? []).filter(Boolean);
   const sessions = await account.db.loggedSession.findMany({
     where: {
       status: "in_progress",
       scheduledFor: { lt: new Date(`${today}T00:00:00.000Z`) },
       loggedExercises: { some: { sets: { some: {} } } },
+      ...(excluded.length > 0 ? { id: { notIn: excluded } } : {}),
     },
     orderBy: [{ scheduledFor: "desc" }, { createdAt: "desc" }],
     select: {
@@ -183,6 +191,8 @@ export async function listUnfinishedWorkouts(
       scheduledFor: true,
       session: { select: { name: true } },
       loggedExercises: {
+        // Position order: the same exercise (and gym) the dashboard shows first.
+        orderBy: { position: "asc" },
         select: {
           plannedSets: true,
           gym: { select: { name: true } },
@@ -191,26 +201,25 @@ export async function listUnfinishedWorkouts(
       },
     },
   });
-  return sessions.map((ls) => {
-    let setsLogged = 0;
-    let exercisesDone = 0;
-    for (const le of ls.loggedExercises) {
-      const working = le.sets.filter(
-        (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
-      ).length;
-      setsLogged += working;
-      if (working >= le.plannedSets) exercisesDone += 1;
-    }
-    return {
-      loggedSessionId: ls.id,
-      sessionName: ls.session?.name ?? "Workout",
-      scheduledFor: toIsoDate(ls.scheduledFor),
-      gymName: ls.loggedExercises.find((le) => le.gym)?.gym?.name ?? null,
-      setsLogged,
-      exercisesDone,
-      exercisesTotal: ls.loggedExercises.length,
-    };
-  });
+  return sessions.map((ls) => ({
+    loggedSessionId: ls.id,
+    sessionName: ls.session?.name ?? "Workout",
+    scheduledFor: toIsoDate(ls.scheduledFor),
+    gymName: ls.loggedExercises.find((le) => le.gym)?.gym?.name ?? null,
+    setsLogged: ls.loggedExercises.reduce(
+      (n, le) => n + workingSetCount(le.sets, le.plannedSets),
+      0,
+    ),
+  }));
+}
+
+/** Saved planned (working) sets: setNumber 1..plannedSets. One rule for Today's previews. */
+function workingSetCount(
+  sets: readonly { setNumber: number }[],
+  plannedSets: number,
+): number {
+  return sets.filter((s) => s.setNumber >= 1 && s.setNumber <= plannedSets)
+    .length;
 }
 
 export async function getTodayDashboard(

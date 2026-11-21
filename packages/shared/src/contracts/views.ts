@@ -44,9 +44,6 @@ export type UnfinishedWorkoutDto = {
   gymName: string | null;
   /** Saved working sets (setNumber 1..plannedSets) across its exercises. */
   setsLogged: number;
-  /** Exercises with every planned set saved, of all its exercises. */
-  exercisesDone: number;
-  exercisesTotal: number;
 };
 
 /**

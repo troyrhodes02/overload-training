@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import type { UnfinishedWorkoutDto } from "@overload/shared/contracts/views";
 import { formatPlanDate } from "@overload/shared/plan/calendar";
 import {
+  UNFINISHED_SHOWN,
   unfinishedExplanation,
   unfinishedHeading,
   unfinishedLine,
+  unfinishedMore,
 } from "@overload/shared/logging/unfinished";
 
 /**
@@ -35,7 +37,7 @@ export function UnfinishedWorkouts({
         {unfinishedExplanation(workouts.length)}
       </p>
       <ul className="mt-3 space-y-2">
-        {workouts.map((w) => (
+        {workouts.slice(0, UNFINISHED_SHOWN).map((w) => (
           <li
             key={w.loggedSessionId}
             className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2"
@@ -58,6 +60,14 @@ export function UnfinishedWorkouts({
           </li>
         ))}
       </ul>
+      {unfinishedMore(workouts.length) ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          {unfinishedMore(workouts.length)}{" "}
+          <Link href="/history" className="underline">
+            History →
+          </Link>
+        </p>
+      ) : null}
     </section>
   );
 }

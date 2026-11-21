@@ -65,9 +65,9 @@ export function SummaryScreen({
   // connection or one that failed is never shown as current (RD-6); an
   // ordinary re-check keeps the answer shown until the new one lands (review
   // #2); a write that changed the evidence shows loading.
-  const callsLoading =
-    !read.isPaused && read.isFetching && (!read.hasData || read.isInvalidated);
   const callsFailed = read.isPaused || (!read.isFetching && read.isError);
+  const callsLoading =
+    !callsFailed && (read.isInvalidated || (read.isFetching && !read.hasData));
   const callsReady = read.hasData && !callsLoading && !callsFailed;
 
   const done = () => {

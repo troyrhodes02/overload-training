@@ -64,8 +64,6 @@ const upperA: UnfinishedWorkoutDto = {
   scheduledFor: "2026-11-19",
   gymName: "Northside Strength",
   setsLogged: 5,
-  exercisesDone: 1,
-  exercisesTotal: 4,
 };
 const pushB: UnfinishedWorkoutDto = {
   ...upperA,
@@ -147,6 +145,20 @@ describe("the reminder", () => {
       screen.getByRole("button", { name: "Resume Push B from Tue, Nov 17" }),
     );
     expect(mockRouter.push).toHaveBeenCalledWith("/workout/ls-push");
+  });
+
+  it("a long list shows five and points to History for the rest (review #5)", async () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({
+      ...upperA,
+      loggedSessionId: `ls-${i}`,
+      sessionName: `Day ${i}`,
+    }));
+    await show(todayDto(day(), many));
+    expect(screen.getByText("7 unfinished workouts")).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: /^Resume Day / }),
+    ).toHaveLength(5);
+    expect(screen.getByText("2 more are in History.")).toBeTruthy();
   });
 
   it("none, or an older server without the field: no reminder", async () => {

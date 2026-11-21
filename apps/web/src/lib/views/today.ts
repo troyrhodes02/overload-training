@@ -59,6 +59,17 @@ function shownDay(dashboard: DashboardDto): DashboardTodayDto | null {
   return null;
 }
 
+/** The workouts Today shows as its own day: today's, and a missed day's below. */
+function shownLoggedSessionIds(dashboard: DashboardDto): string[] {
+  const day =
+    dashboard.kind === "missed_day"
+      ? dashboard.below
+      : "loggedSessionId" in dashboard
+        ? dashboard
+        : null;
+  return day?.loggedSessionId ? [day.loggedSessionId] : [];
+}
+
 export async function getTodayView(
   account: Account,
   opts: {
@@ -74,16 +85,17 @@ export async function getTodayView(
 ): Promise<TodayDto> {
   // One instant for the greeting's clock and the entitlement.
   const now = opts.now ?? new Date();
-  const [dashboard, facts, entitlement, unfinishedWorkouts] = await Promise.all(
-    [
-      getTodayDashboard(account),
-      getGreetingFacts(account, now),
-      opts.core ? null : resolveRequestEntitlement(account, now),
-      // Earlier days' workouts still in progress (Pitch 21g OVE-228): in the
-      // core fields too, so the phone's first Today answer carries them.
-      listUnfinishedWorkouts(account),
-    ],
-  );
+  const [dashboard, facts, entitlement] = await Promise.all([
+    getTodayDashboard(account),
+    getGreetingFacts(account, now),
+    opts.core ? null : resolveRequestEntitlement(account, now),
+  ]);
+  // Earlier days' workouts still in progress (Pitch 21g OVE-228), in the core
+  // fields too — except a workout the dashboard already shows as its own day
+  // (a shifted occurrence keeps its authored, earlier date).
+  const unfinishedWorkouts = await listUnfinishedWorkouts(account, undefined, {
+    excludeIds: shownLoggedSessionIds(dashboard),
+  });
 
   // Read right after the dashboard, as the web page always did (release
   // review #5): the date header and the dashboard come from the same moment.

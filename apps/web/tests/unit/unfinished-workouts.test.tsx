@@ -35,8 +35,6 @@ const upperA: UnfinishedWorkoutDto = {
   scheduledFor: "2026-11-19",
   gymName: "Northside Strength",
   setsLogged: 5,
-  exercisesDone: 1,
-  exercisesTotal: 4,
 };
 
 let root: Root;
