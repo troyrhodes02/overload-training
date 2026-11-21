@@ -146,8 +146,7 @@ function expectedSets(fixture: DemoFixture, variant: DemoVariant): string[] {
       }
     }
   }
-  const open = fixture.inProgressToday;
-  if (open) {
+  for (const open of fixture.inProgress) {
     for (const [ex, sets] of Object.entries(open.sets) as [
       FixtureExercise,
       readonly (readonly [number | null, number])[],
@@ -445,15 +444,15 @@ export async function executeDemoSeed(
         }
       }
 
-      // Today's workout left in progress (21g `recovery`): started on the
-      // anchor date and partly logged, never finished — as a lifter leaves it.
-      const open = fixture.inProgressToday;
-      if (open) {
+      // Workouts left in progress (21g `recovery`, `multiple-unfinished`):
+      // started on their own date and partly logged, never finished — as a
+      // lifter leaves them.
+      for (const open of fixture.inProgress) {
         const { loggedSessionId } = await startOrResumeWorkout(
           account,
           {
             sessionId: activeSessionIds[open.session],
-            scheduledFor: anchorIso,
+            scheduledFor: addDays(anchorIso, open.dayOffset ?? 0),
             gymId: gymIds[open.gym],
           },
           tx,

@@ -25,13 +25,33 @@ export type EngineReport = { lines: string[]; problems: string[] };
 
 export async function engineReport(
   account: Account,
-  want: { expect: readonly CallExpectation[]; deloadWeek: boolean | null },
+  want: {
+    expect: readonly CallExpectation[];
+    deloadWeek: boolean | null;
+    unfinished?: number | null;
+  },
 ): Promise<EngineReport> {
   const view = await getTodayView(account);
   const d = view.dashboard;
   const day = d.kind === "missed_day" ? d.below : d;
   const lines: string[] = [];
   const problems: string[] = [];
+  // Earlier days' unfinished workouts, as Today lists them (OVE-228).
+  const unfinished = view.unfinishedWorkouts ?? [];
+  for (const w of unfinished) {
+    lines.push(
+      `  Unfinished: ${w.sessionName}, ${w.scheduledFor}, ${w.setsLogged} set(s) saved, in progress`,
+    );
+  }
+  if (
+    want.unfinished !== undefined &&
+    want.unfinished !== null &&
+    unfinished.length !== want.unfinished
+  ) {
+    problems.push(
+      `expected ${want.unfinished} unfinished workout(s) on Today, engine says ${unfinished.length}`,
+    );
+  }
   if (!day || !("exercises" in day)) {
     lines.push(`  Today: ${d.kind} (no lifting day to check)`);
     if (want.expect.length > 0) problems.push("no lifting day today");
