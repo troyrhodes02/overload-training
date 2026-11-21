@@ -434,6 +434,16 @@ export function ExerciseCard({
         </p>
       ) : null}
       <Recommendation recommendation={progression?.recommendation ?? null} />
+      {/* The server's not-enough-history line (Pitch 21g parity, OVE-230:
+          the iPhone card shows it). A statement about the lifter's own data,
+          never a call; kept on Free. */}
+      {!progression?.recommendation &&
+      !progression?.locked &&
+      progression?.insufficientNote ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          {progression.insufficientNote}
+        </p>
+      ) : null}
       {progression?.locked ? (
         <UpgradeNote
           surface="exercise-card"

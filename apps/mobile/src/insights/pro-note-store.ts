@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
  * note is presentation, never the enforcement (the server already withheld
  * the call). It returns on the next launch, which keeps it rare and quiet.
  */
-export type ProNoteSurface = "exercise-card" | "summary";
+export type ProNoteSurface = "exercise-card" | "summary" | "today-plan";
 
 let dismissed = new Set<ProNoteSurface>();
 const listeners = new Set<() => void>();
