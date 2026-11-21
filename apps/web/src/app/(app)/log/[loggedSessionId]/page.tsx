@@ -40,6 +40,10 @@ export default async function WorkoutPage({
         scheduledDeloadWeek: occ?.scheduledDeloadWeek ?? false,
         historyHref: occ?.historyHref ?? null,
         locked: occ?.locked != null,
+        // Pitch 21g: the server's gated number (null on Free) and its
+        // not-enough-history line, as the iPhone card shows them.
+        suggestion: occ?.suggestion ?? null,
+        insufficientNote: occ?.insufficientNote ?? null,
       };
       return [e.loggedExerciseId, value] as const;
     }),

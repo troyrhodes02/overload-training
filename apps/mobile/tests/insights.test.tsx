@@ -459,3 +459,81 @@ describe("review fixes (Pitch 21g audit)", () => {
     expect(seen.at(-1)).toBe(false);
   });
 });
+
+describe("the weight box and the call (OVE-229)", () => {
+  it("Progress: the box says last time's weight isn't adjusted, and Use fills only the box", async () => {
+    serve({ [CORE]: view(twoCards()), [FULL]: withCalls([progress()]) });
+    await open();
+    await screen.findByText("Try 260 lb today (+5 lb)");
+    expect(screen.getByText("last time's weight, not adjusted")).toBeTruthy();
+    const before = mockApi.request.mock.calls.length;
+    await fireEvent.press(screen.getByRole("button", { name: "Use 260 lb" }));
+    expect(screen.getByLabelText("Set 1 weight in pounds").props.value).toBe(
+      "260",
+    );
+    // Nothing was sent: no set, no write of any kind.
+    expect(mockApi.request.mock.calls.length).toBe(before);
+    expect(screen.queryByRole("button", { name: "Use 260 lb" })).toBeNull();
+  });
+
+  it("over a typed weight it says what it replaces", async () => {
+    serve({ [CORE]: view(twoCards()), [FULL]: withCalls([progress()]) });
+    await open();
+    await screen.findByText("Try 260 lb today (+5 lb)");
+    await fireEvent.changeText(
+      screen.getByLabelText("Set 1 weight in pounds"),
+      "250",
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Replace 250 with 260 lb" }),
+    );
+    expect(screen.getByLabelText("Set 1 weight in pounds").props.value).toBe(
+      "260",
+    );
+  });
+
+  it("a reactive Deload: not adjusted, and no number to apply", async () => {
+    serve({
+      [CORE]: view(twoCards()),
+      [FULL]: withCalls([
+        progress({
+          tag: "deload",
+          suggestion: null,
+          recommendation: {
+            kind: "deload",
+            tone: "strong",
+            action: "Lower the weight today",
+            evidence: "A set below 3 reps, 2 sessions running",
+          },
+        }),
+      ]),
+    });
+    await open();
+    await screen.findByText("Lower the weight today");
+    expect(screen.getByText("last time's weight, not adjusted")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Use / })).toBeNull();
+  });
+
+  it("Free (locked): the plain 'last time' caption and no number", async () => {
+    serve({
+      [CORE]: view(twoCards()),
+      [FULL]: withCalls([locked("le-bench"), locked("le-row")]),
+    });
+    await open();
+    await screen.findByTestId("pro-note");
+    expect(screen.getByText("last time")).toBeTruthy();
+    expect(screen.queryByText("last time's weight, not adjusted")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Use / })).toBeNull();
+  });
+
+  it("a failed call read offers no number (never a stale one)", async () => {
+    serve({
+      [CORE]: view(twoCards()),
+      [FULL]: () => new ApiError("network", "offline", 0),
+    });
+    await open();
+    await screen.findByText("Couldn't load the call for this lift.");
+    expect(screen.getByText("last time")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Use / })).toBeNull();
+  });
+});
