@@ -150,7 +150,7 @@ function TodayContent({
   const unfinished = view.unfinishedWorkouts ?? [];
   const checked: Starter = {
     ...starter,
-    run: (day) => starter.run(day, unfinished),
+    run: (day) => starter.run(day, unfinished, view.today),
   };
   return (
     <View style={{ gap: spacing.xl }}>

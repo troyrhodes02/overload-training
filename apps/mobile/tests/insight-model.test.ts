@@ -163,6 +163,20 @@ describe("insightFor", () => {
     ).toEqual({ kind: "loading" });
   });
 
+  it("marked stale by a write but not yet fetching: still never the cached call (review #3)", () => {
+    expect(
+      insightFor(
+        {
+          isFetching: false,
+          isError: false,
+          hasData: true,
+          isInvalidated: true,
+        },
+        call(),
+      ),
+    ).toEqual({ kind: "loading" });
+  });
+
   it("an ordinary re-check keeps the shown call until the answer lands (RD-7, review #1)", () => {
     expect(
       insightFor({ isFetching: true, isError: false, hasData: true }, call()),

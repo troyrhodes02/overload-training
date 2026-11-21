@@ -68,8 +68,9 @@ export type UnfinishedChoice = "resume" | "start" | "cancel";
 export function askAboutUnfinished(
   w: UnfinishedWorkoutDto,
   more: number,
+  starting: { scheduledFor: string; today: string },
 ): Promise<UnfinishedChoice> {
-  const copy = startWhileUnfinished(w);
+  const copy = startWhileUnfinished(w, starting);
   return new Promise((resolve) =>
     Alert.alert(
       copy.title,
@@ -100,16 +101,25 @@ export function useStartOrResume(
   async function run(
     day: StartTarget,
     unfinished: readonly UnfinishedWorkoutDto[] = [],
+    today: string = day.scheduledFor,
   ) {
     if (busy.current) return;
     busy.current = true;
     if (!day.loggedSessionId && unfinished[0]) {
-      const choice = await ask(unfinished[0], unfinished.length - 1);
+      const choice = await ask(unfinished[0], unfinished.length - 1, {
+        scheduledFor: day.scheduledFor,
+        today,
+      });
       if (choice !== "start") {
         if (choice === "resume") {
           router.push(workoutHref(unfinished[0].loggedSessionId));
+          // As the resume path below: cover a tap while the screen pushes.
+          setTimeout(() => {
+            busy.current = false;
+          }, 800);
+        } else {
+          busy.current = false;
         }
-        busy.current = false;
         return;
       }
     }

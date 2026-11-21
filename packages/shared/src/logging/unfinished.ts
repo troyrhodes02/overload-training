@@ -36,17 +36,38 @@ export function unfinishedExplanation(count: number): string {
     : "Started on earlier days and still in progress. Each keeps its own date and sets.";
 }
 
-/** The warning before another workout starts while one is unfinished. */
-export function startWhileUnfinished(w: UnfinishedWorkoutFacts): {
+/**
+ * The warning before another workout starts while one is unfinished. It
+ * names what is about to start: today's workout, or (from "log it late") a
+ * past day's (review of the 21g corrections #2).
+ */
+export function startWhileUnfinished(
+  w: UnfinishedWorkoutFacts,
+  starting: { scheduledFor: string; today: string },
+): {
   title: string;
   message: string;
   resume: string;
   startAnyway: string;
 } {
+  const isToday = starting.scheduledFor === starting.today;
+  const what = isToday
+    ? "today's workout"
+    : `${formatPlanDate(starting.scheduledFor)}'s workout`;
   return {
     title: "You have an unfinished workout",
-    message: `${w.sessionName} from ${formatPlanDate(w.scheduledFor)} is still in progress. Resume it, or start today's workout and come back to it later.`,
+    message: `${w.sessionName} from ${formatPlanDate(w.scheduledFor)} is still in progress. Resume it, or start ${what} and come back to it later.`,
     resume: `Resume ${w.sessionName}`,
-    startAnyway: "Start today's anyway",
+    startAnyway: isToday ? "Start today's anyway" : "Start it anyway",
   };
+}
+
+/** How many unfinished workouts Today lists before "more in History". */
+export const UNFINISHED_SHOWN = 5;
+
+/** The line under a long list: "2 more are in History." (null when none). */
+export function unfinishedMore(count: number): string | null {
+  const more = count - UNFINISHED_SHOWN;
+  if (more <= 0) return null;
+  return `${more} more ${more === 1 ? "is" : "are"} in History.`;
 }

@@ -26,6 +26,7 @@ import {
   listUnfinishedWorkouts,
 } from "@/lib/logging/queries";
 import { completeWorkout, startOrResumeWorkout } from "@/lib/logging/sessions";
+import { resolveMissedDay } from "@/lib/logging/missed-days";
 import { getTodayView } from "@/lib/views/today";
 import type { TodayDto } from "@overload/shared/contracts/views";
 import { createTestAccount } from "./support/accounts";
@@ -155,8 +156,6 @@ describe("an earlier day's unfinished workout stays on Today", () => {
         scheduledFor: b.sessions[0].date,
         gymName: b.gym.name,
         setsLogged: 2,
-        exercisesDone: 0,
-        exercisesTotal: 2,
       },
     ]);
   });
@@ -317,6 +316,38 @@ describe("an earlier day's unfinished workout stays on Today", () => {
       where: { id: old.loggedSessionId },
     });
     expect(row.mesocycleId).toBe(first.meso.id);
+  });
+
+  it("a missed day shifted to today and started is today's workout, never ALSO 'unfinished' (review #1)", async () => {
+    const a = await createTestAccount();
+    const b = await block(a, { daysAgo: 1, sessionsOn: [0] });
+    // Yesterday's Day A was missed; the lifter shifts it to today.
+    await resolveMissedDay(a, {
+      mesocycleId: b.meso.id,
+      missedOn: b.sessions[0].date,
+      outcome: "shifted",
+    });
+    const shown = await getTodayDashboard(a);
+    if (shown.kind !== "pending")
+      throw new Error(`expected pending, got ${shown.kind}`);
+    // Started from Today: stored under its authored (earlier) date.
+    const { loggedSessionId } = await startOrResumeWorkout(a, {
+      sessionId: shown.sessionId,
+      scheduledFor: shown.scheduledFor,
+      gymId: b.gym.id,
+    });
+    const le = await db().loggedExercise.findFirstOrThrow({
+      where: { loggedSessionId },
+    });
+    await logSet(a, {
+      loggedExerciseId: le.id,
+      setNumber: 1,
+      weightLbs: 100,
+      reps: 8,
+    });
+    const view = await getTodayView(a);
+    expect(view.dashboard.kind).toBe("in_progress");
+    expect(view.unfinishedWorkouts).toEqual([]);
   });
 
   it("a started workout with nothing saved isn't listed (nothing to resume; History keeps it)", async () => {

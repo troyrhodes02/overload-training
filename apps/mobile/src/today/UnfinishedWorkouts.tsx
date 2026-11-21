@@ -3,9 +3,11 @@ import { router } from "expo-router";
 import type { UnfinishedWorkoutDto } from "@overload/shared/contracts/views";
 import { formatPlanDate } from "@overload/shared/plan/calendar";
 import {
+  UNFINISHED_SHOWN,
   unfinishedExplanation,
   unfinishedHeading,
   unfinishedLine,
+  unfinishedMore,
 } from "@overload/shared/logging/unfinished";
 import { Button } from "../ui/Button";
 import { Surface } from "../ui/Surface";
@@ -42,7 +44,7 @@ export function UnfinishedWorkouts({
           {unfinishedExplanation(workouts.length)}
         </Text>
       </View>
-      {workouts.map((w) => (
+      {workouts.slice(0, UNFINISHED_SHOWN).map((w) => (
         <View
           key={w.loggedSessionId}
           style={{
@@ -66,6 +68,11 @@ export function UnfinishedWorkouts({
           />
         </View>
       ))}
+      {unfinishedMore(workouts.length) ? (
+        <Text size="sm" tone="muted">
+          {unfinishedMore(workouts.length)}
+        </Text>
+      ) : null}
     </Surface>
   );
 }

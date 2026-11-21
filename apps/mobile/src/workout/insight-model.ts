@@ -116,6 +116,10 @@ export function insightFor(
   if (read.isFetching && (!read.hasData || read.isInvalidated))
     return { kind: "loading" };
   if (read.isError) return { kind: "error" };
+  // Marked stale by a write that can change the call and not yet re-read:
+  // the cached answer is known to be old (review of the 21g corrections #3).
+  // (TanStack also marks a FAILED read invalidated; that is the error above.)
+  if (read.isInvalidated) return { kind: "loading" };
   if (!read.hasData || !call) return { kind: "none" };
   if (call.locked !== null) return { kind: "locked" };
   const rec = call.recommendation;
