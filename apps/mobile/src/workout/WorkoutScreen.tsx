@@ -167,6 +167,23 @@ export function WorkoutScreen({
   const exercises = workout.exercises;
   const i = Math.min(index ?? 0, Math.max(0, exercises.length - 1));
   const current = exercises[i];
+  // The current card's call, only while it is shown as current (OVE-229).
+  const currentView = current
+    ? insightFor(
+        insightRead,
+        callForCard(insights.data?.progression, current.loggedExerciseId),
+      )
+    : null;
+  const currentCall = current
+    ? callForCard(insights.data?.progression, current.loggedExerciseId)
+    : undefined;
+  const currentGuidance =
+    currentView?.kind === "call" && currentCall?.recommendation
+      ? {
+          callKind: currentCall.recommendation.kind,
+          suggestedLbs: currentCall.suggestion?.lbs ?? null,
+        }
+      : null;
   const isLast = i >= exercises.length - 1;
   const next = exercises[i + 1];
   const finishable = canFinish(workout);
@@ -319,13 +336,8 @@ export function WorkoutScreen({
               activeRowRef={activeRowRef}
               onActiveRowLayout={revealActiveRow}
               insight={{
-                view: insightFor(
-                  insightRead,
-                  callForCard(
-                    insights.data?.progression,
-                    current.loggedExerciseId,
-                  ),
-                ),
+                view: currentView ?? { kind: "none" },
+                guidance: currentGuidance,
                 expanded: expanded[current.loggedExerciseId] === true,
                 onToggle: () =>
                   setExpanded((e) => ({
