@@ -307,6 +307,8 @@ export const DEMO_VARIANTS = [
   "insufficient",
   "edit",
   "recovery",
+  // Pitch 21g correction OVE-228.
+  "multiple-unfinished",
 ] as const;
 export type DemoVariant = (typeof DEMO_VARIANTS)[number];
 
@@ -354,6 +356,11 @@ export type FixtureBlock = {
  */
 export type FixtureInProgress = {
   session: DemoSession["key"];
+  /**
+   * Days after the anchor it was scheduled for (0 = the anchor). The session
+   * must fall on that weekday; never after the account's today.
+   */
+  dayOffset?: number;
   gym: FixtureGym;
   sets: Partial<
     Record<FixtureExercise, readonly (readonly [number | null, number])[]>
@@ -401,8 +408,11 @@ export type DemoFixture = {
   cardioLogs: readonly FixtureCardioLog[];
   /** The blocks, oldest first (DEMO_BLOCKS unless a 21g variant changes them). */
   blocks: readonly FixtureBlock[];
-  /** Today's workout left in progress (21g `recovery`), else null. */
-  inProgressToday: FixtureInProgress | null;
+  /**
+   * Workouts left in progress (21g `recovery`, `multiple-unfinished`), on the
+   * anchor or a later day up to the account's today, oldest first.
+   */
+  inProgress: readonly FixtureInProgress[];
 };
 
 /** Bodyweight reps by trained-week index (index 4 is the deload week). */
@@ -514,7 +524,7 @@ const INSIGHT_VARIANTS: Partial<
     {
       overrides?: (base: typeof DEMO_PERFORMANCES) => Overrides;
       activeBlock?: Partial<FixtureBlock>;
-      inProgressToday?: FixtureInProgress;
+      inProgress?: readonly FixtureInProgress[];
     }
   >
 > = {
@@ -580,16 +590,44 @@ const INSIGHT_VARIANTS: Partial<
   edit: { overrides: () => ({ BENCH: { 7: [180, [8, 8, 7], [1, 1, 0]] } }) },
   /** The standard story with today's Upper A started: Bench sets 1–2 logged. */
   recovery: {
-    inProgressToday: {
-      session: "upperA",
-      gym: "northside",
-      sets: {
-        BENCH: [
-          [180, 8],
-          [180, 8],
-        ],
+    inProgress: [
+      {
+        session: "upperA",
+        gym: "northside",
+        sets: {
+          BENCH: [
+            [180, 8],
+            [180, 8],
+          ],
+        },
       },
-    },
+    ],
+  },
+  /**
+   * Pitch 21g correction OVE-228: two workouts left unfinished on two days,
+   * with different saved sets — the anchor's Upper A (Bench 180 × 8, 8) and
+   * the next day's Lower A (Squat 215 × 7). Profiles anchor this two days
+   * back, so both are "earlier" and today is a rest day.
+   */
+  "multiple-unfinished": {
+    inProgress: [
+      {
+        session: "upperA",
+        gym: "northside",
+        sets: {
+          BENCH: [
+            [180, 8],
+            [180, 8],
+          ],
+        },
+      },
+      {
+        session: "lowerA",
+        dayOffset: 1,
+        gym: "northside",
+        sets: { SQUAT: [[215, 7]] },
+      },
+    ],
   },
 };
 
@@ -628,7 +666,7 @@ export function demoFixture(variant: DemoVariant = "standard"): DemoFixture {
     plannedCardio: variant === "cardio" ? CARDIO_PLAN : [],
     cardioLogs: variant === "cardio" ? CARDIO_LOGS : [],
     blocks: DEMO_BLOCKS,
-    inProgressToday: null,
+    inProgress: [],
     ...insightParts(variant),
   };
 }
@@ -636,7 +674,7 @@ export function demoFixture(variant: DemoVariant = "standard"): DemoFixture {
 /** A 21g variant's facts on top of the standard story (nothing else changes). */
 function insightParts(
   variant: DemoVariant,
-): Partial<Pick<DemoFixture, "performances" | "blocks" | "inProgressToday">> {
+): Partial<Pick<DemoFixture, "performances" | "blocks" | "inProgress">> {
   const v = INSIGHT_VARIANTS[variant];
   if (!v) return {};
   return {
@@ -647,7 +685,7 @@ function insightParts(
     blocks: v.activeBlock
       ? [DEMO_BLOCKS[0], { ...ACTIVE_BLOCK, ...v.activeBlock }]
       : DEMO_BLOCKS,
-    inProgressToday: v.inProgressToday ?? null,
+    inProgress: v.inProgress ?? [],
   };
 }
 
@@ -708,11 +746,16 @@ export function expectedCounts(variant: DemoVariant = "standard"): DemoCounts {
   );
   // Today's started workout (21g `recovery`): one more workout, its planned
   // exercises, and the sets logged so far.
-  const open = fixture.inProgressToday;
-  const openExercises = open ? slotsPer(open.session).length : 0;
-  const openSets = open
-    ? Object.values(open.sets).reduce((n, sets) => n + (sets?.length ?? 0), 0)
-    : 0;
+  const open = fixture.inProgress;
+  const openExercises = open.reduce(
+    (n, w) => n + slotsPer(w.session).length,
+    0,
+  );
+  const openSets = open.reduce(
+    (n, w) =>
+      n + Object.values(w.sets).reduce((m, sets) => m + (sets?.length ?? 0), 0),
+    0,
+  );
   return {
     gyms: Object.keys(fixture.gyms).length,
     mesocycles: fixture.blocks.length,
@@ -720,7 +763,7 @@ export function expectedCounts(variant: DemoVariant = "standard"): DemoCounts {
     sessionExercises:
       fixture.blocks.length *
       fixture.sessions.reduce((n, s) => n + s.slots.length, 0),
-    loggedSessions: workouts.length + (open ? 1 : 0),
+    loggedSessions: workouts.length + open.length,
     loggedExercises: loggedExercises + openExercises,
     loggedSets: loggedSets + openSets,
     customExercises: 0,

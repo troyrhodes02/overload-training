@@ -320,6 +320,14 @@ describe("fixture variants", () => {
     "%s seeds exactly its own rows, re-inspects as seeded, and fits the budget",
     async (variant) => {
       await seedVariantLibrary();
+      // A variant whose open workouts reach past the anchor (21g
+      // `multiple-unfinished`) is anchored early enough that none is in
+      // the future, as its profile anchors it.
+      const reach = Math.max(
+        0,
+        ...demoFixture(variant).inProgress.map((w) => w.dayOffset ?? 0),
+      );
+      const at = addDays(anchor, -reach);
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pg = require("pg") as {
         Client: { prototype: { query: (...args: unknown[]) => unknown } };
@@ -332,7 +340,7 @@ describe("fixture variants", () => {
         return original.apply(this, args);
       };
       try {
-        await executeDemoSeed(account, anchor, variant);
+        await executeDemoSeed(account, at, variant);
       } finally {
         pg.Client.prototype.query = original;
       }
@@ -344,26 +352,31 @@ describe("fixture variants", () => {
         "seeded",
         expectedCounts(variant),
       ]);
-      // Every workout before the anchor is finished. Only `recovery` (Pitch
-      // 21g) leaves one workout open, and only today's.
+      // Every workout before the anchor is finished. Only the 21g open
+      // variants leave workouts open, exactly on their own days.
       const sessions = await getTestPrisma().loggedSession.findMany({
         where: { userId: account.userId },
       });
       const day = (s: { scheduledFor: Date }) =>
         s.scheduledFor.toISOString().slice(0, 10);
-      const past = sessions.filter((s) => day(s) < anchor);
-      const today = sessions.filter((s) => day(s) >= anchor);
+      const past = sessions.filter((s) => day(s) < at);
+      const today = sessions.filter((s) => day(s) >= at);
       expect(past.every((s) => s.status === "complete")).toBe(true);
-      if (demoFixture(variant).inProgressToday) {
-        expect(today.map((s) => [day(s), s.status])).toEqual([
-          [anchor, "in_progress"],
-        ]);
+      const open = demoFixture(variant).inProgress;
+      if (open.length > 0) {
+        expect(
+          today
+            .map((s) => [day(s), s.status])
+            .sort((x, y) => String(x[0]).localeCompare(String(y[0]))),
+        ).toEqual(
+          open.map((w) => [addDays(at, w.dayOffset ?? 0), "in_progress"]),
+        );
       } else {
         expect(today).toEqual([]);
       }
       // Seeding again writes nothing.
       const before = await snapshot(account.userId);
-      await expect(executeDemoSeed(account, anchor, variant)).rejects.toThrow(
+      await expect(executeDemoSeed(account, at, variant)).rejects.toThrow(
         DemoSeedConflict,
       );
       expect(await snapshot(account.userId)).toEqual(before);

@@ -61,6 +61,13 @@ describe("profiles", () => {
       "recovery",
       "isolation-a",
       "isolation-b",
+      // Pitch 21g final corrections.
+      "unfinished",
+      "multiple-unfinished",
+      "weight-clarity",
+      "deload-clarity",
+      "parity-free",
+      "parity-summary",
     ]);
     for (const name of PROFILE_NAMES) {
       expect(DEMO_VARIANTS).toContain(PROFILES[name].variant);
@@ -79,16 +86,38 @@ describe("profiles", () => {
 });
 
 describe("Pitch 21g profiles", () => {
-  it("only `free` starts on the Free plan; every other profile is Pro", () => {
+  it("only `free` and `parity-free` start on the Free plan; every other profile is Pro", () => {
     for (const name of PROFILE_NAMES) {
-      expect(profileOf(name).access).toBe(name === "free" ? "free" : "pro");
+      expect(profileOf(name).access).toBe(
+        name === "free" || name === "parity-free" ? "free" : "pro",
+      );
+    }
+  });
+
+  it("the unfinished-workout profiles are anchored back far enough that no workout is in the future", () => {
+    expect(profileOf("unfinished")).toMatchObject({
+      anchorOffsetDays: -1,
+      unfinished: 1,
+    });
+    expect(profileOf("multiple-unfinished")).toMatchObject({
+      anchorOffsetDays: -2,
+      unfinished: 2,
+    });
+    for (const name of PROFILE_NAMES) {
+      const p = profileOf(name);
+      const reach = Math.max(
+        0,
+        ...demoFixture(p.variant).inProgress.map((w) => w.dayOffset ?? 0),
+      );
+      expect(p.anchorOffsetDays + reach).toBeLessThanOrEqual(0);
     }
   });
 
   it("every 21g profile is anchored to today and promises calls on lifts its fixture plans today", () => {
     for (const name of PROFILE_NAMES.slice(5)) {
       const p = profileOf(name);
-      expect(p.anchorOffsetDays).toBe(0);
+      // Anchored before today: proven by their own integration tests.
+      if (p.anchorOffsetDays !== 0) continue;
       const upperA = demoFixture(p.variant).sessions.find(
         (s) => s.key === "upperA",
       )!;

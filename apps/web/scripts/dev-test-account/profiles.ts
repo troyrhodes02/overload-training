@@ -41,6 +41,8 @@ type Profile = {
   /** Today's workout is in a scheduled-deload week (Pitch 21g). */
   deloadWeek?: boolean;
   expect?: readonly CallExpectation[];
+  /** How many earlier unfinished workouts Today lists (OVE-228). */
+  unfinished?: number;
 };
 
 /** The standard story's calls on today's Upper A. */
@@ -181,6 +183,58 @@ export const PROFILES = {
   },
   /** The other: bodyweight lifts (Pullups, Crunches). */
   "isolation-b": { variant: "bodyweight", anchorOffsetDays: 0 },
+
+  // ── Pitch 21g final corrections (OVE-228, OVE-229, OVE-230).
+  /**
+   * Anchored to YESTERDAY: yesterday's Upper A was started and left with
+   * Bench sets 1–2 saved; today's Lower A is ready. Today lists it.
+   */
+  unfinished: { variant: "recovery", anchorOffsetDays: -1, unfinished: 1 },
+  /**
+   * Anchored TWO days back: that day's Upper A (Bench 180 × 8, 8) and the
+   * next day's Lower A (Squat 215 × 7) were both left unfinished. Today is a
+   * rest day and lists both.
+   */
+  "multiple-unfinished": {
+    variant: "multiple-unfinished",
+    anchorOffsetDays: -2,
+    unfinished: 2,
+  },
+  /**
+   * The weight box vs the call: Bench Progress with a number ("Try 185 lb",
+   * box 180) and Military Press reactive Deload (no number, box 115).
+   */
+  "weight-clarity": {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    expect: STANDARD_CALLS,
+  },
+  /** A real deload week: Bench "Deload week: 160 lb (90%)", box empty. */
+  "deload-clarity": {
+    variant: "scheduled-deload",
+    anchorOffsetDays: 0,
+    deloadWeek: true,
+    expect: [
+      { ex: "BENCH", call: "deload_week", action: "Deload week: 160 lb (90%)" },
+    ],
+  },
+  /** Free, with yesterday's Upper A left unfinished; today's calls locked. */
+  "parity-free": {
+    variant: "recovery",
+    anchorOffsetDays: -1,
+    access: "free",
+    unfinished: 1,
+    expect: [
+      { ex: "SQUAT", call: "locked" },
+      { ex: "RDL", call: "locked" },
+    ],
+  },
+  /** Pro, the standard story: finish it with a swap and a skip. */
+  "parity-summary": {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    expect: STANDARD_CALLS,
+  },
 } as const satisfies Record<string, Profile>;
 
 export type ProfileName = keyof typeof PROFILES;
@@ -191,9 +245,12 @@ export function isProfileName(value: unknown): value is ProfileName {
 }
 
 /** A profile's full description (optional fields made explicit). */
-export function profileOf(
-  name: ProfileName,
-): Required<Omit<Profile, "deloadWeek">> & { deloadWeek: boolean | null } {
+export function profileOf(name: ProfileName): Required<
+  Omit<Profile, "deloadWeek" | "unfinished">
+> & {
+  deloadWeek: boolean | null;
+  unfinished: number | null;
+} {
   const p: Profile = PROFILES[name];
   return {
     variant: p.variant,
@@ -201,6 +258,7 @@ export function profileOf(
     access: p.access ?? "pro",
     deloadWeek: p.deloadWeek ?? null,
     expect: p.expect ?? [],
+    unfinished: p.unfinished ?? null,
   };
 }
 
