@@ -22,6 +22,7 @@ import {
 import { favoriteExerciseIds } from "@/lib/exercises/queries";
 import { getCardioWeek } from "@/lib/cardio/queries";
 import { loadScheduleContext } from "./schedule-context";
+import type { UnfinishedWorkoutDto } from "@overload/shared/contracts/views";
 import {
   effectiveWeekSchedule,
   occurrenceOnDate,
@@ -157,6 +158,59 @@ async function loggedPreview(
     };
   });
   return { exercises, setsLogged, gymName: les[0]?.gym?.name ?? null };
+}
+
+/**
+ * Workouts started on an earlier day (the account's own calendar) and still in
+ * progress, newest first (Pitch 21g OVE-228). Any block, active or not: the
+ * workout keeps its own date, gym, and sets; resuming it opens it as it is.
+ * A workout with no saved set is left out (nothing to resume). Read only,
+ * through the account-scoped client.
+ */
+export async function listUnfinishedWorkouts(
+  account: Account,
+  today: string = accountToday(account),
+): Promise<UnfinishedWorkoutDto[]> {
+  const sessions = await account.db.loggedSession.findMany({
+    where: {
+      status: "in_progress",
+      scheduledFor: { lt: new Date(`${today}T00:00:00.000Z`) },
+      loggedExercises: { some: { sets: { some: {} } } },
+    },
+    orderBy: [{ scheduledFor: "desc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      scheduledFor: true,
+      session: { select: { name: true } },
+      loggedExercises: {
+        select: {
+          plannedSets: true,
+          gym: { select: { name: true } },
+          sets: { select: { setNumber: true } },
+        },
+      },
+    },
+  });
+  return sessions.map((ls) => {
+    let setsLogged = 0;
+    let exercisesDone = 0;
+    for (const le of ls.loggedExercises) {
+      const working = le.sets.filter(
+        (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
+      ).length;
+      setsLogged += working;
+      if (working >= le.plannedSets) exercisesDone += 1;
+    }
+    return {
+      loggedSessionId: ls.id,
+      sessionName: ls.session?.name ?? "Workout",
+      scheduledFor: toIsoDate(ls.scheduledFor),
+      gymName: ls.loggedExercises.find((le) => le.gym)?.gym?.name ?? null,
+      setsLogged,
+      exercisesDone,
+      exercisesTotal: ls.loggedExercises.length,
+    };
+  });
 }
 
 export async function getTodayDashboard(
