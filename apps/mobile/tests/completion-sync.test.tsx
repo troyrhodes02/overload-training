@@ -432,7 +432,12 @@ describe("what the app asks for", () => {
     expect(
       after.filter((r) => r === "POST /workouts/ls-1/complete"),
     ).toHaveLength(1);
-    expect(after.filter((r) => r.startsWith("GET /today"))).toHaveLength(1);
+    // Today's own read once; its planned-list calls (Pitch 21g OVE-230) are
+    // one separate read when Today is shown again, never more.
+    expect(after.filter((r) => r === "GET /today?fields=core")).toHaveLength(1);
+    expect(after.filter((r) => r === "GET /today").length).toBeLessThanOrEqual(
+      1,
+    );
     expect(screen.getByText("View workout")).toBeTruthy();
   });
 
@@ -452,9 +457,9 @@ describe("what the app asks for", () => {
     await fireEvent.press(screen.getByText("View in History"));
     await screen.findAllByText("Set 1");
     const gets = server.requests.filter((r) => r.startsWith("GET "));
-    // Today and the History record still ask for the core fields only.
+    // Today and the History record still open on the core fields; Today's
+    // planned-list calls (Pitch 21g OVE-230) are their own, separate read.
     expect(gets).toContain("GET /today?fields=core");
-    expect(gets).not.toContain("GET /today");
     expect(gets).toContain(`GET /history/${ID}?fields=core`);
     // The week list has no calls to leave out.
     expect(gets).toContain("GET /history");

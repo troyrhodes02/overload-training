@@ -234,3 +234,29 @@ describe("the weight box under a call (OVE-229)", () => {
     expect(html).toContain(">same as set 1<");
   });
 });
+
+describe("parity with the iPhone card (OVE-230)", () => {
+  it("shows the server's not-enough-history line, never as a call", () => {
+    const html = withCall({
+      tag: null,
+      recommendation: null,
+      scheduledDeloadWeek: false,
+      historyHref: null,
+      suggestion: null,
+      insufficientNote: "Not enough history yet: 1 of 2 complete sessions.",
+    });
+    expect(html).toContain("Not enough history yet: 1 of 2 complete sessions.");
+    expect(html).not.toContain(">Use ");
+  });
+  it("no line when a call is shown, or when the call was withheld", () => {
+    const locked = withCall({
+      tag: null,
+      recommendation: null,
+      scheduledDeloadWeek: false,
+      historyHref: null,
+      locked: true,
+      insufficientNote: "Not enough history yet: 1 of 2 complete sessions.",
+    });
+    expect(locked).not.toContain("Not enough history yet");
+  });
+});

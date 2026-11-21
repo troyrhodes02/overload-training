@@ -74,14 +74,17 @@ jest.mock("expo-haptics", () => ({
   ImpactFeedbackStyle: { Light: "l" },
 }));
 
-type Handler = (opts: { method?: string; body?: unknown }) => unknown;
+type Handler = (
+  opts: { method?: string; body?: unknown },
+  raw?: string,
+) => unknown;
 function serve(routes: Record<string, unknown | Handler>) {
   mockApi.request.mockImplementation(
     async (raw: string, opts: { method?: string; body?: unknown } = {}) => {
       const r = routes[raw.replace(/\?fields=core$/, "")];
       if (r === undefined) throw new ApiError("not_found", "nope", 404);
       if (r instanceof Error) throw r;
-      return typeof r === "function" ? (r as Handler)(opts) : r;
+      return typeof r === "function" ? (r as Handler)(opts, raw) : r;
     },
   );
 }
@@ -377,7 +380,10 @@ describe("a cardio correction is on screen before its form closes (finding 4)", 
     const refetch = deferred<void>();
     let todayReads = 0;
     serve({
-      "/today": async () => {
+      "/today": async (_o: unknown, raw?: string) => {
+        // Today's own (core) read; its calls read (Pitch 21g OVE-230) is
+        // separate and never holds the form open.
+        if (!raw?.endsWith("?fields=core")) return stored;
         todayReads += 1;
         // The first read is Today opening; later ones follow the save.
         if (todayReads > 1) await refetch.promise;

@@ -16,9 +16,11 @@ import {
 import type { TodayDto } from "@overload/shared/contracts/views";
 import {
   TRAINING_KEYS,
+  useInsightReadState,
   useRefetchWhenFocused,
   useResolveMissedDay,
   useToday,
+  useTodayInsights,
 } from "../api/training";
 import { ApiError } from "../api/errors";
 import { webOrigin } from "../config/env";
@@ -39,6 +41,12 @@ import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { longDateLabel, weekdayLabel } from "./date";
 import { useStartOrResume, type StartState } from "./useStartWorkout";
 import { UnfinishedWorkouts } from "./UnfinishedWorkouts";
+import { plannedCalls, TODAY_PRO_NOTE } from "./today-calls";
+import { ProNote } from "../insights/ProNote";
+import { ProgressChip } from "../insights/ProgressChip";
+import { chipFor } from "../workout/insight-model";
+import { suggestedLoadLabel } from "@overload/shared/progression/suggested-load";
+import type { PlannedProgressionDto } from "@overload/shared/contracts/progression";
 
 /**
  * T1 Today (Pitch 21e design §6, §15; Checkpoint A RD-23, RD-24): the
@@ -49,6 +57,13 @@ import { UnfinishedWorkouts } from "./UnfinishedWorkouts";
  */
 export function TodayView() {
   const today = useToday();
+  // Today's planned-list calls (Pitch 21g OVE-230): a separate gated read,
+  // so Today opens on the core read as fast as before.
+  const todayInsights = useTodayInsights();
+  const insightRead = useInsightReadState(
+    todayInsights,
+    TRAINING_KEYS.todayInsights,
+  );
   useRefetchWhenFocused(TRAINING_KEYS.today);
   const starter = useStartOrResume();
   // What a resolution did, for the day it was made on (RD-23).
@@ -61,6 +76,11 @@ export function TodayView() {
     if (today.data) {
       return (
         <TodayContent
+          calls={plannedCalls(
+            today.data.dashboard,
+            insightRead,
+            todayInsights.data,
+          )}
           view={today.data}
           stale={today.isError}
           starter={starter}
@@ -107,12 +127,14 @@ function openWeb(path = "/") {
 type Starter = ReturnType<typeof useStartOrResume>;
 
 function TodayContent({
+  calls,
   view,
   stale,
   starter,
   resolvedNote,
   onResolved,
 }: {
+  calls: PlannedProgressionDto[] | null;
   view: TodayDto;
   stale: boolean;
   starter: Starter;
@@ -146,6 +168,7 @@ function TodayContent({
         stale={stale}
         starter={checked}
         onResolved={onResolved}
+        calls={calls}
       />
     </View>
   );
@@ -156,11 +179,13 @@ function DashboardBlock({
   stale,
   starter,
   onResolved,
+  calls,
 }: {
   dashboard: DashboardDto;
   stale: boolean;
   starter: Starter;
   onResolved: (note: string) => void;
+  calls: PlannedProgressionDto[] | null;
 }) {
   const { colors, spacing } = useTheme();
   switch (dashboard.kind) {
@@ -232,7 +257,7 @@ function DashboardBlock({
           {dashboard.scheduledDeloadWeek && dashboard.kind !== "complete" ? (
             <DeloadWeekBanner />
           ) : null}
-          <WorkoutCard day={dashboard}>
+          <WorkoutCard day={dashboard} calls={calls}>
             <DayActions day={dashboard} stale={stale} starter={starter} />
           </WorkoutCard>
           <CardioSection entries={dashboard.cardio} />
@@ -329,10 +354,13 @@ export function dayMeta(day: DashboardTodayDto): string {
 export function WorkoutCard({
   day,
   waitingOn,
+  calls = null,
   children,
 }: {
   day: DashboardTodayDto;
   waitingOn?: string;
+  /** Each planned exercise's gated call, in list order (OVE-230), or null. */
+  calls?: PlannedProgressionDto[] | null;
   children?: React.ReactNode;
 }) {
   const { colors, spacing } = useTheme();
@@ -369,38 +397,80 @@ export function WorkoutCard({
       </View>
       {waitingOn ? null : (
         <View>
-          {day.exercises.map((e, i) => (
-            <View
-              key={`${e.exerciseId}-${i}`}
-              accessible
-              accessibilityLabel={`${e.name}, ${e.scheme}${e.done ? ", logged" : ""}`}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.sm,
-                minHeight: 44,
-                borderTopWidth: 1,
-                borderTopColor: colors.border,
-              }}
-            >
-              {e.done ? (
-                <Symbol
-                  name="checkmark"
-                  size={14}
-                  color={colors.primary}
-                  weight="semibold"
-                />
-              ) : null}
-              <Text tone={e.done ? "muted" : "default"} style={{ flex: 1 }}>
-                {e.name}
-              </Text>
-              <Text size="sm" tone="muted">
-                {e.scheme}
-              </Text>
-            </View>
-          ))}
+          {day.exercises.map((e, i) => {
+            const call = calls?.[i] ?? null;
+            const open = call && call.locked === null ? call : null;
+            const chip = open ? chipFor(open.tag) : null;
+            const load = open ? suggestedLoadLabel(open.suggestion) : null;
+            // The web planned list's rule: a machine's call waits for the
+            // gym; otherwise the load and tag, and the scheme only when
+            // there's no tag (Today page, OVE-28).
+            const right = open?.gymVariable
+              ? "once gym is set"
+              : [load, chip ? null : e.scheme].filter(Boolean).join(" · ");
+            const evidence =
+              open?.tag && open.recommendation
+                ? open.recommendation.evidence
+                : null;
+            return (
+              <View
+                key={`${e.exerciseId}-${i}`}
+                accessible
+                accessibilityLabel={[
+                  `${e.name}, ${e.scheme}${e.done ? ", logged" : ""}`,
+                  chip?.label,
+                  load,
+                  open?.gymVariable ? "call once the gym is set" : null,
+                  evidence,
+                ]
+                  .filter(Boolean)
+                  .join(". ")}
+                style={{
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                  paddingVertical: evidence ? spacing.xs : 0,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.sm,
+                    minHeight: 44,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {e.done ? (
+                    <Symbol
+                      name="checkmark"
+                      size={14}
+                      color={colors.primary}
+                      weight="semibold"
+                    />
+                  ) : null}
+                  <Text tone={e.done ? "muted" : "default"} style={{ flex: 1 }}>
+                    {e.name}
+                  </Text>
+                  {right ? (
+                    <Text size="sm" tone="muted">
+                      {right}
+                    </Text>
+                  ) : null}
+                  <ProgressChip chip={chip} />
+                </View>
+                {evidence ? (
+                  <Text size="xs" tone="muted">
+                    {evidence}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       )}
+      {!waitingOn && calls?.some((c) => c.locked !== null) ? (
+        <ProNote surface="today-plan" message={TODAY_PRO_NOTE} />
+      ) : null}
       {children}
     </Surface>
   );

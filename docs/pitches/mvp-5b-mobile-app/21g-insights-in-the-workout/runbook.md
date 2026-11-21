@@ -439,3 +439,85 @@ More → Diagnostics on the iPhone must show update group `406719de`, commit `4e
 - `21g-verify-free@example.com`: Free.
 
 You can use them, or make fresh ones (§3).
+
+## 10. Web/iPhone parity matrix (OVE-230, 2026-11-21)
+
+**What this covers.** Every surface the web and the iPhone share through 21g. Each row was checked against the web component or page and the native screen that render it, and against the server read both consume.
+
+**Categories:**
+1. **Defect, now fixed.**
+2. **Intentional platform difference:** same meaning, different interaction.
+3. **Later mobile pitch:** the whole surface isn't on the iPhone yet.
+4. **Decision for the owner.**
+
+"Shared authority" names the one server function both platforms read.
+
+### Today and the workout lifecycle
+
+| Capability | Web | iPhone | Shared authority | Parity / category | Verification |
+| --- | --- | --- | --- | --- | --- |
+| Scheduled workout, Ready / In progress / Done | Today page | Today tab | `getTodayView` → `getTodayDashboard` | Parity | 21e tests + `views.int` |
+| Rest day, no active plan | Text cards | StateView | same | Parity | 21e |
+| Start / Resume / View workout | Links | Buttons | `startOrResumeWorkout` | Parity | 21e |
+| **Earlier day's unfinished workout** | was missing | was missing | `listUnfinishedWorkouts` | **Cat. 1, fixed (OVE-228)** on both | `today-unfinished.int` (12), `unfinished-workouts.test`, `unfinished.test` (9) |
+| **Several unfinished, each resumable** | was missing | was missing | same | **Cat. 1, fixed (OVE-228)** | same |
+| **Warn before starting another workout** | was missing | was missing | same | **Cat. 1, fixed (OVE-228)**: web interstitial, iPhone alert (cat. 2 in form) | same |
+| Missed-day prompt: log late, shift, skip | Prompt | Card with the same three choices | `resolveMissedDay` | Parity (21e) | `mobile-missed-day.int` |
+| Scheduled-deload banner on Today | Banner | Banner (21g) | `dashboard.scheduledDeloadWeek` | Parity | `deload-week.test` |
+| **Planned-list calls on Today** | Load, tag, a tagged lift's evidence, "once gym is set" | was missing (21g RD-9) | `getPlannedProgression` (gated) | **Cat. 1, fixed (OVE-230).** The iPhone reads them separately, so Today still opens on the core read | `today-calls.test` (5) |
+| Today's Pro note (Free) | Dismissible, with "Explore Pro" | Dismissible, no link | gate `locked` | Cat. 2: no purchase path on the phone | `today-calls.test` |
+| Goals block on Today (no training pending) | Shown | Not shown | `TodayDto.goals` | **Cat. 3 (21i**: native goals) | — |
+| Day complete | Calls + goals block on Today | "View summary" → S1 with the same calls and goals | `getSessionProgressionSummary` | Cat. 2: the phone's summary is its own screen | `summary.test` |
+| Cardio on Today, log and correct | Cards | Rows + C1 | `logCardio` | Parity (21f) | `cardio.test` |
+
+### Logging
+
+| Capability | Web | iPhone | Shared authority | Parity / category |
+| --- | --- | --- | --- | --- |
+| Name, prescription, fixed vs ranged reps, bodyweight | `formatRepTarget` | same function | shared | Parity (21f) |
+| Trusted prefill vs reference-only | `offerFor`, `formatCardContext` | same functions | server `weightContext` | Parity |
+| **Box vs call: "not adjusted", "Use 185 lb"** | was ambiguous | was ambiguous | shared `weightGuidance` | **Cat. 1, fixed (OVE-229)** on both |
+| Weight, reps, RIR (missing ≠ 0), save, retry | Inputs | Keypads with keypad bars | `logSet` | Parity. The keypad bar is cat. 2 |
+| Edit saved set, extra set, fewer sets | Dialog | Modal | `editLoggedSet`, `editPlannedSets` | Parity (21f) |
+| Swap (any muscle), locked after a set | Picker page; disabled "locked (sets logged)" | Modal; "Sets are logged — this exercise is locked." | `swapExercise` | Parity of meaning (cat. 2 copy) |
+| Skip / undo | Buttons | More sheet | `setExerciseSkipped` | Parity (cat. 2 placement) |
+| Gym choice and lock | Picker / Change gym | Sheet / Change gym | `changeGym` | Parity |
+| Finish confirmation for unfinished exercises | The rule | Same rule and copy | `unfinishedExercises` | Parity |
+| **Scheduled-deload banner on the workout** | was missing | Shown | `WorkoutDto.scheduledDeloadWeek` | **Cat. 1, fixed (OVE-230)** on the web |
+
+### Progression intelligence
+
+| Capability | Web | iPhone | Shared authority | Parity / category |
+| --- | --- | --- | --- | --- |
+| Progress / Hold / Hold — trend flat / Reassess / Deload / Deload week sentences | `Recommendation` | `InsightBlock` | `buildRecommendation` via the gated reader | Parity |
+| Evidence | Always visible | One tap (inline) | same strings | Cat. 2 (RD-7) |
+| **Not enough history: N of M** | was missing on the card | Shown | `insufficientNote` | **Cat. 1, fixed (OVE-230)** on the web |
+| Exercise history link from the card | "View history" | — | `historyHref` | **Cat. 3 (21i)** |
+| Failed call read | The page fails as a whole (server render) | Retry line, logging unaffected | — | Cat. 2: server rendering vs client reads. Not a regression |
+| Free locked, server-gated | `locked` → note | `locked` → note | `gateOccurrence` | Parity. No purchase link on the phone (cat. 2) |
+| Pro-note dismissal | Remembered per browser | Until restart, reset on sign-out | — | Cat. 2. A store comes in 21j |
+
+### Summary, History, corrections
+
+| Capability | Web | iPhone | Parity / category |
+| --- | --- | --- | --- |
+| Next-time calls, goal percentages, deload line, short of plan | Day-complete block | S1 | Parity |
+| Per-set facts (RIR, extra, swap provenance) | One tap away (View workout) | Inline on S1 | Cat. 2 (same record) |
+| All-time History, earlier blocks, in-progress rows, corrections, refreshed calls after a correction | Pages | Tab | Parity (21e/21f/21g) |
+
+### States
+
+Initial loading, failed loads, retry, keeping typed numbers on a failed save, an expired session, and access changes all keep their 21e–21g behavior on both platforms. The form differs (server pages vs client reads), and that's cat. 2.
+
+### Left for later mobile pitches (cat. 3)
+
+- **21h:** plan, library, and gyms.
+- **21i:** goals, exercise history, and the native chart.
+- **21j:** account, settings, What's New, export, deletion, and billing state.
+- **21k:** the native tour.
+
+None of these was pulled forward.
+
+### Remaining limitation
+
+**Performance (review finding #5, still deferred).** The iPhone's insight reads re-read the whole workout or day. The new Today calls read is one more full `GET /today`. It runs after the core read, only when Today is shown, and never after each write, so Today still opens at core speed. No timing evidence calls for a leaner endpoint yet.
