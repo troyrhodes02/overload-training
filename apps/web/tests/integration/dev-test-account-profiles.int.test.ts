@@ -6,7 +6,7 @@
  * and every expectation is checked against the GATED card reader the mobile
  * API serves (getOccurrenceProgression) — the same call the phone shows.
  */
-import { isoWeekday, todayIso } from "@overload/shared/plan/calendar";
+import { addDays, isoWeekday, todayIso } from "@overload/shared/plan/calendar";
 import type { Account } from "@/lib/data/account";
 import { getWorkout } from "@/lib/logging/queries";
 import { changeGym, startOrResumeWorkout } from "@/lib/logging/sessions";
@@ -120,8 +120,10 @@ async function cardCall(
   return (await getOccurrenceProgression(account, card.loggedExerciseId))!;
 }
 
+// Profiles anchored before today (an unfinished workout behind today's) are
+// proven by their own tests below: "today's workout" isn't the anchor's.
 const WITH_EXPECTATIONS = PROFILE_NAMES.filter(
-  (n) => profileOf(n).expect.length > 0,
+  (n) => profileOf(n).expect.length > 0 && profileOf(n).anchorOffsetDays === 0,
 );
 
 describe("every 21g profile's calls come from the real engine", () => {
@@ -300,5 +302,135 @@ describe("--access: the dev-only Pro ↔ Free switch (RD-16)", () => {
     });
     const plan = await planAccess(db, account.userId, "free");
     expect(plan.refusal).toMatch(/active trial/);
+  });
+});
+
+describe("Pitch 21g final-correction profiles (OVE-231)", () => {
+  it("every one passes the command's own engine check", async () => {
+    const { engineReport } =
+      await import("../../scripts/dev-test-account/engine-report");
+    for (const name of [
+      "unfinished",
+      "multiple-unfinished",
+      "weight-clarity",
+      "deload-clarity",
+      "parity-free",
+      "parity-summary",
+    ] as const) {
+      const { account, profile } = await seedProfile(name);
+      const report = await engineReport(account, profile);
+      expect([name, report.problems]).toEqual([name, []]);
+    }
+  });
+
+  it("unfinished: yesterday's Upper A (Bench 180 × 8, 8) is listed; today's Lower A is ready", async () => {
+    const { account, anchor } = await seedProfile("unfinished");
+    const view = await getTodayView(account);
+    expect(view.dashboard.kind).toBe("pending");
+    if (view.dashboard.kind !== "pending") throw new Error("pending");
+    expect(view.dashboard.sessionName).toBe("Lower A");
+    expect(view.unfinishedWorkouts).toMatchObject([
+      { sessionName: "Upper A", scheduledFor: anchor, setsLogged: 2 },
+    ]);
+  });
+
+  it("multiple-unfinished: two earlier workouts, newest first, on a rest day", async () => {
+    const { account, anchor } = await seedProfile("multiple-unfinished");
+    const view = await getTodayView(account);
+    expect(view.dashboard.kind).toBe("rest");
+    expect(
+      view.unfinishedWorkouts?.map((w) => [
+        w.sessionName,
+        w.scheduledFor,
+        w.setsLogged,
+      ]),
+    ).toEqual([
+      ["Lower A", addDays(anchor, 1), 1],
+      ["Upper A", anchor, 2],
+    ]);
+  });
+
+  it("parity-free: Free, the reminder still shows, and today's calls are withheld", async () => {
+    const { account } = await seedProfile("parity-free");
+    const view = await getTodayView(account);
+    expect(view.unfinishedWorkouts).toHaveLength(1);
+    expect(
+      view.plannedProgression.every(
+        (p) =>
+          p.progression.locked === "progression_insights" &&
+          p.progression.recommendation === null,
+      ),
+    ).toBe(true);
+  });
+
+  it("weight-clarity: the box shows last time's weight, captioned not adjusted; Use offers only the server's number", async () => {
+    const { offerFor } = await import("@overload/shared/logging/set-entry");
+    const { weightGuidance, NOT_ADJUSTED_CAPTION } =
+      await import("@overload/shared/logging/weight-guidance");
+    const { account, anchor } = await seedProfile("weight-clarity");
+    const workout = await startToday(account, anchor, "Northside Strength");
+    const db = getTestPrisma();
+    const guidanceFor = async (ex: FixtureExercise) => {
+      const id = (
+        await db.exercise.findUniqueOrThrow({
+          where: { sourceId: LIBRARY[ex] },
+        })
+      ).id;
+      const card = workout.exercises.find((e) => e.performedExerciseId === id)!;
+      const call = (await getOccurrenceProgression(
+        account,
+        card.loggedExerciseId,
+      ))!;
+      const offer = offerFor({
+        requiresExternalWeight: card.requiresExternalWeight,
+        sets: card.sets,
+        workingWeightLbs:
+          card.weightContext === "trusted" ? card.suggestedWeightLbs : null,
+      });
+      return {
+        offer: offer?.weightLbs ?? null,
+        ...weightGuidance({
+          offer,
+          typed: null,
+          callKind: call.recommendation?.kind ?? null,
+          suggestedLbs: call.suggestion?.lbs ?? null,
+          externalLoad: card.requiresExternalWeight,
+          anySaved: false,
+        }),
+      };
+    };
+    expect(await guidanceFor("BENCH")).toEqual({
+      offer: 180,
+      caption: NOT_ADJUSTED_CAPTION,
+      use: { lbs: 185, label: "Use 185 lb" },
+    });
+    expect(await guidanceFor("OHP")).toEqual({
+      offer: 115,
+      caption: NOT_ADJUSTED_CAPTION,
+      use: null,
+    });
+    expect(await guidanceFor("INCLINE_DB")).toMatchObject({
+      offer: 60,
+      caption: "last time",
+      use: null,
+    });
+  });
+
+  it("deload-clarity: the box is empty (no earlier deload-week weight) and Use offers the 90% load", async () => {
+    const { account, anchor } = await seedProfile("deload-clarity");
+    const workout = await startToday(account, anchor, "Northside Strength");
+    const db = getTestPrisma();
+    const id = (
+      await db.exercise.findUniqueOrThrow({
+        where: { sourceId: LIBRARY.BENCH },
+      })
+    ).id;
+    const card = workout.exercises.find((e) => e.performedExerciseId === id)!;
+    expect(card.weightContext).not.toBe("trusted");
+    const call = (await getOccurrenceProgression(
+      account,
+      card.loggedExerciseId,
+    ))!;
+    expect(call.suggestion).toEqual({ lbs: 160, kind: "scheduled_deload" });
   });
 });

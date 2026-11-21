@@ -161,7 +161,10 @@ async function main() {
           "The data is real and was kept. Use a NEW email for a fresh account, and report this.",
         );
         process.exitCode = 2;
-      } else if (!access && spec.expect.length > 0) {
+      } else if (
+        !access &&
+        (spec.expect.length > 0 || spec.unfinished !== null)
+      ) {
         console.log("ENGINE CHECK PASSED");
       }
     };
