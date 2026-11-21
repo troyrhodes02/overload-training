@@ -168,7 +168,7 @@ export function ExerciseCard({
     callKind: progression?.recommendation?.kind ?? null,
     suggestedLbs: progression?.suggestion?.lbs ?? null,
     externalLoad: needsWeight,
-    anySaved: exercise.sets.some((s) => s.saved),
+    anySaved,
   });
   const showCaption =
     needsWeight && draft.weight === null && guidance.caption !== null;

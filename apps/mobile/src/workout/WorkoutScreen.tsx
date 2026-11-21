@@ -168,15 +168,10 @@ export function WorkoutScreen({
   const i = Math.min(index ?? 0, Math.max(0, exercises.length - 1));
   const current = exercises[i];
   // The current card's call, only while it is shown as current (OVE-229).
-  const currentView = current
-    ? insightFor(
-        insightRead,
-        callForCard(insights.data?.progression, current.loggedExerciseId),
-      )
-    : null;
   const currentCall = current
     ? callForCard(insights.data?.progression, current.loggedExerciseId)
     : undefined;
+  const currentView = current ? insightFor(insightRead, currentCall) : null;
   const currentGuidance =
     currentView?.kind === "call" && currentCall?.recommendation
       ? {

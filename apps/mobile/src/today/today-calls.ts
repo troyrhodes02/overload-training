@@ -20,8 +20,8 @@ export function plannedCalls(
   read: InsightReadState,
   full: TodayDto | undefined,
 ): PlannedProgressionDto[] | null {
-  if (read.isPaused || read.isError) return null;
-  if (read.isFetching && (!read.hasData || read.isInvalidated)) return null;
+  if (read.isPaused || read.isError || read.isInvalidated) return null;
+  if (read.isFetching && !read.hasData) return null;
   if (!full) return null;
   if (core.kind !== "pending" && core.kind !== "in_progress") return null;
   const f = full.dashboard;
