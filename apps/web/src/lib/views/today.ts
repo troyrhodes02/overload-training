@@ -1,7 +1,10 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
 import { accountToday } from "@/lib/data/account";
-import { getTodayDashboard } from "@/lib/logging/queries";
+import {
+  getTodayDashboard,
+  listUnfinishedWorkouts,
+} from "@/lib/logging/queries";
 import {
   getPlannedProgression,
   getSessionProgressionSummary,
@@ -71,11 +74,16 @@ export async function getTodayView(
 ): Promise<TodayDto> {
   // One instant for the greeting's clock and the entitlement.
   const now = opts.now ?? new Date();
-  const [dashboard, facts, entitlement] = await Promise.all([
-    getTodayDashboard(account),
-    getGreetingFacts(account, now),
-    opts.core ? null : resolveRequestEntitlement(account, now),
-  ]);
+  const [dashboard, facts, entitlement, unfinishedWorkouts] = await Promise.all(
+    [
+      getTodayDashboard(account),
+      getGreetingFacts(account, now),
+      opts.core ? null : resolveRequestEntitlement(account, now),
+      // Earlier days' workouts still in progress (Pitch 21g OVE-228): in the
+      // core fields too, so the phone's first Today answer carries them.
+      listUnfinishedWorkouts(account),
+    ],
+  );
 
   // Read right after the dashboard, as the web page always did (release
   // review #5): the date header and the dashboard come from the same moment.
@@ -100,6 +108,7 @@ export async function getTodayView(
       sessionSummary: null,
       sessionGoals: [],
       goals: null,
+      unfinishedWorkouts,
     };
   }
 
@@ -173,5 +182,6 @@ export async function getTodayView(
     sessionSummary,
     sessionGoals,
     goals,
+    unfinishedWorkouts,
   };
 }

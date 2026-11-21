@@ -29,6 +29,27 @@ export type TodayGoalsDto = {
 };
 
 /**
+ * A workout started on an EARLIER day (account time zone) and never finished
+ * (Pitch 21g OVE-228). Today lists these so an unfinished workout never
+ * disappears behind today's plan. Only workouts with at least one saved set
+ * are listed: a workout started with nothing logged has nothing to resume
+ * (it stays in History). Read only; the state is the workout's own status.
+ */
+export type UnfinishedWorkoutDto = {
+  loggedSessionId: string;
+  /** The planned session's name ("Upper A"), or "Workout" without one. */
+  sessionName: string;
+  /** The day it was scheduled for (its date never changes on resume). */
+  scheduledFor: IsoDate;
+  gymName: string | null;
+  /** Saved working sets (setNumber 1..plannedSets) across its exercises. */
+  setsLogged: number;
+  /** Exercises with every planned set saved, of all its exercises. */
+  exercisesDone: number;
+  exercisesTotal: number;
+};
+
+/**
  * `GET /today`: the Today screen, built by the same server function the web's
  * Today page renders from (Pitch 21c spec §9.2). Finalized in 21c before any
  * client existed; from here on v1 changes are additive only.
@@ -54,6 +75,12 @@ export type TodayDto = {
   sessionGoals: SessionGoalRowDto[];
   /** Present only when the dashboard shows goals (no training action pending). */
   goals: TodayGoalsDto | null;
+  /**
+   * Pitch 21g (OVE-228): workouts from earlier days still in progress, newest
+   * first, in every dashboard state and in the core fields too. Optional so
+   * an older server's answer still type-checks: a client treats it as [].
+   */
+  unfinishedWorkouts?: UnfinishedWorkoutDto[];
 };
 
 /**
@@ -65,6 +92,7 @@ export type TodayDto = {
  * - Today: `plannedProgression` is `[]`, `sessionSummary` null,
  *   `sessionGoals` `[]`, and `goals` null; goal completion is not reconciled
  *   on this read (each set and each finish still reconciles it).
+ *   `unfinishedWorkouts` (Pitch 21g) is state, not a call, and is kept.
  * - Workout: `progression` is `[]` (as it already is for a finished workout).
  * - Logged workout: `summary` is null and `goals` `[]`.
  *
