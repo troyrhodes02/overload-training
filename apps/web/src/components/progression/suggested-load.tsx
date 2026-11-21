@@ -1,4 +1,5 @@
 import type { SuggestedLoadDto } from "@overload/shared/progression/types";
+import { suggestedLoadLabel } from "@overload/shared/progression/suggested-load";
 
 /**
  * The display-only suggested working load (spec §7; design §SuggestedLoad). A
@@ -11,11 +12,9 @@ export function SuggestedLoad({
 }: {
   suggestion: SuggestedLoadDto;
 }) {
-  if (!suggestion) return null;
-  const note = suggestion.kind === "progress_increment" ? "+5" : "90%";
+  const label = suggestedLoadLabel(suggestion);
+  if (!label) return null;
   return (
-    <span className="text-sm tabular-nums text-muted-foreground">
-      Try {suggestion.lbs} lb ({note})
-    </span>
+    <span className="text-sm tabular-nums text-muted-foreground">{label}</span>
   );
 }

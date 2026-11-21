@@ -151,4 +151,18 @@ Before the release (2026-11-18): `app-config` answered 200; `GET /today` and `GE
 
 ### Result
 
-_Recorded after the deploy._
+Recorded on 2026-11-18, after the deploy.
+
+- **Merged:** #276 was squash-merged into `main` as `c15020e`.
+- **P1:** Vercel Production deployment `dpl_2sRCqLZ7dSuFy9J7s79oEysrGeb2` (`overload-training-7u3tx1p4d…vercel.app`) is **Ready**, aliased to `www.overloadtraining.app`.
+- **P2:** `app-config` answered 200 with the same body as before.
+- **P3:** all eight new endpoints answered 401 `unauthorized` without a token (404 before the release). `PATCH /sets/{id}` with an invalid bearer token also answered 401.
+- **P4:** `/today`, `/today?fields=core`, `/history`, and `POST /workouts` answered 401, as before.
+- **P5:** `/`, `/login`, `/signup`, `/pricing`, and `/forgot-password` answered 200. Signed out, `/plan` redirects to `/login`.
+- **P6: unverified.** `vercel logs` for the new deployment returned 0 records, although the smoke requests above had just reached it. This is the same limitation as the 21e release, so it can't confirm the logs either way. None of the smoke responses was a 5xx. Check Vercel → Logs in the dashboard.
+- **Owner's checks, not yet done:** signed-in Production checks, runbook §8: the plan builder on a phone, Today, History, existing workouts, logging, and the logs.
+- **Not performed:** no migration, no environment or credential change, no Production Expo update, no native build, and no TestFlight.
+
+## 8. After the release
+
+`main` was synchronized back into `staging` with a normal merge commit, the same procedure as #262. The sync PR and the `staging` result are recorded in the pitch runbook §7.

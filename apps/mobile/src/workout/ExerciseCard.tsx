@@ -18,7 +18,8 @@ import type {
 import { formatRepTarget } from "@overload/shared/plan/rep-target";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { rirSpoken } from "@overload/shared/logging/rir";
-import { formatWeight, offerCaption } from "@overload/shared/logging/set-entry";
+import { formatWeight } from "@overload/shared/logging/set-entry";
+import { weightGuidance } from "@overload/shared/logging/weight-guidance";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { ApiError } from "../api/errors";
 import {
@@ -32,6 +33,8 @@ import { haptic } from "../ui/haptics";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
 import { Surface } from "../ui/Surface";
+import { InsightBlock } from "../insights/InsightBlock";
+import type { InsightView } from "./insight-model";
 import { fontFamily, textSize, tint } from "../ui/theme";
 import { useTheme } from "../ui/ThemeProvider";
 import { fewerSetsConfirmation, showExerciseActions } from "./exercise-actions";
@@ -91,6 +94,7 @@ export function ExerciseCard({
   onPlannedSetsDone,
   activeRowRef,
   onActiveRowLayout,
+  insight,
 }: {
   card: ExerciseCardDto;
   workout: WorkoutDto;
@@ -101,6 +105,22 @@ export function ExerciseCard({
   activeRowRef?: React.Ref<HostInstance>;
   /** The active row moved or changed size (a set saved, an error showed). */
   onActiveRowLayout?: () => void;
+  /**
+   * This card's call (Pitch 21g), shown only while the card is loggable. The
+   * card never reads it for input: the weight box keeps its own offer.
+   */
+  insight?: {
+    view: InsightView;
+    expanded: boolean;
+    onToggle: () => void;
+    onRetry: () => void;
+    /**
+     * The CURRENT call's kind and suggested load (OVE-229), only while a call
+     * is shown; null otherwise (loading, failed, locked, Free), so a stale or
+     * withheld number can never be offered.
+     */
+    guidance?: { callKind: string; suggestedLbs: number | null } | null;
+  };
 }) {
   const { colors, radius, spacing } = useTheme();
   const client = useQueryClient();
@@ -148,7 +168,19 @@ export function ExerciseCard({
   const draft = active !== null ? (drafts[active] ?? EMPTY) : EMPTY;
   const weightText =
     draft.weight ?? (offer ? formatWeight(offer.weightLbs) : "");
-  const showCaption = needsWeight && draft.weight === null && offer !== null;
+  // How the box relates to the call (Pitch 21g OVE-229; the web card uses
+  // the same rule): "last time's weight, not adjusted" under a change call,
+  // and the server's number as a one-tap choice for the unsaved box.
+  const guidance = weightGuidance({
+    offer,
+    typed: draft.weight,
+    callKind: insight?.guidance?.callKind ?? null,
+    suggestedLbs: insight?.guidance?.suggestedLbs ?? null,
+    externalLoad: needsWeight,
+    anySaved: card.sets.some((s) => s.saved),
+  });
+  const showCaption =
+    needsWeight && draft.weight === null && guidance.caption !== null;
   const saving = logSet.isPending;
   /** The exercise itself is changing: nothing else on the card may be sent. */
   const changing = setSkipped.isPending || editPlanned.isPending;
@@ -479,6 +511,15 @@ export function ExerciseCard({
             ) : null}
           </View>
 
+          {insight ? (
+            <InsightBlock
+              view={insight.view}
+              expanded={insight.expanded}
+              onToggle={insight.onToggle}
+              onRetry={insight.onRetry}
+            />
+          ) : null}
+
           <View style={{ gap: spacing.xs }}>
             {rows.map((s) =>
               s.saved ? (
@@ -545,7 +586,9 @@ export function ExerciseCard({
                         keyboardType="decimal-pad"
                         label={`Set ${s.setNumber} weight in pounds`}
                         hint={
-                          showCaption && offer ? offerCaption(offer) : undefined
+                          showCaption
+                            ? (guidance.caption ?? undefined)
+                            : undefined
                         }
                         invalid={fieldError?.field === "weight"}
                         editable={!saving}
@@ -580,10 +623,26 @@ export function ExerciseCard({
                       }}
                     />
                   </View>
-                  {showCaption && offer ? (
+                  {showCaption ? (
                     <Text size="xs" tone="muted" style={{ marginLeft: 56 }}>
-                      {offerCaption(offer)}
+                      {guidance.caption}
                     </Text>
+                  ) : null}
+                  {guidance.use ? (
+                    // The lifter's choice, never automatic: it only fills
+                    // this unsaved box (no save, no focus change).
+                    <View style={{ marginLeft: 48, alignItems: "flex-start" }}>
+                      <Button
+                        label={guidance.use.label}
+                        variant="text"
+                        accessibilityHint="Puts the suggested weight in this set's weight box. Nothing is saved."
+                        onPress={() =>
+                          setDraft(s.setNumber, {
+                            weight: formatWeight(guidance.use!.lbs),
+                          })
+                        }
+                      />
+                    </View>
                   ) : null}
                   {/* Optional, inside the row the screen keeps above the
                       keyboard. It never starts selected and is never carried

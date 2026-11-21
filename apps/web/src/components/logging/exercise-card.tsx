@@ -21,13 +21,14 @@ import {
   formatCardContext,
   formatWeight,
   loggedRowLabel,
-  offerCaption,
   offerFor,
 } from "@overload/shared/logging/set-entry";
+import { weightGuidance } from "@overload/shared/logging/weight-guidance";
 import { rirSpoken, rirSuffix } from "@overload/shared/logging/rir";
 import type {
   ProgressionTag,
   RecommendationDto,
+  SuggestedLoadDto,
 } from "@overload/shared/progression/types";
 import { ProgressTag } from "@/components/progression/progress-tag";
 import { Recommendation } from "@/components/progression/recommendation";
@@ -49,6 +50,14 @@ export type CardProgression = {
   historyHref: string | null;
   /** Plans, Billing: set when the Pro call was withheld (Free); renders one note. */
   locked?: boolean;
+  /**
+   * The server's suggested load for the call (gated: null on Free). Pitch
+   * 21g OVE-229: offered as the lifter's one-tap choice for the unsaved box,
+   * never applied by itself.
+   */
+  suggestion?: SuggestedLoadDto;
+  /** The not-enough-history line (Pitch 21g; null for any call). */
+  insufficientNote?: string | null;
 };
 
 /**
@@ -150,7 +159,19 @@ export function ExerciseCard({
   // An untouched box always shows the current offer; a typed one stays theirs.
   const weightValue =
     draft.weight ?? (offer ? formatWeight(offer.weightLbs) : "");
-  const showCaption = needsWeight && draft.weight === null && offer !== null;
+  // How the box relates to the call (Pitch 21g OVE-229; the iPhone card
+  // uses the same rule): "last time's weight, not adjusted" under a change
+  // call, and the server's number as a one-tap choice for the unsaved box.
+  const guidance = weightGuidance({
+    offer,
+    typed: active !== null ? draft.weight : null,
+    callKind: progression?.recommendation?.kind ?? null,
+    suggestedLbs: progression?.suggestion?.lbs ?? null,
+    externalLoad: needsWeight,
+    anySaved,
+  });
+  const showCaption =
+    needsWeight && draft.weight === null && guidance.caption !== null;
 
   // Focus only ever follows the lifter's own action (R13): after a confirmed
   // set (once the refreshed record shows it), or after Next/Previous.
@@ -413,6 +434,16 @@ export function ExerciseCard({
         </p>
       ) : null}
       <Recommendation recommendation={progression?.recommendation ?? null} />
+      {/* The server's not-enough-history line (Pitch 21g parity, OVE-230:
+          the iPhone card shows it). A statement about the lifter's own data,
+          never a call; kept on Free. */}
+      {!progression?.recommendation &&
+      !progression?.locked &&
+      progression?.insufficientNote ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          {progression.insufficientNote}
+        </p>
+      ) : null}
       {progression?.locked ? (
         <UpgradeNote
           surface="exercise-card"
@@ -609,13 +640,29 @@ export function ExerciseCard({
                   )}
                 </Button>
               </div>
-              {showCaption && offer ? (
+              {showCaption ? (
                 <p
                   id={captionId}
                   className="pl-0.5 text-xs text-muted-foreground"
                 >
-                  {offerCaption(offer)}
+                  {guidance.caption}
                 </p>
+              ) : null}
+              {guidance.use ? (
+                // The lifter's choice, never automatic: it fills this
+                // unsaved box only (nothing is saved, focus stays put).
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-11 px-0.5"
+                  onClick={() =>
+                    setDraft(s.setNumber, {
+                      weight: formatWeight(guidance.use!.lbs),
+                    })
+                  }
+                >
+                  {guidance.use.label}
+                </Button>
               ) : null}
               <RirPicker
                 label={`Set ${s.setNumber} RIR (reps in reserve, optional)`}

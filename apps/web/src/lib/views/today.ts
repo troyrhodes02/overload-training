@@ -1,7 +1,10 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
 import { accountToday } from "@/lib/data/account";
-import { getTodayDashboard } from "@/lib/logging/queries";
+import {
+  getTodayDashboard,
+  listUnfinishedWorkouts,
+} from "@/lib/logging/queries";
 import {
   getPlannedProgression,
   getSessionProgressionSummary,
@@ -56,6 +59,17 @@ function shownDay(dashboard: DashboardDto): DashboardTodayDto | null {
   return null;
 }
 
+/** The workouts Today shows as its own day: today's, and a missed day's below. */
+function shownLoggedSessionIds(dashboard: DashboardDto): string[] {
+  const day =
+    dashboard.kind === "missed_day"
+      ? dashboard.below
+      : "loggedSessionId" in dashboard
+        ? dashboard
+        : null;
+  return day?.loggedSessionId ? [day.loggedSessionId] : [];
+}
+
 export async function getTodayView(
   account: Account,
   opts: {
@@ -76,6 +90,12 @@ export async function getTodayView(
     getGreetingFacts(account, now),
     opts.core ? null : resolveRequestEntitlement(account, now),
   ]);
+  // Earlier days' workouts still in progress (Pitch 21g OVE-228), in the core
+  // fields too — except a workout the dashboard already shows as its own day
+  // (a shifted occurrence keeps its authored, earlier date).
+  const unfinishedWorkouts = await listUnfinishedWorkouts(account, undefined, {
+    excludeIds: shownLoggedSessionIds(dashboard),
+  });
 
   // Read right after the dashboard, as the web page always did (release
   // review #5): the date header and the dashboard come from the same moment.
@@ -100,6 +120,7 @@ export async function getTodayView(
       sessionSummary: null,
       sessionGoals: [],
       goals: null,
+      unfinishedWorkouts,
     };
   }
 
@@ -173,5 +194,6 @@ export async function getTodayView(
     sessionSummary,
     sessionGoals,
     goals,
+    unfinishedWorkouts,
   };
 }

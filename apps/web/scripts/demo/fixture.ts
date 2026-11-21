@@ -298,6 +298,17 @@ export const DEMO_VARIANTS = [
   "gym",
   "bodyweight",
   "cardio",
+  // Pitch 21g (spec §11): one insight scenario each, on today's Upper A.
+  "hold",
+  "reactive-deload",
+  "rir",
+  "scheduled-deload",
+  "post-deload",
+  "insufficient",
+  "edit",
+  "recovery",
+  // Pitch 21g correction OVE-228.
+  "multiple-unfinished",
 ] as const;
 export type DemoVariant = (typeof DEMO_VARIANTS)[number];
 
@@ -317,11 +328,44 @@ export const VARIANT_LIBRARY = {
 export type FixtureExercise = DemoExercise | keyof typeof VARIANT_LIBRARY;
 export type FixtureGym = DemoGym | "harbor";
 
-/** One exercise's sets in one workout: weight (null = bodyweight) and reps. */
+/**
+ * One exercise's sets in one workout: weight (null = bodyweight), reps, and
+ * optionally the RIR of each set (Pitch 21g; null or absent = not recorded,
+ * never 0). RIR is a logged FACT, written through logSet like the rest.
+ */
 export type FixturePerf = readonly [
   weightLbs: number | null,
   reps: readonly number[],
+  rir?: readonly (number | null)[],
 ];
+
+/** One training block as the fixture writes it (DEMO_BLOCKS' shape). */
+export type FixtureBlock = {
+  key: "block1" | "block2";
+  name: string;
+  startDaysBeforeAnchor: number;
+  lengthWeeks: number;
+  deloadEveryWeeks: number;
+  weeksTrained: number;
+};
+
+/**
+ * Today's workout already started, with some sets logged and not finished
+ * (Pitch 21g `recovery`): through startOrResumeWorkout and logSet on the
+ * anchor date, exactly as a lifter mid-workout leaves it.
+ */
+export type FixtureInProgress = {
+  session: DemoSession["key"];
+  /**
+   * Days after the anchor it was scheduled for (0 = the anchor). The session
+   * must fall on that weekday; never after the account's today.
+   */
+  dayOffset?: number;
+  gym: FixtureGym;
+  sets: Partial<
+    Record<FixtureExercise, readonly (readonly [number | null, number])[]>
+  >;
+};
 
 export type FixtureSlot = {
   ex: FixtureExercise;
@@ -362,6 +406,13 @@ export type DemoFixture = {
   /** Planned cardio of the active (last) block. */
   plannedCardio: readonly FixtureCardio[];
   cardioLogs: readonly FixtureCardioLog[];
+  /** The blocks, oldest first (DEMO_BLOCKS unless a 21g variant changes them). */
+  blocks: readonly FixtureBlock[];
+  /**
+   * Workouts left in progress (21g `recovery`, `multiple-unfinished`), on the
+   * anchor or a later day up to the account's today, oldest first.
+   */
+  inProgress: readonly FixtureInProgress[];
 };
 
 /** Bodyweight reps by trained-week index (index 4 is the deload week). */
@@ -431,6 +482,155 @@ function libraryFor(
   return out;
 }
 
+/**
+ * Pitch 21g insight variants (spec §11). Each changes only FACTS — the sets
+ * lifted, their RIR, or the active block's deload cadence and length — so
+ * that, on the anchor date, the UNCHANGED engine reaches one call on today's
+ * Upper A. Trained-week index 5–7 is the active block's weeks 1–3, which is
+ * the run the card judges (each block's Upper A is its own recurring
+ * workout). The calls each produces are asserted through the real card
+ * reader in tests/integration/dev-test-account-profiles.int.test.ts.
+ */
+type Overrides = Partial<Record<FixtureExercise, Record<number, FixturePerf>>>;
+
+function withOverrides(
+  base: Partial<Record<FixtureExercise, readonly FixturePerf[]>>,
+  overrides: Overrides,
+): Partial<Record<FixtureExercise, readonly FixturePerf[]>> {
+  const out = { ...base };
+  for (const [ex, byWeek] of Object.entries(overrides) as [
+    FixtureExercise,
+    Record<number, FixturePerf>,
+  ][]) {
+    const perfs = [...(base[ex] ?? [])];
+    for (const [week, perf] of Object.entries(byWeek))
+      perfs[Number(week)] = perf;
+    out[ex] = perfs;
+  }
+  return out;
+}
+
+/** A lighter week at about 90%, rounded down to 5 lb (a real deload week's shape). */
+function lighter(perf: FixturePerf): FixturePerf {
+  const [w, reps] = perf;
+  return [w === null ? null : Math.floor((w * 0.9) / 5) * 5, reps];
+}
+
+const ACTIVE_BLOCK = DEMO_BLOCKS[1];
+
+const INSIGHT_VARIANTS: Partial<
+  Record<
+    DemoVariant,
+    {
+      overrides?: (base: typeof DEMO_PERFORMANCES) => Overrides;
+      activeBlock?: Partial<FixtureBlock>;
+      inProgress?: readonly FixtureInProgress[];
+    }
+  >
+> = {
+  /** Bench last time 180 × 8, 7, 7: short of the top, nothing below → hold. */
+  hold: { overrides: () => ({ BENCH: { 7: [180, [8, 7, 7]] } }) },
+  /** Bench below 6 two Upper A's running → reactive Deload. */
+  "reactive-deload": {
+    overrides: () => ({
+      BENCH: { 6: [180, [7, 6, 5]], 7: [180, [6, 5, 5]] },
+    }),
+  },
+  /**
+   * RIR changes three calls (RIR Logging & Autoregulation):
+   *  - Bench at the top with a set at 0 RIR → Progress held at the limit;
+   *  - Military Press flat at the top, every set 2+ RIR → stall released;
+   *  - Incline flat at the top, ONE set unrecorded → the stall stays (a
+   *    missing RIR is never assumed).
+   */
+  rir: {
+    overrides: () => ({
+      BENCH: { 7: [180, [8, 8, 8], [2, 1, 0]] },
+      OHP: {
+        5: [110, [8, 8, 8]],
+        6: [110, [8, 8, 8]],
+        7: [110, [8, 8, 8], [2, 2, 3]],
+      },
+      INCLINE_DB: {
+        5: [60, [12, 12, 12]],
+        6: [60, [12, 12, 12]],
+        7: [60, [12, 12, 12], [2, 2, null]],
+      },
+    }),
+  },
+  /** The active block deloads every 4th week: today (week 4) is one. */
+  "scheduled-deload": { activeBlock: { deloadEveryWeeks: 4 } },
+  /**
+   * The active block deloads every 3rd week: week 3 was the (lighter) deload
+   * week, and today is week 4, an ordinary week again.
+   */
+  "post-deload": {
+    activeBlock: { deloadEveryWeeks: 3 },
+    overrides: (base) =>
+      Object.fromEntries(
+        (Object.keys(base) as DemoExercise[]).map((ex) => [
+          ex,
+          { 7: lighter(base[ex][7]) },
+        ]),
+      ) as Overrides,
+  },
+  /**
+   * A new block started a week ago: one Upper A of it is logged, so every
+   * lift today has 1 of the 2 complete sessions a call needs. The earlier
+   * block's numbers show only as reference.
+   */
+  insufficient: {
+    activeBlock: { startDaysBeforeAnchor: 7, weeksTrained: 1 },
+  },
+  /**
+   * Bench last time 180 × 8, 8, 7 at RIR 1, 1, 0 (hold). Correcting set 3 to
+   * 8 reps makes it a Progress held at the limit (0 RIR); correcting that
+   * set's RIR to 1 then releases it to Progress.
+   */
+  edit: { overrides: () => ({ BENCH: { 7: [180, [8, 8, 7], [1, 1, 0]] } }) },
+  /** The standard story with today's Upper A started: Bench sets 1–2 logged. */
+  recovery: {
+    inProgress: [
+      {
+        session: "upperA",
+        gym: "northside",
+        sets: {
+          BENCH: [
+            [180, 8],
+            [180, 8],
+          ],
+        },
+      },
+    ],
+  },
+  /**
+   * Pitch 21g correction OVE-228: two workouts left unfinished on two days,
+   * with different saved sets — the anchor's Upper A (Bench 180 × 8, 8) and
+   * the next day's Lower A (Squat 215 × 7). Profiles anchor this two days
+   * back, so both are "earlier" and today is a rest day.
+   */
+  "multiple-unfinished": {
+    inProgress: [
+      {
+        session: "upperA",
+        gym: "northside",
+        sets: {
+          BENCH: [
+            [180, 8],
+            [180, 8],
+          ],
+        },
+      },
+      {
+        session: "lowerA",
+        dayOffset: 1,
+        gym: "northside",
+        sets: { SQUAT: [[215, 7]] },
+      },
+    ],
+  },
+};
+
 /** The whole fixture for one variant. Pure. */
 export function demoFixture(variant: DemoVariant = "standard"): DemoFixture {
   let sessions: FixtureSession[] = DEMO_SESSIONS;
@@ -465,15 +665,36 @@ export function demoFixture(variant: DemoVariant = "standard"): DemoFixture {
     performances: { ...DEMO_PERFORMANCES, ...BODYWEIGHT_PERFORMANCES },
     plannedCardio: variant === "cardio" ? CARDIO_PLAN : [],
     cardioLogs: variant === "cardio" ? CARDIO_LOGS : [],
+    blocks: DEMO_BLOCKS,
+    inProgress: [],
+    ...insightParts(variant),
+  };
+}
+
+/** A 21g variant's facts on top of the standard story (nothing else changes). */
+function insightParts(
+  variant: DemoVariant,
+): Partial<Pick<DemoFixture, "performances" | "blocks" | "inProgress">> {
+  const v = INSIGHT_VARIANTS[variant];
+  if (!v) return {};
+  return {
+    performances: withOverrides(
+      { ...DEMO_PERFORMANCES, ...BODYWEIGHT_PERFORMANCES },
+      v.overrides?.(DEMO_PERFORMANCES) ?? {},
+    ),
+    blocks: v.activeBlock
+      ? [DEMO_BLOCKS[0], { ...ACTIVE_BLOCK, ...v.activeBlock }]
+      : DEMO_BLOCKS,
+    inProgress: v.inProgress ?? [],
   };
 }
 
 /** Every workout in the history, oldest first. Pure. */
 export function demoWorkouts(variant: DemoVariant = "standard"): DemoWorkout[] {
-  const { sessions } = demoFixture(variant);
+  const { sessions, blocks } = demoFixture(variant);
   const out: DemoWorkout[] = [];
   let weekIndex = 0;
-  for (const block of DEMO_BLOCKS) {
+  for (const block of blocks) {
     for (let week = 0; week < block.weeksTrained; week++, weekIndex++) {
       for (const session of sessions) {
         const daysBeforeAnchor =
@@ -523,16 +744,28 @@ export function expectedCounts(variant: DemoVariant = "standard"): DemoCounts {
     (n, w) => n + slotsPer(w.session).reduce((m, s) => m + s.sets, 0),
     0,
   );
+  // Today's started workout (21g `recovery`): one more workout, its planned
+  // exercises, and the sets logged so far.
+  const open = fixture.inProgress;
+  const openExercises = open.reduce(
+    (n, w) => n + slotsPer(w.session).length,
+    0,
+  );
+  const openSets = open.reduce(
+    (n, w) =>
+      n + Object.values(w.sets).reduce((m, sets) => m + (sets?.length ?? 0), 0),
+    0,
+  );
   return {
     gyms: Object.keys(fixture.gyms).length,
-    mesocycles: DEMO_BLOCKS.length,
-    sessions: DEMO_BLOCKS.length * fixture.sessions.length,
+    mesocycles: fixture.blocks.length,
+    sessions: fixture.blocks.length * fixture.sessions.length,
     sessionExercises:
-      DEMO_BLOCKS.length *
+      fixture.blocks.length *
       fixture.sessions.reduce((n, s) => n + s.slots.length, 0),
-    loggedSessions: workouts.length,
-    loggedExercises,
-    loggedSets,
+    loggedSessions: workouts.length + open.length,
+    loggedExercises: loggedExercises + openExercises,
+    loggedSets: loggedSets + openSets,
     customExercises: 0,
     goals: 0,
     plannedCardio: fixture.plannedCardio.length,

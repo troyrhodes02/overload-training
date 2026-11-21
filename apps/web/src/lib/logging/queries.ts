@@ -22,6 +22,7 @@ import {
 import { favoriteExerciseIds } from "@/lib/exercises/queries";
 import { getCardioWeek } from "@/lib/cardio/queries";
 import { loadScheduleContext } from "./schedule-context";
+import type { UnfinishedWorkoutDto } from "@overload/shared/contracts/views";
 import {
   effectiveWeekSchedule,
   occurrenceOnDate,
@@ -144,9 +145,7 @@ async function loggedPreview(
   });
   let setsLogged = 0;
   const exercises = les.map((le) => {
-    const valid = le.sets.filter(
-      (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
-    ).length;
+    const valid = workingSetCount(le.sets, le.plannedSets);
     setsLogged += valid;
     return {
       name: le.exercise.name,
@@ -157,6 +156,70 @@ async function loggedPreview(
     };
   });
   return { exercises, setsLogged, gymName: les[0]?.gym?.name ?? null };
+}
+
+/**
+ * Workouts started on an earlier day (the account's own calendar) and still in
+ * progress, newest first (Pitch 21g OVE-228). Any block, active or not: the
+ * workout keeps its own date, gym, and sets; resuming it opens it as it is.
+ * A workout with no saved set is left out (nothing to resume). Read only,
+ * through the account-scoped client.
+ */
+export async function listUnfinishedWorkouts(
+  account: Account,
+  today: string = accountToday(account),
+  opts: {
+    /**
+     * Workouts Today already shows as its own day (review of the 21g
+     * corrections #1): a shifted occurrence trained today is stored under
+     * its authored, earlier date, and must not ALSO read as unfinished.
+     */
+    excludeIds?: readonly string[];
+  } = {},
+): Promise<UnfinishedWorkoutDto[]> {
+  const excluded = (opts.excludeIds ?? []).filter(Boolean);
+  const sessions = await account.db.loggedSession.findMany({
+    where: {
+      status: "in_progress",
+      scheduledFor: { lt: new Date(`${today}T00:00:00.000Z`) },
+      loggedExercises: { some: { sets: { some: {} } } },
+      ...(excluded.length > 0 ? { id: { notIn: excluded } } : {}),
+    },
+    orderBy: [{ scheduledFor: "desc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      scheduledFor: true,
+      session: { select: { name: true } },
+      loggedExercises: {
+        // Position order: the same exercise (and gym) the dashboard shows first.
+        orderBy: { position: "asc" },
+        select: {
+          plannedSets: true,
+          gym: { select: { name: true } },
+          sets: { select: { setNumber: true } },
+        },
+      },
+    },
+  });
+  return sessions.map((ls) => ({
+    loggedSessionId: ls.id,
+    sessionName: ls.session?.name ?? "Workout",
+    scheduledFor: toIsoDate(ls.scheduledFor),
+    gymName: ls.loggedExercises.find((le) => le.gym)?.gym?.name ?? null,
+    setsLogged: ls.loggedExercises.reduce(
+      (n, le) => n + workingSetCount(le.sets, le.plannedSets),
+      0,
+    ),
+  }));
+}
+
+/** Saved planned (working) sets: setNumber 1..plannedSets. One rule for Today's previews. */
+function workingSetCount(
+  sets: readonly { setNumber: number }[],
+  plannedSets: number,
+): number {
+  return sets.filter((s) => s.setNumber >= 1 && s.setNumber <= plannedSets)
+    .length;
 }
 
 export async function getTodayDashboard(

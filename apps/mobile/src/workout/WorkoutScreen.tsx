@@ -13,10 +13,14 @@ import {
   useChangeGym,
   useCompleteWorkout,
   useFetchGyms,
+  TRAINING_KEYS,
+  useInsightReadState,
   useWorkout,
+  useWorkoutInsights,
 } from "../api/training";
 import { longDateLabel } from "../today/date";
 import { pickGymFromSheet } from "../today/useStartWorkout";
+import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { haptic } from "../ui/haptics";
@@ -34,6 +38,7 @@ import {
   unfinishedExercises,
 } from "./card-model";
 import { ExerciseCard } from "./ExerciseCard";
+import { callForCard, insightFor } from "./insight-model";
 import { useKeepAboveKeyboard } from "./keep-above-keyboard";
 import { changeFailureMessage } from "./messages";
 import { loggedWorkoutHref, summaryHref } from "./routes";
@@ -101,6 +106,17 @@ export function WorkoutScreen({
   } = useKeepAboveKeyboard(scroll, spacing.md);
 
   const workout = query.data?.workout;
+  // The cards' calls (Pitch 21g RD-1, RD-2): a separate read of the gated
+  // workout, only while it's in progress. Logging never waits for it.
+  const insights = useWorkoutInsights(loggedSessionId, {
+    enabled: workout?.status === "in_progress",
+  });
+  const insightRead = useInsightReadState(
+    insights,
+    TRAINING_KEYS.workoutInsights(loggedSessionId),
+  );
+  /** Which cards show their evidence, by occurrence; kept across Next/Previous. */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Open on the first unfinished card once, when the workout first loads
   // (state adjusted during render, so there is no auto-advance afterwards).
   if (workout && index === null) setIndex(initialExerciseIndex(workout));
@@ -151,6 +167,18 @@ export function WorkoutScreen({
   const exercises = workout.exercises;
   const i = Math.min(index ?? 0, Math.max(0, exercises.length - 1));
   const current = exercises[i];
+  // The current card's call, only while it is shown as current (OVE-229).
+  const currentCall = current
+    ? callForCard(insights.data?.progression, current.loggedExerciseId)
+    : undefined;
+  const currentView = current ? insightFor(insightRead, currentCall) : null;
+  const currentGuidance =
+    currentView?.kind === "call" && currentCall?.recommendation
+      ? {
+          callKind: currentCall.recommendation.kind,
+          suggestedLbs: currentCall.suggestion?.lbs ?? null,
+        }
+      : null;
   const isLast = i >= exercises.length - 1;
   const next = exercises[i + 1];
   const finishable = canFinish(workout);
@@ -265,6 +293,9 @@ export function WorkoutScreen({
       >
         {/* Measured to find the scroll offset (OVE-213). */}
         <View ref={contentRef} style={{ padding: spacing.lg, gap: spacing.md }}>
+          {/* The server says this workout's date is in a scheduled-deload
+              week (Pitch 21g RD-11); every plan sees it. */}
+          {workout.scheduledDeloadWeek ? <DeloadWeekBanner /> : null}
           <ExerciseProgress
             exercises={exercises}
             index={i}
@@ -299,6 +330,17 @@ export function WorkoutScreen({
               position={{ index: i, total: exercises.length }}
               activeRowRef={activeRowRef}
               onActiveRowLayout={revealActiveRow}
+              insight={{
+                view: currentView ?? { kind: "none" },
+                guidance: currentGuidance,
+                expanded: expanded[current.loggedExerciseId] === true,
+                onToggle: () =>
+                  setExpanded((e) => ({
+                    ...e,
+                    [current.loggedExerciseId]: !e[current.loggedExerciseId],
+                  })),
+                onRetry: () => void insights.refetch(),
+              }}
             />
           ) : (
             <StateView

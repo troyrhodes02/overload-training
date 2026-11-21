@@ -652,6 +652,10 @@ describe("core fields only (?fields=core, Checkpoint A round 2 RD-28)", () => {
       sessionSummary: null,
       sessionGoals: [],
       goals: null,
+      // Pitch 21g (OVE-228): unfinished earlier workouts are state, not a
+      // call, so the core answer carries them, exactly as the full one does.
+      unfinishedWorkouts: f.unfinishedWorkouts,
     });
+    expect(f.unfinishedWorkouts).toEqual([]);
   });
 });

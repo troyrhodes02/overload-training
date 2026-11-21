@@ -383,7 +383,9 @@ On any account: finish a workout → the summary → **Done** → Today shows Do
 | Fixes on `overload-dev` | OVE-220 6 of 6, OVE-221 12 of 12, OVE-223 5 of 5 (§8) | Run, 2026-11-18 |
 | Final staging update | Group `edc93cdd-cf33-4e43-a3b6-116c84422137`, iOS update `01a1f13e-7998-75ab-bec6-e095110ba2c7`, channel and branch `staging`, commit `9ca6dc3`, runtime `f98506f78a`; the publisher found 1 staging development build that can receive it | Run, 2026-11-18 |
 | OVE-222 on the iPhone (§8) | **Not run.** Owner | — |
-| Production release | `docs/releases/2026-11-21f-logging-completeness-production.md` | Run, 2026-11-18 |
+| Production release | #276 squash-merged into `main` as `c15020e`; Vercel Production deployment `dpl_2sRCqLZ7dSuFy9J7s79oEysrGeb2` Ready on `www.overloadtraining.app`; read-only checks P1–P5 passed, P6 (runtime logs) unverified: the log query returned no records. Details in `docs/releases/2026-11-21f-logging-completeness-production.md` | Run, 2026-11-18 |
+| Sync back to `staging` | #277 merged `main` into `staging` with a merge commit (`6f42ec8`); `staging` contains `c15020e` | Run, 2026-11-18 |
+| Production checks (§8) | **Pending.** Owner | — |
 
 **Owner's iPhone results (as reported, 2026-11-18):** gym selection and gym-specific machine history; the gym locking after sets are saved; swapping; skipping; optional RIR entry, editing, and clearing; editing sets of a finished workout; extra sets and reducing planned sets; bodyweight lifts and fixed rep targets; cardio logging with the staging web in step; missed-day handling; network failure and retry; force-close and resume. All worked.
 

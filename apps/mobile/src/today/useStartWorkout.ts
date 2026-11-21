@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
-import { ActionSheetIOS } from "react-native";
+import { ActionSheetIOS, Alert } from "react-native";
 import { router } from "expo-router";
 import type { DashboardTodayDto } from "@overload/shared/contracts/logging";
 import type { GymListItemDto as GymDto } from "@overload/shared/contracts/gyms";
+import type { UnfinishedWorkoutDto } from "@overload/shared/contracts/views";
+import { startWhileUnfinished } from "@overload/shared/logging/unfinished";
 import { useFetchGyms, useStartWorkout } from "../api/training";
 import { ApiError } from "../api/errors";
 import { workoutHref } from "../workout/routes";
@@ -55,8 +57,39 @@ export function pickGymFromSheet(names: string[]): Promise<number | null> {
   });
 }
 
+export type UnfinishedChoice = "resume" | "start" | "cancel";
+
+/**
+ * Pitch 21g (OVE-228): before another workout starts while one from an
+ * earlier day is unfinished, ask once — Resume it (first), start today's
+ * anyway, or cancel. Warn, never forbid. A system alert: a short, two-way
+ * decision (overload-mobile-ui).
+ */
+export function askAboutUnfinished(
+  w: UnfinishedWorkoutDto,
+  more: number,
+  starting: { scheduledFor: string; today: string },
+): Promise<UnfinishedChoice> {
+  const copy = startWhileUnfinished(w, starting);
+  return new Promise((resolve) =>
+    Alert.alert(
+      copy.title,
+      more > 0
+        ? `${copy.message} ${more} more ${more === 1 ? "is" : "are"} listed on Today.`
+        : copy.message,
+      [
+        { text: copy.resume, onPress: () => resolve("resume") },
+        { text: copy.startAnyway, onPress: () => resolve("start") },
+        { text: "Cancel", style: "cancel", onPress: () => resolve("cancel") },
+      ],
+      { cancelable: true, onDismiss: () => resolve("cancel") },
+    ),
+  );
+}
+
 export function useStartOrResume(
   pick: (names: string[]) => Promise<number | null> = pickGymFromSheet,
+  ask: typeof askAboutUnfinished = askAboutUnfinished,
 ) {
   const fetchGyms = useFetchGyms();
   const start = useStartWorkout();
@@ -65,9 +98,31 @@ export function useStartOrResume(
   // neither start twice nor push the workout twice.
   const busy = useRef(false);
 
-  async function run(day: StartTarget) {
+  async function run(
+    day: StartTarget,
+    unfinished: readonly UnfinishedWorkoutDto[] = [],
+    today: string = day.scheduledFor,
+  ) {
     if (busy.current) return;
     busy.current = true;
+    if (!day.loggedSessionId && unfinished[0]) {
+      const choice = await ask(unfinished[0], unfinished.length - 1, {
+        scheduledFor: day.scheduledFor,
+        today,
+      });
+      if (choice !== "start") {
+        if (choice === "resume") {
+          router.push(workoutHref(unfinished[0].loggedSessionId));
+          // As the resume path below: cover a tap while the screen pushes.
+          setTimeout(() => {
+            busy.current = false;
+          }, 800);
+        } else {
+          busy.current = false;
+        }
+        return;
+      }
+    }
     if (day.loggedSessionId) {
       router.push(workoutHref(day.loggedSessionId));
       // Long enough to cover a double tap while the screen pushes.
