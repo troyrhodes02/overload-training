@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatPlanDate } from "@overload/shared/plan/calendar";
 import { MissedDayPrompt } from "@/components/logging/missed-day-prompt";
+import { UnfinishedWorkouts } from "@/components/logging/unfinished-workouts";
 import type { DashboardTodayDto } from "@/lib/logging/queries";
 import type {
   PlannedProgressionDto,
@@ -231,7 +232,14 @@ export default async function TodayPage() {
   const today = formatPlanDate(view.today);
   // Server-rendered text, deterministic per account + local date + situation:
   // it cannot change between renders or between server and browser.
-  const header = <TodayHeader today={today} greeting={view.greeting} />;
+  // Earlier days' workouts still in progress (Pitch 21g OVE-228): under the
+  // heading in every dashboard state, so none is ever hidden by today's plan.
+  const header = (
+    <>
+      <TodayHeader today={today} greeting={view.greeting} />
+      <UnfinishedWorkouts workouts={view.unfinishedWorkouts ?? []} />
+    </>
+  );
 
   // Goals fill the dashboard ONLY when no training action is pending (Goals
   // R42, R43).

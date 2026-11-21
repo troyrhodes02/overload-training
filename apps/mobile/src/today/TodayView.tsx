@@ -38,6 +38,7 @@ import { loggedWorkoutHref, summaryHref } from "../workout/routes";
 import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { longDateLabel, weekdayLabel } from "./date";
 import { useStartOrResume, type StartState } from "./useStartWorkout";
+import { UnfinishedWorkouts } from "./UnfinishedWorkouts";
 
 /**
  * T1 Today (Pitch 21e design §6, §15; Checkpoint A RD-23, RD-24): the
@@ -122,6 +123,13 @@ function TodayContent({
   // The note belongs to the moment just after a resolution: once Today
   // shows another missed day it would describe the wrong one.
   const showNote = resolvedNote && view.dashboard.kind !== "missed_day";
+  // Every start from Today (the day's workout, or a missed day logged late)
+  // first asks about an earlier unfinished workout (Pitch 21g OVE-228).
+  const unfinished = view.unfinishedWorkouts ?? [];
+  const checked: Starter = {
+    ...starter,
+    run: (day) => starter.run(day, unfinished),
+  };
   return (
     <View style={{ gap: spacing.xl }}>
       {stale ? (
@@ -131,10 +139,12 @@ function TodayContent({
         />
       ) : null}
       {showNote ? <Banner tone="info" message={resolvedNote} /> : null}
+      {/* Earlier days' workouts still in progress (Pitch 21g OVE-228). */}
+      <UnfinishedWorkouts workouts={view.unfinishedWorkouts ?? []} />
       <DashboardBlock
         dashboard={view.dashboard}
         stale={stale}
-        starter={starter}
+        starter={checked}
         onResolved={onResolved}
       />
     </View>
