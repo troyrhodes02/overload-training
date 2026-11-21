@@ -521,3 +521,97 @@ None of these was pulled forward.
 ### Remaining limitation
 
 **Performance (review finding #5, still deferred).** The iPhone's insight reads re-read the whole workout or day. The new Today calls read is one more full `GET /today`. It runs after the core read, only when Today is shown, and never after each write, so Today still opens at core speed. No timing evidence calls for a leaner endpoint yet.
+
+## 11. Final corrections, Production release, and closeout (2026-11-21)
+
+### Owner-confirmed on the iPhone (first round, staging update `406719de`)
+
+You confirmed these. They are your results; the run did not re-test them on a device:
+- Progress and the suggested weight.
+- Last time's weight kept distinct from the recommendation.
+- The evidence.
+- Hold and reactive Deload.
+- RIR-aware calls and their evidence.
+- The scheduled-deload banner, and reactive calls suppressed during it.
+- The return to normal calls after the deload week.
+- Not-enough-history handling.
+
+The rest of the §4 checklist was **not** individually confirmed on a device.
+
+### What you found, and the fixes
+
+| Issue | Root cause | Fix | PR |
+| --- | --- | --- | --- |
+| An unfinished workout from an earlier day disappeared from Today (web and iPhone) | `getTodayDashboard` reads only today's occurrence and the oldest missed day | OVE-228: `listUnfinishedWorkouts` plus a reminder on both platforms, and a warning before another workout starts (warn, never forbid) | #286, review fixes #290 |
+| The weight box read as already adjusted under a Deload or Progress call | The caption named only its source | OVE-229: shared `weightGuidance`; "last time's weight, not adjusted"; **Use 185 lb** (fills the unsaved box only) | #287 |
+| Web/iPhone parity | Audit (§10) | OVE-230: iPhone Today calls, the web card's not-enough-history line, the web runner's deload banner | #288 |
+| Test accounts for the corrections; `CLAUDE.md` status | — | OVE-231: six profiles | #289 |
+
+Review of the corrections: 10 findings, 9 fixed in #290 and 1 deferred (the phone's full `/today` read; see the limitations below).
+
+### Final staging update
+
+| Item | Value |
+| --- | --- |
+| Update group | **`08c1124c-67ff-486d-948e-6d48f1bf9ef5`** |
+| iOS update ID | `01a1ffc3-6db6-7b7c-be1b-b7b39da79b14` |
+| Commit | `f7c2c74` |
+| Channel / branch | `staging` / `staging` |
+| Runtime | `f98506f78a`, unchanged |
+| Compatible build | `86e673d0` |
+| URL | `https://u.expo.dev/3b322e4a-1bf6-422e-9feb-3aa859dffb46?channel-name=staging` |
+
+More → Diagnostics must show group `08c1124c`, commit `f7c2c74`, and runtime `f98506f78a`.
+
+### Production release
+
+| Item | Value |
+| --- | --- |
+| Release branch / PR | `release/21g-insights-in-the-workout` / #291 |
+| `main` merge commit | **`e3f4950`** |
+| Production deployment | `dpl_Bi5mtpGTQX2qcczXh4DSESskszGH`, Ready, `www.overloadtraining.app` |
+| Smoke checks | Public pages 200. `app-config` 200, minimum version unchanged (`0.0.0`). Mobile reads without a token 401. No version header 400. The 426 path can't be exercised while the minimum is `0.0.0` |
+| Runtime logs | `vercel logs` returned 0 records (as in 21e and 21f): **unverified**. Check the Vercel dashboard |
+| Sync | #292, a merge commit `9f4e9d6`. `main` is contained in `staging`, and the trees are identical |
+| Migrations / environment / Stripe / native | none |
+
+The release record is `docs/releases/2026-11-21g-insights-in-the-workout-production.md`.
+
+### Accounts for the corrections
+
+| Email | Profile | Verified starting state |
+| --- | --- | --- |
+| `21g-unfinished@example.com` | `unfinished` | Yesterday's Upper A unfinished (Bench 180 × 8, 8); today's Lower A ready; Today lists one |
+| `21g-multiple-unfinished@example.com` | `multiple-unfinished` | Two earlier unfinished workouts (Upper A two days ago with 2 sets; Lower A yesterday with 1); today is a rest day |
+| `21g-weight-clarity@example.com` | `weight-clarity` | Bench: box 180, "last time's weight, not adjusted", **Use 185 lb**. Military Press: box 115, Deload, no number |
+| `21g-deload-clarity@example.com` | `deload-clarity` | Deload week: Bench "Deload week: 160 lb (90%)", box empty, **Use 160 lb** |
+| `21g-parity-free@example.com` | `parity-free` | Free; yesterday's workout unfinished; today's calls locked |
+| `21g-parity-summary@example.com` | `parity-summary` | Pro, the standard story: finish with a swap and a skip |
+
+Create each with the §3 command, using `--profile <profile>`. These ran for real against overload-dev and passed the engine check: `unfinished`, `multiple-unfinished`, and `weight-clarity` (as `21g-verify2-*`). The integration test proves all six.
+
+### Your remaining checks
+
+**Production web.** Use your own account. Never seed accounts in Production.
+1. The next time a workout is genuinely left unfinished overnight, Today shows the reminder, and **Resume** opens it under its original date.
+2. Starting another workout shows the warning, and **Start today's anyway** continues.
+3. On a card with a Progress or Deload call, the caption under the weight box reads "last time's weight, not adjusted". **Use N lb** fills the box only.
+4. A lift without history shows "Not enough history yet…". In a deload week, the workout shows the banner.
+5. Today, History, and your existing records look as before.
+6. Check the Vercel dashboard's Production runtime logs (the CLI returned none).
+
+**iPhone, staging update `08c1124c`.**
+1. Load the update and check Diagnostics.
+2. `21g-unfinished`: the reminder appears. Start shows the warning; check Resume, Start today's anyway, and Cancel.
+3. `21g-multiple-unfinished`: both are listed. Resume each; finish one and the other remains.
+4. Resuming keeps the original date, gym, and sets.
+5. `21g-weight-clarity`: check the captions and Use 185 lb. A typed value turns it into "Replace … with 185 lb". Nothing saves until you tap Log set.
+6. `21g-deload-clarity`: the box is empty and **Use 160 lb** fills it.
+7. Compare Today's planned-list calls on the phone and on the web, using the same account.
+8. `21g-parity-free`: the reminder works and the calls are locked. There's no purchase link.
+9. Keyboard and set logging: Done, Log set, focus moving across exercises, and no clipped text.
+
+### Remaining limitations
+
+- **Performance (deferred: 21g finding #5 and corrections finding #6).** The phone's insight reads reuse the full gated workout, history, and Today reads. They don't block anything, but they recompute data the phone discards. A lean progression-only read is the follow-up, if timings show the need.
+- **Seeding time.** A seed can hit the 180-second transaction limit on a slow connection; it's safe to rerun (nothing is written). This happened once while the integration suite loaded this Mac.
