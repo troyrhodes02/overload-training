@@ -97,6 +97,16 @@ Revert the release's squash commit on `main` with a PR, `git revert <merge>`, th
 
 See the 21g runbook §11.
 
-## 6. Results
+## 6. Results (2026-11-21)
 
-Filled in as the run completes.
+| Step | Result |
+| --- | --- |
+| Release PR | #291, squash-merged as **`e3f4950`**. `main`'s tree equals the release branch |
+| Production deployment | `dpl_Bi5mtpGTQX2qcczXh4DSESskszGH`: **Ready**, target production, `www.overloadtraining.app` |
+| Smoke 2 | `/`, `/login`, `/pricing`, `/changelog`: 200 |
+| Smoke 3 | `app-config` 200; minimum and latest version `0.0.0` (unchanged); kill switches off |
+| Smoke 4 | `GET /today` and `GET /workouts/x` without a token: 401 `unauthorized` |
+| Smoke 5 | The minimum is `0.0.0`, so no version is below it and 426 can't be exercised. Without the version header: 400 `validation_error` (gate intact) |
+| Smoke 6 | `vercel logs` (deployment and project, 30 min) returned 0 records, as in 21e and 21f: **unverified**. The owner checks the dashboard |
+| Sync | #292, merge commit `9f4e9d6`. `main` is contained in `staging`; trees identical |
+| Not done (not authorized) | Migrations, Production environment, Stripe, Production Expo, TestFlight |
