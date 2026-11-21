@@ -63,9 +63,19 @@ It does not cover a migration, a Production configuration change, live Stripe, a
 - **No new dependency or native module.** The runtime is still `f98506f78a`.
 - **No engine, threshold, e1RM, or entitlement change.** Logged sets are still written only through `logged-sets.ts`, and the OVE-220 workout lock is intact.
 
-## 2. Verification on the release tree
+## 2. Verification on the release tree (2026-11-21, this branch)
 
-Recorded in §6 after the run's checks on this branch.
+| Check | Result |
+| --- | --- |
+| `npm run format:check`, `npm run lint`, `npm run typecheck` | pass. Lint: 0 errors, 1 pre-existing warning |
+| `npm test`: web unit, mobile, workspace boundaries | 2,738 + 450 passed; boundaries OK |
+| `npm run test:integration` | 1,347 passed, 108 suites. Covers isolation, entitlements, history integrity, engine, deload, workout lock, timezone, mobile API, and the 21g and correction suites |
+| Production build (placeholder env) and `verify:client-bundle` | pass; no server secret in `.next/static` |
+| iOS bundle export | exported |
+| Runtime fingerprint | `f98506f78a`, unchanged |
+| Real staging verification (deployed API, disposable overload-dev accounts) | Unfinished workouts listed; start anyway; resume keeps the date; finish clears it. Several unfinished resolve independently. Weight clarity and correction refresh pass. Free gets no Pro value |
+| Browser check (local production build on overload-dev) | Today's reminder, the start warning, and Resume to the original workout pass |
+| Simulator or physical iPhone | **Not run.** These are owner checks (21g runbook §11) |
 
 ## 3. Production smoke plan (non-destructive, no accounts created)
 
