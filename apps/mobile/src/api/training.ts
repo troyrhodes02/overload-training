@@ -68,6 +68,8 @@ export const TRAINING_KEYS = {
     ["workout-insights", loggedSessionId] as const,
   historyInsights: (loggedSessionId: string) =>
     ["history-insights", loggedSessionId] as const,
+  /** Today's planned-list calls (Pitch 21g OVE-230): `GET /today`, full. */
+  todayInsights: ["today-insights"] as const,
   /** The swap picker's list for one muscle group (null: the planned group). */
   swap: (loggedExerciseId: string, muscle: MuscleGroupValue | null) =>
     ["swap", loggedExerciseId, muscle ?? "planned"] as const,
@@ -207,8 +209,28 @@ export function useInsightReadState(
   };
 }
 
-/** Every insight read (both kinds, every workout). */
-const INSIGHT_PREFIXES = [["workout-insights"], ["history-insights"]] as const;
+/**
+ * Today's planned-list calls (Pitch 21g OVE-230, web parity): `GET /today`
+ * without core fields, read AFTER and apart from the core Today read, so
+ * Today opens as fast as before and the calls fill in when they arrive. Only
+ * `plannedProgression` (gated; `locked` on Free) and the dashboard it belongs
+ * to are read from it.
+ */
+export function useTodayInsights() {
+  const api = useApi();
+  return useQuery<TodayDto, ApiError>({
+    ...INSIGHT_READ,
+    queryKey: TRAINING_KEYS.todayInsights,
+    queryFn: ({ signal }) => api.request<TodayDto>("/today", { signal }),
+  });
+}
+
+/** Every insight read (every kind, every workout). */
+const INSIGHT_PREFIXES = [
+  ["workout-insights"],
+  ["history-insights"],
+  ["today-insights"],
+] as const;
 
 /**
  * Mark every insight read stale (Pitch 21g RD-5): a shown one reads again at
@@ -231,6 +253,12 @@ export function invalidateInsights(
       client.invalidateQueries({
         queryKey: [...queryKey],
         predicate: (q) => JSON.stringify(q.queryKey) !== finishedKey,
+        // Today's calls are only marked stale: Today (a tab, so mounted
+        // behind every other screen) reads them again when it is next shown
+        // (useInsightReadState), never in the background after each write.
+        ...(queryKey[0] === "today-insights"
+          ? { refetchType: "none" as const }
+          : {}),
       }),
     ),
   ).then(() => undefined);

@@ -22,6 +22,7 @@ import {
 import { GymPicker, type GymOption } from "@/components/logging/gym-picker";
 import { completeWorkoutAction } from "@/app/(app)/log/actions";
 import type { WorkoutDto } from "@/lib/logging/queries";
+import { ScheduledDeloadBanner } from "@/components/progression/scheduled-deload-banner";
 
 /**
  * The workout runner (design Screen 4/6). Steps through the planned exercises,
@@ -95,6 +96,9 @@ export function WorkoutRunner({
 
   return (
     <section className="space-y-3">
+      {/* Planned recovery for the whole workout, every plan (Pitch 21g
+          parity, OVE-230: the iPhone's workout screen shows it too). */}
+      {workout.scheduledDeloadWeek ? <ScheduledDeloadBanner /> : null}
       <div className="flex items-center justify-between text-sm">
         <Link href="/" className="flex items-center text-muted-foreground">
           <ChevronLeft className="size-4" /> {workout.sessionName}
