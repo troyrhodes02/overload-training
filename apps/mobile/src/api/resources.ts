@@ -15,11 +15,18 @@ import type {
   SetArchivedResponseDto,
   SetFavoriteResponseDto,
 } from "@overload/shared/contracts/exercises";
-import type { CreateCustomExerciseRequest } from "@overload/shared/contracts/requests";
+import type {
+  CreateCustomExerciseRequest,
+  CreateGymRequest,
+} from "@overload/shared/contracts/requests";
+import type {
+  GymListItemDto,
+  GymsResponseDto,
+} from "@overload/shared/contracts/gyms";
 import type { MuscleGroupValue } from "@overload/shared/exercises/taxonomy";
 import { useApi } from "./ApiProvider";
 import type { ApiError } from "./errors";
-import { OVERVIEW_STALE_MS } from "./training";
+import { OVERVIEW_STALE_MS, TRAINING_KEYS } from "./training";
 
 /**
  * Plans, Library & Gyms's reads and writes (Pitch 21h spec §7, data layer).
@@ -250,6 +257,60 @@ export function useSetExerciseArchived() {
       ]) {
         void client.invalidateQueries({ queryKey });
       }
+    },
+  });
+}
+
+/**
+ * `GET /gyms`: the account's active gyms, under the key the start flow uses,
+ * so a gym added here is offered by the next Start.
+ */
+export function useGyms() {
+  const api = useApi();
+  return useQuery<GymsResponseDto, ApiError>({
+    queryKey: TRAINING_KEYS.gyms,
+    queryFn: ({ signal }) => api.request<GymsResponseDto>("/gyms", { signal }),
+    staleTime: OVERVIEW_STALE_MS,
+  });
+}
+
+/** E8 `POST /gyms` with the intent's key (a retry answers with the first gym). */
+export function useCreateGym() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    GymListItemDto,
+    ApiError,
+    { key: string; body: CreateGymRequest }
+  >({
+    mutationFn: ({ key, body }) =>
+      api.request<GymListItemDto>("/gyms", {
+        method: "POST",
+        body,
+        headers: { "Idempotency-Key": key },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: TRAINING_KEYS.gyms });
+    },
+  });
+}
+
+/** E9 archive (or Undo) one of the account's gyms. */
+export function useSetGymArchived() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    SetArchivedResponseDto,
+    ApiError,
+    { gymId: string; archived: boolean }
+  >({
+    mutationFn: ({ gymId, archived }) =>
+      api.request<SetArchivedResponseDto>(`/gyms/${enc(gymId)}/archived`, {
+        method: "PUT",
+        body: { archived },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: TRAINING_KEYS.gyms });
     },
   });
 }

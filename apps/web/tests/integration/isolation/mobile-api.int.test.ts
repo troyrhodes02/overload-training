@@ -73,7 +73,11 @@ import type { Account } from "@/lib/data/account";
 import { GET as appConfig } from "@/app/api/mobile/v1/app-config/route";
 import { GET as me } from "@/app/api/mobile/v1/me/route";
 import { GET as today } from "@/app/api/mobile/v1/today/route";
-import { GET as gyms } from "@/app/api/mobile/v1/gyms/route";
+import {
+  GET as gyms,
+  POST as createGymRoute,
+} from "@/app/api/mobile/v1/gyms/route";
+import { PUT as gymArchivedRoute } from "@/app/api/mobile/v1/gyms/[gymId]/archived/route";
 import * as catchAll from "@/app/api/mobile/[[...path]]/route";
 import { mobileBotChallenge } from "@/lib/api/mobile/version";
 import { POST as signUpRoute } from "@/app/api/mobile/v1/accounts/route";
@@ -1705,6 +1709,84 @@ const CASES: Record<string, () => void> = {
         expect((ra.body as GymsResponseDto).gyms.map((g) => g.id)).toEqual([
           plan.gym.id,
         ]);
+      });
+    });
+  },
+  "POST api/mobile/v1/gyms": () => {
+    accountEndpointMatrix(
+      "POST /gyms",
+      createGymRoute as Handler,
+      {
+        json: { name: "Matrix Gym", address: null },
+        headers: { "idempotency-key": "matrix-gym-0001" },
+      },
+      201,
+    );
+    describe("POST /gyms: isolation", () => {
+      it("creates for the token's account only, never another's baseline; a shared key reveals nothing", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const key = `gym-key-${randomUUID()}`;
+        await call(createGymRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: { name: "Alpha Annex" },
+          headers: { "idempotency-key": key },
+        });
+        const aAfter = await snapshotAccount(a.userId);
+        const r = await call(createGymRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { name: "Bravo Annex", userId: a.userId },
+          headers: { "idempotency-key": key },
+        });
+        expect(r.status).toBe(201);
+        expect(r.headers.get("idempotent-replayed")).toBeNull();
+        for (const marker of [...aMarkers(a, plan), "Alpha Annex"])
+          expect(r.text).not.toContain(marker);
+        const row = await getTestPrisma().gym.findUniqueOrThrow({
+          where: { id: r.body.id },
+        });
+        expect(row.userId).toBe(b.userId);
+        expect(
+          await getTestPrisma().gymExerciseBaseline.count({
+            where: { gymId: row.id },
+          }),
+        ).toBe(0);
+        expect(await snapshotAccount(a.userId)).toEqual(aAfter);
+        expect(aAfter).not.toEqual(aSnap); // A's own create did land.
+      });
+    });
+  },
+  "PUT api/mobile/v1/gyms/[gymId]/archived": () => {
+    accountEndpointMatrix(
+      "PUT /gyms/{id}/archived",
+      gymArchivedRoute as Handler,
+      {
+        method: "PUT",
+        json: { archived: true },
+        params: { gymId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /gyms/{id}/archived: isolation", () => {
+      it("B can't archive or restore A's gym: a 404 like a missing one, nothing changed", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const missing = await call(gymArchivedRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { archived: true },
+          params: { gymId: randomUUID() },
+        });
+        for (const archived of [true, false]) {
+          const r = await call(gymArchivedRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            json: { archived },
+            params: { gymId: plan.gym.id },
+          });
+          expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        }
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
       });
     });
   },

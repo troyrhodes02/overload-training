@@ -120,9 +120,8 @@ export default function MoreScreen() {
           />
           <ListRow
             title="Gyms"
-            value="On the web"
-            accessory="external"
-            onPress={() => open("/gyms")}
+            accessory="chevron"
+            onPress={() => router.push("/more/gyms")}
           />
         </GroupedList>
 
