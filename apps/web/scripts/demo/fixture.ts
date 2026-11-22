@@ -309,6 +309,8 @@ export const DEMO_VARIANTS = [
   "recovery",
   // Pitch 21g correction OVE-228.
   "multiple-unfinished",
+  // Pitch 21h: a detailed session — bodyweight, fixed targets, and cardio.
+  "session-detail",
 ] as const;
 export type DemoVariant = (typeof DEMO_VARIANTS)[number];
 
@@ -639,7 +641,7 @@ export function demoFixture(variant: DemoVariant = "standard"): DemoFixture {
       ...s,
       dayOffset: GYM_DAY_OFFSETS[s.key],
     }));
-  } else if (variant === "bodyweight") {
+  } else if (variant === "bodyweight" || variant === "session-detail") {
     sessions = DEMO_SESSIONS.map((s) =>
       s.key !== "upperA"
         ? s
@@ -663,8 +665,10 @@ export function demoFixture(variant: DemoVariant = "standard"): DemoFixture {
         : DEMO_GYMS,
     sessions,
     performances: { ...DEMO_PERFORMANCES, ...BODYWEIGHT_PERFORMANCES },
-    plannedCardio: variant === "cardio" ? CARDIO_PLAN : [],
-    cardioLogs: variant === "cardio" ? CARDIO_LOGS : [],
+    plannedCardio:
+      variant === "cardio" || variant === "session-detail" ? CARDIO_PLAN : [],
+    cardioLogs:
+      variant === "cardio" || variant === "session-detail" ? CARDIO_LOGS : [],
     blocks: DEMO_BLOCKS,
     inProgress: [],
     ...insightParts(variant),
