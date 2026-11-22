@@ -272,7 +272,22 @@ Baseline: the 21g matrix (21g runbook §10). "Same" means the same server read, 
 
 ## 7. Verification record
 
-Filled in at the staging merge (§9).
+Run of 2026-11-22, on the feature tip `857237e` (the same tree as `staging` `d86c3f0`).
+
+| Check | Result |
+| --- | --- |
+| `npm run format:check`, `npm run lint`, `npm run typecheck` | pass (lint: 0 errors, 1 pre-existing warning in `history-week.ts`) |
+| `npm test`: web unit, mobile, workspace boundaries | 2,749 + 495 passed; boundaries OK |
+| `npm run test:integration` | 1,452 passed, 109 suites (incl. the isolation suite: every one of the 9 new endpoints in the matrix and cross-account cases) |
+| `npm run build` | pass |
+| iOS export (`expo export --platform ios`) | exported (1,454 modules) |
+| Runtime fingerprint (`expo-updates fingerprint:generate --platform ios`) | `f98506f78a`, unchanged |
+| Secret scan (diff and iOS bundle) | nothing found |
+| Independent read-only review of the full diff | no isolation, idempotency, history, or Pro-gating issue; 8 smaller findings fixed (#299) |
+| Staging API, unauthenticated (`vercel curl`) | `app-config` 200; all 9 new endpoints 401 with the API's JSON envelope |
+| Staging API, signed in as test accounts | `21h-library`: plan Strength Block 2 week 4 of 6, deload [6], 7 days, today marked once, 1 earlier block; favorites the 4 seeded; search "bench press" + chest 15 results with images. `21h-plan`: `POST /gyms` 201, same key → same gym with `Idempotent-Replayed: true`, reused key → 409; archive hides it; `POST /exercises` 201; favorite 200; archive 200. As `21h-library`: that exercise and that gym are 404 (like missing) |
+| Real `overload-dev` accounts | see §9; each passed its resource and engine check |
+| Simulator and physical iPhone | **not run by the pipeline**: §4 is yours |
 
 ## 8. Native runtime
 
@@ -280,4 +295,37 @@ No native dependency, config, or token change: the runtime fingerprint stays `f9
 
 ## 9. Delivery record
 
-Filled in at the staging merge and the staging update.
+| Item | Value |
+| --- | --- |
+| Feature PR | #300, squash-merged into `staging` as **`d86c3f0`** (2026-11-22) |
+| Ticket PRs | #294 OVE-232, #295 OVE-233, #296 OVE-234, #297 OVE-235, #298 OVE-236, #299 review fixes |
+| Staging web deployment | Vercel: success, for `d86c3f0` |
+| Staging update group | **`ecd5ffc8-c41b-4ac9-8ecb-d44efb8b5c27`** |
+| iOS update ID | `01a20531-c1f4-7124-bc52-9c6315edb4b2` |
+| Channel / branch | `staging` / `staging` |
+| Commit | `d86c3f0` |
+| Runtime | `f98506f78acfef2f8bfc764d2e31f16475e2f501` (`f98506f78a`) |
+| Compatible build | EAS development build `86e673d0` (the one on your iPhone) |
+| Update URL | `https://u.expo.dev/3b322e4a-1bf6-422e-9feb-3aa859dffb46?channel-name=staging` |
+| Dashboard | https://expo.dev/accounts/wtrhodes/projects/overload/updates/ecd5ffc8-c41b-4ac9-8ecb-d44efb8b5c27 |
+
+More → Diagnostics on the iPhone must show update group `ecd5ffc8`, commit `d86c3f0`, and runtime `f98506f78a`.
+
+**Test accounts made by the run** (overload-dev, anchored 2026-11-22, password files in `~/.overload-dev/accounts/`). They're dated: for testing on a later day, make fresh ones (§3).
+
+| Email | Profile | Check |
+| --- | --- | --- |
+| `21h-plan@example.com` | `standard` | Strength Block 2, week 4 of 6, deload weeks 6. Also holds the archived staging-check gym and exercise below |
+| `21h-deload@example.com` | `scheduled-deload` | week 4 of 6 (deload week), deload weeks 4; ENGINE CHECK PASSED |
+| `21h-no-plan@example.com` | `no-plan` | no plan, no gyms, no exercises; ENGINE CHECK PASSED |
+| `21h-session@example.com` | `session-detail` | 2 planned cardio, 5 cardio logs; the bodyweight session |
+| `21h-library@example.com` | `library` | favorites Bench, Squat, Landmine Press, Side Lateral Raise; own Landmine Press; ENGINE CHECK PASSED |
+| `21h-custom@example.com` | `custom-exercises` | own Banded Face Pull, Cable Y Raise (archived), Landmine Press; a finished workout performed Landmine Press (3 sets); ENGINE CHECK PASSED |
+| `21h-gyms@example.com` | `gyms` | gyms Downtown Annex (410 Main St, 2nd floor), Harbor Barbell, Northside Strength; Riverside archived; ENGINE CHECK PASSED |
+| `21h-active-workout@example.com` | `recovery` | Upper A in progress; ENGINE CHECK PASSED |
+| `21h-isolation-a@example.com` | `isolation-resources-a` | own Alpha Landmine Press; gym Alpha Annex; ENGINE CHECK PASSED |
+| `21h-isolation-b@example.com` | `isolation-resources-b` | own Bravo Sled Push; favorite Pullups; gym Bravo Garage; ENGINE CHECK PASSED |
+
+Seeding over the network to `overload-dev` was slow during the run: several seeds hit the 180-second transaction limit ("expired transaction") or a dropped connection and were re-run until they passed. Each failure rolled back completely (the account stayed empty), as §3 describes.
+
+Throwaway rows the staging API check left on `21h-plan`: an archived gym "Staging Check Gym" and an archived exercise "Staging Check Lift" (both out of every picker).
