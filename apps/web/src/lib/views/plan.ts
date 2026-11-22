@@ -53,6 +53,14 @@ export async function getPlanOverview(
   }
 
   const weekStart = addDays(m.startDate, (schedule.weekNumber - 1) * 7);
+  const position = blockPosition(
+    {
+      startDate: m.startDate,
+      lengthWeeks: m.lengthWeeks,
+      deloadEveryWeeks: m.deloadEveryWeeks,
+    },
+    today,
+  );
   return {
     today,
     block: {
@@ -69,14 +77,7 @@ export async function getPlanOverview(
         sessionCount: m.sessionCount,
         issueCount: m.issueCount,
       },
-      position: blockPosition(
-        {
-          startDate: m.startDate,
-          lengthWeeks: m.lengthWeeks,
-          deloadEveryWeeks: m.deloadEveryWeeks,
-        },
-        today,
-      ),
+      position,
       deloadWeeks: deloadWeeksOf(m.lengthWeeks, m.deloadEveryWeeks),
       template: m.week,
       templateCardio: m.cardio,
@@ -89,7 +90,11 @@ export async function getPlanOverview(
           schedule.weekNumber,
           m.deloadEveryWeeks,
         ),
-        isCurrentWeek: schedule.weekNumber === schedule.currentWeek,
+        // Only while the block runs: before its start or after its end, no
+        // block week holds today (review #6).
+        isCurrentWeek:
+          position.kind === "running" &&
+          schedule.weekNumber === schedule.currentWeek,
         days: planWeekDays({
           weekStart,
           today,

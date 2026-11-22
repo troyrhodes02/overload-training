@@ -35,10 +35,16 @@ export function SessionScreen({
   exerciseHref: ((exerciseId: string) => string) | null;
 }) {
   const { colors, spacing } = useTheme();
-  const query = usePlanSession(mesocycleId, sessionId);
+  // A link without its block can't name a session: not found, no request
+  // (review #8).
+  const query = usePlanSession(mesocycleId, sessionId, {
+    enabled: mesocycleId !== "" && sessionId !== "",
+  });
   const s = query.data;
   const notFound =
-    query.error instanceof ApiError && query.error.code === "not_found";
+    mesocycleId === "" ||
+    sessionId === "" ||
+    (query.error instanceof ApiError && query.error.code === "not_found");
 
   const body = (() => {
     if (!s) {

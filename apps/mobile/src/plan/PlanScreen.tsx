@@ -353,7 +353,11 @@ function DayRowView({
 }) {
   const { colors, spacing } = useTheme();
   const col = dateColumn(row.dateIso);
-  const target = row.lines.find((l) => l.sessionId !== null)?.sessionId ?? null;
+  const sessionLines = row.lines.filter((l) => l.sessionId !== null);
+  // One session: the whole row opens it. Two (a shift put them on one day):
+  // each session line is its own button (review #4).
+  const several = sessionLines.length > 1;
+  const target = several ? null : (sessionLines[0]?.sessionId ?? null);
   const content = (
     <View
       style={{
@@ -392,14 +396,28 @@ function DayRowView({
       <View style={{ flex: 1, gap: spacing.xs }}>
         {row.rest ? <Text tone="muted">Rest</Text> : null}
         {row.lines.map((line) => (
-          <View
+          <Pressable
             key={line.key}
-            style={{
+            disabled={!(several && line.sessionId)}
+            accessible={several && line.sessionId !== null}
+            accessibilityRole={several && line.sessionId ? "button" : undefined}
+            accessibilityLabel={
+              several && line.sessionId
+                ? `${line.title}, ${line.chip?.label ?? ""}, ${row.accessibilityLabel}`
+                : undefined
+            }
+            accessibilityHint={
+              several && line.sessionId ? "Opens this session" : undefined
+            }
+            onPress={() => line.sessionId && onOpen(line.sessionId)}
+            style={({ pressed }) => ({
               flexDirection: "row",
               alignItems: "center",
               gap: spacing.sm,
               flexWrap: "wrap",
-            }}
+              minHeight: several && line.sessionId ? 44 : undefined,
+              opacity: pressed ? 0.7 : 1,
+            })}
           >
             <Text
               weight={line.kind === "session" ? "medium" : "regular"}
@@ -412,7 +430,7 @@ function DayRowView({
             {line.chip ? (
               <Chip label={line.chip.label} tone={line.chip.tone} />
             ) : null}
-          </View>
+          </Pressable>
         ))}
       </View>
       {target ? (
@@ -431,7 +449,10 @@ function DayRowView({
       {content}
     </Pressable>
   ) : (
-    <View accessible accessibilityLabel={row.accessibilityLabel}>
+    <View
+      accessible={!several}
+      accessibilityLabel={several ? undefined : row.accessibilityLabel}
+    >
       {content}
     </View>
   );

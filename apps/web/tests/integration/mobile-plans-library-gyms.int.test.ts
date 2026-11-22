@@ -301,7 +301,10 @@ describe("GET /plan", () => {
     expect(w1.days.some((d) => d.isToday)).toBe(false);
     expect((await weekOf("week=999")).weekNumber).toBe(6);
     expect((await weekOf("week=abc")).weekNumber).toBe(3);
-    expect((await weekOf("week=0")).weekNumber).toBe(3);
+    expect((await weekOf("week=-2")).weekNumber).toBe(3);
+    // A whole number is clamped into the block (spec E1).
+    expect((await weekOf("week=0")).weekNumber).toBe(1);
+    expect((await weekOf("week=1000")).weekNumber).toBe(6);
   });
 
   it("logged state uses History's words; a shifted day sits where it landed", async () => {
@@ -347,6 +350,7 @@ describe("GET /plan", () => {
     });
     expect(upcoming.week.weekNumber).toBe(1);
     expect(upcoming.week.days.some((d) => d.isToday)).toBe(false);
+    expect(upcoming.week.isCurrentWeek).toBe(false);
 
     const b = await createTestAccount();
     await blockFor(b, { startOffsetDays: -50, lengthWeeks: 6 });
@@ -356,6 +360,7 @@ describe("GET /plan", () => {
       endedOn: addDays(today(), -50 + 41),
     });
     expect(ended.week.weekNumber).toBe(6);
+    expect(ended.week.isCurrentWeek).toBe(false);
   });
 
   it("today is the account's own calendar date", async () => {

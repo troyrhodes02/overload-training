@@ -30,7 +30,10 @@ export function GymScreen({ gymId }: { gymId: string }) {
   const [restored, setRestored] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const listed = query.data?.gyms.find((g) => g.id === gymId) ?? null;
-  const gym = archivedGym ?? listed;
+  // The gym as it was when restored here: the list is re-read after an Undo,
+  // and the screen keeps the gym on view until it is back (review #2).
+  const [restoredGym, setRestoredGym] = useState<GymListItemDto | null>(null);
+  const gym = archivedGym ?? listed ?? restoredGym;
 
   async function archive(target: GymListItemDto, archived: boolean) {
     setFailure(null);
@@ -38,6 +41,7 @@ export function GymScreen({ gymId }: { gymId: string }) {
       await setArchived.mutateAsync({ gymId: target.id, archived });
       void haptic.success();
       setArchivedGym(archived ? target : null);
+      setRestoredGym(archived ? null : target);
       setRestored(!archived);
     } catch (error) {
       void haptic.warning();

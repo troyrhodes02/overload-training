@@ -46,11 +46,14 @@ import { ApiFailure, shapeError } from "./errors";
 /** Bodies of the resource writes are a few short fields. */
 export const RESOURCE_BODY_LIMIT = 4 * 1024;
 
-/** `?week=` as a positive whole number, or undefined (today's week). */
+/**
+ * `?week=` as a whole number (the schedule read clamps it into the block:
+ * 0 is week 1, a large one the last week), or undefined — today's week — for
+ * anything else (review #5; spec E1).
+ */
 export function parseWeekParam(raw: string | null): number | undefined {
-  if (raw === null || !/^\d{1,3}$/.test(raw)) return undefined;
-  const n = Number(raw);
-  return n >= 1 ? n : undefined;
+  if (raw === null || !/^\d{1,6}$/.test(raw)) return undefined;
+  return Number(raw);
 }
 
 /** E1 `GET /plan?week=n`: the active block and one of its weeks. */
