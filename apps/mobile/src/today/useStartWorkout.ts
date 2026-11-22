@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActionSheetIOS, Alert } from "react-native";
 import { router } from "expo-router";
 import type { DashboardTodayDto } from "@overload/shared/contracts/logging";
@@ -163,5 +163,14 @@ export function useStartOrResume(
     }
   }
 
-  return { state, run };
+  /**
+   * Forget a "no gym yet" note (Pitch 21h review #3): Today calls it when it
+   * comes back into view, so a gym added meanwhile isn't still asked for.
+   */
+  const clearNoGym = useCallback(
+    () => setState((s) => (s.kind === "no_gym" ? { kind: "idle" } : s)),
+    [],
+  );
+
+  return { state, run, clearNoGym };
 }

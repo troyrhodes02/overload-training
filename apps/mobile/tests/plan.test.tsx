@@ -303,6 +303,44 @@ describe("P1 interactions", () => {
     ).toBeNull();
   });
 
+  it("two sessions on one day are each a button (review #4)", async () => {
+    const b = block();
+    b.week.days[1] = {
+      ...b.week.days[1]!,
+      sessions: [
+        {
+          sessionId: "s-lower",
+          sessionName: "Lower A",
+          state: "shifted",
+          loggedSessionId: null,
+        },
+        {
+          sessionId: "s-upper",
+          sessionName: "Upper A",
+          state: "upcoming",
+          loggedSessionId: null,
+        },
+      ],
+    };
+    serve({ "/plan": overview({ block: b }) });
+    await render(
+      <Providers>
+        <PlanScreen />
+      </Providers>,
+    );
+    await screen.findByText("Spring Strength");
+    await fireEvent.press(
+      screen.getByRole("button", { name: /^Lower A, Shifted, Tue, Nov 17/ }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: /^Upper A, Upcoming, Tue, Nov 17/ }),
+    );
+    expect(mockRouter.push.mock.calls.map(([h]) => h)).toEqual([
+      "/plan/session/s-lower?mesocycleId=m1",
+      "/plan/session/s-upper?mesocycleId=m1",
+    ]);
+  });
+
   it("no active plan: the empty state names drafts and links to the web", async () => {
     serve({
       "/plan": {
@@ -444,6 +482,19 @@ describe("P2 Session", () => {
       }),
     );
     expect(mockRouter.push).toHaveBeenCalledWith("/plan/exercise/e-bench");
+  });
+
+  it("a link without its block is not found, with no request (review #8)", async () => {
+    serve({});
+    await render(
+      <Providers>
+        <SessionScreen mesocycleId="" sessionId="s-upper" exerciseHref={null} />
+      </Providers>,
+    );
+    expect(
+      await screen.findByText("This session isn't in your plan anymore"),
+    ).toBeTruthy();
+    expect(mockApi.request).not.toHaveBeenCalled();
   });
 
   it("a session gone from the plan says so, with a way back", async () => {

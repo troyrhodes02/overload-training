@@ -126,7 +126,7 @@ export type PlanWeekDto = {
   lengthWeeks: number;
   rangeLabel: string;
   scheduledDeloadWeek: boolean;
-  /** The week holding the account's today (clamped into the block). */
+  /** This week holds the account's today (never before or after the block). */
   isCurrentWeek: boolean;
   /** Always seven, in date order. */
   days: PlanDayDto[];

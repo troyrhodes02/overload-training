@@ -357,7 +357,7 @@ describe("Start (W0, RD-4)", () => {
     expect(start).not.toHaveBeenCalled();
     // Pitch 21h: the gym is added right here, natively.
     await fireEvent.press(screen.getByRole("button", { name: "Add a gym" }));
-    expect(mockRouter.push).toHaveBeenCalledWith("/gym-new");
+    expect(mockRouter.push).toHaveBeenCalledWith("/gym-new?from=today");
   });
 
   it("a refused start shows the server's message and opens nothing", async () => {

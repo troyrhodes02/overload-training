@@ -94,9 +94,14 @@ export function usePlan(week: number | null) {
 }
 
 /** E2 `GET /mesocycles/{id}/sessions/{id}`: one authored session. */
-export function usePlanSession(mesocycleId: string, sessionId: string) {
+export function usePlanSession(
+  mesocycleId: string,
+  sessionId: string,
+  opts: { enabled?: boolean } = {},
+) {
   const api = useApi();
   return useQuery<PlanSessionDto, ApiError>({
+    enabled: opts.enabled ?? true,
     queryKey: RESOURCE_KEYS.planSession(mesocycleId, sessionId),
     queryFn: ({ signal }) =>
       api.request<PlanSessionDto>(
@@ -162,9 +167,20 @@ function writeFavorite(
 }
 
 /**
- * E6 star / unstar. Shown at once (the web's star is optimistic too); a
- * refusal puts the previous state back and the caller says so. Every list
- * re-reads afterwards — the swap picker sorts favorites first.
+ * Per exercise: how many toggles are still out, and the last value the
+ * server confirmed (Pitch 21h review #1). With several taps in flight, the
+ * screen shows the newest intent; once the last one settles it shows what the
+ * server holds — the last success, or the value before the taps.
+ */
+const favoritePending = new Map<string, number>();
+const favoriteConfirmed = new Map<string, boolean>();
+
+/**
+ * E6 star / unstar. Shown at once (the web's star is optimistic too); when
+ * the last toggle for an exercise settles, the shown state is put back to the
+ * server's, so a refusal undoes itself and a list read that landed mid-flight
+ * can't leave a wrong star. A row unstarred in the Favorites view stays until
+ * the next read, as on the web.
  */
 export function useToggleFavorite() {
   const api = useApi();
@@ -172,8 +188,7 @@ export function useToggleFavorite() {
   return useMutation<
     SetFavoriteResponseDto,
     ApiError,
-    { exerciseId: string; isFavorite: boolean },
-    { previous: boolean }
+    { exerciseId: string; isFavorite: boolean }
   >({
     mutationFn: ({ exerciseId, isFavorite }) =>
       api.request<SetFavoriteResponseDto>(
@@ -181,13 +196,28 @@ export function useToggleFavorite() {
         { method: "PUT", body: { isFavorite } },
       ),
     onMutate: async ({ exerciseId, isFavorite }) => {
+      const pending = favoritePending.get(exerciseId) ?? 0;
+      if (pending === 0) favoriteConfirmed.set(exerciseId, !isFavorite);
+      favoritePending.set(exerciseId, pending + 1);
+      // A detail read already out would land on top of the new state.
+      await client.cancelQueries({
+        queryKey: RESOURCE_KEYS.exercise(exerciseId),
+      });
       writeFavorite(client, exerciseId, isFavorite);
-      return { previous: !isFavorite };
     },
-    onError: (_e, { exerciseId }, context) => {
-      if (context) writeFavorite(client, exerciseId, context.previous);
+    onSuccess: (data, { exerciseId }) => {
+      favoriteConfirmed.set(exerciseId, data.isFavorite);
     },
     onSettled: (_d, _e, { exerciseId }) => {
+      const left = (favoritePending.get(exerciseId) ?? 1) - 1;
+      if (left > 0) {
+        favoritePending.set(exerciseId, left);
+        return;
+      }
+      favoritePending.delete(exerciseId);
+      const confirmed = favoriteConfirmed.get(exerciseId);
+      favoriteConfirmed.delete(exerciseId);
+      if (confirmed !== undefined) writeFavorite(client, exerciseId, confirmed);
       void client.invalidateQueries({
         queryKey: RESOURCE_KEYS.exercisesAll,
         refetchType: "none",

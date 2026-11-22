@@ -22,7 +22,12 @@ type Errors = { name?: string; address?: string };
  * location, checked by the shared rules, saved once per intent (RD-21). Only
  * the gym is created: no machine weight is copied from another gym.
  */
-export function NewGymScreen() {
+export function NewGymScreen({
+  notify = true,
+}: {
+  /** Leave "Added X." for the gym list (false when Today opened it). */
+  notify?: boolean;
+}) {
   const { colors, spacing } = useTheme();
   const close = useModalClose();
   const create = useCreateGym();
@@ -50,7 +55,7 @@ export function NewGymScreen() {
     try {
       const gym = await create.mutateAsync({ key, body: parsed.value });
       void haptic.light();
-      setNotice("gyms", { message: `Added ${gym.name}.` });
+      if (notify) setNotice("gyms", { message: `Added ${gym.name}.` });
       close();
     } catch (error) {
       void haptic.warning();

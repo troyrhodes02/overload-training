@@ -257,6 +257,42 @@ describe("L1 star", () => {
     ).toBeTruthy();
   });
 
+  it("two failed taps in a row end on the server's state (review #1)", async () => {
+    let release: (() => void)[] = [];
+    serve({
+      "GET /exercises": LIST,
+      "PUT /exercises/e-bench/favorite": () =>
+        new Promise((_, reject) =>
+          release.push(() => reject(new ApiError("network", "offline"))),
+        ),
+    });
+    await render(
+      <Providers>
+        <LibraryRoute />
+      </Providers>,
+    );
+    await fireEvent.press(
+      await screen.findByRole("button", {
+        name: "Add Barbell Bench Press to favorites",
+      }),
+    );
+    await fireEvent.press(
+      await screen.findByRole("button", {
+        name: "Remove Barbell Bench Press from favorites",
+      }),
+    );
+    await waitFor(() => expect(release).toHaveLength(2));
+    const pending = release;
+    release = [];
+    pending.forEach((r) => r());
+    // Neither reached the server: the star is off, as it was.
+    expect(
+      await screen.findByRole("button", {
+        name: "Add Barbell Bench Press to favorites",
+      }),
+    ).toBeTruthy();
+  });
+
   it("+ opens a new exercise", async () => {
     serve({ "GET /exercises": LIST });
     await render(

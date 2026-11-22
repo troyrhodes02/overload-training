@@ -147,6 +147,39 @@ describe("G2 Gym", () => {
     ]);
   });
 
+  it("after Undo the gym stays on screen while the list catches up (review #2)", async () => {
+    jest
+      .spyOn(Alert, "alert")
+      .mockImplementation((_t, _m, buttons) =>
+        buttons?.find((b) => b.text === "Archive")?.onPress?.(),
+      );
+    let archived = false;
+    serve({
+      "GET /gyms": () => (archived ? { gyms: [GYMS.gyms[0]] } : GYMS),
+      "PUT /gyms/g-north/archived": ({ body }: Call) => {
+        archived = (body as { archived: boolean }).archived;
+        // The list re-read after the Undo is slow: it still lacks the gym.
+        if (!archived) archived = true;
+        return {
+          id: "g-north",
+          archived: (body as { archived: boolean }).archived,
+        };
+      },
+    });
+    await render(
+      <Providers>
+        <GymScreen gymId="g-north" />
+      </Providers>,
+    );
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Archive gym" }),
+    );
+    await fireEvent.press(await screen.findByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("Restored.")).toBeTruthy();
+    expect(screen.getByText("Northside Strength")).toBeTruthy();
+    expect(screen.queryByText("This gym isn't available")).toBeNull();
+  });
+
   it("a gym not in the list says so, with a way back", async () => {
     serve({ "GET /gyms": GYMS });
     await render(
@@ -166,6 +199,20 @@ function NoticeProbe() {
 describe("G3 New gym", () => {
   const save = () =>
     fireEvent.press(screen.getByRole("button", { name: "Save" }));
+
+  it("opened from Today it leaves no list notice (review #3)", async () => {
+    serve({ "POST /gyms": { id: "g1", name: "Garage", address: null } });
+    await render(
+      <Providers>
+        <NewGymScreen notify={false} />
+        <NoticeProbe />
+      </Providers>,
+    );
+    await fireEvent.changeText(screen.getByLabelText("Name"), "Garage");
+    await save();
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
+    expect(screen.queryByText("Added Garage.")).toBeNull();
+  });
 
   it("checks the shared rules before sending anything", async () => {
     serve({});

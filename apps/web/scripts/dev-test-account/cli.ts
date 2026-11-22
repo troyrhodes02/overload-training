@@ -312,7 +312,16 @@ async function main() {
         `\nSeeded in one transaction: ${result.created.gyms} gyms, ${result.created.loggedSessions} workouts, ${result.created.loggedSets} sets, ${result.created.plannedCardio} planned cardio, ${result.created.cardioLogs} cardio logs.`,
       );
       if (spec.resources) {
-        const extras = await applyResources(account, spec.resources);
+        // The seed has committed; the extras are their own transaction. If
+        // they fail, nothing of them is written and the seeded account can't
+        // become this scenario (a re-run skips a seeded account): say so.
+        const extras = await applyResources(account, spec.resources).catch(
+          (error: unknown) => {
+            fail(
+              `\nThe story was seeded, but its extras were not added (nothing of them was written): ${error instanceof Error ? error.message : String(error)}\nThis account can't become the ${profile} scenario. Use a new email.`,
+            );
+          },
+        );
         console.log(`Added in one transaction: ${extras.created.join(", ")}.`);
       }
     }
