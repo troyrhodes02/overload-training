@@ -25,6 +25,13 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   { method: "GET", route: "api/mobile/v1/me", auth: "account" },
   { method: "GET", route: "api/mobile/v1/today", auth: "account" },
   { method: "GET", route: "api/mobile/v1/gyms", auth: "account" },
+  // Pitch 21h
+  { method: "POST", route: "api/mobile/v1/gyms", auth: "account" },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/gyms/[gymId]/archived",
+    auth: "account",
+  },
   // Pitch 21d
   { method: "POST", route: "api/mobile/v1/accounts", auth: "public" },
   { method: "POST", route: "api/mobile/v1/password-reset", auth: "public" },

@@ -16,6 +16,7 @@ import type {
   SetArchivedResponseDto,
   SetFavoriteResponseDto,
 } from "@overload/shared/contracts/exercises";
+import { archiveGym, createGym, restoreGym } from "@/lib/gyms/gyms";
 import { readJsonObject } from "./body";
 import {
   IDEMPOTENCY_HEADER,
@@ -171,5 +172,51 @@ export async function setExerciseArchivedFromRequest(
   const { id } = archived
     ? await archiveExercise(account, { exerciseId })
     : await restoreExercise(account, { exerciseId });
+  return { id, archived };
+}
+
+/**
+ * E8 `POST /gyms` (with an `Idempotency-Key`): a gym with the web's fields
+ * (a name and an optional line of free text; never a map or coordinates).
+ * It creates ONLY the Gym row: no GymExerciseBaseline is copied or made — the
+ * first workout at it establishes them. 201 with the gym.
+ */
+export async function createGymFromRequest(
+  account: Account,
+  request: Request,
+): Promise<Response> {
+  const key = requireIdempotencyKey(request);
+  const body = await readJsonObject(request, RESOURCE_BODY_LIMIT);
+  const input = { name: body.name, address: body.address };
+  return withIdempotency(
+    account,
+    { key, scope: "POST /v1/gyms", body: input },
+    async (tx) => {
+      const gym = await createGym(account, input, tx);
+      return {
+        status: 201,
+        body: { id: gym.id, name: gym.name, address: gym.address },
+      };
+    },
+  );
+}
+
+/**
+ * E9 `PUT /gyms/{gymId}/archived`: archive the account's gym, or undo that.
+ * Only `deletedAt` changes: past workouts keep it, and its machine baselines
+ * stay with it, untouched.
+ */
+export async function setGymArchivedFromRequest(
+  account: Account,
+  gymId: string,
+  body: Record<string, unknown>,
+): Promise<SetArchivedResponseDto> {
+  const { archived } = body;
+  if (typeof archived !== "boolean") {
+    throw shapeError("archived", "Send archived as true or false.");
+  }
+  const { id } = archived
+    ? await archiveGym(account, { gymId })
+    : await restoreGym(account, { gymId });
   return { id, archived };
 }

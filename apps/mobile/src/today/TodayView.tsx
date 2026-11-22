@@ -312,14 +312,12 @@ function StartNote({ state }: { state: StartState }) {
   if (state.kind === "no_gym") {
     return (
       <View style={{ gap: spacing.sm }}>
-        <Banner
-          tone="info"
-          message="Add the gym you train at on the web first."
-        />
+        <Banner tone="info" message="Add the gym you train at to start." />
+        {/* Pitch 21h: gyms are added on the phone now (G3). */}
         <Button
-          label="Open Overload on the web"
-          variant="text"
-          onPress={() => openWeb("/gyms")}
+          label="Add a gym"
+          variant="secondary"
+          onPress={() => router.push("/gym-new")}
         />
       </View>
     );

@@ -28,6 +28,13 @@ import { PUT as exerciseArchivedRoute } from "@/app/api/mobile/v1/exercises/[exe
 import { GET as historyWorkoutRoute } from "@/app/api/mobile/v1/history/[loggedSessionId]/route";
 import { GET as swapCandidatesRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/swap-candidates/route";
 import { logSet } from "@/lib/logging/logged-sets";
+import {
+  GET as gymsRoute,
+  POST as createGymRoute,
+} from "@/app/api/mobile/v1/gyms/route";
+import { PUT as gymArchivedRoute } from "@/app/api/mobile/v1/gyms/[gymId]/archived/route";
+import { POST as startWorkoutRoute } from "@/app/api/mobile/v1/workouts/route";
+import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import { completeWorkout } from "@/lib/logging/sessions";
 import type {
   ExerciseDetailDto,
@@ -919,5 +926,150 @@ describe("PUT /exercises/{id}/archived", () => {
       400,
       "validation_error",
     ]);
+  });
+});
+
+describe("POST /gyms and PUT /gyms/{id}/archived", () => {
+  const post = (account: Account, key: string | null, json: unknown) =>
+    call(createGymRoute, account, {
+      json,
+      headers: key ? { "idempotency-key": key } : {},
+    });
+  const archive = (account: Account, gymId: string, archived: unknown) =>
+    call(gymArchivedRoute, account, {
+      method: "PUT",
+      json: { archived },
+      params: { gymId },
+    });
+  const gymNames = async (account: Account) =>
+    ((await call(gymsRoute, account)).body as GymsResponseDto).gyms.map(
+      (g) => g.name,
+    );
+
+  it("creates a gym with an optional free-text location, replay-safe", async () => {
+    const a = await createTestAccount();
+    const key = `gym-${randomUUID()}`;
+    const r = await post(a, key, {
+      name: " Downtown Annex ",
+      address: " 410 Main St, 2nd floor ",
+    });
+    expect(r.status).toBe(201);
+    expect(r.body).toEqual({
+      id: expect.any(String),
+      name: "Downtown Annex",
+      address: "410 Main St, 2nd floor",
+    });
+    const again = await post(a, key, {
+      name: " Downtown Annex ",
+      address: " 410 Main St, 2nd floor ",
+    });
+    expect(again.body).toEqual(r.body);
+    expect(again.headers.get("idempotent-replayed")).toBe("true");
+    expect(await db().gym.count({ where: { userId: a.userId } })).toBe(1);
+    const plain = await post(a, `gym-${randomUUID()}`, { name: "Harbor" });
+    expect(plain.body.address).toBeNull();
+    expect(await gymNames(a)).toEqual(["Downtown Annex", "Harbor"]);
+  });
+
+  it("refuses a missing key and bad fields with the web's messages", async () => {
+    const a = await createTestAccount();
+    const none = await post(a, null, { name: "X" });
+    expect([none.status, none.body.error.code]).toEqual([
+      400,
+      "validation_error",
+    ]);
+    const bad = await post(a, `gym-${randomUUID()}`, {
+      name: "",
+      address: "x".repeat(201),
+    });
+    expect(bad.body.error.details).toEqual({
+      name: "Enter a name.",
+      address: "Keep the location to 200 characters or fewer.",
+    });
+    expect(await db().gym.count({ where: { userId: a.userId } })).toBe(0);
+  });
+
+  it("a new gym starts a workout and creates no baseline; archive keeps history and baselines", async () => {
+    const a = await createTestAccount();
+    const plan = await blockFor(a);
+    const machine = await libraryExercise(
+      `Chest Press ${randomUUID()}`,
+      "machine",
+    );
+    await addSessionExercise(a, {
+      sessionId: plan.push.id,
+      exerciseId: machine.id,
+      plannedSets: "2",
+      targetRepMin: "10",
+      targetRepMax: "12",
+    });
+    // A finished workout at Northside sets a machine baseline there.
+    const northside = await createGym(a, { name: "Northside" });
+    const lastWeek = addDays(today(), -7);
+    const { loggedSessionId } = await startOrResumeWorkout(a, {
+      sessionId: plan.push.id,
+      scheduledFor: lastWeek,
+      gymId: northside.id,
+    });
+    const le = await db().loggedExercise.findFirstOrThrow({
+      where: { loggedSessionId, exerciseId: machine.id },
+    });
+    for (const setNumber of [1, 2]) {
+      await logSet(a, {
+        loggedExerciseId: le.id,
+        setNumber,
+        weightLbs: 120,
+        reps: 11,
+      });
+    }
+    await completeWorkout(a, { loggedSessionId });
+    const baselines = () =>
+      db().gymExerciseBaseline.findMany({
+        where: { userId: a.userId },
+        orderBy: { id: "asc" },
+      });
+    const before = await baselines();
+    expect(before).toHaveLength(1);
+
+    // A gym added on the phone has no baseline and starts today's workout.
+    const created = await post(a, `gym-${randomUUID()}`, { name: "Riverside" });
+    expect(await baselines()).toEqual(before);
+    const start = await call(startWorkoutRoute, a, {
+      json: {
+        sessionId: plan.push.id,
+        scheduledFor: today(),
+        gymId: created.body.id,
+      },
+    });
+    expect(start.status).toBe(200);
+
+    // Archiving Northside: gone from the pickers, kept by its workout.
+    for (let i = 0; i < 2; i++) {
+      const r = await archive(a, northside.id, true);
+      expect([r.status, r.body]).toEqual([
+        200,
+        { id: northside.id, archived: true },
+      ]);
+    }
+    expect(await gymNames(a)).toEqual(["Riverside"]);
+    const history = await call(historyWorkoutRoute, a, {
+      params: { loggedSessionId },
+      query: "fields=core",
+    });
+    expect(history.body.detail.gymName).toBe("Northside");
+    expect(await baselines()).toEqual(before);
+    // Undo restores it to the pickers.
+    expect((await archive(a, northside.id, false)).body).toEqual({
+      id: northside.id,
+      archived: false,
+    });
+    expect(await gymNames(a)).toEqual(["Northside", "Riverside"]);
+    const bad = await archive(a, northside.id, "yes");
+    expect([bad.status, bad.body.error.code]).toEqual([
+      400,
+      "validation_error",
+    ]);
+    const missing = await archive(a, randomUUID(), true);
+    expect(missing.status).toBe(404);
   });
 });
