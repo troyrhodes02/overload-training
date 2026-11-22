@@ -1,6 +1,12 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
 import { getPlanOverview, getPlanSession } from "@/lib/views/plan";
+import { getExercise, listExercises } from "@/lib/exercises/queries";
+import { parseLibraryParams } from "@/lib/exercises/library-params";
+import type {
+  ExerciseDetailDto,
+  ExerciseList,
+} from "@overload/shared/contracts/exercises";
 import type {
   PlanOverviewDto,
   PlanSessionDto,
@@ -45,4 +51,37 @@ export async function readPlanSession(
     throw new ApiFailure("not_found", "That session isn't in your plan.");
   }
   return session;
+}
+
+/**
+ * E3 `GET /exercises?view=&muscle=&q=&limit=`: the library with the web's
+ * own filters (every search word, All or Favorites, primary muscle) and page
+ * limit, read tolerantly by the web's parser: an unknown value is the default.
+ */
+export function readExercises(
+  account: Account,
+  params: URLSearchParams,
+): Promise<ExerciseList> {
+  const filters = parseLibraryParams({
+    view: params.get("view") ?? undefined,
+    muscle: params.get("muscle") ?? undefined,
+    q: params.get("q") ?? undefined,
+    limit: params.get("limit") ?? undefined,
+  });
+  return listExercises(account, filters);
+}
+
+/**
+ * E4 `GET /exercises/{exerciseId}`: a library exercise or one of the
+ * account's own, archived ones included (history and plans name them).
+ * Another account's custom exercise is a 404 like a missing one.
+ */
+export async function readExercise(
+  account: Account,
+  exerciseId: string,
+): Promise<ExerciseDetailDto> {
+  const exercise = await getExercise(account, exerciseId);
+  if (!exercise)
+    throw new ApiFailure("not_found", "That exercise doesn't exist.");
+  return exercise;
 }

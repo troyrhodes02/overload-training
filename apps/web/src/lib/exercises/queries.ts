@@ -150,8 +150,21 @@ export async function getExercise(
     }),
   ]);
   if (!row) return null;
+  return toExerciseDetail(row, favorite !== null);
+}
+
+/**
+ * An exercise row as its detail DTO. Exported for the mobile create (Pitch
+ * 21h E5): the created row is read inside the create's transaction, where a
+ * fresh read through getExercise could not yet see it.
+ */
+export function toExerciseDetail(
+  row: ListRow &
+    Pick<Prisma.ExerciseGetPayload<object>, "secondaryMuscles" | "deletedAt">,
+  isFavorite: boolean,
+): ExerciseDetailDto {
   return {
-    ...toListItem(row, favorite !== null),
+    ...toListItem(row, isFavorite),
     equipmentType: row.equipmentType,
     secondaryMuscleLabels: row.secondaryMuscles.map(muscleGroupLabel),
     isArchived: row.deletedAt !== null,

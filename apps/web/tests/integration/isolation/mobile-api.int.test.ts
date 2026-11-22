@@ -101,7 +101,13 @@ import type {
   PlanOverviewDto,
   PlanSessionDto,
 } from "@overload/shared/contracts/plan";
-import { createCustomExercise } from "@/lib/exercises/exercises";
+import { GET as exercisesRoute } from "@/app/api/mobile/v1/exercises/route";
+import { GET as exerciseRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/route";
+import type { ExerciseList } from "@overload/shared/contracts/exercises";
+import {
+  createCustomExercise,
+  setExerciseFavorite,
+} from "@/lib/exercises/exercises";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 import type { SwapContextDto } from "@overload/shared/contracts/logging";
 import { createGoal } from "@/lib/goals/goals";
@@ -1470,6 +1476,81 @@ const CASES: Record<string, () => void> = {
           params: { mesocycleId: plan.meso.id, sessionId: plan.session.id },
         });
         expect((ra.body as PlanSessionDto).name).toBe("Alpha Push");
+      });
+    });
+  },
+
+  // Pitch 21h: the library.
+  "GET api/mobile/v1/exercises": () => {
+    accountEndpointMatrix("GET /exercises", exercisesRoute as Handler);
+    describe("GET /exercises: isolation", () => {
+      it("B's list and search never show A's custom exercise or favorites", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        await setExerciseFavorite(a, {
+          exerciseId: lib.bench.id,
+          isFavorite: true,
+        });
+        for (const query of [
+          "q=Landmine",
+          "q=Alpha",
+          "view=favorites",
+          "muscle=chest&limit=1000",
+        ]) {
+          const r = await call(exercisesRoute as Handler, {
+            token: tokenFor(b.userId),
+            query,
+          });
+          expect(r.status).toBe(200);
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+          const body = r.body as ExerciseList;
+          expect(body.items.some((e) => e.isFavorite)).toBe(false);
+          expect(body.hasAnyFavorites).toBe(false);
+        }
+        const ra = await call(exercisesRoute as Handler, {
+          token: tokenFor(a.userId),
+          query: "q=Landmine",
+        });
+        expect((ra.body as ExerciseList).items.map((e) => e.id)).toEqual([
+          plan.custom.id,
+        ]);
+      });
+    });
+  },
+  "GET api/mobile/v1/exercises/[exerciseId]": () => {
+    accountEndpointMatrix(
+      "GET /exercises/{id}",
+      exerciseRoute as Handler,
+      { params: { exerciseId: randomUUID() } },
+      404,
+    );
+    describe("GET /exercises/{id}: isolation", () => {
+      it("A's custom exercise is a 404 for B, like a missing one; a library one is readable", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const missing = await call(exerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: randomUUID() },
+        });
+        const r = await call(exerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: plan.custom.id },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        await setExerciseFavorite(a, {
+          exerciseId: lib.bench.id,
+          isFavorite: true,
+        });
+        const shared = await call(exerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(shared.status).toBe(200);
+        expect(shared.body).toMatchObject({
+          isFavorite: false,
+          canArchive: false,
+        });
       });
     });
   },

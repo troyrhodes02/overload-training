@@ -993,7 +993,7 @@ describe("fewer sets from the card", () => {
       screen.getByRole("button", { name: "More for Barbell Bench Press" }),
     );
     expect(sheet.mock.calls[0]![0]).toMatchObject({
-      options: ["I meant to do fewer sets", "Cancel"],
+      options: ["About this exercise", "I meant to do fewer sets", "Cancel"],
     });
     await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
     expect(alert.mock.calls[0]![1]).toContain("no logged set is removed");

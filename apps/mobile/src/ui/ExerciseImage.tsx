@@ -18,16 +18,18 @@ export function ExerciseImage({
 }: {
   uri: string | null;
   name: string;
-  size?: number;
+  /** Points, or "fill" to fill a framed container (the detail's hero). */
+  size?: number | "fill";
   archived?: boolean;
 }) {
   const { colors, radius } = useTheme();
   const [failed, setFailed] = useState(false);
+  const fill = size === "fill";
   const frame = {
-    width: size,
-    height: size,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    width: fill ? ("100%" as const) : size,
+    height: fill ? ("100%" as const) : size,
+    borderRadius: fill ? 0 : radius.lg,
+    borderWidth: fill ? 0 : 1,
     borderColor: colors.border,
     borderStyle: archived ? ("dashed" as const) : ("solid" as const),
     overflow: "hidden" as const,

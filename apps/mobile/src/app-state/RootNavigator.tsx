@@ -69,6 +69,8 @@ export function RootNavigator({
           options={modalHeader}
         />
         <Stack.Screen name="cardio" options={modalHeader} />
+        {/* Pitch 21h (RD-13): an exercise's detail over the workout. */}
+        <Stack.Screen name="exercise/[exerciseId]" options={workoutHeader} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn} redirectTo={SIGNED_IN_HOME}>
         <Stack.Screen name="(auth)" />

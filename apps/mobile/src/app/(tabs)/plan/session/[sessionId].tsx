@@ -11,7 +11,7 @@ export default function PlanSessionRoute() {
     <SessionScreen
       mesocycleId={String(mesocycleId ?? "")}
       sessionId={String(sessionId)}
-      exerciseHref={null}
+      exerciseHref={(id) => `/plan/exercise/${encodeURIComponent(id)}`}
     />
   );
 }
