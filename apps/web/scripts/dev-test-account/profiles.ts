@@ -10,6 +10,11 @@ import { checkUsername } from "@overload/shared/accounts/validation";
 import { addDays } from "@overload/shared/plan/calendar";
 import type { DemoVariant, FixtureExercise } from "../demo/fixture";
 import { isQaTestEmail } from "../qa-fixture/rules";
+import {
+  RESOURCE_PLANS,
+  type ResourcePlan,
+  type ResourcePlanName,
+} from "./resource-plans";
 
 /**
  * What the UNCHANGED engine must say about one of today's lifts (Pitch 21g
@@ -43,6 +48,10 @@ type Profile = {
   expect?: readonly CallExpectation[];
   /** How many earlier unfinished workouts Today lists (OVE-228). */
   unfinished?: number;
+  /** False: the account gets no training data at all (Pitch 21h no-plan). */
+  seed?: boolean;
+  /** Extra custom exercises, favorites, and gyms (Pitch 21h). */
+  resources?: ResourcePlanName;
 };
 
 /** The standard story's calls on today's Upper A. */
@@ -235,6 +244,47 @@ export const PROFILES = {
     anchorOffsetDays: 0,
     expect: STANDARD_CALLS,
   },
+
+  // ── Pitch 21h: plans, library, and gyms. The plan itself is `standard`
+  //    (and `scheduled-deload` for a deload week); a workout in progress is
+  //    `recovery`. These add what those don't have.
+  /** An account with no training data at all: no plan, no gyms. */
+  "no-plan": { variant: "standard", anchorOffsetDays: 0, seed: false },
+  /**
+   * Upper A today with Bench 3 × 6–8, Pullups 3 × 8–10 (bodyweight), Incline
+   * Dumbbell Press 3 × 10 (fixed), Crunches 3 × 15 (bodyweight, fixed), and
+   * planned cardio on Upper A's day.
+   */
+  "session-detail": { variant: "session-detail", anchorOffsetDays: 0 },
+  /** The standard story, plus favorites and one of the lifter's own exercises. */
+  library: { variant: "standard", anchorOffsetDays: 0, resources: "library" },
+  /**
+   * Anchored to YESTERDAY: yesterday's Upper A was finished with Standing
+   * Military Press swapped for the custom Landmine Press (3 sets), so History
+   * names it; plus Banded Face Pull (active) and Cable Y Raise (archived).
+   */
+  "custom-exercises": {
+    variant: "recovery",
+    anchorOffsetDays: -1,
+    resources: "custom-exercises",
+  },
+  /**
+   * The gym story (machines at Northside and Riverside, Harbor Barbell
+   * empty), plus Downtown Annex with a location, and Riverside archived
+   * with its history and machine weights kept.
+   */
+  gyms: { variant: "gym", anchorOffsetDays: 0, resources: "gyms" },
+  /** Two accounts with different own exercises, favorites, and gyms. */
+  "isolation-resources-a": {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    resources: "isolation-resources-a",
+  },
+  "isolation-resources-b": {
+    variant: "bodyweight",
+    anchorOffsetDays: 0,
+    resources: "isolation-resources-b",
+  },
 } as const satisfies Record<string, Profile>;
 
 export type ProfileName = keyof typeof PROFILES;
@@ -246,10 +296,11 @@ export function isProfileName(value: unknown): value is ProfileName {
 
 /** A profile's full description (optional fields made explicit). */
 export function profileOf(name: ProfileName): Required<
-  Omit<Profile, "deloadWeek" | "unfinished">
+  Omit<Profile, "deloadWeek" | "unfinished" | "resources">
 > & {
   deloadWeek: boolean | null;
   unfinished: number | null;
+  resources: ResourcePlan | null;
 } {
   const p: Profile = PROFILES[name];
   return {
@@ -259,6 +310,8 @@ export function profileOf(name: ProfileName): Required<
     deloadWeek: p.deloadWeek ?? null,
     expect: p.expect ?? [],
     unfinished: p.unfinished ?? null,
+    seed: p.seed ?? true,
+    resources: p.resources ? RESOURCE_PLANS[p.resources] : null,
   };
 }
 
