@@ -434,3 +434,129 @@ describe("Pitch 21g final-correction profiles (OVE-231)", () => {
     expect(call.suggestion).toEqual({ lbs: 160, kind: "scheduled_deload" });
   });
 });
+
+describe("Pitch 21h profiles: resources through the write modules, read back by the app", () => {
+  async function seed21h(name: ProfileName) {
+    const p = profileOf(name);
+    await seedLibrary();
+    const account = await createTestAccount("UTC", undefined, {
+      entitlement: p.access === "free" ? "none" : "pro",
+    });
+    const anchor = anchorFor(name, TODAY);
+    if (p.seed) await executeDemoSeed(account, anchor, p.variant);
+    const { applyResources, resourceReport } =
+      await import("../../scripts/dev-test-account/resources");
+    if (p.resources) await applyResources(account, p.resources);
+    const report = await resourceReport(account, p.resources);
+    return { account, anchor, report };
+  }
+
+  it.each([
+    "no-plan",
+    "session-detail",
+    "library",
+    "custom-exercises",
+    "gyms",
+    "isolation-resources-a",
+    "isolation-resources-b",
+  ] as const)("%s passes its resource check", async (name) => {
+    const { report } = await seed21h(name);
+    expect(report.problems).toEqual([]);
+  });
+
+  it("no-plan has no plan, no gyms, and no exercises of its own", async () => {
+    const { account, report } = await seed21h("no-plan");
+    expect(report.lines[0]).toContain("no active plan");
+    const { getPlanOverview } = await import("@/lib/views/plan");
+    expect((await getPlanOverview(account)).block).toBeNull();
+    expect(
+      await getTestPrisma().gym.count({ where: { userId: account.userId } }),
+    ).toBe(0);
+  });
+
+  it("session-detail: today's Upper A has bodyweight and fixed targets, and planned cardio", async () => {
+    const { account } = await seed21h("session-detail");
+    const { getPlanOverview, getPlanSession } =
+      await import("@/lib/views/plan");
+    const overview = await getPlanOverview(account);
+    const upperA = overview.block!.template.find((s) => s?.name === "Upper A")!;
+    const session = (await getPlanSession(
+      account,
+      overview.block!.summary.id,
+      upperA.id,
+    ))!;
+    expect(
+      session.exercises.map((e) => [
+        e.exerciseName,
+        e.plannedSets,
+        e.targetRepMin,
+        e.targetRepMax,
+        e.requiresExternalWeight,
+      ]),
+    ).toEqual([
+      [expect.stringContaining("Bench"), 3, 6, 8, true],
+      ["Pullups", 3, 8, 10, false],
+      [expect.stringContaining("Incline"), 3, 10, 10, true],
+      ["Crunches", 3, 15, 15, false],
+    ]);
+    expect(session.cardio).not.toBeNull();
+  });
+
+  it("custom-exercises: yesterday's finished workout performed the custom exercise; one is archived", async () => {
+    const { account, anchor, report } = await seed21h("custom-exercises");
+    const db = getTestPrisma();
+    const custom = await db.exercise.findFirstOrThrow({
+      where: { userId: account.userId, name: "Landmine Press" },
+    });
+    const le = await db.loggedExercise.findFirstOrThrow({
+      where: { exerciseId: custom.id },
+      include: { loggedSession: true, sets: true },
+    });
+    expect(le.loggedSession.status).toBe("complete");
+    expect(le.loggedSession.scheduledFor.toISOString().slice(0, 10)).toBe(
+      anchor,
+    );
+    expect(le.sets.map((s) => [Number(s.weightLbs), s.reps])).toEqual([
+      [95, 10],
+      [95, 9],
+      [95, 8],
+    ]);
+    const archived = await db.exercise.findFirstOrThrow({
+      where: { userId: account.userId, name: "Cable Y Raise" },
+    });
+    expect(archived.deletedAt).not.toBeNull();
+    expect(report.lines.join("\n")).toContain("Cable Y Raise (archived)");
+    // Nothing is left unfinished on Today.
+    const today = await getTodayView(account);
+    expect(today.unfinishedWorkouts ?? []).toEqual([]);
+  });
+
+  it("gyms: Riverside is archived with its history and machine weights kept", async () => {
+    const { account, report } = await seed21h("gyms");
+    const db = getTestPrisma();
+    const riverside = await db.gym.findFirstOrThrow({
+      where: { userId: account.userId, name: "Riverside Fitness" },
+    });
+    expect(riverside.deletedAt).not.toBeNull();
+    expect(
+      await db.loggedExercise.count({ where: { gymId: riverside.id } }),
+    ).toBeGreaterThan(0);
+    expect(
+      await db.gymExerciseBaseline.count({ where: { gymId: riverside.id } }),
+    ).toBeGreaterThan(0);
+    expect(report.lines.join("\n")).toContain(
+      "Downtown Annex (410 Main St, 2nd floor)",
+    );
+    expect(report.lines.join("\n")).not.toContain("Riverside");
+  });
+
+  it("the two isolation accounts hold different own exercises, favorites, and gyms", async () => {
+    const a = await seed21h("isolation-resources-a");
+    const b = await seed21h("isolation-resources-b");
+    const own = (x: typeof a) => x.report.lines.find((l) => l.includes("Own:"));
+    expect(own(a)).toContain("Alpha Landmine Press");
+    expect(own(a)).not.toContain("Bravo");
+    expect(own(b)).toContain("Bravo Sled Push");
+    expect(own(b)).not.toContain("Alpha");
+  });
+});

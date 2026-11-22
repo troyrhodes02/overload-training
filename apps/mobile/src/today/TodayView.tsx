@@ -1,6 +1,6 @@
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useCallback, useRef, useState } from "react";
 import { Alert, Linking, Pressable, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import type {
   DashboardDto,
   DashboardTodayDto,
@@ -66,6 +66,8 @@ export function TodayView() {
   );
   useRefetchWhenFocused(TRAINING_KEYS.today);
   const starter = useStartOrResume();
+  const clearNoGym = starter.clearNoGym;
+  useFocusEffect(useCallback(() => clearNoGym(), [clearNoGym]));
   // What a resolution did, for the day it was made on (RD-23).
   const [resolved, setResolved] = useState<{
     note: string;
@@ -312,14 +314,12 @@ function StartNote({ state }: { state: StartState }) {
   if (state.kind === "no_gym") {
     return (
       <View style={{ gap: spacing.sm }}>
-        <Banner
-          tone="info"
-          message="Add the gym you train at on the web first."
-        />
+        <Banner tone="info" message="Add the gym you train at to start." />
+        {/* Pitch 21h: gyms are added on the phone now (G3). */}
         <Button
-          label="Open Overload on the web"
-          variant="text"
-          onPress={() => openWeb("/gyms")}
+          label="Add a gym"
+          variant="secondary"
+          onPress={() => router.push("/gym-new?from=today")}
         />
       </View>
     );

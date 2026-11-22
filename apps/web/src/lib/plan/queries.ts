@@ -11,6 +11,7 @@ import {
   plannedEndDate,
 } from "@overload/shared/plan/calendar";
 import { copyName } from "@overload/shared/plan/validation";
+import { requiresExternalWeight } from "@overload/shared/exercises/loading-mode";
 import { SPLIT_TYPE_LABELS } from "@overload/shared/plan/presets";
 import {
   evaluateReadiness,
@@ -99,6 +100,7 @@ export function toPlannedExercise(
     targetRepMin: se.targetRepMin,
     targetRepMax: se.targetRepMax,
     position: se.position,
+    requiresExternalWeight: requiresExternalWeight(e),
   };
 }
 

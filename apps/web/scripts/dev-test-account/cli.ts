@@ -118,6 +118,7 @@ async function main() {
   const { executeDemoSeed, formatInspection, inspectDemoTarget } =
     await import("../demo/seed");
   const { engineReport, planLabel } = await import("./engine-report");
+  const { applyResources, resourceReport } = await import("./resources");
   const { executeAccess, planAccess } = await import("./access");
 
   // The provisioner uses the direct connection; the seed, like the demo seed,
@@ -154,6 +155,14 @@ async function main() {
       );
       console.log("\nEngine check (the gated server reader, read-only):");
       for (const line of report.lines) console.log(line);
+      // Pitch 21h: the plan, library, and gyms as the app now reads them.
+      const resources = await resourceReport(
+        account,
+        access ? null : spec.resources,
+      );
+      console.log("\nResource check (the app's own reads, read-only):");
+      for (const line of resources.lines) console.log(line);
+      report.problems.push(...resources.problems);
       if (report.problems.length > 0) {
         console.log("\nENGINE CHECK MISMATCH:");
         for (const p of report.problems) console.log(`  - ${p}`);
@@ -163,7 +172,10 @@ async function main() {
         process.exitCode = 2;
       } else if (
         !access &&
-        (spec.expect.length > 0 || spec.unfinished !== null)
+        (spec.expect.length > 0 ||
+          spec.unfinished !== null ||
+          spec.resources !== null ||
+          !spec.seed)
       ) {
         console.log("ENGINE CHECK PASSED");
       }
@@ -198,8 +210,26 @@ async function main() {
     }
 
     console.log(
-      `  profile:  ${profile} (fixture: ${variant}; ${spec.access === "free" ? "Free plan" : "Pro, comp"})`,
+      `  profile:  ${profile} (fixture: ${spec.seed ? variant : "none — no training data"}; ${spec.access === "free" ? "Free plan" : "Pro, comp"})`,
     );
+    if (spec.resources) {
+      const r = spec.resources;
+      console.log(
+        `  extras:   ${[
+          r.customExercises?.length
+            ? `${r.customExercises.length} own exercise(s)`
+            : null,
+          r.favorites?.length ? `${r.favorites.length} favorite(s)` : null,
+          r.gyms?.length ? `${r.gyms.length} gym(s)` : null,
+          r.archiveGyms?.length ? `archive ${r.archiveGyms.join(", ")}` : null,
+          r.finishWithCustom
+            ? `finish the open workout with ${r.finishWithCustom.custom}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("; ")} (through the app's write modules, one transaction)`,
+      );
+    }
 
     const plan = await planProvision(direct, auth, input);
     // The Free scenario needs an account with no Pro at all (review #9): an
@@ -217,7 +247,7 @@ async function main() {
     );
 
     if (!args.execute) {
-      if (plan.userId && plan.profile === "exists") {
+      if (plan.userId && plan.profile === "exists" && spec.seed) {
         const account = await accountFor(plan.userId, pooled);
         console.log(
           `  anchor:   ${anchorFor(profile, todayIso(account.timeZone))} (${account.timeZone})`,
@@ -259,13 +289,20 @@ async function main() {
     console.log(`  anchor:   ${anchor} (${account.timeZone})`);
 
     const inspection = await inspectDemoTarget(account, variant);
-    if (inspection.state === "conflict") {
+    if (!spec.seed) {
+      // Pitch 21h no-plan: a fresh account stays empty.
+      console.log(
+        inspection.state === "empty"
+          ? "\nNo training data, by design: no plan, no gyms, no workouts."
+          : "\nThis account already holds training data, so it can't be the no-plan scenario. Use a new email.",
+      );
+      if (inspection.state !== "empty") process.exitCode = 2;
+    } else if (inspection.state === "conflict") {
       console.log(formatInspection(inspection));
       fail(
         "\nREFUSED. This account holds other training data; nothing was seeded. Use a new email for a fresh account.",
       );
-    }
-    if (inspection.state === "seeded") {
+    } else if (inspection.state === "seeded") {
       console.log(
         "\nAlready seeded with this fixture. Nothing written. Its dates are from the day it was seeded: use a new email for a fresh one.",
       );
@@ -274,6 +311,19 @@ async function main() {
       console.log(
         `\nSeeded in one transaction: ${result.created.gyms} gyms, ${result.created.loggedSessions} workouts, ${result.created.loggedSets} sets, ${result.created.plannedCardio} planned cardio, ${result.created.cardioLogs} cardio logs.`,
       );
+      if (spec.resources) {
+        // The seed has committed; the extras are their own transaction. If
+        // they fail, nothing of them is written and the seeded account can't
+        // become this scenario (a re-run skips a seeded account): say so.
+        const extras = await applyResources(account, spec.resources).catch(
+          (error: unknown) => {
+            fail(
+              `\nThe story was seeded, but its extras were not added (nothing of them was written): ${error instanceof Error ? error.message : String(error)}\nThis account can't become the ${profile} scenario. Use a new email.`,
+            );
+          },
+        );
+        console.log(`Added in one transaction: ${extras.created.join(", ")}.`);
+      }
     }
     console.log(
       fs.existsSync(file)

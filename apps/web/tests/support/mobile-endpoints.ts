@@ -25,6 +25,13 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   { method: "GET", route: "api/mobile/v1/me", auth: "account" },
   { method: "GET", route: "api/mobile/v1/today", auth: "account" },
   { method: "GET", route: "api/mobile/v1/gyms", auth: "account" },
+  // Pitch 21h
+  { method: "POST", route: "api/mobile/v1/gyms", auth: "account" },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/gyms/[gymId]/archived",
+    auth: "account",
+  },
   // Pitch 21d
   { method: "POST", route: "api/mobile/v1/accounts", auth: "public" },
   { method: "POST", route: "api/mobile/v1/password-reset", auth: "public" },
@@ -97,6 +104,30 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   {
     method: "PATCH",
     route: "api/mobile/v1/cardio-logs/[cardioLogId]",
+    auth: "account",
+  },
+  // Pitch 21h: plans, library, and gyms
+  { method: "GET", route: "api/mobile/v1/plan", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]",
+    auth: "account",
+  },
+  { method: "GET", route: "api/mobile/v1/exercises", auth: "account" },
+  { method: "POST", route: "api/mobile/v1/exercises", auth: "account" },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/exercises/[exerciseId]/favorite",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/exercises/[exerciseId]/archived",
+    auth: "account",
+  },
+  {
+    method: "GET",
+    route: "api/mobile/v1/exercises/[exerciseId]",
     auth: "account",
   },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
