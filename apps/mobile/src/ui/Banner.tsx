@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Symbol } from "./Symbol";
 import { Text } from "./Text";
 import { useTheme } from "./ThemeProvider";
@@ -7,9 +7,12 @@ import { useTheme } from "./ThemeProvider";
 export function Banner({
   tone = "error",
   message,
+  action,
 }: {
   tone?: "error" | "info";
   message: string;
+  /** One text action at the end ("Undo", "View"; Pitch 21h). */
+  action?: { label: string; onPress: () => void; hint?: string };
 }) {
   const { colors, radius, spacing } = useTheme();
   const error = tone === "error";
@@ -40,6 +43,20 @@ export function Banner({
       >
         {message}
       </Text>
+      {action ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          accessibilityHint={action.hint}
+          hitSlop={12}
+          onPress={action.onPress}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Text size="sm" weight="semibold" tone="primary">
+            {action.label}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

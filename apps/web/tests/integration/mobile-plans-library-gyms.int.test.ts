@@ -22,6 +22,13 @@ import { GET as planRoute } from "@/app/api/mobile/v1/plan/route";
 import { GET as planSessionRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]/route";
 import { GET as exercisesRoute } from "@/app/api/mobile/v1/exercises/route";
 import { GET as exerciseRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/route";
+import { POST as createExerciseRoute } from "@/app/api/mobile/v1/exercises/route";
+import { PUT as favoriteRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/favorite/route";
+import { PUT as exerciseArchivedRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/archived/route";
+import { GET as historyWorkoutRoute } from "@/app/api/mobile/v1/history/[loggedSessionId]/route";
+import { GET as swapCandidatesRoute } from "@/app/api/mobile/v1/logged-exercises/[loggedExerciseId]/swap-candidates/route";
+import { logSet } from "@/lib/logging/logged-sets";
+import { completeWorkout } from "@/lib/logging/sessions";
 import type {
   ExerciseDetailDto,
   ExerciseList,
@@ -614,5 +621,303 @@ describe("GET /exercises/{id}", () => {
         "not_found",
       ]);
     }
+  });
+});
+
+describe("POST /exercises", () => {
+  const form = {
+    name: "  Landmine Press  ",
+    primaryMuscle: "shoulders",
+    equipmentType: "barbell",
+    secondaryMuscles: ["triceps"],
+  };
+  const post = (account: Account, key: string | null, json: unknown = form) =>
+    call(createExerciseRoute, account, {
+      json,
+      headers: key ? { "idempotency-key": key } : {},
+    });
+  const customCount = (userId: string) =>
+    db().exercise.count({ where: { userId, isCustom: true } });
+
+  it("creates the account's own exercise with the web's fields; no image", async () => {
+    const a = await createTestAccount();
+    const r = await post(a, `ex-${randomUUID()}`);
+    expect(r.status).toBe(201);
+    expect(r.body as ExerciseDetailDto).toMatchObject({
+      name: "Landmine Press",
+      primaryMuscle: "shoulders",
+      primaryMuscleLabel: "Shoulders",
+      equipmentLabel: "Barbell",
+      secondaryMuscleLabels: ["Triceps"],
+      isCustom: true,
+      isFavorite: false,
+      isArchived: false,
+      canArchive: true,
+      imageUrl: null,
+    });
+    const row = await db().exercise.findUniqueOrThrow({
+      where: { id: r.body.id },
+    });
+    expect(row).toMatchObject({
+      userId: a.userId,
+      isCustom: true,
+      imageRef: null,
+      sourceId: null,
+    });
+    // It reads back, appears in the library, and is offered for swaps.
+    expect(
+      (await call(exerciseRoute, a, { params: { exerciseId: row.id } })).status,
+    ).toBe(200);
+    const lib = (await call(exercisesRoute, a, { query: "q=Landmine" }))
+      .body as ExerciseList;
+    expect(lib.items.map((e) => e.id)).toEqual([row.id]);
+    const plan = await blockFor(a);
+    const gym = await createGym(a, { name: "Northside" });
+    const { loggedSessionId } = await startOrResumeWorkout(a, {
+      sessionId: plan.push.id,
+      scheduledFor: today(),
+      gymId: gym.id,
+    });
+    const le = await db().loggedExercise.findFirstOrThrow({
+      where: { loggedSessionId, exerciseId: plan.bench.id },
+    });
+    const swap = await call(swapCandidatesRoute, a, {
+      params: { loggedExerciseId: le.id },
+      query: "muscle=shoulders",
+    });
+    expect(
+      (swap.body.candidates as { id: string }[]).map((c) => c.id),
+    ).toContain(row.id);
+  });
+
+  it("a retry with the same key answers with the first result and creates one", async () => {
+    const a = await createTestAccount();
+    const key = `ex-${randomUUID()}`;
+    const first = await post(a, key);
+    const again = await post(a, key);
+    expect(again.status).toBe(201);
+    expect(again.headers.get("idempotent-replayed")).toBe("true");
+    expect(again.body).toEqual(first.body);
+    expect(await customCount(a.userId)).toBe(1);
+    // The same key for a different exercise is refused, and makes nothing.
+    const reused = await post(a, key, { ...form, name: "Other" });
+    expect([reused.status, reused.body.error.code]).toEqual([409, "conflict"]);
+    expect(await customCount(a.userId)).toBe(1);
+  });
+
+  it("concurrent duplicates create one", async () => {
+    const a = await createTestAccount();
+    const key = `ex-${randomUUID()}`;
+    const rs = await Promise.all([post(a, key), post(a, key), post(a, key)]);
+    expect(rs.map((r) => r.status)).toEqual([201, 201, 201]);
+    expect(new Set(rs.map((r) => r.body.id)).size).toBe(1);
+    expect(await customCount(a.userId)).toBe(1);
+  });
+
+  it("no key, a bad key, bad fields, or a non-object body: 400 and nothing created", async () => {
+    const a = await createTestAccount();
+    for (const key of [null, "short"]) {
+      const r = await post(a, key);
+      expect([r.status, r.body.error.code]).toEqual([400, "validation_error"]);
+      expect(r.body.error.details).toHaveProperty("Idempotency-Key");
+    }
+    const bad = await post(a, `ex-${randomUUID()}`, {
+      name: "",
+      primaryMuscle: "wings",
+      equipmentType: "rope",
+      secondaryMuscles: ["shoulders"],
+    });
+    expect([bad.status, bad.body.error.code]).toEqual([
+      400,
+      "validation_error",
+    ]);
+    expect(Object.keys(bad.body.error.details).sort()).toEqual([
+      "equipmentType",
+      "name",
+      "primaryMuscle",
+    ]);
+    const same = await post(a, `ex-${randomUUID()}`, {
+      ...form,
+      secondaryMuscles: ["shoulders"],
+    });
+    expect(same.body.error.details.secondaryMuscles).toBe(
+      "The primary muscle can't also be a secondary muscle.",
+    );
+    const arr = await post(a, `ex-${randomUUID()}`, [form]);
+    expect(arr.status).toBe(400);
+    expect(await customCount(a.userId)).toBe(0);
+    expect(
+      await db().apiIdempotencyKey.count({ where: { userId: a.userId } }),
+    ).toBe(0);
+    // A failed key is free to retry with good values.
+    const key = `ex-${randomUUID()}`;
+    await post(a, key, { ...form, name: "" });
+    expect((await post(a, key)).status).toBe(201);
+  });
+});
+
+describe("PUT /exercises/{id}/favorite", () => {
+  const put = (account: Account, exerciseId: string, json: unknown) =>
+    call(favoriteRoute, account, {
+      method: "PUT",
+      json,
+      params: { exerciseId },
+    });
+
+  it("stars and unstars idempotently, for this account only", async () => {
+    const a = await createTestAccount();
+    const b = await createTestAccount();
+    const ex = await libraryExercise(`Fav ${randomUUID()}`, "barbell");
+    for (let i = 0; i < 2; i++) {
+      const r = await put(a, ex.id, { isFavorite: true });
+      expect([r.status, r.body]).toEqual([
+        200,
+        { id: ex.id, isFavorite: true },
+      ]);
+    }
+    const favs = () =>
+      db().exerciseFavorite.findMany({ where: { exerciseId: ex.id } });
+    expect((await favs()).map((f) => f.userId)).toEqual([a.userId]);
+    expect(
+      (await call(exerciseRoute, b, { params: { exerciseId: ex.id } })).body
+        .isFavorite,
+    ).toBe(false);
+    for (let i = 0; i < 2; i++) {
+      expect((await put(a, ex.id, { isFavorite: false })).body).toEqual({
+        id: ex.id,
+        isFavorite: false,
+      });
+    }
+    expect(await favs()).toEqual([]);
+    // The shared exercise row is never written.
+    expect(
+      (await db().exercise.findUniqueOrThrow({ where: { id: ex.id } }))
+        .isFavorite,
+    ).toBe(false);
+  });
+
+  it("an archived exercise can't be starred; a bad body is a 400", async () => {
+    const a = await createTestAccount();
+    const custom = await createCustomExercise(a, {
+      name: "Old",
+      primaryMuscle: "chest",
+      equipmentType: "barbell",
+    });
+    await archiveExercise(a, { exerciseId: custom.id });
+    const r = await put(a, custom.id, { isFavorite: true });
+    expect([r.status, r.body.error.code]).toEqual([
+      400,
+      "invalid_state_transition",
+    ]);
+    const bad = await put(a, custom.id, { isFavorite: "yes" });
+    expect([bad.status, bad.body.error.code]).toEqual([
+      400,
+      "validation_error",
+    ]);
+  });
+});
+
+describe("PUT /exercises/{id}/archived", () => {
+  const put = (account: Account, exerciseId: string, archived: unknown) =>
+    call(exerciseArchivedRoute, account, {
+      method: "PUT",
+      json: { archived },
+      params: { exerciseId },
+    });
+
+  it("archives the account's own; history and the plan still name it; Undo restores", async () => {
+    const a = await createTestAccount();
+    const plan = await blockFor(a);
+    const gym = await createGym(a, { name: "Northside" });
+    const { loggedSessionId } = await startOrResumeWorkout(a, {
+      sessionId: plan.push.id,
+      scheduledFor: today(),
+      gymId: gym.id,
+    });
+    const le = await db().loggedExercise.findFirstOrThrow({
+      where: { loggedSessionId, exerciseId: plan.custom.id },
+    });
+    for (const setNumber of [1, 2, 3]) {
+      await logSet(a, {
+        loggedExerciseId: le.id,
+        setNumber,
+        weightLbs: 95,
+        reps: 9,
+      });
+    }
+    await completeWorkout(a, { loggedSessionId });
+    const setsBefore = await db().loggedSet.findMany({
+      where: { loggedExerciseId: le.id },
+      orderBy: { setNumber: "asc" },
+    });
+
+    for (let i = 0; i < 2; i++) {
+      const r = await put(a, plan.custom.id, true);
+      expect([r.status, r.body]).toEqual([
+        200,
+        { id: plan.custom.id, archived: true },
+      ]);
+    }
+    // Gone from the library, still resolvable, still in the workout and plan.
+    const lib = (await call(exercisesRoute, a, { query: "q=Landmine" }))
+      .body as ExerciseList;
+    expect(lib.items).toEqual([]);
+    const history = await call(historyWorkoutRoute, a, {
+      params: { loggedSessionId },
+      query: "fields=core",
+    });
+    const performed = (
+      history.body.detail.exercises as {
+        exerciseId: string;
+        performedName: string;
+        archived: boolean;
+        sets: unknown[];
+      }[]
+    ).find((e) => e.exerciseId === plan.custom.id)!;
+    expect(performed).toMatchObject({
+      performedName: "Landmine Press",
+      archived: true,
+    });
+    expect(performed.sets).toHaveLength(3);
+    const session = (
+      await call(planSessionRoute, a, {
+        params: { mesocycleId: plan.meso.id, sessionId: plan.push.id },
+      })
+    ).body as PlanSessionDto;
+    expect(
+      session.exercises.find((e) => e.exerciseId === plan.custom.id),
+    ).toMatchObject({ isArchived: true, exerciseName: "Landmine Press" });
+    // The logged sets are exactly as they were.
+    expect(
+      await db().loggedSet.findMany({
+        where: { loggedExerciseId: le.id },
+        orderBy: { setNumber: "asc" },
+      }),
+    ).toEqual(setsBefore);
+
+    const undo = await put(a, plan.custom.id, false);
+    expect(undo.body).toEqual({ id: plan.custom.id, archived: false });
+    expect(
+      (
+        (await call(exercisesRoute, a, { query: "q=Landmine" }))
+          .body as ExerciseList
+      ).items.map((e) => e.id),
+    ).toEqual([plan.custom.id]);
+  });
+
+  it("a library exercise can't be archived (404) and is untouched", async () => {
+    const a = await createTestAccount();
+    const ex = await libraryExercise(`Lib ${randomUUID()}`, "barbell");
+    const r = await put(a, ex.id, true);
+    expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+    expect(
+      (await db().exercise.findUniqueOrThrow({ where: { id: ex.id } }))
+        .deletedAt,
+    ).toBeNull();
+    const bad = await put(a, ex.id, "yes");
+    expect([bad.status, bad.body.error.code]).toEqual([
+      400,
+      "validation_error",
+    ]);
   });
 });

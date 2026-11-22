@@ -69,6 +69,8 @@ export function RootNavigator({
           options={modalHeader}
         />
         <Stack.Screen name="cardio" options={modalHeader} />
+        {/* Pitch 21h: a new exercise, a modal with header actions. */}
+        <Stack.Screen name="exercise-new" options={modalHeader} />
         {/* Pitch 21h (RD-13): an exercise's detail over the workout. */}
         <Stack.Screen name="exercise/[exerciseId]" options={workoutHeader} />
       </Stack.Protected>
