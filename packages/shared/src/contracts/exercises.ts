@@ -34,3 +34,9 @@ export type ExerciseList = {
   /** Any active favorite exists at all (distinguishes "no favorites yet"). */
   hasAnyFavorites: boolean;
 };
+
+/** `PUT /exercises/{exerciseId}/favorite` (Pitch 21h E6). */
+export type SetFavoriteResponseDto = { id: string; isFavorite: boolean };
+
+/** `PUT /exercises/{id}/archived` and `PUT /gyms/{id}/archived` (Pitch 21h E7, E9). */
+export type SetArchivedResponseDto = { id: string; archived: boolean };

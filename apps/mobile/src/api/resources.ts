@@ -1,4 +1,10 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import type {
   PlanOverviewDto,
   PlanSessionDto,
@@ -6,7 +12,10 @@ import type {
 import type {
   ExerciseDetailDto,
   ExerciseList,
+  SetArchivedResponseDto,
+  SetFavoriteResponseDto,
 } from "@overload/shared/contracts/exercises";
+import type { CreateCustomExerciseRequest } from "@overload/shared/contracts/requests";
 import type { MuscleGroupValue } from "@overload/shared/exercises/taxonomy";
 import { useApi } from "./ApiProvider";
 import type { ApiError } from "./errors";
@@ -118,5 +127,129 @@ export function useExercise(exerciseId: string) {
         signal,
       }),
     staleTime: OVERVIEW_STALE_MS,
+  });
+}
+
+/** Set one exercise's favorite state in every cached list and its detail. */
+function writeFavorite(
+  client: QueryClient,
+  exerciseId: string,
+  isFavorite: boolean,
+): void {
+  client.setQueriesData<ExerciseList>(
+    { queryKey: RESOURCE_KEYS.exercisesAll },
+    (list) =>
+      list
+        ? {
+            ...list,
+            items: list.items.map((e) =>
+              e.id === exerciseId ? { ...e, isFavorite } : e,
+            ),
+          }
+        : list,
+  );
+  client.setQueryData<ExerciseDetailDto>(
+    RESOURCE_KEYS.exercise(exerciseId),
+    (e) => (e ? { ...e, isFavorite } : e),
+  );
+}
+
+/**
+ * E6 star / unstar. Shown at once (the web's star is optimistic too); a
+ * refusal puts the previous state back and the caller says so. Every list
+ * re-reads afterwards — the swap picker sorts favorites first.
+ */
+export function useToggleFavorite() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    SetFavoriteResponseDto,
+    ApiError,
+    { exerciseId: string; isFavorite: boolean },
+    { previous: boolean }
+  >({
+    mutationFn: ({ exerciseId, isFavorite }) =>
+      api.request<SetFavoriteResponseDto>(
+        `/exercises/${enc(exerciseId)}/favorite`,
+        { method: "PUT", body: { isFavorite } },
+      ),
+    onMutate: async ({ exerciseId, isFavorite }) => {
+      writeFavorite(client, exerciseId, isFavorite);
+      return { previous: !isFavorite };
+    },
+    onError: (_e, { exerciseId }, context) => {
+      if (context) writeFavorite(client, exerciseId, context.previous);
+    },
+    onSettled: (_d, _e, { exerciseId }) => {
+      void client.invalidateQueries({
+        queryKey: RESOURCE_KEYS.exercisesAll,
+        refetchType: "none",
+      });
+      void client.invalidateQueries({
+        queryKey: RESOURCE_KEYS.exercise(exerciseId),
+        refetchType: "none",
+      });
+      void client.invalidateQueries({ queryKey: ["swap"] });
+    },
+  });
+}
+
+/**
+ * E5 `POST /exercises` with the intent's key. A retry of the same intent
+ * sends the same key, so the server answers with the first result.
+ */
+export function useCreateExercise() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    ExerciseDetailDto,
+    ApiError,
+    { key: string; body: CreateCustomExerciseRequest }
+  >({
+    mutationFn: ({ key, body }) =>
+      api.request<ExerciseDetailDto>("/exercises", {
+        method: "POST",
+        body,
+        headers: { "Idempotency-Key": key },
+      }),
+    onSuccess: (created) => {
+      client.setQueryData(RESOURCE_KEYS.exercise(created.id), created);
+      void client.invalidateQueries({ queryKey: RESOURCE_KEYS.exercisesAll });
+      void client.invalidateQueries({ queryKey: ["swap"] });
+    },
+  });
+}
+
+/**
+ * E7 archive (or Undo) one of the account's own exercises. Only its
+ * `deletedAt` changes on the server; every list it can appear in re-reads.
+ */
+export function useSetExerciseArchived() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    SetArchivedResponseDto,
+    ApiError,
+    { exerciseId: string; archived: boolean }
+  >({
+    mutationFn: ({ exerciseId, archived }) =>
+      api.request<SetArchivedResponseDto>(
+        `/exercises/${enc(exerciseId)}/archived`,
+        { method: "PUT", body: { archived } },
+      ),
+    onSuccess: ({ archived }, { exerciseId }) => {
+      client.setQueryData<ExerciseDetailDto>(
+        RESOURCE_KEYS.exercise(exerciseId),
+        (e) => (e ? { ...e, isArchived: archived } : e),
+      );
+      for (const queryKey of [
+        RESOURCE_KEYS.exercisesAll,
+        ["swap"],
+        ["plan-session"],
+        ["plan"],
+      ]) {
+        void client.invalidateQueries({ queryKey });
+      }
+    },
   });
 }

@@ -1,6 +1,5 @@
 import { Linking, RefreshControl, ScrollView, View } from "react-native";
 import { Stack, router } from "expo-router";
-import type { ExerciseDetailDto } from "@overload/shared/contracts/exercises";
 import { useExercise } from "../api/resources";
 import { ApiError } from "../api/errors";
 import { webOrigin } from "../config/env";
@@ -12,6 +11,7 @@ import { StateView } from "../ui/StateView";
 import { Chip } from "../ui/Surface";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
+import { ExerciseDetailActions } from "./ExerciseDetailActions";
 import { classificationLine } from "./library-model";
 
 /**
@@ -20,12 +20,6 @@ import { classificationLine } from "./library-model";
  * workout (RD-13).
  */
 export type ExerciseContext = "browse" | "workout";
-
-/** What the detail's lower half renders (favorite and archive, OVE-234). */
-export type ExerciseActions = (
-  exercise: ExerciseDetailDto,
-  context: ExerciseContext,
-) => React.ReactNode;
 
 /**
  * X1 Exercise (Pitch 21h design §6, §15): what the exercise is — image (when
@@ -36,11 +30,9 @@ export type ExerciseActions = (
 export function ExerciseScreen({
   exerciseId,
   context,
-  actions,
 }: {
   exerciseId: string;
   context: ExerciseContext;
-  actions?: ExerciseActions;
 }) {
   const { colors, radius, spacing } = useTheme();
   const query = useExercise(exerciseId);
@@ -118,7 +110,7 @@ export function ExerciseScreen({
             value={e.isCustom ? "Your exercise" : "Library exercise"}
           />
         </GroupedList>
-        {actions ? actions(e, context) : null}
+        <ExerciseDetailActions exercise={e} context={context} />
         {origin ? (
           <GroupedList>
             <ListRow

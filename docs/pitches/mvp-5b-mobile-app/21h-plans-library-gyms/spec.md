@@ -95,7 +95,7 @@ All under `/api/mobile/v1`, built with `mobileRoute` (version gate → token →
 | E3 | `GET /exercises?view=&muscle=&q=&limit=` | `parseLibraryParams` + `listExercises` | the web's params, tolerant | 200 `ExerciseList` | — | read |
 | E4 | `GET /exercises/{exerciseId}` | `getExercise` (resolves archived) | — | 200 `ExerciseDetailDto` | 404 | read |
 | E5 | `POST /exercises` + `Idempotency-Key` | `withIdempotency` + `createCustomExercise` | `CreateCustomExerciseRequest` | **201** `ExerciseDetailDto` | 400 `validation_error` (fields in `details`, or a missing/invalid key), 409 `conflict` (key reused with a different body) | key replay: same status and body, `Idempotent-Replayed: true` |
-| E6 | `PUT /exercises/{exerciseId}/favorite` | `setExerciseFavorite` | `SetFavoriteRequest` | 200 `SetFavoriteResponseDto` | 400, 404, 409 `invalid_state_transition` (archived) | absolute |
+| E6 | `PUT /exercises/{exerciseId}/favorite` | `setExerciseFavorite` | `SetFavoriteRequest` | 200 `SetFavoriteResponseDto` | 400 `validation_error`, 400 `invalid_state_transition` (archived; the existing status table), 404 | absolute |
 | E7 | `PUT /exercises/{exerciseId}/archived` | `archiveExercise` / `restoreExercise` | `SetArchivedRequest` | 200 `SetArchivedResponseDto` | 400, 404 (library or another account's) | absolute |
 | E8 | `POST /gyms` + `Idempotency-Key` | `withIdempotency` + `createGym` | `CreateGymRequest` | **201** `GymListItemDto` | 400, 409 | key replay |
 | E9 | `PUT /gyms/{gymId}/archived` | `archiveGym` / `restoreGym` | `SetArchivedRequest` | 200 `SetArchivedResponseDto` | 400, 404 | absolute |

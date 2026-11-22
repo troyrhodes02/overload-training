@@ -107,6 +107,17 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     auth: "account",
   },
   { method: "GET", route: "api/mobile/v1/exercises", auth: "account" },
+  { method: "POST", route: "api/mobile/v1/exercises", auth: "account" },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/exercises/[exerciseId]/favorite",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/exercises/[exerciseId]/archived",
+    auth: "account",
+  },
   {
     method: "GET",
     route: "api/mobile/v1/exercises/[exerciseId]",

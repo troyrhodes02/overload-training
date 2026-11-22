@@ -103,6 +103,9 @@ import type {
 } from "@overload/shared/contracts/plan";
 import { GET as exercisesRoute } from "@/app/api/mobile/v1/exercises/route";
 import { GET as exerciseRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/route";
+import { POST as createExerciseRoute } from "@/app/api/mobile/v1/exercises/route";
+import { PUT as favoriteRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/favorite/route";
+import { PUT as exerciseArchivedRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/archived/route";
 import type { ExerciseList } from "@overload/shared/contracts/exercises";
 import {
   createCustomExercise,
@@ -167,6 +170,8 @@ type CallInit = {
   params?: Record<string, string>;
   /** A query string without the "?" (Pitch 21e). */
   query?: string;
+  /** Extra request headers, e.g. an Idempotency-Key (Pitch 21h). */
+  headers?: Record<string, string>;
 };
 
 async function call(
@@ -178,6 +183,7 @@ async function call(
   if (version !== null) headers.set("x-overload-app-version", version);
   if (opts.token) headers.set("authorization", `Bearer ${opts.token}`);
   if (opts.ip) headers.set("x-forwarded-for", opts.ip);
+  for (const [k, v] of Object.entries(opts.headers ?? {})) headers.set(k, v);
   const hasBody = opts.json !== undefined;
   if (hasBody) headers.set("content-type", "application/json");
   const res = await handler(
@@ -1551,6 +1557,133 @@ const CASES: Record<string, () => void> = {
           isFavorite: false,
           canArchive: false,
         });
+      });
+    });
+  },
+
+  "POST api/mobile/v1/exercises": () => {
+    const form = {
+      name: "Bravo Sled Push",
+      primaryMuscle: "quads",
+      equipmentType: "other",
+      secondaryMuscles: [],
+    };
+    accountEndpointMatrix(
+      "POST /exercises",
+      createExerciseRoute as Handler,
+      { json: form, headers: { "idempotency-key": "matrix-key-0001" } },
+      201,
+    );
+    describe("POST /exercises: isolation", () => {
+      it("creates for the token's account only; another account's key reveals nothing", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const key = `shared-key-${randomUUID()}`;
+        const ra = await call(createExerciseRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: { ...form, name: "Alpha Sled Push" },
+          headers: { "idempotency-key": key },
+        });
+        expect(ra.status).toBe(201);
+        const aSnap = await snapshotAccount(a.userId);
+        // B reuses A's key with another body: B's own fresh create, not a 409.
+        const rb = await call(createExerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { ...form, userId: a.userId },
+          headers: { "idempotency-key": key },
+        });
+        expect(rb.status).toBe(201);
+        expect(rb.headers.get("idempotent-replayed")).toBeNull();
+        expect(rb.body.id).not.toBe(ra.body.id);
+        for (const marker of [...aMarkers(a, plan), "Alpha Sled Push"])
+          expect(rb.text).not.toContain(marker);
+        const row = await getTestPrisma().exercise.findUniqueOrThrow({
+          where: { id: rb.body.id },
+        });
+        expect(row.userId).toBe(b.userId);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+      });
+    });
+  },
+  "PUT api/mobile/v1/exercises/[exerciseId]/favorite": () => {
+    accountEndpointMatrix(
+      "PUT /exercises/{id}/favorite",
+      favoriteRoute as Handler,
+      {
+        method: "PUT",
+        json: { isFavorite: true },
+        params: { exerciseId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /exercises/{id}/favorite: isolation", () => {
+      it("B can't star A's custom exercise (404 like a missing one); B's star on a library one is B's alone", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const missing = await call(favoriteRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { isFavorite: true },
+          params: { exerciseId: randomUUID() },
+        });
+        const r = await call(favoriteRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { isFavorite: true },
+          params: { exerciseId: plan.custom.id },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        const shared = await call(favoriteRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { isFavorite: true },
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(shared.status).toBe(200);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+        expect(
+          await getTestPrisma().exerciseFavorite.count({
+            where: { exerciseId: lib.bench.id, userId: a.userId },
+          }),
+        ).toBe(0);
+      });
+    });
+  },
+  "PUT api/mobile/v1/exercises/[exerciseId]/archived": () => {
+    accountEndpointMatrix(
+      "PUT /exercises/{id}/archived",
+      exerciseArchivedRoute as Handler,
+      {
+        method: "PUT",
+        json: { archived: true },
+        params: { exerciseId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /exercises/{id}/archived: isolation", () => {
+      it("B can't archive or restore A's custom exercise, or any library one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        for (const [exerciseId, archived] of [
+          [plan.custom.id, true],
+          [plan.custom.id, false],
+          [lib.bench.id, true],
+        ] as const) {
+          const r = await call(exerciseArchivedRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            json: { archived },
+            params: { exerciseId },
+          });
+          expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+        }
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+        expect(
+          (
+            await getTestPrisma().exercise.findUniqueOrThrow({
+              where: { id: lib.bench.id },
+            })
+          ).deletedAt,
+        ).toBeNull();
       });
     });
   },
