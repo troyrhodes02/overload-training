@@ -6,7 +6,6 @@ import type {
   HistoryWeekDto,
   LoggedHistoryDay,
 } from "@overload/shared/contracts/history";
-import type { CardioOccurrenceDto } from "@overload/shared/contracts/cardio";
 import {
   cardioHref,
   cardioLabel,
@@ -22,6 +21,7 @@ import {
   useHistoryWeek,
   useRefetchWhenFocused,
 } from "../api/training";
+import { CARDIO_LABEL, STATE_LABEL, STATE_TONE } from "./day-state";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { GroupedList, ListRow } from "../ui/GroupedList";
@@ -34,22 +34,6 @@ import { TabScreen } from "../ui/TabScreen";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
 import { loggedWorkoutHref } from "../workout/routes";
-
-/** The server's day states, worded as on the web's History page. */
-export const STATE_LABEL: Record<WeekDayState, string> = {
-  upcoming: "Upcoming",
-  in_progress: "In progress",
-  complete: "Done",
-  skipped: "Skipped",
-  shifted: "Shifted",
-};
-
-const CARDIO_LABEL: Record<CardioOccurrenceDto["state"], string> = {
-  complete: "Done",
-  pending: "Today",
-  upcoming: "Upcoming",
-  missed: "Missed",
-};
 
 /** One row of the week list: a workout or a cardio line. */
 export type HistoryRow =
@@ -391,14 +375,6 @@ export function dateColumn(iso: string): { weekday: string; day: string } {
     day: String(date.getUTCDate()),
   };
 }
-
-const STATE_TONE: Record<WeekDayState, ChipTone> = {
-  upcoming: "muted",
-  in_progress: "primary",
-  complete: "progress",
-  skipped: "muted",
-  shifted: "muted",
-};
 
 /** One row of the week: the date column, what it was, and its state as a word. */
 function HistoryRowView({

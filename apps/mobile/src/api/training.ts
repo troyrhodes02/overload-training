@@ -326,6 +326,8 @@ export function markTrainingStale(
       queryKey: TRAINING_KEYS.workout(loggedSessionId),
       ...stale,
     }),
+    // The plan week's day states (Pitch 21h): re-read when Plan is next shown.
+    client.invalidateQueries({ queryKey: ["plan"], ...stale }),
   ]).then(() => undefined);
 }
 
@@ -350,6 +352,8 @@ export function invalidateTraining(
     client.invalidateQueries({ queryKey: TRAINING_KEYS.today }),
     client.invalidateQueries({ queryKey: ["history-week"] }),
     client.invalidateQueries({ queryKey: ["history-workout"] }),
+    // The plan week (Pitch 21h): stale only; Plan re-reads when shown.
+    client.invalidateQueries({ queryKey: ["plan"], refetchType: "none" }),
     loggedSessionId
       ? client.invalidateQueries({
           queryKey: TRAINING_KEYS.workout(loggedSessionId),
@@ -521,6 +525,8 @@ export async function applyConfirmedCompletion(
     { queryKey: ["history-week"] },
     (week) => (week ? markWeekComplete(week, loggedSessionId) : week),
   );
+  // The plan week's "Done" (Pitch 21h): stale only, re-read when Plan is shown.
+  void client.invalidateQueries({ queryKey: ["plan"], refetchType: "none" });
 }
 
 function completeDay<
