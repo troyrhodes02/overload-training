@@ -15,4 +15,9 @@ export const haptic = {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(
       () => {},
     ),
+  /** A choice changed: a filter chip, a form chip, a favorite (Pitch 21h). */
+  selection: () =>
+    Promise.resolve()
+      .then(() => Haptics.selectionAsync())
+      .catch(() => {}),
 };

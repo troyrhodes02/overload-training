@@ -23,3 +23,11 @@ export const editSetHref = (
   from: "workout" | "history",
 ) =>
   `/workout/${encodeURIComponent(loggedSessionId)}/edit-set?loggedSetId=${encodeURIComponent(loggedSetId)}&from=${from}` as const;
+
+/**
+ * "About this exercise" (Pitch 21h RD-13): the exercise detail on the root
+ * stack, over the workout, which stays mounted with everything typed.
+ */
+export function exerciseAboutHref(exerciseId: string): string {
+  return `/exercise/${encodeURIComponent(exerciseId)}`;
+}

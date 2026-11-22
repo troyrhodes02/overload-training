@@ -20,6 +20,13 @@ import { randomUUID } from "node:crypto";
 import type { Account } from "@/lib/data/account";
 import { GET as planRoute } from "@/app/api/mobile/v1/plan/route";
 import { GET as planSessionRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]/route";
+import { GET as exercisesRoute } from "@/app/api/mobile/v1/exercises/route";
+import { GET as exerciseRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/route";
+import type {
+  ExerciseDetailDto,
+  ExerciseList,
+} from "@overload/shared/contracts/exercises";
+import { setExerciseFavorite } from "@/lib/exercises/exercises";
 import { activateMesocycle, createMesocycle } from "@/lib/plan/mesocycles";
 import { addSession, addSessionExercise } from "@/lib/plan/sessions";
 import { addPlannedCardio } from "@/lib/plan/cardio";
@@ -426,5 +433,186 @@ describe("GET /mesocycles/{id}/sessions/{id}", () => {
       })
     ).body as PlanSessionDto;
     expect([s.dayOfWeek, s.cardio, s.exercises]).toEqual([null, null, []]);
+  });
+});
+
+describe("GET /exercises", () => {
+  /** A small private catalog per test: unique words keep searches exact. */
+  async function catalog(account: Account) {
+    const tag = randomUUID().slice(0, 8);
+    const names = {
+      bench: `Zq${tag} Barbell Bench Press`,
+      incline: `Zq${tag} Incline Bench Press`,
+      row: `Zq${tag} Cable Row`,
+      pct: `Zq${tag} 100% Effort_Squat`,
+    };
+    const bench = await libraryExercise(names.bench, "barbell", "chest");
+    const incline = await libraryExercise(names.incline, "barbell", "chest");
+    const row = await libraryExercise(names.row, "machine", "back");
+    const pct = await libraryExercise(names.pct, "barbell", "core");
+    const custom = await createCustomExercise(account, {
+      name: `Zq${tag} Landmine Press`,
+      primaryMuscle: "chest",
+      equipmentType: "barbell",
+    });
+    const archived = await createCustomExercise(account, {
+      name: `Zq${tag} Old Fly`,
+      primaryMuscle: "chest",
+      equipmentType: "cable",
+    });
+    await archiveExercise(account, { exerciseId: archived.id });
+    return { tag, bench, incline, row, pct, custom, archived };
+  }
+  const list = async (account: Account, query: string) => {
+    const r = await call(exercisesRoute, account, { query });
+    expect(r.status).toBe(200);
+    return r.body as ExerciseList;
+  };
+  const q = (s: string) => `q=${encodeURIComponent(s)}`;
+
+  it("every search word must match, in any order; archived ones never appear", async () => {
+    const a = await createTestAccount();
+    const c = await catalog(a);
+    const all = await list(a, q(`Zq${c.tag}`));
+    expect(all.items.map((e) => e.id).sort()).toEqual(
+      [c.bench.id, c.incline.id, c.row.id, c.pct.id, c.custom.id].sort(),
+    );
+    expect(all.total).toBe(5);
+    const press = await list(a, q(`press bench Zq${c.tag}`));
+    expect(press.items.map((e) => e.name)).toEqual([
+      c.bench.name,
+      c.incline.name,
+    ]);
+    const mine = all.items.find((e) => e.id === c.custom.id)!;
+    expect(mine).toMatchObject({ isCustom: true, imageUrl: null });
+  });
+
+  it("% and _ are literal, not wildcards", async () => {
+    const a = await createTestAccount();
+    const c = await catalog(a);
+    expect(
+      (await list(a, q(`Zq${c.tag} 100%`))).items.map((e) => e.id),
+    ).toEqual([c.pct.id]);
+    expect((await list(a, q(`Zq${c.tag} %`))).items.map((e) => e.id)).toEqual([
+      c.pct.id,
+    ]);
+    expect((await list(a, q(`Zq${c.tag} t_S`))).items.map((e) => e.id)).toEqual(
+      [c.pct.id],
+    );
+    expect((await list(a, q(`Zq${c.tag} B_rbell`))).items).toEqual([]);
+  });
+
+  it("the muscle filter is primary muscle only; favorites view lists only favorites", async () => {
+    const a = await createTestAccount();
+    const c = await catalog(a);
+    const back = await list(a, `${q(`Zq${c.tag}`)}&muscle=back`);
+    expect(back.items.map((e) => e.id)).toEqual([c.row.id]);
+    expect((await list(a, `${q(`Zq${c.tag}`)}&view=favorites`)).items).toEqual(
+      [],
+    );
+    await setExerciseFavorite(a, {
+      exerciseId: c.incline.id,
+      isFavorite: true,
+    });
+    const favs = await list(a, `${q(`Zq${c.tag}`)}&view=favorites`);
+    expect(favs.items.map((e) => [e.id, e.isFavorite])).toEqual([
+      [c.incline.id, true],
+    ]);
+    expect(favs.hasAnyFavorites).toBe(true);
+    // Unknown values fall back to the defaults, as on the web.
+    const odd = await list(a, `${q(`Zq${c.tag}`)}&view=nope&muscle=wings`);
+    expect(odd.total).toBe(5);
+  });
+
+  it("pages by limit (50 minimum, the web's), keeping the total", async () => {
+    const a = await createTestAccount();
+    const tag = randomUUID().slice(0, 8);
+    for (let i = 0; i < 55; i++) {
+      await libraryExercise(
+        `Zp${tag} Lift ${String(i).padStart(2, "0")}`,
+        "barbell",
+      );
+    }
+    const first = await list(a, q(`Zp${tag}`));
+    expect([first.items.length, first.total, first.limit]).toEqual([
+      50, 55, 50,
+    ]);
+    const more = await list(a, `${q(`Zp${tag}`)}&limit=100`);
+    expect([more.items.length, more.limit]).toEqual([55, 100]);
+    expect((await list(a, `${q(`Zp${tag}`)}&limit=3`)).limit).toBe(50);
+  });
+
+  it("no match is an empty answer, not an error", async () => {
+    const a = await createTestAccount();
+    const r = await list(a, q(`nothing-${randomUUID()}`));
+    expect([r.items, r.total]).toEqual([[], 0]);
+  });
+});
+
+describe("GET /exercises/{id}", () => {
+  it("a library exercise: classification, image, read-only", async () => {
+    const before = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://images.example.test";
+    try {
+      await libraryDetailCase();
+    } finally {
+      if (before === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      else process.env.NEXT_PUBLIC_SUPABASE_URL = before;
+    }
+  });
+
+  async function libraryDetailCase() {
+    const a = await createTestAccount();
+    const ex = await db().exercise.create({
+      data: {
+        name: `Detail ${randomUUID()}`,
+        primaryMuscle: "chest",
+        secondaryMuscles: ["shoulders", "triceps"],
+        equipmentType: "barbell",
+        isCustom: false,
+        sourceId: randomUUID(),
+        imageRef: "Barbell_Bench_Press/0.jpg",
+      },
+    });
+    const r = await call(exerciseRoute, a, { params: { exerciseId: ex.id } });
+    expect(r.status).toBe(200);
+    expect(r.body as ExerciseDetailDto).toMatchObject({
+      id: ex.id,
+      primaryMuscleLabel: "Chest",
+      equipmentLabel: "Barbell",
+      equipmentType: "barbell",
+      secondaryMuscleLabels: ["Shoulders", "Triceps"],
+      isCustom: false,
+      isArchived: false,
+      canArchive: false,
+      isFavorite: false,
+      imageUrl: expect.stringContaining("Barbell_Bench_Press/0.jpg"),
+    });
+  }
+
+  it("an archived custom exercise still resolves, marked; a bad id is a 404", async () => {
+    const a = await createTestAccount();
+    const custom = await createCustomExercise(a, {
+      name: "Old Fly",
+      primaryMuscle: "chest",
+      equipmentType: "cable",
+    });
+    await archiveExercise(a, { exerciseId: custom.id });
+    const r = await call(exerciseRoute, a, {
+      params: { exerciseId: custom.id },
+    });
+    expect(r.body).toMatchObject({
+      isCustom: true,
+      isArchived: true,
+      canArchive: true,
+      imageUrl: null,
+    });
+    for (const exerciseId of ["nope", randomUUID()]) {
+      const missing = await call(exerciseRoute, a, { params: { exerciseId } });
+      expect([missing.status, missing.body.error.code]).toEqual([
+        404,
+        "not_found",
+      ]);
+    }
   });
 });

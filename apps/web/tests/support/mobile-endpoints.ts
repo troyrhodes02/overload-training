@@ -106,6 +106,12 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]",
     auth: "account",
   },
+  { method: "GET", route: "api/mobile/v1/exercises", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/exercises/[exerciseId]",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,

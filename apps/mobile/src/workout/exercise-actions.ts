@@ -12,9 +12,10 @@ import { savedWorkingSets } from "./card-model";
  * write; this only keeps a row the server would refuse off the sheet, and
  * says why.
  */
-export type ExerciseAction = "swap" | "skip" | "fewer_sets";
+export type ExerciseAction = "details" | "swap" | "skip" | "fewer_sets";
 
 const LABELS: Record<ExerciseAction, string> = {
+  details: "About this exercise",
   swap: "Swap exercise",
   skip: "Didn't do this exercise",
   fewer_sets: "I meant to do fewer sets",
@@ -24,6 +25,16 @@ export const SETS_LOGGED_MESSAGE =
   "Sets are logged, so this exercise can't be swapped or marked not done.";
 
 export function exerciseActions(
+  card: ExerciseCardDto,
+  workout: Pick<WorkoutDto, "status">,
+): { actions: ExerciseAction[]; message: string | null } {
+  // Pitch 21h (RD-13): reading about the exercise is always offered, first.
+  // It opens the performed exercise over the workout and writes nothing.
+  const changes = workoutChanges(card, workout);
+  return { actions: ["details", ...changes.actions], message: changes.message };
+}
+
+function workoutChanges(
   card: ExerciseCardDto,
   workout: Pick<WorkoutDto, "status">,
 ): { actions: ExerciseAction[]; message: string | null } {
