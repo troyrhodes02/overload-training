@@ -8,6 +8,20 @@ export function formatRepTarget(min: number, max: number): string {
   return min === max ? String(min) : `${min}–${max}`;
 }
 
+/**
+ * A planned exercise's prescription as every plan surface prints it (web plan
+ * rows, the iPhone session screen; Pitch 21h RD-23): "3 sets · 6–8 reps", and
+ * a fixed target "4 sets · 5 reps".
+ */
+export function formatPrescription(e: {
+  plannedSets: number;
+  targetRepMin: number;
+  targetRepMax: number;
+}): string {
+  const reps = formatRepTarget(e.targetRepMin, e.targetRepMax);
+  return `${e.plannedSets} ${e.plannedSets === 1 ? "set" : "sets"} · ${reps} reps`;
+}
+
 /** How the plan dialog asks for reps: a range, or one fixed target. */
 export type RepMode = "range" | "fixed";
 

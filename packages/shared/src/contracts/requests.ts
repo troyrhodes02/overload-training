@@ -96,6 +96,13 @@ export type CreateCustomExerciseRequest = {
 /** `PUT /exercises/{exerciseId}/favorite`. */
 export type SetFavoriteRequest = { isFavorite: boolean };
 
+/**
+ * `PUT /exercises/{exerciseId}/archived` and `PUT /gyms/{gymId}/archived`
+ * (Pitch 21h): an absolute value, so a retry writes nothing more. Only the
+ * account's own custom exercises and gyms; `false` is the archive's Undo.
+ */
+export type SetArchivedRequest = { archived: boolean };
+
 /** `PUT /me/profile`: a full replace. */
 export type UpdateProfileRequest = {
   firstName: string;

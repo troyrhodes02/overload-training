@@ -102,7 +102,7 @@ describe("which actions a card offers", () => {
 
   it("no set saved: swap and not done", () => {
     expect(exerciseActions(card(), inProgress)).toEqual({
-      actions: ["swap", "skip"],
+      actions: ["details", "swap", "skip"],
       message: null,
     });
   });
@@ -110,7 +110,7 @@ describe("which actions a card offers", () => {
   it("a set saved: no swap or skip, with the reason; short of the plan can be counted", () => {
     const partly = card({ sets: [savedRow(1), ...rows(3).slice(1)] });
     expect(exerciseActions(partly, inProgress)).toEqual({
-      actions: ["fewer_sets"],
+      actions: ["details", "fewer_sets"],
       message: SETS_LOGGED_MESSAGE,
     });
   });
@@ -118,7 +118,7 @@ describe("which actions a card offers", () => {
   it("every planned set saved: nothing left to offer but the reason", () => {
     const done = card({ sets: [savedRow(1), savedRow(2), savedRow(3)] });
     expect(exerciseActions(done, inProgress)).toEqual({
-      actions: [],
+      actions: ["details"],
       message: SETS_LOGGED_MESSAGE,
     });
   });
@@ -126,12 +126,12 @@ describe("which actions a card offers", () => {
   it("already not done: swap only (Undo is on the card)", () => {
     expect(
       exerciseActions(card({ skipped: true }), inProgress).actions,
-    ).toEqual(["swap"]);
+    ).toEqual(["details", "swap"]);
   });
 
-  it("a finished workout offers nothing", () => {
+  it("a finished workout offers only the exercise's details", () => {
     expect(exerciseActions(card(), { status: "complete" })).toEqual({
-      actions: [],
+      actions: ["details"],
       message: null,
     });
   });
@@ -153,8 +153,13 @@ describe("marking an exercise not done", () => {
     );
     expect(sheet.mock.calls[0]![0]).toMatchObject({
       title: "Barbell Bench Press",
-      options: ["Swap exercise", "Didn't do this exercise", "Cancel"],
-      cancelButtonIndex: 2,
+      options: [
+        "About this exercise",
+        "Swap exercise",
+        "Didn't do this exercise",
+        "Cancel",
+      ],
+      cancelButtonIndex: 3,
     });
     expect(
       await screen.findByText(
@@ -235,7 +240,7 @@ describe("marking an exercise not done", () => {
     await waitFor(() => expect(reads).toBeGreaterThan(1));
   });
 
-  it("with every set saved the sheet explains the lock and offers only Cancel", async () => {
+  it("with every set saved the sheet explains the lock and offers only the details", async () => {
     const sheet = sheetPicks("Cancel");
     serve({
       "/workouts/ls-1": view(
@@ -251,7 +256,7 @@ describe("marking an exercise not done", () => {
     );
     expect(sheet.mock.calls[0]![0]).toMatchObject({
       message: SETS_LOGGED_MESSAGE,
-      options: ["Cancel"],
+      options: ["About this exercise", "Cancel"],
     });
   });
 });
@@ -592,5 +597,22 @@ describe("X1 Swap exercise", () => {
       await screen.findByRole("button", { name: "Try again" }),
     ).toBeTruthy();
     expect(screen.queryByText(/No active exercises/)).toBeNull();
+  });
+});
+
+describe("About this exercise (Pitch 21h RD-13)", () => {
+  it("opens the performed exercise over the workout and writes nothing", async () => {
+    sheetPicks("About this exercise");
+    serve({ "/workouts/ls-1": view() });
+    await open();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "More for Barbell Bench Press" }),
+    );
+    await waitFor(() =>
+      expect(mockRouter.push).toHaveBeenCalledWith(
+        `/exercise/${encodeURIComponent(view().workout.exercises[0]!.performedExerciseId)}`,
+      ),
+    );
+    expect(writes()).toEqual([]);
   });
 });

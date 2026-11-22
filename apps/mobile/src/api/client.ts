@@ -36,6 +36,11 @@ export type RequestOptions = {
   /** Send the bearer token (default true). */
   auth?: boolean;
   signal?: AbortSignal;
+  /**
+   * Extra headers, such as a create's `Idempotency-Key` (Pitch 21h). They
+   * can never replace the version, auth, or content headers set here.
+   */
+  headers?: Record<string, string>;
 };
 
 export function createApiClient(deps: ClientDeps) {
@@ -46,6 +51,7 @@ export function createApiClient(deps: ClientDeps) {
   ) {
     const url = `${deps.apiOrigin}/api/mobile/v1${path}`;
     const headers: Record<string, string> = {
+      ...opts.headers,
       Accept: "application/json",
       "X-Overload-App-Version": deps.appVersion,
       ...bypassHeaderFor(url, await deps.stagingKey()),

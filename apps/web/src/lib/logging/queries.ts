@@ -601,18 +601,32 @@ function weekDayState(o: EffectiveOccurrence): WeekDayState {
   return "upcoming";
 }
 
+/** A week's day plus the session it is an occurrence of (Pitch 21h). */
+export type WeekDayWithSessionDto = WeekDayDto & { sessionId: string };
+
 /**
- * Week-at-a-glance (design Screen 7): the active mesocycle's training days for a
- * given week, with their effective-schedule state. Record navigation, not stats.
+ * The week-at-a-glance read, with each day's session id kept (Pitch 21h: the
+ * plan week opens a session from a day). getWeekSchedule drops the id, so its
+ * output is unchanged.
  */
-export async function getWeekSchedule(
+export async function getWeekScheduleWithSessions(
   account: Account,
   weekNumber?: number,
-): Promise<WeekScheduleDto | null> {
+): Promise<
+  | (Omit<WeekScheduleDto, "days"> & {
+      days: WeekDayWithSessionDto[];
+      /** The block week holding today, clamped into the block. */
+      currentWeek: number;
+    })
+  | null
+> {
   const active = await activeContext(account);
   if (!active) return null;
   const today = accountToday(account);
-  const current = mesocycleWeek(active.startDate, today);
+  const current = Math.min(
+    Math.max(mesocycleWeek(active.startDate, today), 1),
+    active.lengthWeeks,
+  );
   const week = Math.min(Math.max(weekNumber ?? current, 1), active.lengthWeeks);
 
   const occ = effectiveWeekSchedule(active.ctx, week);
@@ -629,7 +643,7 @@ export async function getWeekSchedule(
   const weekStart = addDays(active.startDate, (week - 1) * 7);
   const weekEnd = addDays(weekStart, 6);
 
-  const days: WeekDayDto[] = occ.map((o) => {
+  const days: WeekDayWithSessionDto[] = occ.map((o) => {
     const dateIso = o.effectiveIso ?? o.authoredIso;
     return {
       dateIso,
@@ -638,6 +652,7 @@ export async function getWeekSchedule(
       state: weekDayState(o),
       loggedSessionId:
         idByOccurrence.get(`${o.sessionId}|${o.authoredIso}`) ?? null,
+      sessionId: o.sessionId,
     };
   });
 
@@ -647,6 +662,34 @@ export async function getWeekSchedule(
     rangeLabel: formatPlanRange(weekStart, weekEnd),
     days,
     cardio: await getCardioWeek(account, active, week, today),
+    currentWeek: current,
+  };
+}
+
+/**
+ * Week-at-a-glance (design Screen 7): the active mesocycle's training days for a
+ * given week, with their effective-schedule state. Record navigation, not stats.
+ */
+export async function getWeekSchedule(
+  account: Account,
+  weekNumber?: number,
+): Promise<WeekScheduleDto | null> {
+  const full = await getWeekScheduleWithSessions(account, weekNumber);
+  if (!full) return null;
+  return {
+    weekNumber: full.weekNumber,
+    lengthWeeks: full.lengthWeeks,
+    rangeLabel: full.rangeLabel,
+    days: full.days.map(
+      ({ dateIso, dayLabel, sessionName, state, loggedSessionId }) => ({
+        dateIso,
+        dayLabel,
+        sessionName,
+        state,
+        loggedSessionId,
+      }),
+    ),
+    cardio: full.cardio,
   };
 }
 
