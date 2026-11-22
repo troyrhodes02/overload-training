@@ -95,6 +95,12 @@ import { PATCH as plannedSetsRoute } from "@/app/api/mobile/v1/logged-exercises/
 import { PATCH as editSetRoute } from "@/app/api/mobile/v1/sets/[loggedSetId]/route";
 import { PUT as logCardioRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/cardio-logs/[scheduledFor]/route";
 import { PATCH as editCardioRoute } from "@/app/api/mobile/v1/cardio-logs/[cardioLogId]/route";
+import { GET as planRoute } from "@/app/api/mobile/v1/plan/route";
+import { GET as planSessionRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]/route";
+import type {
+  PlanOverviewDto,
+  PlanSessionDto,
+} from "@overload/shared/contracts/plan";
 import { createCustomExercise } from "@/lib/exercises/exercises";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 import type { SwapContextDto } from "@overload/shared/contracts/logging";
@@ -1385,6 +1391,85 @@ const CASES: Record<string, () => void> = {
             timeZone: "Pacific/Kiritimati",
           }).format(new Date()),
         );
+      });
+    });
+  },
+
+  // Pitch 21h: the plan (read-only).
+  "GET api/mobile/v1/plan": () => {
+    accountEndpointMatrix("GET /plan", planRoute as Handler);
+    describe("GET /plan: isolation", () => {
+      it("B sees its own (empty) plan and nothing of A's, at any week", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        for (const query of [undefined, "week=1", "week=2"]) {
+          const rb = await call(planRoute as Handler, {
+            token: tokenFor(b.userId),
+            query,
+          });
+          expect(rb.status).toBe(200);
+          expect((rb.body as PlanOverviewDto).block).toBeNull();
+          for (const marker of aMarkers(a, plan))
+            expect(rb.text).not.toContain(marker);
+        }
+        const ra = await call(planRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect((ra.body as PlanOverviewDto).block?.summary.id).toBe(
+          plan.meso.id,
+        );
+      });
+
+      it("a Free account gets the same plan as Pro, with no progression field", async () => {
+        const { a } = await twoAccounts(lib);
+        const free = await createTestAccount("UTC", undefined, {
+          entitlement: "none",
+        });
+        await activePlan(free, lib, "Free", { startWeeksAgo: 2 });
+        for (const account of [a, free]) {
+          const r = await call(planRoute as Handler, {
+            token: tokenFor(account.userId),
+          });
+          expect(r.status).toBe(200);
+          expect(r.text).not.toMatch(
+            /"(progression|recommendation|locked|tag|e1rm|evidence)"/i,
+          );
+        }
+      });
+    });
+  },
+  "GET api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]": () => {
+    accountEndpointMatrix(
+      "GET /mesocycles/{id}/sessions/{id}",
+      planSessionRoute as Handler,
+      { params: { mesocycleId: randomUUID(), sessionId: randomUUID() } },
+      404,
+    );
+    describe("GET /mesocycles/{id}/sessions/{id}: isolation", () => {
+      it("B can't read A's session, even mixing in its own block: a 404 like a missing one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const own = await activePlan(b, lib, "Bravo");
+        const missing = await call(planSessionRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: randomUUID(), sessionId: randomUUID() },
+        });
+        for (const params of [
+          { mesocycleId: plan.meso.id, sessionId: plan.session.id },
+          { mesocycleId: own.meso.id, sessionId: plan.session.id },
+          { mesocycleId: plan.meso.id, sessionId: own.session.id },
+        ]) {
+          const r = await call(planSessionRoute as Handler, {
+            token: tokenFor(b.userId),
+            params,
+          });
+          expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+        }
+        const ra = await call(planSessionRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { mesocycleId: plan.meso.id, sessionId: plan.session.id },
+        });
+        expect((ra.body as PlanSessionDto).name).toBe("Alpha Push");
       });
     });
   },

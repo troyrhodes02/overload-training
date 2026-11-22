@@ -1,4 +1,5 @@
 import {
+  formatPrescription,
   formatRepTarget,
   repModeFor,
   submittedReps,
@@ -51,5 +52,23 @@ describe("rep mode", () => {
   it("prints one number for a fixed target", () => {
     expect(formatRepTarget(10, 10)).toBe("10");
     expect(formatRepTarget(8, 10)).toBe("8–10");
+  });
+});
+
+describe("formatPrescription (Pitch 21h RD-23: one wording for web and iPhone)", () => {
+  it("prints sets and a range, a fixed target, and a single set", () => {
+    expect(
+      formatPrescription({ plannedSets: 3, targetRepMin: 6, targetRepMax: 8 }),
+    ).toBe("3 sets · 6–8 reps");
+    expect(
+      formatPrescription({ plannedSets: 4, targetRepMin: 5, targetRepMax: 5 }),
+    ).toBe("4 sets · 5 reps");
+    expect(
+      formatPrescription({
+        plannedSets: 1,
+        targetRepMin: 10,
+        targetRepMax: 12,
+      }),
+    ).toBe("1 set · 10–12 reps");
   });
 });
