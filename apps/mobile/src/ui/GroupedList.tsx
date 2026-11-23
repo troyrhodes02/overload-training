@@ -68,6 +68,13 @@ export function GroupedList({
 
 export type ListRowAccessory = "chevron" | "check" | "external" | "none";
 
+/**
+ * Where a row's value sits: "trailing" (the iOS default, right of the title)
+ * or "below" the title, for a value that is a list and should wrap as a
+ * paragraph (Pitch 21h OVE-237: the exercise's secondary muscles).
+ */
+export type ListRowValuePlacement = "trailing" | "below";
+
 export function ListRow({
   title,
   subtitle,
@@ -77,6 +84,7 @@ export function ListRow({
   onPress,
   accessibilityHint,
   selected,
+  valuePlacement = "trailing",
 }: {
   title: string;
   /** A second line under the title that explains this row, as in iOS Settings. */
@@ -87,9 +95,11 @@ export function ListRow({
   onPress?: () => void;
   accessibilityHint?: string;
   selected?: boolean;
+  valuePlacement?: ListRowValuePlacement;
 }) {
   const { colors, spacing, controlHeight } = useTheme();
   const label = [title, subtitle, value].filter(Boolean).join(", ");
+  const below = valuePlacement === "below";
   const content = (
     <View
       style={{
@@ -101,7 +111,22 @@ export function ListRow({
         gap: spacing.sm,
       }}
     >
-      <View style={{ flex: 1, gap: spacing.xxs }}>
+      {/*
+        The title column grows into free space and keeps at least 40% of the
+        row when a trailing value is long, and the value shrinks and wraps.
+        Before OVE-237 the title had flex: 1 (a zero basis) and the value
+        could not shrink, so a long value crushed the title to one letter a
+        line. Both now wrap at word boundaries at any text size.
+      */}
+      <View
+        testID="list-row-title"
+        style={{
+          flexGrow: 1,
+          flexShrink: 1,
+          minWidth: value && !below ? "40%" : undefined,
+          gap: spacing.xxs,
+        }}
+      >
         <Text tone={tone === "destructive" ? "destructive" : "default"}>
           {title}
         </Text>
@@ -110,8 +135,21 @@ export function ListRow({
             {subtitle}
           </Text>
         ) : null}
+        {value && below ? (
+          <Text testID="list-row-value" tone="muted">
+            {value}
+          </Text>
+        ) : null}
       </View>
-      {value ? <Text tone="muted">{value}</Text> : null}
+      {value && !below ? (
+        <Text
+          testID="list-row-value"
+          tone="muted"
+          style={{ flexShrink: 1, textAlign: "right" }}
+        >
+          {value}
+        </Text>
+      ) : null}
       {accessory === "chevron" ? (
         <Symbol name="chevron.right" size={14} color={colors.mutedForeground} />
       ) : null}

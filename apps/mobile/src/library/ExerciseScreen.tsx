@@ -22,6 +22,17 @@ import { classificationLine } from "./library-model";
 export type ExerciseContext = "browse" | "workout";
 
 /**
+ * The standard inline header (design §15: "‹ Exercises  Exercise"). X1 is
+ * pushed onto the Plan and More stacks, whose roots use the large title; a
+ * pushed detail turns it off, as Diagnostics and Appearance do. Inheriting it
+ * left an empty large-title band above the exercise name (OVE-237).
+ */
+export const EXERCISE_SCREEN_OPTIONS = {
+  title: "Exercise",
+  headerLargeTitle: false,
+} as const;
+
+/**
  * X1 Exercise (Pitch 21h design §6, §15): what the exercise is — image (when
  * the library has one), name, primary muscle and equipment, secondary muscles,
  * and whether it is the lifter's own. Archived exercises still resolve
@@ -73,6 +84,7 @@ export function ExerciseScreen({
       <View style={{ gap: spacing.lg }}>
         {e.imageUrl ? (
           <View
+            testID="exercise-hero"
             style={{
               height: 220,
               borderRadius: radius.xl,
@@ -103,7 +115,15 @@ export function ExerciseScreen({
         </View>
         <GroupedList>
           <ListRow title="Primary muscle" value={e.primaryMuscleLabel} />
-          <ListRow title="Secondary muscles" value={secondary} />
+          <ListRow
+            title="Secondary muscles"
+            value={secondary}
+            // A list of two or more wraps as a paragraph under its label
+            // (OVE-237); "None" or one muscle reads like the other rows.
+            valuePlacement={
+              e.secondaryMuscleLabels.length > 1 ? "below" : "trailing"
+            }
+          />
           <ListRow title="Equipment" value={e.equipmentLabel} />
           <ListRow
             title="Type"
@@ -132,7 +152,7 @@ export function ExerciseScreen({
 
   return (
     <>
-      <Stack.Screen options={{ title: "Exercise" }} />
+      <Stack.Screen options={EXERCISE_SCREEN_OPTIONS} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.background }}
