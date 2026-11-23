@@ -1,27 +1,26 @@
 /**
  * OVE-237 (Pitch 21h owner acceptance): two layout defects on X1 Exercise.
  *
- * 1. A blank band above the exercise name. X1 is pushed onto the Plan and
- *    More stacks, whose roots use the native large title; X1 inherited it.
- *    It now declares the standard inline header in every context, and an
- *    exercise without an image reserves no image frame.
- * 2. "Secondary muscles" crushed to one letter a line. ListRow gave the title
- *    a zero flex basis and the value no way to shrink. Now the title keeps a
- *    readable share and the value wraps; a list of muscles sits under its
- *    label.
+ * 1. A blank band above the exercise name. The tab stacks asked for the
+ *    native large title, which only pushed screens ever showed (tab roots
+ *    draw their own header) and which renders as an empty band on the device
+ *    (21e RD-24). Every stack now uses the inline title, and an exercise
+ *    without an image reserves no image frame.
+ * 2. "Secondary muscles" crushed to one letter a line. ListRow let a long
+ *    value take the whole row. A trailing value is now capped at 60% and
+ *    wraps inside it, and a list of muscles sits under its label.
  *
  * Jest has no layout engine, so these pin the structure and the flex rules
  * that caused each defect, not pixel positions. How it looks on an iPhone is
  * an owner check (runbook §10).
  */
+import fs from "node:fs";
+import path from "node:path";
 import { StyleSheet } from "react-native";
 import { render, screen, within } from "@testing-library/react-native";
 import type { ExerciseDetailDto } from "@overload/shared/contracts/exercises";
 import { ApiError } from "../src/api/errors";
-import {
-  EXERCISE_SCREEN_OPTIONS,
-  ExerciseScreen,
-} from "../src/library/ExerciseScreen";
+import { ExerciseScreen } from "../src/library/ExerciseScreen";
 import { stackScreenOptions } from "../src/ui/stackOptions";
 import { GroupedList, ListRow } from "../src/ui/GroupedList";
 import { Providers } from "./harness";
@@ -97,53 +96,50 @@ const row = (title: string) =>
 const flat = (node: { props: { style?: unknown } }) =>
   StyleSheet.flatten(node.props.style as never) ?? {};
 
-/** Every rendered string, in document order. */
-function textsInOrder(node: unknown): string[] {
-  if (node == null || typeof node === "boolean") return [];
-  if (typeof node === "string") return [node];
-  if (Array.isArray(node)) return node.flatMap(textsInOrder);
-  const children = (node as { children?: unknown }).children;
-  return children ? textsInOrder(children) : [];
-}
-
 beforeEach(() => {
   jest.clearAllMocks();
   mockScreenOptions.length = 0;
 });
 
+const TABS = path.join(__dirname, "..", "src", "app", "(tabs)");
+
 describe("OVE-237 defect 1: no band above the exercise name", () => {
-  it("the tab stacks X1 is pushed onto use the large title, which X1 turns off", () => {
-    // The cause: the Plan and More roots ask for the large title…
-    const tabRoot = stackScreenOptions({ colors: {} } as never, {
-      largeTitle: true,
-    });
-    expect(tabRoot.headerLargeTitle).toBe(true);
-    // …and X1 overrides it, so it never inherits the band.
-    expect(EXERCISE_SCREEN_OPTIONS).toEqual({
-      title: "Exercise",
-      headerLargeTitle: false,
-    });
+  it("the shared stack header is the inline title", () => {
+    expect(stackScreenOptions({ colors: {} } as never).headerLargeTitle).toBe(
+      false,
+    );
+  });
+
+  it("no tab stack asks for the large title (it renders as an empty band)", () => {
+    const layouts = fs
+      .readdirSync(TABS, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => path.join(TABS, d.name, "_layout.tsx"))
+      .filter((f) => fs.existsSync(f));
+    expect(layouts.length).toBeGreaterThanOrEqual(5);
+    for (const f of layouts) {
+      const src = fs.readFileSync(f, "utf8");
+      expect(src).toContain("stackScreenOptions(theme)");
+      expect(src).not.toMatch(/largeTitle|headerLargeTitle:\s*true/);
+    }
   });
 
   it.each(["browse", "workout"] as const)(
-    "a custom exercise with no image (%s): inline header, no image frame, name first",
+    "a custom exercise with no image (%s): no image frame, nothing turns the large title on",
     async (context) => {
       await open(SLED_PUSH, context);
-      expect(mockScreenOptions.at(-1)).toEqual(EXERCISE_SCREEN_OPTIONS);
+      expect(mockScreenOptions.at(-1)).toEqual({ title: "Exercise" });
       expect(screen.queryByTestId("exercise-hero")).toBeNull();
-      // The header is the content's first text: nothing sits above it.
-      expect(textsInOrder(screen.toJSON())[0]).toBe("Sled Push");
       expect(screen.getByText("Custom")).toBeTruthy();
       expect(screen.getByText("Quads · Other")).toBeTruthy();
     },
   );
 
-  it("a library exercise with an image keeps its framed hero above the name", async () => {
+  it("a library exercise with an image keeps its framed hero", async () => {
     await open(detail(), "browse");
     const hero = screen.getByTestId("exercise-hero");
     expect(flat(hero).height).toBeGreaterThan(0);
     expect(flat(hero).overflow).toBe("hidden");
-    expect(mockScreenOptions.at(-1)).toEqual(EXERCISE_SCREEN_OPTIONS);
   });
 });
 
@@ -193,7 +189,11 @@ describe("OVE-237 defect 2: Secondary muscles stays readable", () => {
 describe("ListRow: a long trailing value can't crush its title", () => {
   const LONG = "A very long value that would not fit beside its title at all";
 
-  it("the value shrinks and wraps; the title grows, shrinks, and keeps 40%", async () => {
+  // Jest has no layout engine: these pin the flex rules. The title has a zero
+  // basis and takes what the value leaves; the value is capped at 60% (so the
+  // title always keeps 40%) and never shrinks below its measured width, so a
+  // short value can't break mid-word either. The look is an owner check.
+  it("the value is capped at 60% and wraps there; the title takes the rest", async () => {
     await render(
       <Providers>
         <GroupedList>
@@ -201,29 +201,33 @@ describe("ListRow: a long trailing value can't crush its title", () => {
         </GroupedList>
       </Providers>,
     );
-    const title = screen.getByTestId("list-row-title");
-    const value = screen.getByTestId("list-row-value");
-    // The defect: flex: 1 is a zero basis, and the value's default
-    // flexShrink of 0 let a long value take the whole row.
-    expect(flat(title).flex).toBeUndefined();
-    expect(flat(title)).toMatchObject({
-      flexGrow: 1,
-      flexShrink: 1,
-      minWidth: "40%",
+    expect(flat(screen.getByTestId("list-row-title"))).toMatchObject({
+      flex: 1,
     });
-    expect(flat(value)).toMatchObject({ flexShrink: 1, textAlign: "right" });
+    const value = flat(screen.getByTestId("list-row-value"));
+    expect(value).toMatchObject({ maxWidth: "60%", textAlign: "right" });
+    expect(value.flexShrink ?? 0).toBe(0);
     expect(screen.getByText(LONG)).toBeTruthy();
   });
 
-  it("a row without a value gives the title the whole row", async () => {
+  it("a short value with a chevron keeps its natural width", async () => {
     await render(
       <Providers>
         <GroupedList>
-          <ListRow title="Gyms" accessory="chevron" onPress={() => {}} />
+          <ListRow
+            title="Monday · Upper Hypertrophy Push A"
+            value="12"
+            accessory="chevron"
+            onPress={() => {}}
+          />
         </GroupedList>
       </Providers>,
     );
-    expect(flat(screen.getByTestId("list-row-title")).minWidth).toBeUndefined();
-    expect(screen.queryByTestId("list-row-value")).toBeNull();
+    expect(flat(screen.getByTestId("list-row-value")).flexShrink ?? 0).toBe(0);
+    expect(
+      screen.getByRole("button", {
+        name: "Monday · Upper Hypertrophy Push A, 12",
+      }),
+    ).toBeTruthy();
   });
 });

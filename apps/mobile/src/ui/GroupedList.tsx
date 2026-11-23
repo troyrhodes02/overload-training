@@ -112,21 +112,14 @@ export function ListRow({
       }}
     >
       {/*
-        The title column grows into free space and keeps at least 40% of the
-        row when a trailing value is long, and the value shrinks and wraps.
-        Before OVE-237 the title had flex: 1 (a zero basis) and the value
-        could not shrink, so a long value crushed the title to one letter a
-        line. Both now wrap at word boundaries at any text size.
+        The title takes the space the value leaves (a zero basis, as before),
+        and a trailing value is capped at 60% of the row and wraps at word
+        boundaries inside it. Before OVE-237 the value had no cap and could
+        take the whole row, crushing the title to one letter a line. The
+        value never shrinks below what it measured, so a short value ("12",
+        "Barbell") never breaks either, at any text size.
       */}
-      <View
-        testID="list-row-title"
-        style={{
-          flexGrow: 1,
-          flexShrink: 1,
-          minWidth: value && !below ? "40%" : undefined,
-          gap: spacing.xxs,
-        }}
-      >
+      <View testID="list-row-title" style={{ flex: 1, gap: spacing.xxs }}>
         <Text tone={tone === "destructive" ? "destructive" : "default"}>
           {title}
         </Text>
@@ -145,7 +138,7 @@ export function ListRow({
         <Text
           testID="list-row-value"
           tone="muted"
-          style={{ flexShrink: 1, textAlign: "right" }}
+          style={{ maxWidth: "60%", textAlign: "right" }}
         >
           {value}
         </Text>

@@ -22,17 +22,6 @@ import { classificationLine } from "./library-model";
 export type ExerciseContext = "browse" | "workout";
 
 /**
- * The standard inline header (design §15: "‹ Exercises  Exercise"). X1 is
- * pushed onto the Plan and More stacks, whose roots use the large title; a
- * pushed detail turns it off, as Diagnostics and Appearance do. Inheriting it
- * left an empty large-title band above the exercise name (OVE-237).
- */
-export const EXERCISE_SCREEN_OPTIONS = {
-  title: "Exercise",
-  headerLargeTitle: false,
-} as const;
-
-/**
  * X1 Exercise (Pitch 21h design §6, §15): what the exercise is — image (when
  * the library has one), name, primary muscle and equipment, secondary muscles,
  * and whether it is the lifter's own. Archived exercises still resolve
@@ -152,7 +141,7 @@ export function ExerciseScreen({
 
   return (
     <>
-      <Stack.Screen options={EXERCISE_SCREEN_OPTIONS} />
+      <Stack.Screen options={{ title: "Exercise" }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.background }}
