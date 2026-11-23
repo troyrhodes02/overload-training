@@ -7,14 +7,19 @@ type ScreenOptions = Exclude<
   (...args: never[]) => unknown
 >;
 
-/** Native stack header styling from the tokens (design §15). */
-export function stackScreenOptions(
-  theme: Theme,
-  opts: { largeTitle?: boolean } = {},
-): ScreenOptions {
+/**
+ * Native stack header styling from the tokens (design §15).
+ *
+ * Always the standard inline title. Tab roots draw their own header and hide
+ * this one (21e RD-24), so the only screens that ever showed the native large
+ * title were pushed ones, and on the device it rendered as an empty band
+ * above their content (21e RD-24: "configured but not rendering"; Pitch 21h
+ * OVE-237). Don't turn it back on per stack.
+ */
+export function stackScreenOptions(theme: Theme): ScreenOptions {
   const { colors } = theme;
   return {
-    headerLargeTitle: opts.largeTitle ?? false,
+    headerLargeTitle: false,
     headerLargeTitleShadowVisible: false,
     headerShadowVisible: false,
     headerStyle: { backgroundColor: colors.background },

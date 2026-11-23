@@ -73,6 +73,7 @@ export function ExerciseScreen({
       <View style={{ gap: spacing.lg }}>
         {e.imageUrl ? (
           <View
+            testID="exercise-hero"
             style={{
               height: 220,
               borderRadius: radius.xl,
@@ -103,7 +104,15 @@ export function ExerciseScreen({
         </View>
         <GroupedList>
           <ListRow title="Primary muscle" value={e.primaryMuscleLabel} />
-          <ListRow title="Secondary muscles" value={secondary} />
+          <ListRow
+            title="Secondary muscles"
+            value={secondary}
+            // A list of two or more wraps as a paragraph under its label
+            // (OVE-237); "None" or one muscle reads like the other rows.
+            valuePlacement={
+              e.secondaryMuscleLabels.length > 1 ? "below" : "trailing"
+            }
+          />
           <ListRow title="Equipment" value={e.equipmentLabel} />
           <ListRow
             title="Type"
