@@ -130,6 +130,10 @@ export type AccountDeletionDeps = {
 /** Generous: one person's history is small, but this must not time out. */
 const TRANSACTION_TIMEOUT_MS = 30_000;
 
+/** Closing the auth identity: three tries, 250 ms then 500 ms apart. */
+const IDENTITY_ATTEMPTS = 3;
+const IDENTITY_RETRY_MS = 250;
+
 export async function deleteAccount(
   account: Account,
   deps: AccountDeletionDeps = { deleteAuthUser },
@@ -175,15 +179,28 @@ export async function deleteAccount(
   // throws).
   await removeFeedbackScreenshots(screenshotPaths);
   await removeSourceObjects(importSourcePaths);
+  // The data is gone; closing the identity is retried a few times, because
+  // a client that can't recreate a profile (the mobile API, Pitch 21j review
+  // #1) can't finish a half-closed account itself — the web can, and the app
+  // sends the lifter there when this still fails.
   let identityRemoved = false;
-  try {
-    await deps.deleteAuthUser(account.userId);
-    identityRemoved = true;
-  } catch (error) {
-    console.error(
-      "account deletion: identity removal failed after data deletion",
-      error instanceof Error ? error.message : "unknown",
-    );
+  for (
+    let attempt = 1;
+    attempt <= IDENTITY_ATTEMPTS && !identityRemoved;
+    attempt++
+  ) {
+    try {
+      await deps.deleteAuthUser(account.userId);
+      identityRemoved = true;
+    } catch (error) {
+      console.error(
+        `account deletion: identity removal failed after data deletion (attempt ${attempt}/${IDENTITY_ATTEMPTS})`,
+        error instanceof Error ? error.message : "unknown",
+      );
+      if (attempt < IDENTITY_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, IDENTITY_RETRY_MS * attempt));
+      }
+    }
   }
 
   // The mobile API's rate-limit counter is keyed on a hash of this account's

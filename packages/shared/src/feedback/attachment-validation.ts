@@ -106,5 +106,10 @@ export function sniffImageType(bytes: Uint8Array): ScreenshotType | null {
   return null;
 }
 
-/** The message when a file's bytes don't match an accepted type. */
-export const SCREENSHOT_TYPE_ERROR = "Screenshots must be PNG, JPEG, or WebP.";
+/**
+ * The message when a file's bytes aren't the image type it claims (a renamed
+ * file, or not an image at all). Review #6: says what to do, not just the
+ * accepted types.
+ */
+export const SCREENSHOT_MISMATCH_ERROR =
+  "That file isn't the PNG, JPEG, or WebP image it says it is. Save the screenshot again and attach that.";

@@ -270,9 +270,12 @@ Each screen lists its purpose, trigger, content, states, and behavior. The nativ
    - **Wrong password:** "That password isn't right." under the field, which is cleared and refocused. Nothing was deleted.
    - **Too many attempts:** "Too many attempts. Wait a minute and try again."
    - **Subscription couldn't be canceled:** "We couldn't cancel your subscription, so nothing was deleted. Try again, or contact support."
-   - **Data deleted, account not closed:** "Your training data was deleted, but closing your account didn't finish. Try again to finish." The inventory reloads, and is now empty.
+   - **Data deleted, sign-in not closed** (rare, after the server retries closing the sign-in): the app can't finish this, because the mobile API never recreates a deleted profile. It signs out, and Welcome reads: "Your training data was deleted, but closing your sign-in didn't finish. To finish, sign in on the Overload website and delete your account there." The website's own delete page finishes it (spec RD-26).
    - **Other failure:** "Couldn't delete your account. Nothing was deleted. Try again."
-   - **No answer (timeout or connection lost mid-request):** "We couldn't confirm whether your account was deleted." with a **Check again** button. Check again asks the server whether the account still exists. If it doesn't, the Deleted outcome follows. If it does, the screen says "Your account is still here. Nothing was deleted." or shows the data-deleted message if the inventory is now empty.
+   - **No answer (timeout or connection lost mid-request):** "We couldn't confirm whether your account was deleted." with a **Check again** button. Check again asks the server whether the account still exists.
+     - The sign-in is refused: the Deleted outcome follows.
+     - The sign-in works but no account answers: the sign-in-not-closed outcome above.
+     - The account answers: "Your account is still here. If you just tried, wait a moment and check again." A slow delete may still be finishing.
 4. On another signed-in device, the next request finds the account gone and that device returns to the signed-out welcome.
 
 **States.** Loading the inventory: row skeletons, with the password field disabled. Inventory load error: `LoadErrorState`. Deletion needs the inventory first, so the lifter sees what goes before they can delete.

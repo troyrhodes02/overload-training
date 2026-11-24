@@ -7,6 +7,7 @@ import { useApi } from "../api/ApiProvider";
 import { ApiError } from "../api/errors";
 import { useSession } from "../auth/session";
 import { afterAccountDeleted } from "../accounts/after-deletion";
+import { FINISH_ON_WEB_NOTICE } from "../accounts/signed-out-notice";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { FormScreen } from "../ui/FormScreen";
@@ -55,21 +56,10 @@ export function DeleteAccountScreen() {
       </>
     );
   }
-  return (
-    <DeleteForm
-      inventory={inventory.data}
-      refetchInventory={() => inventory.refetch().then((r) => r.data)}
-    />
-  );
+  return <DeleteForm inventory={inventory.data} />;
 }
 
-function DeleteForm({
-  inventory,
-  refetchInventory,
-}: {
-  inventory: AccountInventoryDto;
-  refetchInventory: () => Promise<AccountInventoryDto | undefined>;
-}) {
+function DeleteForm({ inventory }: { inventory: AccountInventoryDto }) {
   const { colors, spacing } = useTheme();
   const api = useApi();
   const session = useSession();
@@ -84,7 +74,8 @@ function DeleteForm({
   const busy =
     view.kind === "deleting" ||
     view.kind === "checking" ||
-    view.kind === "deleted";
+    view.kind === "deleted" ||
+    view.kind === "finishOnWeb";
   // No leaving mid-request: the answer decides what the phone shows.
   usePreventRemove(busy, () => {});
 
@@ -95,6 +86,13 @@ function DeleteForm({
     void haptic.warning();
     await afterAccountDeleted(session);
   };
+  // The data is gone but the sign-in isn't, and the app can't finish that:
+  // sign out with the reason, and the website finishes it (review #1).
+  const finishOnWeb = async () => {
+    setView({ kind: "finishOnWeb" });
+    void haptic.warning();
+    await afterAccountDeleted(session, FINISH_ON_WEB_NOTICE);
+  };
 
   async function submit() {
     setView({ kind: "deleting" });
@@ -102,15 +100,10 @@ function DeleteForm({
     try {
       const { outcome } = await remove.mutateAsync(password);
       if (outcome === "deleted") return finish();
-      setPassword("");
-      await refetchInventory();
-      setView({
-        kind: "form",
-        fieldError: null,
-        formError: DELETE_MESSAGES.identityPending,
-      });
+      return finishOnWeb();
     } catch (error) {
       const next = deletionFailure(error);
+      if (next.kind === "finishOnWeb") return finishOnWeb();
       if (next.kind === "form") setPassword("");
       setView(next);
       if (next.kind === "form" && next.fieldError) {
@@ -151,11 +144,19 @@ function DeleteForm({
       );
       setView(checkAgainView({ kind: "present", inventory: inv }));
     } catch (error) {
-      const gone =
-        error instanceof ApiError &&
-        (error.code === "signed_out" || error.code === "unauthorized");
-      if (gone) return finish();
-      setView(checkAgainView({ kind: "unreachable" }));
+      // signed_out: the refresh was refused, so the sign-in is gone.
+      // unauthorized: the refresh worked but no account answers — half closed.
+      const code = error instanceof ApiError ? error.code : null;
+      const next = checkAgainView(
+        code === "signed_out"
+          ? { kind: "gone" }
+          : code === "unauthorized"
+            ? { kind: "halfClosed" }
+            : { kind: "unreachable" },
+      );
+      if (next.kind === "deleted") return finish();
+      if (next.kind === "finishOnWeb") return finishOnWeb();
+      setView(next);
     }
   }
 

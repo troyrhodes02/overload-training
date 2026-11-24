@@ -251,24 +251,29 @@ describe("E9 POST /me/delete", () => {
     );
   });
 
-  it("identity removal failing is identity_pending (data gone); a retry finishes", async () => {
-    removeIdentity.mockRejectedValueOnce(new Error("auth down"));
+  it("one failed identity removal is retried and the account is deleted", async () => {
+    removeIdentity.mockRejectedValueOnce(new Error("auth blip"));
+    const r = await call(deleteRoute, a, { password: "pw" });
+    expect([r.status, r.body]).toEqual([200, { outcome: "deleted" }]);
+    expect(removeIdentity).toHaveBeenCalledTimes(2);
+    expect(await ownedRowCount(a.userId)).toBe(0);
+  });
+
+  it("identity removal failing every try is identity_pending: data gone, and the app's token is now 401 (review #1)", async () => {
+    removeIdentity.mockRejectedValue(new Error("auth down"));
     const first = await call(deleteRoute, a, { password: "pw" });
     expect([first.status, first.body]).toEqual([
       200,
       { outcome: "identity_pending" },
     ]);
-    expect(await db().gym.count({ where: { userId: a.userId } })).toBe(0);
-    // The identity still verifies; the next request recreates an empty
-    // profile (the web's accepted semantics), and a retry closes it.
-    await db().profile.upsert({
-      where: { userId: a.userId },
-      create: { userId: a.userId, timeZone: "UTC" },
-      update: {},
-    });
-    const retry = await call(deleteRoute, a, { password: "pw" });
-    expect([retry.status, retry.body]).toEqual([200, { outcome: "deleted" }]);
+    expect(removeIdentity).toHaveBeenCalledTimes(3);
     expect(await ownedRowCount(a.userId)).toBe(0);
+    // The mobile pipeline never recreates a profile, so the still-valid
+    // identity can't finish here: the app sends the lifter to the web, whose
+    // own flow recreates the profile and finishes the deletion.
+    const me = await call(meRoute, a);
+    expect([me.status, me.body.error.code]).toEqual([401, "unauthorized"]);
+    expect(await db().profile.count({ where: { userId: a.userId } })).toBe(0);
   });
 
   it("after deletion the token is refused: GET /me is 401, and a retry is 401", async () => {
