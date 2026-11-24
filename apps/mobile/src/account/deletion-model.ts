@@ -19,7 +19,9 @@ export const DELETE_MESSAGES = {
   nothingDeleted:
     "Couldn't delete your account. Nothing was deleted. Try again.",
   unconfirmed: "We couldn't confirm whether your account was deleted.",
-  stillHere: "Your account is still here. Nothing was deleted.",
+  // Not "nothing was deleted": a slow delete may still be finishing (review #2).
+  stillHere:
+    "Your account is still here. If you just tried, wait a moment and check again.",
   checkFailed:
     "Still couldn't reach Overload. Check your connection, then check again.",
 } as const;
@@ -32,16 +34,21 @@ export type DeletionView =
   | { kind: "deleting" }
   | { kind: "unconfirmed"; message: string }
   | { kind: "checking" }
-  | { kind: "deleted" };
+  | { kind: "deleted" }
+  /** Data deleted, sign-in still exists: finish on the website (review #1). */
+  | { kind: "finishOnWeb" };
 
 /** A failed delete request, read (spec §5). */
 export function deletionFailure(error: unknown): DeletionView {
   if (error instanceof ApiError) {
+    // A 401 AFTER a successful refresh: the sign-in is alive but the account
+    // has no profile — an earlier delete removed the data and couldn't close
+    // the sign-in (review #1). Never "deleted".
+    if (error.code === "unauthorized") return { kind: "finishOnWeb" };
     if (
       error.code === "network" ||
       error.code === "unavailable" ||
-      error.code === "signed_out" ||
-      error.code === "unauthorized"
+      error.code === "signed_out"
     ) {
       // No answer, or the token stopped working: it may have happened.
       return { kind: "unconfirmed", message: DELETE_MESSAGES.unconfirmed };
@@ -87,10 +94,12 @@ export function isEmptyInventory(inv: AccountInventoryDto): boolean {
 export function checkAgainView(
   result:
     | { kind: "gone" }
+    | { kind: "halfClosed" }
     | { kind: "present"; inventory: AccountInventoryDto }
     | { kind: "unreachable" },
 ): DeletionView {
   if (result.kind === "gone") return { kind: "deleted" };
+  if (result.kind === "halfClosed") return { kind: "finishOnWeb" };
   if (result.kind === "unreachable") {
     return { kind: "unconfirmed", message: DELETE_MESSAGES.checkFailed };
   }

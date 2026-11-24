@@ -27,7 +27,10 @@ import {
   checkAgainView,
   deletionFailure,
 } from "../src/account/deletion-model";
-import { useSignedOutNotice } from "../src/accounts/signed-out-notice";
+import {
+  FINISH_ON_WEB_NOTICE,
+  useSignedOutNotice,
+} from "../src/accounts/signed-out-notice";
 import MoreScreen from "../src/app/(tabs)/more/index";
 import { Providers } from "./harness";
 
@@ -256,6 +259,9 @@ describe("deletion model", () => {
     for (const code of ["network", "unavailable", "signed_out"] as const) {
       expect(form(new ApiError(code, "x")).kind).toBe("unconfirmed");
     }
+    expect(form(new ApiError("unauthorized", "x", 401)).kind).toBe(
+      "finishOnWeb",
+    );
   });
 
   it("Check again: gone → deleted; empty → pending; data → still here", () => {
@@ -269,6 +275,9 @@ describe("deletion model", () => {
       checkAgainView({ kind: "present", inventory: INVENTORY }),
     ).toMatchObject({ formError: DELETE_MESSAGES.stillHere });
     expect(checkAgainView({ kind: "unreachable" }).kind).toBe("unconfirmed");
+    expect(checkAgainView({ kind: "halfClosed" })).toEqual({
+      kind: "finishOnWeb",
+    });
   });
 });
 
@@ -332,6 +341,7 @@ describe("A9 Delete account", () => {
     expect(deletes()[0][1]).toEqual({
       method: "POST",
       body: { password: "pw" },
+      timeoutMs: 60_000,
     });
     expect(mockFiles.size).toBe(0);
     let notice: string | null = null;
@@ -374,21 +384,44 @@ describe("A9 Delete account", () => {
     expect(mockSession.forgetSession).not.toHaveBeenCalled();
   });
 
-  it("identity pending: says so and reloads the (now empty) inventory", async () => {
+  it("identity pending: never 'deleted' — signs out and says to finish on the website (review #1)", async () => {
     confirmAlert("Delete");
-    let calls = 0;
+    await open({ "POST /me/delete": { outcome: "identity_pending" } });
+    await fireEvent.changeText(screen.getByLabelText("Password"), "pw");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Delete account permanently" }),
+    );
+    await waitFor(() => expect(mockSession.forgetSession).toHaveBeenCalled());
+    let notice: string | null = null;
+    function Probe() {
+      notice = useSignedOutNotice();
+      return null;
+    }
+    await render(<Probe />);
+    expect(notice).toBe(FINISH_ON_WEB_NOTICE);
+  });
+
+  it("a 401 after a good refresh (half closed) is never read as deleted", async () => {
+    confirmAlert("Delete");
     await open({
-      "POST /me/delete": { outcome: "identity_pending" },
-      "GET /me/deletion-inventory": () => (calls++ === 0 ? INVENTORY : EMPTY),
+      "POST /me/delete": new ApiError("network", "timeout"),
+      "GET /me": new ApiError("unauthorized", "no account", 401),
     });
     await fireEvent.changeText(screen.getByLabelText("Password"), "pw");
     await fireEvent.press(
       screen.getByRole("button", { name: "Delete account permanently" }),
     );
-    expect(
-      await screen.findByText(DELETE_MESSAGES.identityPending),
-    ).toBeTruthy();
-    expect(mockSession.forgetSession).not.toHaveBeenCalled();
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Check again" }),
+    );
+    await waitFor(() => expect(mockSession.forgetSession).toHaveBeenCalled());
+    let notice: string | null = null;
+    function Probe() {
+      notice = useSignedOutNotice();
+      return null;
+    }
+    await render(<Probe />);
+    expect(notice).toBe(FINISH_ON_WEB_NOTICE);
   });
 
   it("no answer: unconfirmed; Check again finds the account gone and finishes", async () => {

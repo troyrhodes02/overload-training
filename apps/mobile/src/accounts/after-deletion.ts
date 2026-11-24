@@ -13,10 +13,11 @@ import {
  * notice, Pro-note, and the feedback draft. The export folder is emptied too.
  * The appearance mirror is kept: a device preference, not account data.
  */
-export async function afterAccountDeleted(session: {
-  forgetSession: () => Promise<void>;
-}): Promise<void> {
-  setSignedOutNotice(ACCOUNT_DELETED_NOTICE);
+export async function afterAccountDeleted(
+  session: { forgetSession: () => Promise<void> },
+  notice: string = ACCOUNT_DELETED_NOTICE,
+): Promise<void> {
+  setSignedOutNotice(notice);
   resetFeedbackDraft();
   clearExportFiles();
   await session.forgetSession();

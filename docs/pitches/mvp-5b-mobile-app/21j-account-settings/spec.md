@@ -99,7 +99,7 @@ The phone formats, collects input, and hands files to iOS. The pieces that are n
 | Server outcome | HTTP | Phone state | Local effect |
 | --- | --- | --- | --- |
 | deleted (data and identity) | 200 `{ outcome: "deleted" }` | Deleted → signed-out welcome | forget the auth session, clear caches, drafts, and files |
-| data deleted, identity remains | 200 `{ outcome: "identity_pending" }` | Pending: retry message, inventory reloads (empty) | none |
+| data deleted, identity remains (after 3 tries) | 200 `{ outcome: "identity_pending" }` | Finish on web: signs out with the finish-on-web notice (RD-26) | forget the auth session, clear caches, drafts, and files |
 | wrong or missing password | 400 `validation_error`, details `{ password }` | Form error | password cleared |
 | too many attempts | 429 `rate_limited` | Form error | none |
 | Stripe cancel failed or not configured | 409 `conflict`, details `{ reason: "billing_not_canceled" }` | Form error | none (nothing deleted) |
@@ -109,9 +109,9 @@ The phone formats, collects input, and hands files to iOS. The pieces that are n
 
 "Check again" calls `GET /me`:
 
-- 200 with a non-empty inventory → "Your account is still here. Nothing was deleted."
-- 200 with an empty inventory → the Pending state.
-- `signed_out` (the token and the refresh both fail, because the identity is gone) → Deleted.
+- 200 → "Your account is still here. If you just tried, wait a moment and check again." (A slow delete may still be committing.)
+- `signed_out` (the refresh is refused, because the identity is gone) → Deleted.
+- `unauthorized` after a successful refresh (the identity lives, but no profile answers) → Finish on web (RD-26).
 
 **Feedback on the phone:** idle → sending → sent | error (draft kept). One retry key per intent. It is regenerated only after a confirmed send or a discard.
 
@@ -481,6 +481,7 @@ Run alone, not alongside the web suite.
 | RD-23 | Device-only checks are the runbook's five scenarios, plus VoiceOver and largest-text spot checks on A1, A6, and A9. Everything else is automated. | Q19. | Q19; pitch §15 |
 | RD-24 | Appetite holds at M with staged delivery. Stage A (everything except picking a screenshot) is one OTA on the installed build. Stage B (the screenshot) waits for a new development build. | No deletion or billing safety work is deferred. Only the native module is. | Q20 |
 | RD-25 | Tickets: OVE-247, the account API and shared contracts (E1–E5, E7, E10); OVE-248, the deletion API (E8, E9), reviewable alone; OVE-249, the feedback submission lib, sniffing, and E6; OVE-250, native settings: More, Profile, Time zone, Plan, What's New list and sheet, Help, text-only Feedback; OVE-251, native Export and Delete account, with cleanup; OVE-252, the runtime ticket for screenshot attachment (PR held); OVE-253, test accounts, runbook, staging checks, and the staging update. Each merges into `staging` through its own PR, as 21i did, except (6). | The pitch §16 stage 5 asks for deletion and billing safety to be independently reviewable. | Pitch §16; 21i RD-18 precedent |
+| RD-26 | Review fixes (independent review of #320–#324). (1) A half-closed account (data deleted, auth identity not) can't be finished from the app, because the mobile pipeline never recreates a profile, so every request is 401. `deleteAccount` now tries closing the identity 3 times (250/500 ms apart) before answering `identity_pending`. The app never reads `identity_pending`, or a 401 after a successful refresh, as "deleted": it signs out with "…To finish, sign in on the Overload website and delete your account there." The web's own delete page finishes it, because the web recreates the profile. The shell shows the same notice when `/me` is 401 on launch. (2) The delete call's timeout is 60 s, longer than the 30 s transaction, and "still here" no longer says "Nothing was deleted". (3) Feedback uploads are removed only when no attachment row references them, which covers a lost commit acknowledgement. (6) A byte mismatch says the file isn't the image it claims. (4, 5) For OVE-252: temporary image files are deleted, and the Screenshot row is shown only when the native module is present. | The review's confirmed finding #1 is a false "deleted"; the rest harden edges. No new auth surface: a narrow "finish without a profile" mobile route was rejected as new surface the web already covers. | Review of 2026-11-24; CLAUDE.md first invariant, deletion rules |
 
 ## Open Questions
 

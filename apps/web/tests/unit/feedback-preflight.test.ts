@@ -27,9 +27,10 @@ import { FEEDBACK_DAILY_LIMIT } from "@overload/shared/feedback/validation";
 const count = jest.fn();
 const create = jest.fn();
 const createMany = jest.fn();
+const attachmentCount = jest.fn(async () => 0);
 const db: Record<string, unknown> = {
   feedback: { count, create },
-  feedbackAttachment: { createMany },
+  feedbackAttachment: { createMany, count: attachmentCount },
 };
 db.$transaction = (run: (tx: unknown) => unknown) => run(db);
 
@@ -120,8 +121,38 @@ it("a file whose bytes aren't the image type it claims is refused, and nothing i
   const state = await submitFeedbackAction({ status: "idle" }, fd);
   expect(state).toMatchObject({
     status: "error",
-    fieldErrors: { screenshots: "Screenshots must be PNG, JPEG, or WebP." },
+    fieldErrors: {
+      screenshots:
+        "That file isn't the PNG, JPEG, or WebP image it says it is. Save the screenshot again and attach that.",
+    },
   });
   expect(uploadFeedbackScreenshots).not.toHaveBeenCalled();
   expect(create).not.toHaveBeenCalled();
+});
+
+it("uploads a saved attachment row points at are never removed (Pitch 21j review #3)", async () => {
+  const { submitFeedbackWithScreenshots } = jest.requireActual<
+    typeof import("@/lib/feedback/submission")
+  >("@/lib/feedback/submission");
+  attachmentCount.mockResolvedValueOnce(1);
+  const account = { userId: "acting-user", timeZone: "UTC", db };
+  await submitFeedbackWithScreenshots(
+    account as never,
+    {
+      category: "bug",
+      message: "It broke.",
+      files: [
+        {
+          bytes: new Uint8Array([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0,
+          ]),
+          contentType: "image/png",
+          sizeBytes: 9,
+        },
+      ],
+    },
+    // A commit whose acknowledgement was lost reads as "not committed".
+    { write: async () => ({ committed: false, result: null }) },
+  );
+  expect(removeFeedbackScreenshots).not.toHaveBeenCalled();
 });
