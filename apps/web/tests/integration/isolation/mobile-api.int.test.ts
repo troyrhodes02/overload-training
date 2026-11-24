@@ -138,6 +138,7 @@ import {
   GET as goalsRoute,
   POST as createGoalRoute,
 } from "@/app/api/mobile/v1/goals/route";
+import { GET as exerciseHistoryRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/history/route";
 import { GET as goalFormRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/goal-form/route";
 import { GET as goalHistoryRoute } from "@/app/api/mobile/v1/goals/history/route";
 import { GET as goalRoute } from "@/app/api/mobile/v1/goals/[goalId]/route";
@@ -1331,6 +1332,73 @@ async function reachedGoal(a: Account) {
 }
 
 const GOAL_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/exercises/[exerciseId]/history": () => {
+    accountEndpointMatrix(
+      "GET /exercises/{id}/history",
+      exerciseHistoryRoute as Handler,
+      { params: { exerciseId: randomUUID() } },
+      404,
+    );
+    describe("GET /exercises/{id}/history: isolation and gating", () => {
+      it("B reads none of A's sessions, records, or goals, even on a shared library lift", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const custom = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: plan.custom.id },
+        });
+        const missing = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: randomUUID() },
+        });
+        expect([custom.status, custom.body]).toEqual([
+          missing.status,
+          missing.body,
+        ]);
+        // A trained bench twice and has a goal on Incline; B has neither.
+        for (const exerciseId of [
+          lib.bench.id,
+          lib.incline.id,
+          lib.chestPress.id,
+        ]) {
+          const r = await call(exerciseHistoryRoute as Handler, {
+            token: tokenFor(b.userId),
+            params: { exerciseId },
+            query: `scope=${plan.gym.id}`,
+          });
+          expect(r.status).toBe(200);
+          expect(r.body.history.hasHistory).toBe(false);
+          expect(r.body.history.sessions.rows).toEqual([]);
+          expect(r.body.history.records).toBeNull();
+          expect(r.body.goals.active).toBeNull();
+          expect(r.body.goals.past).toEqual([]);
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+        }
+        const own = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(own.body.history.sessions.rows).toHaveLength(2);
+      });
+
+      it("a Free account's answer carries no Pro value, and says what was withheld", async () => {
+        const { a } = await twoAccounts(lib);
+        await getTestPrisma().entitlement.deleteMany({
+          where: { userId: a.userId },
+        });
+        const r = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(r.body.history.sessions.rows).toHaveLength(2);
+        expect(r.body.history.trend.e1rm).toBeNull();
+        expect(r.body.history.records.bestE1rm).toBeNull();
+        expect(r.body.history.records.repRecords).toBeNull();
+        expect(r.body.history.locked).not.toBeNull();
+      });
+    });
+  },
+
   "POST api/mobile/v1/goals": () => {
     accountEndpointMatrix(
       "POST /goals",

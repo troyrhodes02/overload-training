@@ -12,9 +12,12 @@ import type {
   CreateGoalResponseDto,
 } from "@overload/shared/contracts/goals";
 import { readJsonObject } from "./body";
-import { shapeError } from "./errors";
+import { ApiFailure, shapeError } from "./errors";
 import { withIdempotency } from "./idempotency";
 import { getGoalFormContextView } from "@/lib/views/goals";
+import { getExerciseGoals } from "@/lib/goals/queries";
+import { getExerciseHistory } from "@/lib/progression/history-queries";
+import type { ExerciseHistoryViewDto } from "@overload/shared/contracts/exercise-history";
 import { requireIdempotencyKey } from "./resources";
 
 /**
@@ -175,4 +178,32 @@ export function readGoalForm(
     exerciseId,
     gymId && gymId.length <= 64 ? gymId : null,
   );
+}
+
+/**
+ * E8 `GET /exercises/{exerciseId}/history?scope=&sessions=all`: the web
+ * exercise page's two reads — the GATED history (`getExerciseHistory`, which
+ * withholds every Pro field on a Free account and sets `locked`) and the
+ * goals set on the lift — serialized as-is. `scope` picks a machine's gym
+ * (or `none`); anything that isn't one of this exercise's scopes is ignored,
+ * never an error. Read-only: no write, no reconciliation (as the web page).
+ * Archived exercises resolve; another account's custom exercise is a 404.
+ */
+export async function readExerciseHistory(
+  account: Account,
+  exerciseId: string,
+  params: URLSearchParams,
+): Promise<ExerciseHistoryViewDto> {
+  const scope = params.get("scope");
+  const [history, goals] = await Promise.all([
+    getExerciseHistory(account, exerciseId, {
+      scope: scope && scope.length <= 64 ? scope : null,
+      allSessions: params.get("sessions") === "all",
+    }),
+    getExerciseGoals(account, exerciseId),
+  ]);
+  if (!history) {
+    throw new ApiFailure("not_found", "That exercise doesn't exist.");
+  }
+  return { history, goals };
 }
