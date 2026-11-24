@@ -134,6 +134,15 @@ import type { MeDto } from "@overload/shared/contracts/account";
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import { createTestAccount } from "../support/accounts";
 import { getTestPrisma } from "../support/db";
+import { GET as goalsRoute } from "@/app/api/mobile/v1/goals/route";
+import { GET as goalHistoryRoute } from "@/app/api/mobile/v1/goals/history/route";
+import { GET as goalRoute } from "@/app/api/mobile/v1/goals/[goalId]/route";
+import { PUT as goalArchivedRoute } from "@/app/api/mobile/v1/goals/[goalId]/archived/route";
+import { PUT as goalAcknowledgedRoute } from "@/app/api/mobile/v1/goals/[goalId]/acknowledged/route";
+import type {
+  GoalHistoryListDto,
+  GoalsOverviewDto,
+} from "@overload/shared/contracts/goals";
 import { endpointKey, MOBILE_ENDPOINTS } from "../../support/mobile-endpoints";
 import { activePlan, library, today as todayIso, type Lib } from "./fixtures";
 import { snapshotAccount } from "./support";
@@ -1296,6 +1305,251 @@ const LOGGING_CASES: Record<string, () => void> = {
   },
 };
 
+/** Pitch 21i (spec §12): goals. A's goal is on Incline Bench Press. */
+async function goalOf(account: Account) {
+  return getTestPrisma().goal.findFirstOrThrow({
+    where: { userId: account.userId },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/** A goal A's own history (bench 135 × 5, twice) already meets: a reached card. */
+async function reachedGoal(a: Account) {
+  await createGoal(a, {
+    exerciseId: lib.bench.id,
+    gymId: null,
+    targetWeightLbs: "135",
+    targetReps: "5",
+  });
+  return getTestPrisma().goal.findFirstOrThrow({
+    where: { userId: a.userId, exerciseId: lib.bench.id },
+  });
+}
+
+const GOAL_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/goals": () => {
+    accountEndpointMatrix("GET /goals", goalsRoute as Handler);
+    describe("GET /goals: isolation", () => {
+      it("B sees none of A's goals; A sees its own", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        await reachedGoal(a);
+        const rb = await call(goalsRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect([rb.status, rb.body]).toEqual([
+          200,
+          { reached: [], active: [], historyCount: 0 },
+        ]);
+        for (const marker of [...aMarkers(a, plan), lib.incline.id])
+          expect(rb.text).not.toContain(marker);
+        const ra = await call(goalsRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        const body = ra.body as GoalsOverviewDto;
+        expect(body.active.map((g) => g.exerciseId)).toEqual([lib.incline.id]);
+        expect(body.reached.map((g) => g.exerciseId)).toEqual([lib.bench.id]);
+        expect(body.historyCount).toBe(1);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/goals/history": () => {
+    accountEndpointMatrix("GET /goals/history", goalHistoryRoute as Handler);
+    describe("GET /goals/history: isolation", () => {
+      it("B's history never lists A's goals", async () => {
+        const { a, b } = await twoAccounts(lib);
+        await reachedGoal(a);
+        const rb = await call(goalHistoryRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect([rb.status, rb.body]).toEqual([200, { goals: [] }]);
+        const ra = await call(goalHistoryRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(
+          (ra.body as GoalHistoryListDto).goals.map((g) => g.outcome),
+        ).toEqual(["completed"]);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/goals/[goalId]": () => {
+    accountEndpointMatrix(
+      "GET /goals/{id}",
+      goalRoute as Handler,
+      { params: { goalId: randomUUID() } },
+      404,
+    );
+    describe("GET /goals/{id}: isolation", () => {
+      it("A's goal is a 404 for B, exactly like a missing one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const goal = await goalOf(a);
+        const missing = await call(goalRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { goalId: randomUUID() },
+        });
+        const r = await call(goalRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { goalId: goal.id },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        expect(r.status).toBe(404);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        const own = await call(goalRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { goalId: goal.id },
+        });
+        expect([own.status, own.body.kind, own.body.goalId]).toEqual([
+          200,
+          "active",
+          goal.id,
+        ]);
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/goals/[goalId]/archived": () => {
+    accountEndpointMatrix(
+      "PUT /goals/{id}/archived",
+      goalArchivedRoute as Handler,
+      {
+        method: "PUT",
+        params: { goalId: randomUUID() },
+        json: { archived: true },
+      },
+      404,
+    );
+    describe("PUT /goals/{id}/archived: isolation and retry", () => {
+      it("B can't archive A's goal; A archives once and a retry changes nothing", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const goal = await goalOf(a);
+        const before = await snapshotAccount(a.userId);
+        const rb = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: true },
+        });
+        expect([rb.status, rb.body.error.code]).toEqual([404, "not_found"]);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+
+        const first = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: true },
+        });
+        expect([first.status, first.body]).toEqual([
+          200,
+          { id: goal.id, archived: true, outcome: "manual" },
+        ]);
+        const stored = await getTestPrisma().goal.findUniqueOrThrow({
+          where: { id: goal.id },
+        });
+        const again = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: true },
+        });
+        expect([again.status, again.body]).toEqual([200, first.body]);
+        expect(
+          await getTestPrisma().goal.findUniqueOrThrow({
+            where: { id: goal.id },
+          }),
+        ).toEqual(stored);
+        // There is no unarchive.
+        const reopen = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: false },
+        });
+        expect([reopen.status, reopen.body.error.code]).toEqual([
+          400,
+          "validation_error",
+        ]);
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/goals/[goalId]/acknowledged": () => {
+    accountEndpointMatrix(
+      "PUT /goals/{id}/acknowledged",
+      goalAcknowledgedRoute as Handler,
+      {
+        method: "PUT",
+        params: { goalId: randomUUID() },
+        json: { acknowledged: true },
+      },
+      404,
+    );
+    describe("PUT /goals/{id}/acknowledged: isolation and retry", () => {
+      it("B can't dismiss A's card; A dismisses it once", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const goal = await reachedGoal(a);
+        const rb = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { acknowledged: true },
+        });
+        expect([rb.status, rb.body.error.code]).toEqual([404, "not_found"]);
+        expect(
+          (
+            await getTestPrisma().goal.findUniqueOrThrow({
+              where: { id: goal.id },
+            })
+          ).completionAcknowledgedAt,
+        ).toBeNull();
+        const first = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { acknowledged: true },
+        });
+        expect([first.status, first.body]).toEqual([
+          200,
+          { id: goal.id, acknowledged: true },
+        ]);
+        const at = (
+          await getTestPrisma().goal.findUniqueOrThrow({
+            where: { id: goal.id },
+          })
+        ).completionAcknowledgedAt;
+        expect(at).not.toBeNull();
+        const again = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { acknowledged: true },
+        });
+        expect(again.status).toBe(200);
+        expect(
+          (
+            await getTestPrisma().goal.findUniqueOrThrow({
+              where: { id: goal.id },
+            })
+          ).completionAcknowledgedAt,
+        ).toEqual(at);
+        // An active goal has no card.
+        const active = await goalOf(a);
+        const refused = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: active.id },
+          json: { acknowledged: true },
+        });
+        expect([refused.status, refused.body.error.code]).toEqual([
+          400,
+          "invalid_state_transition",
+        ]);
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -2018,6 +2272,7 @@ const CASES: Record<string, () => void> = {
   },
   ...WORKOUT_CASES,
   ...LOGGING_CASES,
+  ...GOAL_CASES,
 };
 
 // The unknown-path 404, one case per method.
