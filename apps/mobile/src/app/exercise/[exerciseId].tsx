@@ -8,5 +8,11 @@ import { ExerciseScreen } from "../../library/ExerciseScreen";
  */
 export default function WorkoutExerciseRoute() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
-  return <ExerciseScreen exerciseId={String(exerciseId)} context="workout" />;
+  return (
+    <ExerciseScreen
+      exerciseId={String(exerciseId)}
+      context="workout"
+      stack="root"
+    />
+  );
 }

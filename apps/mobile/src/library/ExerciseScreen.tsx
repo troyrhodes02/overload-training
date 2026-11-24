@@ -1,8 +1,7 @@
-import { Linking, RefreshControl, ScrollView, View } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { Stack, router } from "expo-router";
 import { useExercise } from "../api/resources";
 import { ApiError } from "../api/errors";
-import { webOrigin } from "../config/env";
 import { ExerciseImage } from "../ui/ExerciseImage";
 import { GroupedList, ListRow } from "../ui/GroupedList";
 import { LoadErrorState } from "../ui/LoadErrorState";
@@ -12,6 +11,10 @@ import { Chip } from "../ui/Surface";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
 import { ExerciseDetailActions } from "./ExerciseDetailActions";
+import {
+  exerciseHistoryHref,
+  type HistoryStack,
+} from "../exercise-history/history-model";
 import { classificationLine } from "./library-model";
 
 /**
@@ -25,15 +28,24 @@ export type ExerciseContext = "browse" | "workout";
  * X1 Exercise (Pitch 21h design §6, §15): what the exercise is — image (when
  * the library has one), name, primary muscle and equipment, secondary muscles,
  * and whether it is the lifter's own. Archived exercises still resolve
- * (history and plans name them). History and records stay on the web (21i).
+ * (history and plans name them). "History and records" opens the native
+ * exercise history in the same stack (Pitch 21i RD-12).
  */
 export function ExerciseScreen({
   exerciseId,
   context,
+  stack,
 }: {
   exerciseId: string;
   context: ExerciseContext;
+  /**
+   * The stack this screen is in, so its history opens there too (over a
+   * workout: the root stack; otherwise More's library by default).
+   */
+  stack?: HistoryStack;
 }) {
+  const historyStack: HistoryStack =
+    stack ?? (context === "workout" ? "root" : "more");
   const { colors, radius, spacing } = useTheme();
   const query = useExercise(exerciseId);
   const e = query.data;
@@ -68,7 +80,6 @@ export function ExerciseScreen({
       e.secondaryMuscleLabels.length > 0
         ? e.secondaryMuscleLabels.join(", ")
         : "None";
-    const origin = webOrigin();
     return (
       <View style={{ gap: spacing.lg }}>
         {e.imageUrl ? (
@@ -120,21 +131,14 @@ export function ExerciseScreen({
           />
         </GroupedList>
         <ExerciseDetailActions exercise={e} context={context} />
-        {origin ? (
-          <GroupedList>
-            <ListRow
-              title="History and records"
-              value="On the web"
-              accessory="external"
-              accessibilityHint="Opens this exercise's history on the web"
-              onPress={() =>
-                void Linking.openURL(
-                  `${origin}/exercises/${encodeURIComponent(e.id)}`,
-                )
-              }
-            />
-          </GroupedList>
-        ) : null}
+        <GroupedList>
+          <ListRow
+            title="History and records"
+            accessory="chevron"
+            accessibilityHint="Opens this exercise's sessions, records, and trend"
+            onPress={() => router.push(exerciseHistoryHref(historyStack, e.id))}
+          />
+        </GroupedList>
       </View>
     );
   })();

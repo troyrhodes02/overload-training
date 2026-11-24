@@ -130,6 +130,43 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/exercises/[exerciseId]",
     auth: "account",
   },
+  // Pitch 21i: goals and exercise history
+  { method: "GET", route: "api/mobile/v1/goals", auth: "account" },
+  { method: "POST", route: "api/mobile/v1/goals", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/exercises/[exerciseId]/goal-form",
+    auth: "account",
+  },
+  {
+    method: "GET",
+    route: "api/mobile/v1/exercises/[exerciseId]/history",
+    auth: "account",
+  },
+  { method: "GET", route: "api/mobile/v1/goals/history", auth: "account" },
+  { method: "GET", route: "api/mobile/v1/goals/[goalId]", auth: "account" },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/goals/[goalId]/archived",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/goals/[goalId]/acknowledged",
+    auth: "account",
+  },
+  // OVE-241: native weekly scheduling parity
+  { method: "GET", route: "api/mobile/v1/this-week", auth: "account" },
+  {
+    method: "POST",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/schedule/skip",
+    auth: "account",
+  },
+  {
+    method: "POST",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/schedule/move",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,

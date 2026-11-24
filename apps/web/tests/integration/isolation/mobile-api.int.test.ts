@@ -134,6 +134,23 @@ import type { MeDto } from "@overload/shared/contracts/account";
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import { createTestAccount } from "../support/accounts";
 import { getTestPrisma } from "../support/db";
+import {
+  GET as goalsRoute,
+  POST as createGoalRoute,
+} from "@/app/api/mobile/v1/goals/route";
+import { GET as thisWeekRoute } from "@/app/api/mobile/v1/this-week/route";
+import { POST as scheduleSkipRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/schedule/skip/route";
+import { POST as scheduleMoveRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/schedule/move/route";
+import { GET as exerciseHistoryRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/history/route";
+import { GET as goalFormRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/goal-form/route";
+import { GET as goalHistoryRoute } from "@/app/api/mobile/v1/goals/history/route";
+import { GET as goalRoute } from "@/app/api/mobile/v1/goals/[goalId]/route";
+import { PUT as goalArchivedRoute } from "@/app/api/mobile/v1/goals/[goalId]/archived/route";
+import { PUT as goalAcknowledgedRoute } from "@/app/api/mobile/v1/goals/[goalId]/acknowledged/route";
+import type {
+  GoalHistoryListDto,
+  GoalsOverviewDto,
+} from "@overload/shared/contracts/goals";
 import { endpointKey, MOBILE_ENDPOINTS } from "../../support/mobile-endpoints";
 import { activePlan, library, today as todayIso, type Lib } from "./fixtures";
 import { snapshotAccount } from "./support";
@@ -1296,6 +1313,526 @@ const LOGGING_CASES: Record<string, () => void> = {
   },
 };
 
+/** Pitch 21i (spec §12): goals. A's goal is on Incline Bench Press. */
+async function goalOf(account: Account) {
+  return getTestPrisma().goal.findFirstOrThrow({
+    where: { userId: account.userId },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/** A goal A's own history (bench 135 × 5, twice) already meets: a reached card. */
+async function reachedGoal(a: Account) {
+  await createGoal(a, {
+    exerciseId: lib.bench.id,
+    gymId: null,
+    targetWeightLbs: "135",
+    targetReps: "5",
+  });
+  return getTestPrisma().goal.findFirstOrThrow({
+    where: { userId: a.userId, exerciseId: lib.bench.id },
+  });
+}
+
+const GOAL_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/exercises/[exerciseId]/history": () => {
+    accountEndpointMatrix(
+      "GET /exercises/{id}/history",
+      exerciseHistoryRoute as Handler,
+      { params: { exerciseId: randomUUID() } },
+      404,
+    );
+    describe("GET /exercises/{id}/history: isolation and gating", () => {
+      it("B reads none of A's sessions, records, or goals, even on a shared library lift", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const custom = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: plan.custom.id },
+        });
+        const missing = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: randomUUID() },
+        });
+        expect([custom.status, custom.body]).toEqual([
+          missing.status,
+          missing.body,
+        ]);
+        // A trained bench twice and has a goal on Incline; B has neither.
+        for (const exerciseId of [
+          lib.bench.id,
+          lib.incline.id,
+          lib.chestPress.id,
+        ]) {
+          const r = await call(exerciseHistoryRoute as Handler, {
+            token: tokenFor(b.userId),
+            params: { exerciseId },
+            query: `scope=${plan.gym.id}`,
+          });
+          expect(r.status).toBe(200);
+          expect(r.body.history.hasHistory).toBe(false);
+          expect(r.body.history.sessions.rows).toEqual([]);
+          expect(r.body.history.records).toBeNull();
+          expect(r.body.goals.active).toBeNull();
+          expect(r.body.goals.past).toEqual([]);
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+        }
+        const own = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(own.body.history.sessions.rows).toHaveLength(2);
+      });
+
+      it("a Free account's answer carries no Pro value, and says what was withheld", async () => {
+        const { a } = await twoAccounts(lib);
+        await getTestPrisma().entitlement.deleteMany({
+          where: { userId: a.userId },
+        });
+        const r = await call(exerciseHistoryRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(r.body.history.sessions.rows).toHaveLength(2);
+        expect(r.body.history.trend.e1rm).toBeNull();
+        expect(r.body.history.records.bestE1rm).toBeNull();
+        expect(r.body.history.records.repRecords).toBeNull();
+        expect(r.body.history.locked).not.toBeNull();
+      });
+    });
+  },
+
+  "POST api/mobile/v1/goals": () => {
+    accountEndpointMatrix(
+      "POST /goals",
+      createGoalRoute as Handler,
+      {
+        json: { exerciseId: randomUUID(), targetWeightLbs: 100, targetReps: 5 },
+        headers: { "idempotency-key": "ovl-matrix-key" },
+      },
+      400,
+    );
+    describe("POST /goals: isolation and retry", () => {
+      it("B can't set a goal on A's custom exercise or at A's gym; A's goals are unchanged", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const onCustom = await call(createGoalRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: {
+            exerciseId: plan.custom.id,
+            targetWeightLbs: 100,
+            targetReps: 5,
+          },
+          headers: { "idempotency-key": `ovl-${randomUUID()}` },
+        });
+        expect([onCustom.status, onCustom.body.error.details]).toEqual([
+          400,
+          { exerciseId: "Pick an active exercise." },
+        ]);
+        const atGym = await call(createGoalRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: {
+            exerciseId: lib.chestPress.id,
+            gymId: plan.gym.id,
+            targetWeightLbs: 100,
+            targetReps: 5,
+          },
+          headers: { "idempotency-key": `ovl-${randomUUID()}` },
+        });
+        expect([atGym.status, atGym.body.error.details]).toEqual([
+          400,
+          { gymId: "Choose the gym this goal is measured at." },
+        ]);
+        for (const r of [onCustom, atGym])
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+        // B's own goal on the same library exercise A has a goal on is fine:
+        // one active goal per exercise is per account.
+        const own = await call(createGoalRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: {
+            exerciseId: lib.incline.id,
+            targetWeightLbs: 275,
+            targetReps: 3,
+          },
+          headers: { "idempotency-key": "ovl-shared-key" },
+        });
+        expect(own.status).toBe(201);
+        // The same key used by A is A's own key: it never replays B's answer.
+        const aSame = await call(createGoalRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: {
+            exerciseId: lib.bench.id,
+            targetWeightLbs: 300,
+            targetReps: 1,
+          },
+          headers: { "idempotency-key": "ovl-shared-key" },
+        });
+        expect(aSame.status).toBe(201);
+        expect(aSame.body.id).not.toBe(own.body.id);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/exercises/[exerciseId]/goal-form": () => {
+    accountEndpointMatrix(
+      "GET /exercises/{id}/goal-form",
+      goalFormRoute as Handler,
+      { params: { exerciseId: randomUUID() } },
+    );
+    describe("GET /exercises/{id}/goal-form: isolation", () => {
+      it("A's custom exercise and A's gyms never reach B's form", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const custom = await call(goalFormRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: plan.custom.id },
+        });
+        expect([custom.status, custom.body]).toEqual([
+          200,
+          { kind: "not_found" },
+        ]);
+        const machine = await call(goalFormRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: lib.chestPress.id },
+          query: `gymId=${plan.gym.id}`,
+        });
+        expect(machine.body).toMatchObject({
+          kind: "ok",
+          gyms: [{ name: "Bravo Garage Gym" }],
+          defaultGymId: expect.not.stringMatching(plan.gym.id),
+        });
+        // A's active goal on Incline doesn't make it a duplicate for B.
+        const incline = await call(goalFormRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: lib.incline.id },
+        });
+        expect(incline.body.kind).toBe("ok");
+        for (const r of [custom, machine, incline])
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/goals": () => {
+    accountEndpointMatrix("GET /goals", goalsRoute as Handler);
+    describe("GET /goals: isolation", () => {
+      it("B sees none of A's goals; A sees its own", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        await reachedGoal(a);
+        const rb = await call(goalsRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect([rb.status, rb.body]).toEqual([
+          200,
+          { reached: [], active: [], historyCount: 0 },
+        ]);
+        for (const marker of [...aMarkers(a, plan), lib.incline.id])
+          expect(rb.text).not.toContain(marker);
+        const ra = await call(goalsRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        const body = ra.body as GoalsOverviewDto;
+        expect(body.active.map((g) => g.exerciseId)).toEqual([lib.incline.id]);
+        expect(body.reached.map((g) => g.exerciseId)).toEqual([lib.bench.id]);
+        expect(body.historyCount).toBe(1);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/goals/history": () => {
+    accountEndpointMatrix("GET /goals/history", goalHistoryRoute as Handler);
+    describe("GET /goals/history: isolation", () => {
+      it("B's history never lists A's goals", async () => {
+        const { a, b } = await twoAccounts(lib);
+        await reachedGoal(a);
+        const rb = await call(goalHistoryRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect([rb.status, rb.body]).toEqual([200, { goals: [] }]);
+        const ra = await call(goalHistoryRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(
+          (ra.body as GoalHistoryListDto).goals.map((g) => g.outcome),
+        ).toEqual(["completed"]);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/goals/[goalId]": () => {
+    accountEndpointMatrix(
+      "GET /goals/{id}",
+      goalRoute as Handler,
+      { params: { goalId: randomUUID() } },
+      404,
+    );
+    describe("GET /goals/{id}: isolation", () => {
+      it("A's goal is a 404 for B, exactly like a missing one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const goal = await goalOf(a);
+        const missing = await call(goalRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { goalId: randomUUID() },
+        });
+        const r = await call(goalRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { goalId: goal.id },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        expect(r.status).toBe(404);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        const own = await call(goalRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { goalId: goal.id },
+        });
+        expect([own.status, own.body.kind, own.body.goalId]).toEqual([
+          200,
+          "active",
+          goal.id,
+        ]);
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/goals/[goalId]/archived": () => {
+    accountEndpointMatrix(
+      "PUT /goals/{id}/archived",
+      goalArchivedRoute as Handler,
+      {
+        method: "PUT",
+        params: { goalId: randomUUID() },
+        json: { archived: true },
+      },
+      404,
+    );
+    describe("PUT /goals/{id}/archived: isolation and retry", () => {
+      it("B can't archive A's goal; A archives once and a retry changes nothing", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const goal = await goalOf(a);
+        const before = await snapshotAccount(a.userId);
+        const rb = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: true },
+        });
+        expect([rb.status, rb.body.error.code]).toEqual([404, "not_found"]);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+
+        const first = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: true },
+        });
+        expect([first.status, first.body]).toEqual([
+          200,
+          { id: goal.id, archived: true, outcome: "manual" },
+        ]);
+        const stored = await getTestPrisma().goal.findUniqueOrThrow({
+          where: { id: goal.id },
+        });
+        const again = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: true },
+        });
+        expect([again.status, again.body]).toEqual([200, first.body]);
+        expect(
+          await getTestPrisma().goal.findUniqueOrThrow({
+            where: { id: goal.id },
+          }),
+        ).toEqual(stored);
+        // There is no unarchive.
+        const reopen = await call(goalArchivedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { archived: false },
+        });
+        expect([reopen.status, reopen.body.error.code]).toEqual([
+          400,
+          "validation_error",
+        ]);
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/goals/[goalId]/acknowledged": () => {
+    accountEndpointMatrix(
+      "PUT /goals/{id}/acknowledged",
+      goalAcknowledgedRoute as Handler,
+      {
+        method: "PUT",
+        params: { goalId: randomUUID() },
+        json: { acknowledged: true },
+      },
+      404,
+    );
+    describe("PUT /goals/{id}/acknowledged: isolation and retry", () => {
+      it("B can't dismiss A's card; A dismisses it once", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const goal = await reachedGoal(a);
+        const rb = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { acknowledged: true },
+        });
+        expect([rb.status, rb.body.error.code]).toEqual([404, "not_found"]);
+        expect(
+          (
+            await getTestPrisma().goal.findUniqueOrThrow({
+              where: { id: goal.id },
+            })
+          ).completionAcknowledgedAt,
+        ).toBeNull();
+        const first = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { acknowledged: true },
+        });
+        expect([first.status, first.body]).toEqual([
+          200,
+          { id: goal.id, acknowledged: true },
+        ]);
+        const at = (
+          await getTestPrisma().goal.findUniqueOrThrow({
+            where: { id: goal.id },
+          })
+        ).completionAcknowledgedAt;
+        expect(at).not.toBeNull();
+        const again = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: goal.id },
+          json: { acknowledged: true },
+        });
+        expect(again.status).toBe(200);
+        expect(
+          (
+            await getTestPrisma().goal.findUniqueOrThrow({
+              where: { id: goal.id },
+            })
+          ).completionAcknowledgedAt,
+        ).toEqual(at);
+        // An active goal has no card.
+        const active = await goalOf(a);
+        const refused = await call(goalAcknowledgedRoute as Handler, {
+          token: tokenFor(a.userId),
+          method: "PUT",
+          params: { goalId: active.id },
+          json: { acknowledged: true },
+        });
+        expect([refused.status, refused.body.error.code]).toEqual([
+          400,
+          "invalid_state_transition",
+        ]);
+      });
+    });
+  },
+};
+
+/** OVE-241: this week's schedule. A's block has "Alpha Push" today. */
+const SCHEDULE_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/this-week": () => {
+    accountEndpointMatrix("GET /this-week", thisWeekRoute as Handler);
+    describe("GET /this-week: isolation", () => {
+      it("B's week is its own (none); A's is A's", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const rb = await call(thisWeekRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect([rb.status, rb.body]).toEqual([200, { week: null }]);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        const ra = await call(thisWeekRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(ra.body.week.mesocycleId).toBe(plan.meso.id);
+        expect(ra.text).toContain("Alpha Push");
+      });
+    });
+  },
+
+  "POST api/mobile/v1/mesocycles/[mesocycleId]/schedule/skip": () => {
+    accountEndpointMatrix(
+      "POST /mesocycles/{id}/schedule/skip",
+      scheduleSkipRoute as Handler,
+      {
+        params: { mesocycleId: randomUUID() },
+        json: { sessionId: randomUUID(), scheduledFor: todayIso() },
+      },
+      404,
+    );
+    describe("POST /mesocycles/{id}/schedule/skip: isolation", () => {
+      it("B can't skip A's workout: a 404 like a missing block, nothing written", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const r = await call(scheduleSkipRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: plan.meso.id },
+          json: { sessionId: plan.session.id, scheduledFor: todayIso() },
+        });
+        const missing = await call(scheduleSkipRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: randomUUID() },
+          json: { sessionId: plan.session.id, scheduledFor: todayIso() },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        expect(r.status).toBe(404);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+      });
+    });
+  },
+
+  "POST api/mobile/v1/mesocycles/[mesocycleId]/schedule/move": () => {
+    accountEndpointMatrix(
+      "POST /mesocycles/{id}/schedule/move",
+      scheduleMoveRoute as Handler,
+      {
+        params: { mesocycleId: randomUUID() },
+        json: {
+          sessionId: randomUUID(),
+          scheduledFor: todayIso(),
+          from: todayIso(),
+          to: addDays(todayIso(), 1),
+          occupant: null,
+        },
+      },
+      404,
+    );
+    describe("POST /mesocycles/{id}/schedule/move: isolation", () => {
+      it("B can't move A's workout: a 404 like a missing block, nothing written", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const r = await call(scheduleMoveRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: plan.meso.id },
+          json: {
+            sessionId: plan.session.id,
+            scheduledFor: todayIso(),
+            from: todayIso(),
+            to: addDays(todayIso(), 1),
+            occupant: null,
+          },
+        });
+        expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -2018,6 +2555,8 @@ const CASES: Record<string, () => void> = {
   },
   ...WORKOUT_CASES,
   ...LOGGING_CASES,
+  ...GOAL_CASES,
+  ...SCHEDULE_CASES,
 };
 
 // The unknown-path 404, one case per method.

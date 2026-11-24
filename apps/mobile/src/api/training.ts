@@ -328,7 +328,30 @@ export function markTrainingStale(
     }),
     // The plan week's day states (Pitch 21h): re-read when Plan is next shown.
     client.invalidateQueries({ queryKey: ["plan"], ...stale }),
+    markDerivedStale(client),
   ]).then(() => undefined);
+}
+
+/**
+ * The reads built from logged sets beyond the workout itself (Pitch 21i
+ * RD-13; OVE-241): goals and their percents, the goal form, every exercise
+ * history, and this week's schedule. A training write marks them stale
+ * without refetching, so each re-reads when its screen is next shown and
+ * never shows a number from before the write. Keys are literal here (not
+ * imported from ./goals) to keep the modules free of an import cycle.
+ */
+export function markDerivedStale(client: QueryClient): Promise<void> {
+  const stale = { refetchType: "none" as const };
+  return Promise.all(
+    [
+      "goals",
+      "goals-history",
+      "goal",
+      "goal-form",
+      "exercise-history",
+      "this-week",
+    ].map((key) => client.invalidateQueries({ queryKey: [key], ...stale })),
+  ).then(() => undefined);
 }
 
 /** Refetch a screen's query when the screen comes back into view and is stale. */
@@ -360,6 +383,7 @@ export function invalidateTraining(
         })
       : Promise.resolve(),
     invalidateInsights(client, opts),
+    markDerivedStale(client),
   ]).then(() => undefined);
 }
 
@@ -405,6 +429,10 @@ export function useResolveMissedDay() {
       ),
     onSettled: () => {
       void invalidateTraining(client);
+      // The week strip sits on Today with the prompt (OVE-241 review 5a):
+      // re-read it now, or it keeps the old "answer the missed workout"
+      // block and the pre-shift days until the next visit.
+      void client.invalidateQueries({ queryKey: ["this-week"] });
     },
   });
 }

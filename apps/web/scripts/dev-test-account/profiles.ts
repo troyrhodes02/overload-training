@@ -285,6 +285,28 @@ export const PROFILES = {
     anchorOffsetDays: 0,
     resources: "isolation-resources-b",
   },
+
+  // ── Pitch 21i and OVE-241: goals, exercise history, and this week's
+  //    schedule. One primary account and one Free account (run prompt §28).
+  /**
+   * The gym story anchored today: Upper B today, Lower B tomorrow, a rest
+   * day, Upper A, Lower A, and two rest days (Swap, Train today after a
+   * swap, and Skip all available); machines at two gyms; 30+ finished
+   * workouts across two blocks; RIR on recent Bench; four goals (see the
+   * resource plan). Create it on the day of testing.
+   */
+  "21i-combined": {
+    variant: "gym",
+    anchorOffsetDays: 0,
+    resources: "21i-combined",
+  },
+  /** The standard story on Free, with one active goal: Free history and goals, Pro withheld. */
+  "21i-free": {
+    variant: "standard",
+    anchorOffsetDays: 0,
+    access: "free",
+    resources: "21i-free",
+  },
 } as const satisfies Record<string, Profile>;
 
 export type ProfileName = keyof typeof PROFILES;

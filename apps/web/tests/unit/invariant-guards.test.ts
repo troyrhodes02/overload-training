@@ -599,7 +599,12 @@ describe("goals measure, never program (Goals, Pitch 6)", () => {
       (f) =>
         rel(f) !== "src/lib/goals/goals.ts" && /\bcreateGoal\(/.test(read(f)),
     );
-    expect(callers.map(rel)).toEqual(["src/app/(app)/goals/actions.ts"]);
+    // The web form's action, and (Pitch 21i) the same create from the iPhone:
+    // `POST /goals`, which the lifter sends from the goal form.
+    expect(callers.map(rel).sort()).toEqual([
+      "src/app/(app)/goals/actions.ts",
+      "src/lib/api/mobile/goals.ts",
+    ]);
   });
 
   it("adds no gamification, notification, or scheduling dependency", () => {
