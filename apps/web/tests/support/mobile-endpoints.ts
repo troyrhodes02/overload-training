@@ -130,6 +130,20 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/exercises/[exerciseId]",
     auth: "account",
   },
+  // Pitch 21i: goals and exercise history
+  { method: "GET", route: "api/mobile/v1/goals", auth: "account" },
+  { method: "GET", route: "api/mobile/v1/goals/history", auth: "account" },
+  { method: "GET", route: "api/mobile/v1/goals/[goalId]", auth: "account" },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/goals/[goalId]/archived",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/goals/[goalId]/acknowledged",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,

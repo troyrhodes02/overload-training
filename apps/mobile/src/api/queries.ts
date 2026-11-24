@@ -18,6 +18,7 @@ import { useApi } from "./ApiProvider";
 import { ApiError } from "./errors";
 import { resetProNotes } from "../insights/pro-note-store";
 import { resetNotices } from "../ui/notice-store";
+import { resetCelebrated } from "../goals/goal-model";
 
 /**
  * The query layer (spec §6, RD-16). Temporary failures retry twice; nothing
@@ -75,6 +76,7 @@ export function clearAccountQueries(client: QueryClient): void {
   // Pro note one account dismissed must show for the next one.
   resetProNotes();
   resetNotices();
+  resetCelebrated();
   client.removeQueries({
     predicate: (query) => query.queryKey[0] !== QUERY_KEYS.appConfig[0],
   });

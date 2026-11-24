@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
  * (Pitch 21h design L1, G1): an inline banner, never a toast. In memory only,
  * one per list, and cleared on sign-out with the rest of the account's state.
  */
-export type NoticeScope = "exercises" | "gyms";
+export type NoticeScope = "exercises" | "gyms" | "goals" | "exercise-history";
 export type Notice = { message: string; viewHref?: string };
 
 let notices: Partial<Record<NoticeScope, Notice>> = {};
