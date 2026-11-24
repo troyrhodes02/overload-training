@@ -21,10 +21,16 @@ const LINES: Record<Capability, string> = {
 };
 
 export function proHighlights(
-  opts: { planImportEnabled?: boolean } = {},
+  opts: { planImportEnabled?: boolean; client?: "web" | "app" } = {},
 ): string[] {
   const importOn = opts.planImportEnabled ?? isPlanImportEnabled();
   return PLAN_CAPABILITIES.pro
     .filter((cap) => cap !== "plan_import" || importOn)
-    .map((cap) => LINES[cap]);
+    .map((cap) =>
+      // Plan import is web-only (CLAUDE.md, mobile app rules): the iPhone app
+      // says where it lives instead of implying it has it (Pitch 21j RD-15).
+      cap === "plan_import" && opts.client === "app"
+        ? `${LINES[cap]}, on the web`
+        : LINES[cap],
+    );
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
 import { todayIso } from "@overload/shared/plan/calendar";
+import { EXPORT_FORMAT_VERSION } from "@overload/shared/accounts/export-file";
 
 /**
  * DATA EXPORT (Public Accounts spec §9, R7; design doc Screen 8, D4).
@@ -38,8 +39,8 @@ import { todayIso } from "@overload/shared/plan/calendar";
  * images are not.
  */
 
-/** The version of the export document shape. Bump when the shape changes. */
-export const EXPORT_FORMAT_VERSION = 1 as const;
+/** The version of the export document shape. Bump it (in the shared module) when the shape changes. */
+export { EXPORT_FORMAT_VERSION };
 
 /**
  * The export document. Each field is the account's own rows for one owned
@@ -232,7 +233,6 @@ export async function buildAccountExport(
   };
 }
 
-/** The download filename for an export produced on `exportedOn` (YYYY-MM-DD). */
-export function exportFilename(exportedOn: string): string {
-  return `overload-export-${exportedOn}.json`;
-}
+// The file name and format version live in the shared package (Pitch 21j
+// RD-12), so the web download and the iPhone share sheet agree.
+export { exportFilename } from "@overload/shared/accounts/export-file";

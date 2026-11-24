@@ -27,6 +27,12 @@ export type AppConfigDto = {
    * secret. Added in 21d; an app built before it ignores the field.
    */
   botChallenge: BotChallengeDto | null;
+  /**
+   * The public support address the web's /support page shows, when this
+   * deployment configures one (Pitch 21j RD-20); null otherwise, and never a
+   * placeholder. Added in 21j; an app built before it ignores the field.
+   */
+  supportEmail: string | null;
 };
 
 export type BotChallengeDto = {
