@@ -258,7 +258,7 @@ describe("scoped row lock", () => {
     });
     expect(
       await a.db.$transaction((tx) => lockMesocycleForUpdate(a, tx, meso.id)),
-    ).toEqual({ id: meso.id, status: "draft" });
+    ).toEqual({ id: meso.id, status: "draft", lockedAt: expect.any(Date) });
     expect(
       await b.db.$transaction((tx) => lockMesocycleForUpdate(b, tx, meso.id)),
     ).toBeNull();

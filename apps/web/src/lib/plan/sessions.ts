@@ -274,6 +274,9 @@ export async function removeSession(
     () =>
       inTx(account, tx, async (t) => {
         const s = await requireEditableSession(account, input.sessionId, t);
+        // Its one-week moves (OVE-240) are planning facts about this session
+        // only; they go with it. Logged history still blocks the delete below.
+        await t.scheduleMove.deleteMany({ where: { sessionId: s.id } });
         await t.session.delete({ where: { id: s.id } });
         return { id: s.id, mesocycleId: s.mesocycleId };
       }),

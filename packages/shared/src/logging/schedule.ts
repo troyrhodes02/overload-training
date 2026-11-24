@@ -36,6 +36,22 @@ export type ScheduleSession = {
 export type ScheduleResolution = {
   missedOn: string;
   outcome: MissedDayOutcomeValue;
+  /**
+   * When it was recorded (ISO timestamp). Orders it among a week's moves;
+   * unused in a week without moves.
+   */
+  at?: string;
+};
+/**
+ * A one-week move of one occurrence (OVE-240, "Train today" / "Swap days"):
+ * the occurrence authored for `authoredIso` lands on `movedTo` this week.
+ */
+export type ScheduleMove = {
+  sessionId: string;
+  authoredIso: string;
+  movedTo: string;
+  /** When it was last set (ISO timestamp). */
+  at: string;
 };
 export type ScheduleLoggedSession = {
   sessionId: string;
@@ -50,6 +66,8 @@ export type ScheduleContext = {
   sessions: ScheduleSession[];
   resolutions: ScheduleResolution[];
   loggedSessions: ScheduleLoggedSession[];
+  /** One-week moves (OVE-240). Omitted or empty: no week has a move. */
+  moves?: ScheduleMove[];
 };
 
 export type EffectiveOccurrence = {
@@ -64,6 +82,8 @@ export type EffectiveOccurrence = {
   resolution: "logged_late" | "shifted" | "skipped" | null;
   loggedStatus: "in_progress" | "complete" | null;
   dropped: boolean;
+  /** Placed by a one-week move (OVE-240); its effective date is that move's. */
+  moved?: boolean;
 };
 
 function cmp(a: string, b: string): number {
@@ -117,7 +137,39 @@ export function effectiveWeekSchedule(
       };
     });
 
-  const weekResolutions = ctx.resolutions
+  const weekMoves = (ctx.moves ?? []).filter(
+    (m) =>
+      cmp(m.authoredIso, weekStart) >= 0 && cmp(m.authoredIso, weekEnd) <= 0,
+  );
+  if (weekMoves.length === 0) {
+    applyResolutionsByDate(occ, ctx.resolutions, weekStart, weekEnd);
+  } else {
+    applyEventsInOrder(occ, ctx.resolutions, weekMoves, weekStart, weekEnd);
+  }
+
+  // Attach logged status by stable authored identity (not the shifted date).
+  for (const o of occ) {
+    const ls = ctx.loggedSessions.find(
+      (l) => l.sessionId === o.sessionId && l.scheduledFor === o.authoredIso,
+    );
+    o.loggedStatus = ls ? ls.status : null;
+  }
+
+  return occ.sort((a, b) => cmp(a.authoredIso, b.authoredIso));
+}
+
+/**
+ * A week WITHOUT moves: the original rule, unchanged. Resolutions apply in
+ * date order; a shift moves its occurrence and every later same-week one
+ * (by authored date) forward a day, dropping any pushed past the week.
+ */
+function applyResolutionsByDate(
+  occ: EffectiveOccurrence[],
+  resolutions: readonly ScheduleResolution[],
+  weekStart: string,
+  weekEnd: string,
+): void {
+  const weekResolutions = resolutions
     .filter(
       (r) => cmp(r.missedOn, weekStart) >= 0 && cmp(r.missedOn, weekEnd) <= 0,
     )
@@ -147,16 +199,80 @@ export function effectiveWeekSchedule(
       }
     }
   }
+}
 
-  // Attach logged status by stable authored identity (not the shifted date).
-  for (const o of occ) {
-    const ls = ctx.loggedSessions.find(
-      (l) => l.sessionId === o.sessionId && l.scheduledFor === o.authoredIso,
-    );
-    o.loggedStatus = ls ? ls.status : null;
+/**
+ * A week WITH moves (OVE-240): its resolutions and moves apply in the order
+ * they happened, so each change builds on the schedule the lifter saw when
+ * making it. A move puts its occurrence on an absolute date. A shift moves
+ * its occurrence and every occurrence on or after its CURRENT date (not
+ * skipped or dropped) forward a day, dropping any pushed past the week. In a
+ * week without moves this is the same result as applyResolutionsByDate,
+ * whose order of effective dates always matches the authored order.
+ */
+function applyEventsInOrder(
+  occ: EffectiveOccurrence[],
+  resolutions: readonly ScheduleResolution[],
+  moves: readonly ScheduleMove[],
+  weekStart: string,
+  weekEnd: string,
+): void {
+  type Event =
+    | { at: string; kind: "resolution"; r: ScheduleResolution }
+    | { at: string; kind: "move"; m: ScheduleMove };
+  const events: Event[] = [
+    ...resolutions
+      .filter(
+        (r) => cmp(r.missedOn, weekStart) >= 0 && cmp(r.missedOn, weekEnd) <= 0,
+      )
+      .map((r) => ({ at: r.at ?? "", kind: "resolution" as const, r })),
+    ...moves.map((m) => ({ at: m.at, kind: "move" as const, m })),
+  ];
+  // Stable: equal timestamps keep resolutions (by date) before moves.
+  events.sort((a, b) => cmp(a.at, b.at));
+
+  for (const e of events) {
+    if (e.kind === "move") {
+      const target = occ.find(
+        (o) =>
+          o.sessionId === e.m.sessionId && o.authoredIso === e.m.authoredIso,
+      );
+      if (!target) continue;
+      if (cmp(e.m.movedTo, weekStart) < 0 || cmp(e.m.movedTo, weekEnd) > 0)
+        continue;
+      // Absolute, and the latest move wins: a move is only ever written for
+      // a live occurrence, so one an older shift had pushed out of the week
+      // (before this move replaced the earlier one) comes back on its day.
+      target.effectiveIso = e.m.movedTo;
+      target.dropped = false;
+      target.moved = true;
+      continue;
+    }
+    const r = e.r;
+    const target = occ.find((o) => o.authoredIso === r.missedOn);
+    if (!target) continue;
+    if (r.outcome === "skipped") {
+      target.resolution = "skipped";
+    } else if (r.outcome === "logged_late") {
+      target.resolution = "logged_late";
+    } else {
+      target.resolution = "shifted";
+      const pivot = target.effectiveIso;
+      if (pivot === null) continue;
+      for (const o of occ) {
+        if (o.resolution === "skipped") continue;
+        if (o.dropped || o.effectiveIso === null) continue;
+        if (cmp(o.effectiveIso, pivot) < 0) continue;
+        const next = addDays(o.effectiveIso, 1);
+        if (cmp(next, weekEnd) > 0) {
+          o.dropped = true;
+          o.effectiveIso = null;
+        } else {
+          o.effectiveIso = next;
+        }
+      }
+    }
   }
-
-  return occ.sort((a, b) => cmp(a.authoredIso, b.authoredIso));
 }
 
 /**

@@ -14,6 +14,8 @@ import type { AccountTx } from "./account-db";
 export type LockedMesocycle = {
   id: string;
   status: MesocycleStatusValue;
+  /** The database's transaction time (one clock for every dated write). */
+  lockedAt: Date;
 };
 
 /**
@@ -29,9 +31,43 @@ export async function lockMesocycleForUpdate(
 ): Promise<LockedMesocycle | null> {
   if (!isUuid(mesocycleId)) return null;
   const rows = await tx.$queryRaw<LockedMesocycle[]>`
-    SELECT "id", "status"::text AS "status" FROM "mesocycles"
+    SELECT "id", "status"::text AS "status", now() AS "lockedAt" FROM "mesocycles"
     WHERE "id" = ${mesocycleId}::uuid AND "user_id" = ${account.userId}::uuid
     FOR UPDATE`;
+  return rows[0] ?? null;
+}
+
+/**
+ * Start-of-workout lock (OVE-240): lockMesocycleForUpdate, plus, in the SAME
+ * statement, whether this occurrence was moved this week and how it was
+ * resolved. A workout start and a skip or move of the same occurrence then
+ * run one after the other, and the common start pays one statement (the
+ * OVE-212 seed budget). Every row is filtered by the acting account.
+ */
+export async function lockMesocycleForStart(
+  account: Account,
+  tx: AccountTx,
+  input: { mesocycleId: string; sessionId: string; authoredOn: Date },
+): Promise<{
+  movedTo: Date | null;
+  resolution: string | null;
+} | null> {
+  if (!isUuid(input.mesocycleId) || !isUuid(input.sessionId)) return null;
+  const rows = await tx.$queryRaw<
+    { movedTo: Date | null; resolution: string | null }[]
+  >`
+    SELECT
+      (SELECT sm."moved_to" FROM "schedule_moves" sm
+        WHERE sm."session_id" = ${input.sessionId}::uuid
+          AND sm."authored_on" = ${input.authoredOn}::date
+          AND sm."user_id" = ${account.userId}::uuid) AS "movedTo",
+      (SELECT r."outcome"::text FROM "missed_day_resolutions" r
+        WHERE r."mesocycle_id" = m."id"
+          AND r."missed_on" = ${input.authoredOn}::date
+          AND r."user_id" = ${account.userId}::uuid) AS "resolution"
+    FROM "mesocycles" m
+    WHERE m."id" = ${input.mesocycleId}::uuid AND m."user_id" = ${account.userId}::uuid
+    FOR UPDATE OF m`;
   return rows[0] ?? null;
 }
 

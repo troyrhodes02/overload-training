@@ -35,6 +35,20 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // This week's schedule on Today (OVE-240, overload-onboarding). Not
+    // significant: an optional tool on Today, not a change to any call or
+    // number. No tour step: the strip sits on Today in plain view and the
+    // Today steps still read correctly. PROVISIONAL date: written 2026-11-24.
+    // It reaches Production only after the owner applies migration 9s; if
+    // that is a later day, change the id and date to that day BEFORE release.
+    id: "2026-11-24-change-this-weeks-schedule",
+    date: "2026-11-24",
+    title: "Change this week's schedule from Today",
+    body: "Today now shows your week. Skip a workout ahead of time, train a later workout today, or swap two days, including with a rest day. Only this week changes; your plan and next week stay as they are.",
+    significant: false,
+    audience: "internal",
+  },
+  {
     // Prescription-Aware Intelligence (OVE-192–196, overload-onboarding).
     // Significant: it changes the weight the card offers and the progress
     // calls lifters act on (the skill's correctness rule). No tour step: the
