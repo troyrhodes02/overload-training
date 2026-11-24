@@ -168,6 +168,7 @@ import { POST as releaseNotesSeenRoute } from "@/app/api/mobile/v1/me/release-no
 import { GET as meExportRoute } from "@/app/api/mobile/v1/me/export/route";
 import { GET as deletionInventoryRoute } from "@/app/api/mobile/v1/me/deletion-inventory/route";
 import { POST as deleteAccountRoute } from "@/app/api/mobile/v1/me/delete/route";
+import { POST as feedbackRoute } from "@/app/api/mobile/v1/feedback/route";
 import { orderedReleaseNotes } from "@overload/shared/release-notes/catalog";
 import { activePlan, library, today as todayIso, type Lib } from "./fixtures";
 import { snapshotAccount } from "./support";
@@ -210,6 +211,8 @@ type CallInit = {
   query?: string;
   /** Extra request headers, e.g. an Idempotency-Key (Pitch 21h). */
   headers?: Record<string, string>;
+  /** A multipart body (Pitch 21j feedback). */
+  form?: FormData;
 };
 
 async function call(
@@ -228,9 +231,9 @@ async function call(
     new Request(
       `http://localhost/api/mobile/v1/x${opts.query ? `?${opts.query}` : ""}`,
       {
-        method: opts.method ?? (hasBody ? "POST" : "GET"),
+        method: opts.method ?? (hasBody || opts.form ? "POST" : "GET"),
         headers,
-        body: hasBody ? JSON.stringify(opts.json) : undefined,
+        body: hasBody ? JSON.stringify(opts.json) : opts.form,
       },
     ),
     { params: Promise.resolve(opts.params ?? {}) } as {
@@ -2067,6 +2070,57 @@ const ACCOUNT_DELETION_CASES: Record<string, () => void> = {
           token: tokenFor(b.userId),
         });
         expect(after.status).toBe(401);
+      });
+    });
+  },
+  "POST api/mobile/v1/feedback": () => {
+    const feedbackForm = (message: string) => {
+      const fd = new FormData();
+      fd.set("category", "bug");
+      fd.set("message", message);
+      return fd;
+    };
+    accountEndpointMatrix(
+      "POST /feedback",
+      feedbackRoute as Handler,
+      {
+        form: feedbackForm("Matrix message"),
+        headers: { "idempotency-key": "matrix-feedback-0001" },
+      },
+      201,
+    );
+    describe("POST /feedback: isolation", () => {
+      it("B's message is stamped B; A's key in B's hands is just B's key", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const key = "shared-feedback-key-01";
+        const ra = await call(feedbackRoute as Handler, {
+          token: tokenFor(a.userId),
+          form: feedbackForm("From A"),
+          headers: { "idempotency-key": key },
+        });
+        expect(ra.status).toBe(201);
+        const aBefore = await snapshotAccount(a.userId);
+        const rb = await call(feedbackRoute as Handler, {
+          token: tokenFor(b.userId),
+          form: feedbackForm("From B"),
+          headers: { "idempotency-key": key },
+        });
+        // Not A's replay: a fresh create for B (keys are per account).
+        expect([rb.status, rb.headers.get("idempotent-replayed")]).toEqual([
+          201,
+          null,
+        ]);
+        expect(rb.text).not.toContain("From A");
+        expect(await snapshotAccount(a.userId)).toEqual(aBefore);
+        const rows = await getTestPrisma().feedback.findMany({
+          where: { message: { in: ["From A", "From B"] } },
+          select: { userId: true, message: true },
+          orderBy: { message: "asc" },
+        });
+        expect(rows).toEqual([
+          { userId: a.userId, message: "From A" },
+          { userId: b.userId, message: "From B" },
+        ]);
       });
     });
   },

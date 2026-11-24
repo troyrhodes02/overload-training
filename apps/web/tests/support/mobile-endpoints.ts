@@ -184,6 +184,7 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     auth: "account",
   },
   { method: "POST", route: "api/mobile/v1/me/delete", auth: "account" },
+  { method: "POST", route: "api/mobile/v1/feedback", auth: "account" },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,
