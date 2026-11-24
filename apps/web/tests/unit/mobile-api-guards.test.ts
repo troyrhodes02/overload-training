@@ -91,7 +91,7 @@ describe("goal reconciliation after a write (Pitch 21c RD-4)", () => {
     ).toEqual([]);
   });
 
-  it("only the goal module, the workflows, the Today view, and the goal pages reconcile", () => {
+  it("only the goal module, the workflows, the Today and goal views, and the goal pages reconcile", () => {
     const callers = walk(SRC)
       .filter((f) => /\breconcileGoalCompletionsSafely\(/.test(code(f)))
       .map(rel)
@@ -106,6 +106,8 @@ describe("goal reconciliation after a write (Pitch 21c RD-4)", () => {
         "src/lib/goals/goals.ts",
         "src/lib/logging/workflows.ts",
         "src/lib/views/today.ts",
+        // Pitch 21i: the goal reads the iPhone app gets, as the goal pages.
+        "src/lib/views/goals.ts",
       ].sort(),
     );
   });

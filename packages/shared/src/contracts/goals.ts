@@ -100,3 +100,38 @@ export type ExerciseGoalsDto = {
   /** Reps-only lifts can't have a weight × reps goal. */
   bodyweight: boolean;
 };
+
+/**
+ * Pitch 21i (spec §6): the mobile API's goal answers. Built from the web's own
+ * goal reads, after the web's completion check (`src/lib/views/goals.ts`).
+ */
+
+/** `GET /goals`: the Goals tab. */
+export type GoalsOverviewDto = {
+  /** Unacknowledged "Goal reached" cards, most recently reached first. */
+  reached: GoalReachedDto[];
+  /** Active goals, oldest first (the order the lifter set them in). */
+  active: ActiveGoalDto[];
+  /** Reached and archived goals in the goal history. */
+  historyCount: number;
+};
+
+/** `GET /goals/history`: reached and archived goals, most recent first. */
+export type GoalHistoryListDto = { goals: GoalHistoryDto[] };
+
+/** `POST /goals`: the new goal, and whether history already met it. */
+export type CreateGoalResponseDto = {
+  id: string;
+  outcome: "active" | "completed";
+};
+
+/** `PUT /goals/{goalId}/archived`: the goal is in the history. */
+export type ArchiveGoalResponseDto = {
+  id: string;
+  archived: true;
+  /** Why it is in the history: archived now ("manual"), or reached earlier. */
+  outcome: "completed" | "manual";
+};
+
+/** `PUT /goals/{goalId}/acknowledged`: the one-time card is dismissed. */
+export type AcknowledgeGoalResponseDto = { id: string; acknowledged: true };
