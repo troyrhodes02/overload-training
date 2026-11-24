@@ -6,6 +6,7 @@ import { GymPicker } from "@/components/logging/gym-picker";
 import { Button } from "@/components/ui/button";
 import { accountToday, requireAccount } from "@/lib/data/account";
 import { startWhileUnfinished } from "@overload/shared/logging/unfinished";
+import { movedDayOf } from "@/lib/logging/this-week";
 
 export const metadata = { title: "Start workout · Overload" };
 
@@ -30,8 +31,11 @@ export default async function StartWorkoutPage({
     const unfinished = await listUnfinishedWorkouts(account);
     const latest = unfinished[0];
     if (latest) {
+      // A workout moved this week (OVE-240) starts on its new day: name
+      // that day ("today's workout" after Train today), not its planned one.
+      const movedDay = await movedDayOf(account, sessionId, scheduledFor);
       const copy = startWhileUnfinished(latest, {
-        scheduledFor,
+        scheduledFor: movedDay ?? scheduledFor,
         today: accountToday(account),
       });
       const onward = `/log/start?${new URLSearchParams({

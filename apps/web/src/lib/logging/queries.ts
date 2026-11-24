@@ -73,7 +73,7 @@ function scheme(sets: number, min: number, max: number): string {
 }
 
 /** The active mesocycle and its effective-schedule context, or null if none. */
-async function activeContext(account: Account): Promise<{
+export async function activeContext(account: Account): Promise<{
   mesocycleId: string;
   lengthWeeks: number;
   deloadEveryWeeks: number;
@@ -178,17 +178,46 @@ export async function listUnfinishedWorkouts(
   } = {},
 ): Promise<UnfinishedWorkoutDto[]> {
   const excluded = (opts.excludeIds ?? []).filter(Boolean);
+  const todayDate = new Date(`${today}T00:00:00.000Z`);
+  // Workouts moved across today this week (OVE-240): for these, the day
+  // that counts is the day trained (performedOn), not the planned day.
+  const crossing = await account.db.scheduleMove.findMany({
+    where: {
+      OR: [
+        { movedTo: { lt: todayDate }, authoredOn: { gte: todayDate } },
+        { authoredOn: { lt: todayDate }, movedTo: { gte: todayDate } },
+      ],
+    },
+    select: { sessionId: true, authoredOn: true, movedTo: true },
+  });
+  const movedEarlier = crossing.filter((m) => m.movedTo < todayDate);
+  const movedKey = (sessionId: string | null, d: Date) =>
+    `${sessionId}|${toIsoDate(d)}`;
+  const moved = new Set(
+    crossing.map((m) => movedKey(m.sessionId, m.authoredOn)),
+  );
   const sessions = await account.db.loggedSession.findMany({
     where: {
       status: "in_progress",
-      scheduledFor: { lt: new Date(`${today}T00:00:00.000Z`) },
+      // Started on an earlier day: its planned day is past, or it was moved
+      // to an earlier day this week ("Train today" / "Swap days", OVE-240)
+      // and keeps its later planned date as its identity.
+      OR: [
+        { scheduledFor: { lt: todayDate } },
+        ...movedEarlier.map((m) => ({
+          sessionId: m.sessionId,
+          scheduledFor: m.authoredOn,
+        })),
+      ],
       loggedExercises: { some: { sets: { some: {} } } },
       ...(excluded.length > 0 ? { id: { notIn: excluded } } : {}),
     },
     orderBy: [{ scheduledFor: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
+      sessionId: true,
       scheduledFor: true,
+      performedOn: true,
       session: { select: { name: true } },
       loggedExercises: {
         // Position order: the same exercise (and gym) the dashboard shows first.
@@ -201,16 +230,25 @@ export async function listUnfinishedWorkouts(
       },
     },
   });
-  return sessions.map((ls) => ({
-    loggedSessionId: ls.id,
-    sessionName: ls.session?.name ?? "Workout",
-    scheduledFor: toIsoDate(ls.scheduledFor),
-    gymName: ls.loggedExercises.find((le) => le.gym)?.gym?.name ?? null,
-    setsLogged: ls.loggedExercises.reduce(
-      (n, le) => n + workingSetCount(le.sets, le.plannedSets),
-      0,
-    ),
-  }));
+  return sessions
+    .map((ls) => ({
+      ls,
+      // A moved workout's day is the day it was trained (OVE-240).
+      day: moved.has(movedKey(ls.sessionId, ls.scheduledFor))
+        ? toIsoDate(ls.performedOn)
+        : toIsoDate(ls.scheduledFor),
+    }))
+    .filter(({ day }) => day < today)
+    .map(({ ls, day }) => ({
+      loggedSessionId: ls.id,
+      sessionName: ls.session?.name ?? "Workout",
+      scheduledFor: day,
+      gymName: ls.loggedExercises.find((le) => le.gym)?.gym?.name ?? null,
+      setsLogged: ls.loggedExercises.reduce(
+        (n, le) => n + workingSetCount(le.sets, le.plannedSets),
+        0,
+      ),
+    }));
 }
 
 /** Saved planned (working) sets: setNumber 1..plannedSets. One rule for Today's previews. */
@@ -643,7 +681,13 @@ export async function getWeekScheduleWithSessions(
   const weekStart = addDays(active.startDate, (week - 1) * 7);
   const weekEnd = addDays(weekStart, 6);
 
-  const days: WeekDayWithSessionDto[] = occ.map((o) => {
+  // In date order: a moved occurrence (OVE-240) sits on its new day.
+  const byDay = [...occ].sort((a, b) => {
+    const da = a.effectiveIso ?? a.authoredIso;
+    const db = b.effectiveIso ?? b.authoredIso;
+    return da < db ? -1 : da > db ? 1 : a.authoredIso < b.authoredIso ? -1 : 1;
+  });
+  const days: WeekDayWithSessionDto[] = byDay.map((o) => {
     const dateIso = o.effectiveIso ?? o.authoredIso;
     return {
       dateIso,
@@ -721,12 +765,26 @@ export async function getLoggedWorkoutDetail(
     },
   });
   if (!ls) return null;
+  // A workout moved within its week (OVE-240) is dated the day it was
+  // trained: its performedOn, which the start path writes for a moved one.
+  const move = ls.sessionId
+    ? await account.db.scheduleMove.findUnique({
+        where: {
+          sessionId_authoredOn: {
+            sessionId: ls.sessionId,
+            authoredOn: ls.scheduledFor,
+          },
+        },
+        select: { id: true },
+      })
+    : null;
+  const dateIso = toIsoDate(move ? ls.performedOn : ls.scheduledFor);
 
   return {
     loggedSessionId: ls.id,
     sessionName: ls.session?.name ?? "Workout",
-    dateIso: toIsoDate(ls.scheduledFor),
-    dateLabel: formatPlanDate(toIsoDate(ls.scheduledFor)),
+    dateIso,
+    dateLabel: formatPlanDate(dateIso),
     gymName: ls.loggedExercises[0]?.gym?.name ?? null,
     exercises: ls.loggedExercises.map((le) => ({
       loggedExerciseId: le.id,

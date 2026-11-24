@@ -12,6 +12,11 @@ import {
 import { type LogSetInput } from "@/lib/logging/logged-sets";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
 import {
+  rescheduleWorkout,
+  skipUpcomingWorkout,
+  type OccurrenceRef,
+} from "@/lib/logging/schedule-adjustments";
+import {
   completeWorkoutAndReconcile,
   logSetAndReconcile,
 } from "@/lib/logging/workflows";
@@ -121,6 +126,46 @@ export async function resolveMissedDayAction(input: {
     await resolveMissedDay(account, input);
     return { ok: true as const };
   }, "Couldn't resolve the missed day.");
+  if (result.ok) refresh();
+  return result;
+}
+
+/**
+ * Skip a workout before (or on) its day this week (OVE-240). Recorded as the
+ * existing skipped resolution; a retry changes nothing.
+ */
+export async function skipUpcomingWorkoutAction(input: {
+  mesocycleId: string;
+  sessionId: string;
+  scheduledFor: string;
+}): Promise<ActionResult<{ ok: true }>> {
+  const account = await requireAccount();
+  const result = await toActionResult(async () => {
+    await skipUpcomingWorkout(account, input);
+    return { ok: true as const };
+  }, "Couldn't skip the workout. Nothing was changed.");
+  if (result.ok) refresh();
+  return result;
+}
+
+/**
+ * Move a workout to another day of this week, or swap it with that day's
+ * workout ("Train today", "Swap days"; OVE-240). States what the lifter saw,
+ * so a retry changes nothing and a stale week is a conflict.
+ */
+export async function rescheduleWorkoutAction(input: {
+  mesocycleId: string;
+  sessionId: string;
+  scheduledFor: string;
+  from: string;
+  to: string;
+  occupant: OccurrenceRef | null;
+}): Promise<ActionResult<{ status: "moved" | "unchanged" }>> {
+  const account = await requireAccount();
+  const result = await toActionResult(
+    () => rescheduleWorkout(account, input),
+    "Couldn't change your week. Nothing was changed.",
+  );
   if (result.ok) refresh();
   return result;
 }
