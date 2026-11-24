@@ -1,5 +1,7 @@
 import { NativeTabs } from "expo-router/native-tabs";
+import { useEffect } from "react";
 import { WhatsNewSheet } from "../../account/WhatsNewSheet";
+import { clearExportFiles } from "../../account/export-file";
 import { fontFamily } from "../../ui/theme";
 import { useTheme } from "../../ui/ThemeProvider";
 
@@ -10,6 +12,8 @@ import { useTheme } from "../../ui/ThemeProvider";
  */
 export default function TabsLayout() {
   const { colors } = useTheme();
+  // Pitch 21j RD-13: an export interrupted last time never lingers.
+  useEffect(() => clearExportFiles(), []);
   return (
     <>
       {/* Pitch 21j A5: significant unseen updates, once per launch. */}
