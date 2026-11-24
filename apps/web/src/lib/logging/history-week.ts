@@ -154,12 +154,14 @@ async function loggedWeek(
     lte: new Date(`${weekEnd}T00:00:00.000Z`),
   };
   const block = { select: { id: true, name: true, status: true } } as const;
-  const [workouts, cardio] = await Promise.all([
+  const [workouts, cardio, moves] = await Promise.all([
     account.db.loggedSession.findMany({
       where: { scheduledFor: range },
       select: {
         id: true,
+        sessionId: true,
         scheduledFor: true,
+        performedOn: true,
         status: true,
         session: { select: { name: true } },
         mesocycle: block,
@@ -177,7 +179,27 @@ async function loggedWeek(
       },
       orderBy: { scheduledFor: "asc" },
     }),
+    // A workout moved within its week (OVE-240) shows on the day it was
+    // trained (its performedOn, written by the start path for a moved
+    // occurrence), as it did while its block was active.
+    account.db.scheduleMove.findMany({
+      where: { authoredOn: range },
+      select: { sessionId: true, authoredOn: true },
+    }),
   ]);
+  const moved = new Set(
+    moves.map((m) => `${m.sessionId}|${toIsoDate(m.authoredOn)}`),
+  );
+  const shownOn = (w: {
+    sessionId: string | null;
+    scheduledFor: Date;
+    performedOn: Date;
+  }) => {
+    const planned = toIsoDate(w.scheduledFor);
+    if (!w.sessionId || !moved.has(`${w.sessionId}|${planned}`)) return planned;
+    const trained = toIsoDate(w.performedOn);
+    return trained >= weekStart && trained <= weekEnd ? trained : planned;
+  };
 
   const ref = (
     m: { id: string; name: string; status: MesocycleStatusValue } | null,
@@ -204,7 +226,7 @@ async function loggedWeek(
   for (const w of workouts) {
     const b = ref(w.mesocycle);
     if (b.mesocycleId) blocks.set(b.mesocycleId, b);
-    day(toIsoDate(w.scheduledFor)).workouts.push({
+    day(shownOn(w)).workouts.push({
       ...b,
       loggedSessionId: w.id,
       sessionName: w.session?.name ?? "Workout",

@@ -6,7 +6,7 @@ import type { ScheduleContext } from "@overload/shared/logging/schedule";
 /**
  * Loads the inputs of the effective schedule (Guided Workout Logging, spec
  * §11) for one mesocycle: its scheduled sessions, its dated missed-day
- * resolutions, and its logged-session occurrences. The ONE place a
+ * resolutions, its one-week moves (OVE-240), and its logged-session occurrences. The ONE place a
  * ScheduleContext is assembled, so the dashboard, history, and Cardio Logging
  * (which consumes the effective schedule, never produces it) can't disagree.
  * Read-only; works with the account-scoped client or inside a caller's
@@ -51,9 +51,19 @@ export async function loadScheduleContext(
   timeZone?: string,
 ): Promise<ScheduleContext> {
   const startIso = toIsoDate(meso.startDate);
-  const [resolutions, loggedSessions] = await Promise.all([
+  const [resolutions, loggedSessions, moves] = await Promise.all([
     db.missedDayResolution.findMany({ where: { mesocycleId: meso.id } }),
     db.loggedSession.findMany({ where: { mesocycleId: meso.id } }),
+    // One-week moves (OVE-240): "Train today" and "Swap days".
+    db.scheduleMove.findMany({
+      where: { mesocycleId: meso.id },
+      select: {
+        sessionId: true,
+        authoredOn: true,
+        movedTo: true,
+        updatedAt: true,
+      },
+    }),
   ]);
   return {
     startDate: startIso,
@@ -73,6 +83,13 @@ export async function loadScheduleContext(
     resolutions: resolutions.map((r) => ({
       missedOn: toIsoDate(r.missedOn),
       outcome: r.outcome,
+      at: r.createdAt.toISOString(),
+    })),
+    moves: moves.map((m) => ({
+      sessionId: m.sessionId,
+      authoredIso: toIsoDate(m.authoredOn),
+      movedTo: toIsoDate(m.movedTo),
+      at: m.updatedAt.toISOString(),
     })),
     loggedSessions: loggedSessions
       .filter((l) => l.sessionId !== null)

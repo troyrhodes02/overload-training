@@ -29,6 +29,7 @@ const TRAINING_MODELS = [
   "LoggedExercise",
   "LoggedSet",
   "MissedDayResolution",
+  "ScheduleMove",
   "Goal",
   "PlannedCardio",
   "CardioLog",

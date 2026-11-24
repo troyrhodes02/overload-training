@@ -124,6 +124,7 @@ model Mesocycle {
   sessions             Session[]
   loggedSessions       LoggedSession[]
   missedDayResolutions MissedDayResolution[]
+  scheduleMoves        ScheduleMove[]
   plannedCardio        PlannedCardio[]
   cardioLogs           CardioLog[]
   profile              Profile               @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
@@ -160,6 +161,7 @@ model Session {
   sessionExercises     SessionExercise[]
   loggedSessions       LoggedSession[]
   missedDayResolutions MissedDayResolution[]
+  scheduleMoves        ScheduleMove[]
   profile              Profile               @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   // Zero or one session per weekday (NULLs are distinct: any number unscheduled).
@@ -392,6 +394,41 @@ model MissedDayResolution {
   @@map("missed_day_resolutions")
 }
 
+/// A one-week move of one planned occurrence (OVE-240): this week only, the
+/// Session (sessionId) authored for `authoredOn` is trained on `movedTo`
+/// instead. Written only by src/lib/logging/schedule-adjustments.ts ("Train
+/// today" and "Swap days" on Today); read by the effective schedule
+/// (@overload/shared/logging/schedule). The authored Session weekday is never
+/// changed, so the next week keeps its normal schedule. A planning fact, not
+/// logged history: the LoggedSession that fulfils the occurrence still keys on
+/// (sessionId, scheduledFor = authoredOn), so the occurrence is counted once.
+model ScheduleMove {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Owning account. Required and immutable (shared trigger); its mesocycle
+  /// and session have the same owner (same-owner triggers).
+  userId      String   @map("user_id") @db.Uuid
+  mesocycleId String   @map("mesocycle_id") @db.Uuid
+  sessionId   String   @map("session_id") @db.Uuid
+  /// The occurrence's authored calendar date (its identity; DATE, no zone).
+  authoredOn  DateTime @map("authored_on") @db.Date
+  /// Where it is trained this week instead (same block week; DATE, no zone).
+  movedTo     DateTime @map("moved_to") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  /// Orders this move among the week's missed-day resolutions.
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  mesocycle Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Restrict)
+  /// removeSession clears a session's moves before deleting it (never history).
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  profile   Profile   @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  // One move per planned occurrence; a later change updates it.
+  @@unique([sessionId, authoredOn])
+  @@index([mesocycleId])
+  @@index([userId])
+  @@map("schedule_moves")
+}
+
 model LoggedSet {
   id               String   @id @default(uuid()) @db.Uuid
   /// Owning account (Multi-User Foundation). Required and immutable (DB triggers,
@@ -595,6 +632,7 @@ model Profile {
   loggedExercises      LoggedExercise[]
   loggedSets           LoggedSet[]
   missedDayResolutions MissedDayResolution[]
+  scheduleMoves        ScheduleMove[]
   goals                Goal[]
   plannedCardio        PlannedCardio[]
   cardioLogs           CardioLog[]

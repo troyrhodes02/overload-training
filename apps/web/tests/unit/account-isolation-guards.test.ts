@@ -96,7 +96,7 @@ describe("account-scoped access is the only door (Multi-User Foundation)", () =>
   // hole the scope layer exists to close. The two raw-allowed modules each touch
   // exactly one table (their own), neither on this list.
   const OWNED_TABLE_RE =
-    /^(mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen|feedback|feedback_attachments|entitlements|billing_accounts|promo_redemptions|import_sessions|import_source_parts|admin_audit_entries)$/;
+    /^(mesocycles|sessions|session_exercises|exercises|exercise_favorites|gyms|gym_exercise_baselines|logged_sessions|logged_exercises|logged_sets|missed_day_resolutions|goals|planned_cardio|cardio_logs|profiles|tour_progress|release_seen|feedback|feedback_attachments|entitlements|billing_accounts|promo_redemptions|import_sessions|import_source_parts|admin_audit_entries|schedule_moves)$/;
 
   it("the throttle module is a raw toucher that touches only auth_throttle", () => {
     const throttle = code(path.join(REPO_ROOT, THROTTLE_MODULE));
