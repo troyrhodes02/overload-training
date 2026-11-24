@@ -184,8 +184,51 @@ Report anything that differs as a defect, and say which check and step.
 
 ## 7. Verification record
 
-Filled in at delivery (§8).
+This run was on 2026-11-24. The suites ran on the combined branch, and the staging checks ran on `staging` at `112737c`.
+
+| Check | Result |
+| --- | --- |
+| Lint and typecheck (root, web, mobile, shared) | pass. Lint: 0 errors, 1 pre-existing warning in `history-week.ts`. |
+| Format | pass (Prettier on every changed file) |
+| Web unit (`npm test`) | 2,772 passed |
+| Mobile (`jest`) | 556 passed after the review fixes |
+| Workspace boundaries (`posttest`) | pass |
+| Integration, full (`npm run test:integration`) | **1,569 passed, 112 suites.** Covers the isolation suite, with every new endpoint in the auth, suspension, and version matrix plus a cross-account case; goals and history (13); scheduling (7); and the 21i profiles. |
+| Production web build (`next build`, placeholder env) | pass |
+| Client-bundle secret scan (`verify:client-bundle`) | OK |
+| iOS export (`expo export --platform ios`) | 1,484 modules; no secret patterns in the bundle |
+| Diff secret scan | nothing found |
+| Runtime fingerprint | `f98506f78a`, unchanged |
+| Independent read-only review of the combined diff | No isolation, Free/Pro leak, goal-lifecycle, idempotency, or backward-compatibility issue. Four mobile defects were found and fixed in #314: 5a, 5b, 5c, 5d. |
+| Staging API (`vercel curl`, real `overload-dev` accounts) | **30/30 passed.** The 11 new endpoints answer 401 without a token. Pro: goals, detail, history, exercise history (8 e1RM points, RIR on 2 sessions), machine gym scopes, and this week. Free: plain history with Pro fields withheld (`locked`), and goals Free. Cross-account reads and skips are 404. Goal create: 201, then a replay with the same id, then 409 for a reused key, then 409 for a duplicate. Archive and its replay, and acknowledge, pass. Swap, then replay `unchanged`, then a stale request 409. Skip and its replay pass. Rest-day swap, then Train today, then start on today, pass. |
+| Simulator and physical iPhone | **not run by the pipeline.** §4 is for you. |
 
 ## 8. Delivery record
 
-Filled in at delivery.
+| Item | Value |
+| --- | --- |
+| Docs PR | #308 (`bdf815f`): pitch, design, spec, OVE-241 chore spec |
+| 21i PRs | #309 OVE-242, #310 OVE-243, #311 OVE-244, #312 OVE-245, #314 OVE-246 (with the review fixes) |
+| OVE-241 PR | #313 (`b49fae8`) |
+| Sync before the run | #307: `main` (the OVE-240 release) merged into `staging` |
+| Staging HEAD at publish | **`112737c`** |
+| Staging web deployment | Vercel: success, for `112737c` |
+| Staging update group | **`4e76746e-3938-463b-befb-f813e66dd126`** |
+| iOS update ID | `01a20f56-1c49-79a0-bc52-17e385b7e741` |
+| Channel / branch | `staging` / `staging` |
+| Commit | `112737c` |
+| Runtime | `f98506f78acfef2f8bfc764d2e31f16475e2f501` (`f98506f78a`) |
+| Compatible build | EAS development build `86e673d0` (the one on your iPhone) |
+| Update URL | `https://u.expo.dev/3b322e4a-1bf6-422e-9feb-3aa859dffb46?channel-name=staging` |
+| Dashboard | https://expo.dev/accounts/wtrhodes/projects/overload/updates/4e76746e-3938-463b-befb-f813e66dd126 |
+| Design canvas | https://claude.ai/artifact/4TV52JUVhE5TrH6YveNbk3 |
+
+On the iPhone, More → Diagnostics must show update group `4e76746e`, commit `112737c`, and runtime `f98506f78a`.
+
+**Test accounts the run made.** These are on overload-dev, anchored 2026-11-24, with password files in `~/.overload-dev/accounts/`. If you test on a later day, make fresh ones (§3).
+
+| Email | Profile | Check |
+| --- | --- | --- |
+| `21i-combined@example.com` | `21i-combined` | Goals Bench 225 × 5 86% and Leverage Chest Press @ Northside 180 × 10 75%. History: Squat reached, Military Press archived. Week: Upper B · Lower B · rest · Upper A · Lower A · rest · rest. ENGINE CHECK PASSED. Read only by the staging checks. |
+| `21i-free@example.com` | `21i-free` | Free. Bench 225 × 5 86%. ENGINE CHECK PASSED. Read only, apart from one refused cross-account skip. |
+| `21i-verify@example.com` | `21i-combined` | **Used by the staging write checks**: a Lat Pulldown goal created then archived, the Squat card acknowledged, a swap, a skip, a rest-day swap, Train today, and a started workout. Don't use it for the acceptance checks. |
