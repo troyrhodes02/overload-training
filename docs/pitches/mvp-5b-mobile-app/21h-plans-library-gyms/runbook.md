@@ -329,3 +329,91 @@ More → Diagnostics on the iPhone must show update group `ecd5ffc8`, commit `d8
 Seeding over the network to `overload-dev` was slow during the run: several seeds hit the 180-second transaction limit ("expired transaction") or a dropped connection and were re-run until they passed. Each failure rolled back completely (the account stayed empty), as §3 describes.
 
 Throwaway rows the staging API check left on `21h-plan`: an archived gym "Staging Check Gym" and an archived exercise "Staging Check Lift" (both out of every picker).
+
+## 10. Owner acceptance, exercise-detail corrections, and the corrected update
+
+### Owner acceptance (2026-11-23)
+
+You tested 21h on your iPhone against staging update `ecd5ffc8` and accepted the core functionality:
+
+- the active plan, week navigation, and the read-only session;
+- library browsing, search, and details;
+- favorites;
+- creating, archiving, and restoring a custom exercise and a gym;
+- "About this exercise" from a workout, returning to the same workout;
+- the existing workout.
+
+**Correction (update group).** During delivery the publisher was started a second time by mistake, and the delivery report said that run published nothing. It did publish: group `57bc6b4d-429a-4baa-8aa0-f1439516de97`, message "d86c3f0 x". It came from the same commit `d86c3f0` and carried the same code. Your iPhone may have shown that group instead of `ecd5ffc8` in Diagnostics during the test. The content was identical, and update `058aac54` below now supersedes both.
+
+### The two defects (OVE-237, PR #302, `f3fec3a`)
+
+**1. Blank band above the exercise name.** Seen on Sled Push, a custom exercise with no image.
+- **Cause.** The Plan, More, History, Goals, and Today stacks asked for the native large title. Tab roots hide that header and draw their own (21e RD-24), so only pushed screens ever got it. On the device it renders as an empty band: 21e RD-24 records it as "configured but not rendering".
+- **Why only from the library or plan.** Over a workout, the exercise opens on the root stack, which has no large title.
+- **Not the image.** With no image, nothing was mounted.
+- **Fix.** The shared stack options always use the inline title ("‹ Exercises   Exercise", as design §15 shows). One fix at the stack level removes the band from every pushed screen on those stacks:
+  - Exercises, Gyms, and a gym;
+  - a planned session and a logged workout;
+  - Appearance and Diagnostics.
+
+**2. "Secondary muscles" crushed to one letter per line.** Seen on Barbell Squat: Calves, Glutes, Hamstrings, Lower Back.
+- **Cause.** The shared list row let a trailing value take its full width, up to the whole row, and the title got what was left.
+- **Fix.** A trailing value is capped at 60% of the row and wraps at word boundaries there, so the title always keeps 40%. A value never shrinks below its own width, so short values ("12", "Barbell") never break.
+- **On the exercise page,** two or more secondary muscles sit under their label as one wrapping line. "None" or a single muscle stays on the right, like the other rows. VoiceOver still reads the row as one element.
+
+**Web.** No change. The web exercise page has no secondary-muscles row, and its title already follows the back link.
+
+**Tests.** `apps/mobile/tests/exercise-detail-layout.test.tsx` adds 11 tests; 7 of them fail on the old code.
+
+**Review.** An independent review found that the first version could break short values and missed the other pushed screens. Both were fixed in the same PR, and a re-review found nothing further.
+
+**Device check.** The pipeline checked the corrected look in Jest only, not on a device. It's yours: see "Check the corrections" below.
+
+### The corrected staging update
+
+| Item | Value |
+| --- | --- |
+| Update group | **`058aac54-000c-47b6-bff7-cb4b86b69508`** |
+| iOS update ID | `01a20a23-0ce5-75fe-8bee-c3c02f00cce6` |
+| Commit | `f3fec3a` |
+| Runtime | `f98506f78acfef2f8bfc764d2e31f16475e2f501` (`f98506f78a`, unchanged) |
+| Channel / branch | `staging` / `staging` |
+| Compatible build | EAS development build `86e673d0` (the only finished iOS build) |
+| Update URL | `https://u.expo.dev/3b322e4a-1bf6-422e-9feb-3aa859dffb46?channel-name=staging` |
+| Dashboard | https://expo.dev/accounts/wtrhodes/projects/overload/updates/058aac54-000c-47b6-bff7-cb4b86b69508 |
+
+### Check the corrections (three checks)
+
+Open the update by URL (§1 C). More → Diagnostics must show group `058aac54` and commit `f3fec3a`.
+
+1. **Custom exercise** (`21h-library`, where you created Sled Push). Open More → Exercises → Sled Push.
+   - The title "Exercise" sits inline in the nav bar.
+   - "Sled Push" starts just below it.
+   - The rows read normally.
+   - Favorite and Archive are reachable.
+2. **Library exercise** (`21h-library`). Open Barbell Squat.
+   - The image shows.
+   - "Secondary muscles" reads as words, with "Calves, Glutes, Hamstrings, Lower Back" wrapping under it.
+   - No row is unusually tall, and nothing is clipped.
+3. **From a workout** (`21h-active-workout`, Upper A in progress). Open a card's ••• → About this exercise, then go back.
+   - The detail is correct, with no band.
+   - You return to the same workout with its sets.
+
+## 11. Production release and sync (2026-11-23)
+
+| Step | Result |
+| --- | --- |
+| Release branch | `release/21h-plans-library-gyms`, from `main` `e3f4950`: cherry-picks of #293, #300, #301, #302 and the release record. Tree equal to `staging` `f3fec3a` apart from the record |
+| Release checks (that branch) | format, lint (0 errors), typecheck pass; 2,749 web unit + 506 mobile; 1,452 integration (109 suites); build and client-bundle scan; iOS export; fingerprint `f98506f78a` |
+| Release PR | #303, squash-merged into `main` as **`db79768`** |
+| Production deployment | `dpl_2GYiRP4Ee5Ps1PWYzhZvAPKMJvhM`: Ready, target production, aliased to `www.overloadtraining.app` |
+| Smoke | `/`, `/login`, `/pricing`, `/changelog`: 200. `app-config` 200, minimum version `0.0.0` (unchanged). The 9 new endpoints and `GET /today`: 401 `unauthorized` without a token. No version header: 400 `validation_error` |
+| Production logs (30 min, error level) | One record: a `pg` deprecation warning from the previous deployment, logged before the release. None from the new deployment |
+| Sync | `main` merged into `staging` by the sync PR (merge commit, not squash), so `main` is an ancestor of `staging` |
+| Not done (not authorized) | Migration, Production environment, Stripe, Production Expo update, TestFlight |
+
+Full record: `docs/releases/2026-11-21h-plans-library-gyms-production.md`.
+
+**Deferred product decisions** (not defects, nothing built):
+- OVE-238: editing custom exercises and gyms.
+- OVE-239: "Not logged" or "Upcoming" for a past day with nothing logged.
