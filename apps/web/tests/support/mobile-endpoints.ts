@@ -138,6 +138,11 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/exercises/[exerciseId]/goal-form",
     auth: "account",
   },
+  {
+    method: "GET",
+    route: "api/mobile/v1/exercises/[exerciseId]/history",
+    auth: "account",
+  },
   { method: "GET", route: "api/mobile/v1/goals/history", auth: "account" },
   { method: "GET", route: "api/mobile/v1/goals/[goalId]", auth: "account" },
   {
