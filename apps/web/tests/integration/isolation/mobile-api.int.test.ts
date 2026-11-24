@@ -40,6 +40,12 @@ jest.mock("@/lib/supabase/admin", () => ({
   },
   deleteAuthUser: async () => "deleted" as const,
 }));
+// Pitch 21j: the password re-check before deletion. "right" is every test
+// account's password; anything else is wrong.
+jest.mock("@/lib/accounts/password", () => ({
+  verifyCurrentPassword: async (_email: string, password: string) =>
+    password === "right" ? "ok" : "wrong",
+}));
 const resetEmails: string[] = [];
 jest.mock("@/lib/supabase/stateless", () => ({
   createStatelessAuthClient: () => ({
@@ -160,6 +166,8 @@ import { GET as mePlanRoute } from "@/app/api/mobile/v1/me/plan/route";
 import { GET as releaseNotesRoute } from "@/app/api/mobile/v1/release-notes/route";
 import { POST as releaseNotesSeenRoute } from "@/app/api/mobile/v1/me/release-notes/seen/route";
 import { GET as meExportRoute } from "@/app/api/mobile/v1/me/export/route";
+import { GET as deletionInventoryRoute } from "@/app/api/mobile/v1/me/deletion-inventory/route";
+import { POST as deleteAccountRoute } from "@/app/api/mobile/v1/me/delete/route";
 import { orderedReleaseNotes } from "@overload/shared/release-notes/catalog";
 import { activePlan, library, today as todayIso, type Lib } from "./fixtures";
 import { snapshotAccount } from "./support";
@@ -2004,6 +2012,66 @@ const ACCOUNT_SETTINGS_CASES: Record<string, () => void> = {
   },
 };
 
+/** Pitch 21j (spec §13): deletion. Only the token's own account is ever counted or removed. */
+const ACCOUNT_DELETION_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/me/deletion-inventory": () => {
+    accountEndpointMatrix(
+      "GET /me/deletion-inventory",
+      deletionInventoryRoute as Handler,
+    );
+    describe("GET /me/deletion-inventory: isolation", () => {
+      it("counts only B's rows", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const rb = await call(deletionInventoryRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.body).toEqual({
+          mesocycles: 0,
+          loggedSessions: 0,
+          loggedSets: 0,
+          goals: 0,
+          gyms: 1,
+          customExercises: 0,
+          cardioLogs: 0,
+        });
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        const ra = await call(deletionInventoryRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(ra.body.loggedSessions).toBe(2);
+      });
+    });
+  },
+  "POST api/mobile/v1/me/delete": () => {
+    accountEndpointMatrix(
+      "POST /me/delete",
+      deleteAccountRoute as Handler,
+      { json: { password: "wrong" } },
+      400,
+    );
+    describe("POST /me/delete: isolation", () => {
+      it("B deletes B only; a body naming A changes nothing of A's", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const aBefore = await snapshotAccount(a.userId);
+        const r = await call(deleteAccountRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { password: "right", userId: a.userId, accountId: a.userId },
+        });
+        expect([r.status, r.body]).toEqual([200, { outcome: "deleted" }]);
+        expect(await snapshotAccount(a.userId)).toEqual(aBefore);
+        expect(
+          await getTestPrisma().profile.count({ where: { userId: b.userId } }),
+        ).toBe(0);
+        const after = await call(deletionInventoryRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(after.status).toBe(401);
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -2732,6 +2800,7 @@ const CASES: Record<string, () => void> = {
   ...GOAL_CASES,
   ...SCHEDULE_CASES,
   ...ACCOUNT_SETTINGS_CASES,
+  ...ACCOUNT_DELETION_CASES,
 };
 
 // The unknown-path 404, one case per method.
