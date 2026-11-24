@@ -21,6 +21,8 @@ export const APP_TABLES = [
   "cardio_logs",
   "planned_cardio",
   "missed_day_resolutions",
+  // OVE-240: one-week moves.
+  "schedule_moves",
   // Multi-User Foundation
   "exercise_favorites",
   "profiles",

@@ -62,6 +62,11 @@ export const ISOLATION_COVERAGE: Record<string, string[]> = {
   LoggedExercise: ["logging.int.test.ts", "account-deletion.int.test.ts"],
   LoggedSet: ["logging.int.test.ts", "account-deletion.int.test.ts"],
   MissedDayResolution: ["logging.int.test.ts", "account-deletion.int.test.ts"],
+  // OVE-240: one-week moves (Train today / Swap days).
+  ScheduleMove: [
+    "schedule-adjustments.int.test.ts",
+    "account-deletion.int.test.ts",
+  ],
   CardioLog: ["logging.int.test.ts", "account-deletion.int.test.ts"],
   Goal: ["goals.int.test.ts", "account-deletion.int.test.ts"],
   Profile: [

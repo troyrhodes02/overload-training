@@ -95,6 +95,17 @@ async function fullAccount(account: Account, lib: Lib, label: string) {
     missedOn: addDays(today(), -7),
     outcome: "skipped",
   });
+  // A one-week move (OVE-240), so schedule_moves -> mesocycles and
+  // schedule_moves -> sessions each have a row on both sides to exercise.
+  await account.db.scheduleMove.create({
+    data: {
+      userId: account.userId,
+      mesocycleId: plan.meso.id,
+      sessionId: plan.session.id,
+      authoredOn: new Date(`${addDays(today(), 7)}T00:00:00.000Z`),
+      movedTo: new Date(`${addDays(today(), 8)}T00:00:00.000Z`),
+    },
+  });
   await setExerciseFavorite(account, {
     exerciseId: lib.bench.id,
     isFavorite: true,
@@ -291,9 +302,9 @@ describe("same-owner triggers (database second layer)", () => {
     });
   }
 
-  it("covers every owned relation (23 triggers)", async () => {
+  it("covers every owned relation (25 triggers)", async () => {
     const triggers = await installedTriggers();
-    expect(triggers).toHaveLength(23);
+    expect(triggers).toHaveLength(25);
     // Every foreign key from an owned table to an owned or exercise parent.
     const fks = await raw().$queryRawUnsafe<
       { tbl: string; col: string; ref: string }[]

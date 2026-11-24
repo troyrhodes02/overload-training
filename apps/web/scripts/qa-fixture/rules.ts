@@ -41,6 +41,7 @@ export const QA_RESET_MODELS = [
   "Goal",
   "CardioLog",
   "MissedDayResolution",
+  "ScheduleMove",
   "LoggedSession",
   "PlannedCardio",
   "SessionExercise",

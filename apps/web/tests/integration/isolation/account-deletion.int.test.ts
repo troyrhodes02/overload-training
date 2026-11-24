@@ -167,6 +167,17 @@ async function populate(account: Account, lib: Lib, label: string) {
       responseBody: { ok: true },
     },
   });
+  // Week schedule adjustments (OVE-240): a one-week move (next week's
+  // occurrence trained a day later), written as the scoped client stamps it.
+  await account.db.scheduleMove.create({
+    data: {
+      userId: account.userId,
+      mesocycleId: plan.meso.id,
+      sessionId: plan.session.id,
+      authoredOn: new Date(`${addDays(today(), 7)}T00:00:00.000Z`),
+      movedTo: new Date(`${addDays(today(), 8)}T00:00:00.000Z`),
+    },
+  });
   return plan;
 }
 
@@ -190,6 +201,7 @@ const OWNED_TABLES = [
   "logged_exercises",
   "logged_sets",
   "missed_day_resolutions",
+  "schedule_moves",
   "goals",
   "planned_cardio",
   "cardio_logs",

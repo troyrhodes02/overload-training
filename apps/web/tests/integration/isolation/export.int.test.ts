@@ -161,6 +161,17 @@ async function populate(account: Account, lib: Lib, label: string) {
       responseBody: { id: oldGym.id },
     },
   });
+  // Week schedule adjustments (OVE-240): a one-week move (next week's
+  // occurrence trained a day later), written as the scoped client stamps it.
+  await account.db.scheduleMove.create({
+    data: {
+      userId: account.userId,
+      mesocycleId: plan.meso.id,
+      sessionId: plan.session.id,
+      authoredOn: new Date(`${addDays(today(), 7)}T00:00:00.000Z`),
+      movedTo: new Date(`${addDays(today(), 8)}T00:00:00.000Z`),
+    },
+  });
   return { plan, oldGym, oldExercise };
 }
 
@@ -198,6 +209,7 @@ const LIST_SECTION_KEY: Record<
   LoggedExercise: "loggedExercises",
   LoggedSet: "loggedSets",
   MissedDayResolution: "missedDayResolutions",
+  ScheduleMove: "scheduleMoves",
   Goal: "goals",
   CardioLog: "cardioLogs",
   Feedback: "feedback",

@@ -49,6 +49,7 @@ export const ACCOUNT_DELETION_ORDER = [
   "Goal",
   "CardioLog",
   "MissedDayResolution",
+  "ScheduleMove", // OVE-240: one-week moves; before its Session and Mesocycle
   "LoggedSession",
   "PlannedCardio",
   "SessionExercise",
@@ -92,6 +93,7 @@ export const ACCOUNT_DELETION_STEPS: Readonly<
   Goal: (tx) => tx.goal.deleteMany({}),
   CardioLog: (tx) => tx.cardioLog.deleteMany({}),
   MissedDayResolution: (tx) => tx.missedDayResolution.deleteMany({}),
+  ScheduleMove: (tx) => tx.scheduleMove.deleteMany({}),
   LoggedSession: (tx) => tx.loggedSession.deleteMany({}),
   PlannedCardio: (tx) => tx.plannedCardio.deleteMany({}),
   SessionExercise: (tx) => tx.sessionExercise.deleteMany({}),

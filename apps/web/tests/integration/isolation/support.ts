@@ -66,6 +66,7 @@ const OWNED_TABLES = [
   "logged_exercises",
   "logged_sets",
   "missed_day_resolutions",
+  "schedule_moves",
   "goals",
   "planned_cardio",
   "cardio_logs",

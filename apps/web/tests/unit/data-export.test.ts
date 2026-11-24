@@ -47,6 +47,7 @@ function fakeAccount(): {
     loggedExercise: { findMany: list("loggedExercise") },
     loggedSet: { findMany: list("loggedSet") },
     missedDayResolution: { findMany: list("missedDayResolution") },
+    scheduleMove: { findMany: list("scheduleMove") },
     goal: { findMany: list("goal") },
     cardioLog: { findMany: list("cardioLog") },
     tourProgress: { findUnique: one("tourProgress") },
@@ -132,6 +133,7 @@ const OWNED_MODEL_EXPORT: Record<
     exportKey: "apiIdempotencyKeys",
     dbModel: "apiIdempotencyKey",
   },
+  ScheduleMove: { exportKey: "scheduleMoves", dbModel: "scheduleMove" },
 };
 
 /** The owned models the export must cover: deletion order minus the Profile. */

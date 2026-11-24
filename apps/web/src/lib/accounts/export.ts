@@ -64,6 +64,8 @@ export type AccountExport = {
   loggedExercises: unknown[];
   loggedSets: unknown[];
   missedDayResolutions: unknown[];
+  /** One-week moves on Today (OVE-240). */
+  scheduleMoves: unknown[];
   goals: unknown[];
   cardioLogs: unknown[];
   tourProgress: unknown | null;
@@ -126,6 +128,7 @@ export async function buildAccountExport(
     loggedExercises,
     loggedSets,
     missedDayResolutions,
+    scheduleMoves,
     goals,
     cardioLogs,
     tourProgress,
@@ -155,6 +158,7 @@ export async function buildAccountExport(
     db.loggedExercise.findMany(),
     db.loggedSet.findMany(),
     db.missedDayResolution.findMany(),
+    db.scheduleMove.findMany(),
     db.goal.findMany(),
     db.cardioLog.findMany(),
     db.tourProgress.findUnique({ where: { userId: account.userId } }),
@@ -211,6 +215,7 @@ export async function buildAccountExport(
     loggedExercises,
     loggedSets,
     missedDayResolutions,
+    scheduleMoves,
     goals,
     cardioLogs,
     tourProgress,

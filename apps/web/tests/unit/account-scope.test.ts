@@ -53,6 +53,7 @@ const OWNED = [
   "Profile",
   "PromoRedemption",
   "ReleaseSeen",
+  "ScheduleMove", // OVE-240: one-week moves
   "Session",
   "SessionExercise",
   "TourProgress",

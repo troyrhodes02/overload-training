@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatPlanDate } from "@overload/shared/plan/calendar";
@@ -21,6 +22,8 @@ import { dashboardShowsGoals } from "@overload/shared/goals/dashboard";
 import { CardioCards, CardioFocal } from "@/components/cardio/cardio-today";
 import { requireAccount } from "@/lib/data/account";
 import { getTodayView } from "@/lib/views/today";
+import { getThisWeek } from "@/lib/logging/this-week";
+import { ThisWeekStrip } from "@/components/logging/this-week-strip";
 import { tourAnchor } from "@/lib/tour/steps";
 
 export const metadata = { title: "Today · Overload" };
@@ -227,8 +230,16 @@ export default async function TodayPage() {
   // The one Today composition (Pitch 21c): the greeting, the dashboard, each
   // exercise's call, the summary, and the goals — reconciled before goals are
   // read (Goals R54) — exactly what GET /api/mobile/v1/today returns.
-  const view = await getTodayView(account);
+  // This week's strip (OVE-240): the same effective schedule, read alongside.
+  const [view, week] = await Promise.all([
+    getTodayView(account),
+    getThisWeek(account),
+  ]);
   const dash = view.dashboard;
+  // Today's own block sits under the week strip; another selected day shows
+  // its preview there instead. No strip with no active block week.
+  const withWeek = (content: ReactNode) =>
+    week ? <ThisWeekStrip week={week}>{content}</ThisWeekStrip> : content;
   const today = formatPlanDate(view.today);
   // Server-rendered text, deterministic per account + local date + situation:
   // it cannot change between renders or between server and browser.
@@ -273,9 +284,11 @@ export default async function TodayPage() {
     return (
       <section className="space-y-6">
         {header}
-        <div {...tourAnchor("today-day")}>
-          <CardioFocal entries={dash.cardio} week={dash.week} />
-        </div>
+        {withWeek(
+          <div {...tourAnchor("today-day")}>
+            <CardioFocal entries={dash.cardio} week={dash.week} />
+          </div>,
+        )}
         {goals}
       </section>
     );
@@ -285,18 +298,20 @@ export default async function TodayPage() {
     return (
       <section className="space-y-6">
         {header}
-        <div
-          className="rounded-lg border border-border bg-card p-6"
-          {...tourAnchor("today-day")}
-        >
-          <p className="font-medium">No lifting planned today.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Rest up.{" "}
-            <Link href="/history" className="underline">
-              History →
-            </Link>
-          </p>
-        </div>
+        {withWeek(
+          <div
+            className="rounded-lg border border-border bg-card p-6"
+            {...tourAnchor("today-day")}
+          >
+            <p className="font-medium">No lifting planned today.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Rest up.{" "}
+              <Link href="/history" className="underline">
+                History →
+              </Link>
+            </p>
+          </div>,
+        )}
         {goals}
       </section>
     );
@@ -309,17 +324,19 @@ export default async function TodayPage() {
         <div {...tourAnchor("today-day")}>
           <MissedDayPrompt missed={dash.missed} />
         </div>
-        {dash.below ? (
-          <div inert className="opacity-50">
-            <TodayBlock state={dash.below} view={view} />
-          </div>
-        ) : dash.cardio.length > 0 ? (
-          // Cardio never prompts; it waits, dimmed, until the lifting
-          // missed day is resolved (Cardio R35, R67).
-          <div inert className="opacity-50">
-            <CardioCards entries={dash.cardio} />
-          </div>
-        ) : null}
+        {withWeek(
+          dash.below ? (
+            <div inert className="opacity-50">
+              <TodayBlock state={dash.below} view={view} />
+            </div>
+          ) : dash.cardio.length > 0 ? (
+            // Cardio never prompts; it waits, dimmed, until the lifting
+            // missed day is resolved (Cardio R35, R67).
+            <div inert className="opacity-50">
+              <CardioCards entries={dash.cardio} />
+            </div>
+          ) : null,
+        )}
       </section>
     );
   }
@@ -327,7 +344,7 @@ export default async function TodayPage() {
   return (
     <section className="space-y-6">
       {header}
-      <TodayBlock state={dash} view={view} />
+      {withWeek(<TodayBlock state={dash} view={view} />)}
       {goals}
     </section>
   );

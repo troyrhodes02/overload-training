@@ -2,14 +2,18 @@ import "server-only";
 import { DomainError, isUniqueViolation, isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountTx } from "@/lib/data/account-db";
-import { lockWorkoutForUpdate } from "@/lib/data/locks";
+import { lockMesocycleForStart, lockWorkoutForUpdate } from "@/lib/data/locks";
 import {
   mesocycleWeekForDate,
   parseIsoDate,
   todayIso,
   toIsoDate,
 } from "@overload/shared/plan/calendar";
-import { authoredDate } from "@overload/shared/logging/schedule";
+import {
+  authoredDate,
+  effectiveWeekSchedule,
+} from "@overload/shared/logging/schedule";
+import { loadScheduleContext } from "./schedule-context";
 
 /**
  * LoggedSession lifecycle for Guided Workout Logging. These functions create and
@@ -61,7 +65,13 @@ export async function startOrResumeWorkout(
         include: {
           sessionExercises: { orderBy: { position: "asc" } },
           mesocycle: {
-            select: { status: true, startDate: true, lengthWeeks: true },
+            select: {
+              id: true,
+              status: true,
+              startDate: true,
+              lengthWeeks: true,
+              createdAt: true,
+            },
           },
         },
       })
@@ -99,14 +109,51 @@ export async function startOrResumeWorkout(
   // a session of the active block, on a date that block schedules it, today
   // or earlier in the account's own timezone ("log it late" is a past
   // occurrence). Resuming an existing workout (above) is never re-validated.
-  assertStartableOccurrence(session, input.scheduledFor, account.timeZone);
+  assertStartableOccurrence(session, input.scheduledFor);
+
+  // OVE-240: the week may have been adjusted on Today. Take the block's lock
+  // so a start and a skip or move of the same occurrence run one after the
+  // other; the same statement says whether this occurrence was moved or
+  // resolved. Only a moved occurrence needs the whole week, to know its day.
+  const held = await lockMesocycleForStart(account, tx, {
+    mesocycleId: session.mesocycleId,
+    sessionId: session.id,
+    authoredOn: date,
+  });
+  if (held?.resolution === "skipped") {
+    throw new DomainError(
+      "invalid_state_transition",
+      "You skipped this workout this week.",
+    );
+  }
+  const movedDay = held?.movedTo
+    ? await movedOccurrenceDay(
+        account,
+        tx,
+        session.mesocycle,
+        session.id,
+        input.scheduledFor,
+      )
+    : null;
+  // A new workout's day must have come (OVE-131): for a moved occurrence,
+  // its NEW day ("Train today" starts tomorrow's workout today; a workout
+  // moved later waits for its day).
+  if ((movedDay ?? input.scheduledFor) > todayIso(account.timeZone)) {
+    throw new DomainError(
+      "validation_error",
+      "That workout's day hasn't come yet.",
+    );
+  }
 
   const ls = await tx.loggedSession.create({
     data: {
       userId: account.userId,
       mesocycleId: session.mesocycleId,
       sessionId: session.id,
-      performedOn: date,
+      // The day it is trained: a moved occurrence's new day (OVE-240), else
+      // its authored day, exactly as before.
+      performedOn: movedDay ? (parseIsoDate(movedDay) ?? date) : date,
+      // Identity stays the authored date, so the occurrence counts once.
       scheduledFor: date,
       status: "in_progress",
     },
@@ -432,8 +479,9 @@ export async function completeWorkout(
 }
 
 /**
- * Throws validation_error unless a new workout for `scheduledForIso` is a real,
- * due occurrence of `session` (OVE-131 / audit F-T3).
+ * Throws validation_error unless `scheduledForIso` is a real occurrence of
+ * `session` in its active block (OVE-131 / audit F-T3). Whether its day has
+ * come is checked after the week's adjustments (OVE-240).
  */
 function assertStartableOccurrence(
   session: {
@@ -441,7 +489,6 @@ function assertStartableOccurrence(
     mesocycle: { status: string; startDate: Date | null; lengthWeeks: number };
   },
   scheduledForIso: string,
-  timeZone: string,
 ): void {
   if (session.mesocycle.status !== "active" || !session.mesocycle.startDate) {
     throw new DomainError(
@@ -463,12 +510,41 @@ function assertStartableOccurrence(
       "That workout isn't scheduled on that day.",
     );
   }
-  if (scheduledForIso > todayIso(timeZone)) {
-    throw new DomainError(
-      "validation_error",
-      "That workout's day hasn't come yet.",
-    );
-  }
+}
+
+/**
+ * The day a moved occurrence (OVE-240) sits on this week, from the full
+ * effective schedule (a missed-day shift after the move can carry it further).
+ * Null if it isn't placed by a move after all.
+ */
+async function movedOccurrenceDay(
+  account: Account,
+  tx: Db,
+  meso: {
+    id: string;
+    startDate: Date | null;
+    lengthWeeks: number;
+    createdAt: Date;
+  },
+  sessionId: string,
+  scheduledForIso: string,
+): Promise<string | null> {
+  if (!meso.startDate) return null;
+  const sessions = await tx.session.findMany({
+    where: { mesocycleId: meso.id },
+    select: { id: true, name: true, dayOfWeek: true, createdAt: true },
+  });
+  const ctx = await loadScheduleContext(
+    tx,
+    { ...meso, startDate: meso.startDate, sessions },
+    account.timeZone,
+  );
+  const week = mesocycleWeekForDate(ctx.startDate, scheduledForIso);
+  if (week === null || week < 1 || week > ctx.lengthWeeks) return null;
+  const o = effectiveWeekSchedule(ctx, week).find(
+    (x) => x.sessionId === sessionId && x.authoredIso === scheduledForIso,
+  );
+  return o?.moved && o.effectiveIso ? o.effectiveIso : null;
 }
 
 async function requireActiveGym(gymId: string, tx: Db): Promise<void> {
