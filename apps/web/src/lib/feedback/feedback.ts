@@ -1,6 +1,7 @@
 import "server-only";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
+import type { AccountTx } from "@/lib/data/account-db";
 import {
   FEEDBACK_DAILY_LIMIT,
   parseFeedbackInput,
@@ -63,6 +64,12 @@ export async function submitFeedback(
     }[];
   },
   now: Date = new Date(),
+  /**
+   * A caller's transaction (Pitch 21j: the mobile create's idempotency
+   * claim). The caller then owns the isolation level and must make it
+   * serializable, so the limit race stays guarded.
+   */
+  outer?: AccountTx,
 ): Promise<{ id: string }> {
   const parsed = parseFeedbackInput(raw);
   if (!parsed.ok) {
@@ -79,37 +86,36 @@ export async function submitFeedback(
   // of parallel submissions (a stuck button, a script) can't all pass the cap
   // by counting before any of them commits: Postgres aborts the racers with a
   // serialization failure, which the action reports as "couldn't send".
-  return account.db.$transaction(
-    async (tx) => {
-      const recent = await tx.feedback.count({
-        where: { createdAt: { gte: since } },
-      });
-      if (recent >= FEEDBACK_DAILY_LIMIT) {
-        throw new DomainError("conflict", "limit");
-      }
-      const created = await tx.feedback.create({
-        data: {
+  const write = async (tx: AccountTx) => {
+    const recent = await tx.feedback.count({
+      where: { createdAt: { gte: since } },
+    });
+    if (recent >= FEEDBACK_DAILY_LIMIT) {
+      throw new DomainError("conflict", "limit");
+    }
+    const created = await tx.feedback.create({
+      data: {
+        userId: account.userId,
+        category: input.category,
+        message: input.message,
+      },
+      select: { id: true },
+    });
+    if (attachments.length > 0) {
+      // Rows are stamped with the acting owner, exactly like the message.
+      await tx.feedbackAttachment.createMany({
+        data: attachments.map((a, i) => ({
           userId: account.userId,
-          category: input.category,
-          message: input.message,
-        },
-        select: { id: true },
+          feedbackId: created.id,
+          objectPath: a.objectPath,
+          contentType: a.contentType,
+          sizeBytes: a.sizeBytes,
+          position: i,
+        })),
       });
-      if (attachments.length > 0) {
-        // Rows are stamped with the acting owner, exactly like the message.
-        await tx.feedbackAttachment.createMany({
-          data: attachments.map((a, i) => ({
-            userId: account.userId,
-            feedbackId: created.id,
-            objectPath: a.objectPath,
-            contentType: a.contentType,
-            sizeBytes: a.sizeBytes,
-            position: i,
-          })),
-        });
-      }
-      return created;
-    },
-    { isolationLevel: "Serializable" },
-  );
+    }
+    return created;
+  };
+  if (outer) return write(outer);
+  return account.db.$transaction(write, { isolationLevel: "Serializable" });
 }
