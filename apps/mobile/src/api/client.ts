@@ -41,6 +41,13 @@ export type RequestOptions = {
    * can never replace the version, auth, or content headers set here.
    */
   headers?: Record<string, string>;
+  /**
+   * A multipart body (Pitch 21j feedback), sent as-is so fetch sets the
+   * boundary. Exclusive with `body`. Resent unchanged on the one retry.
+   */
+  formData?: FormData;
+  /** Overrides the 15-second timeout (Pitch 21j: the export allows 60). */
+  timeoutMs?: number;
 };
 
 export function createApiClient(deps: ClientDeps) {
@@ -60,14 +67,19 @@ export function createApiClient(deps: ClientDeps) {
     if (token) headers.Authorization = `Bearer ${token}`;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(
+      () => controller.abort(),
+      opts.timeoutMs ?? TIMEOUT_MS,
+    );
     const forward = () => controller.abort();
     opts.signal?.addEventListener("abort", forward);
     try {
       const res = await deps.fetch(url, {
         method: opts.method ?? "GET",
         headers,
-        body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+        body:
+          opts.formData ??
+          (opts.body === undefined ? undefined : JSON.stringify(opts.body)),
         signal: controller.signal,
       });
       return {
