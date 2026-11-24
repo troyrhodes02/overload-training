@@ -386,6 +386,29 @@ describe("Today's week strip", () => {
     ]);
   });
 
+  it("a refused swap keeps the chosen day and its preview (review 5d)", async () => {
+    await renderToday({
+      "/today": todayDto(pending()),
+      "/this-week": { week: WEEK },
+      "POST /mesocycles/m-1/schedule/move": new ApiError(
+        "network",
+        "offline",
+        0,
+      ),
+    });
+    await fireEvent.press(screen.getByRole("button", { name: "Swap day" }));
+    await fireEvent.press(
+      await screen.findByRole("radio", { name: "Wed, Nov 25, Lower A" }),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Swap days" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(screen.getByText("Today: Lower A")).toBeTruthy();
+    expect(
+      screen.getByRole("radio", { name: "Wed, Nov 25, Lower A" }).props
+        .accessibilityState,
+    ).toMatchObject({ checked: true });
+  });
+
   it("a stale week is refused in the server's words, with Reload", async () => {
     await renderToday({
       "/today": todayDto(pending()),

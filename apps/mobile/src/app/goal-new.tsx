@@ -12,7 +12,7 @@ export default function NewGoalRoute() {
     <NewGoalScreen
       exerciseId={String(exerciseId ?? "")}
       gymId={typeof gymId === "string" && gymId ? gymId : null}
-      from={from === "history" ? "history" : "goals"}
+      from={from === "history" || from === "workout" ? from : "goals"}
     />
   );
 }

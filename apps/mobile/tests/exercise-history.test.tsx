@@ -391,6 +391,48 @@ describe("X2 Exercise history", () => {
     expect(screen.getByText("185 × 8 · 8 · 7")).toBeTruthy();
   });
 
+  it("over a workout, goal rows aren't links and Set a goal links nowhere else (review 5b)", async () => {
+    serve({
+      "/exercises/ex-bench": EXERCISE,
+      "/exercises/ex-bench/history": {
+        history: PRO,
+        goals: {
+          active: {
+            goalId: "g-1",
+            exerciseId: "ex-bench",
+            exerciseName: "Barbell Bench Press",
+            exerciseArchived: false,
+            gymId: null,
+            gymName: null,
+            gymArchived: false,
+            targetWeightLbs: 225,
+            targetReps: 5,
+            targetLabel: "225 lb × 5",
+            createdAtIso: "2026-10-12T00:00:00.000Z",
+            createdLabel: "Oct 12, 2026",
+            percent: 85,
+            targetE1rm: 263,
+            best: null,
+          },
+          past: [],
+          newGoalEligible: false,
+          bodyweight: false,
+        },
+      },
+    });
+    await render(
+      <Providers>
+        <ExerciseHistoryScreen
+          exerciseId="ex-bench"
+          initialScope={null}
+          stack="root"
+        />
+      </Providers>,
+    );
+    expect(await screen.findByText("225 lb × 5")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /225 lb × 5/ })).toBeNull();
+  });
+
   it("over a workout, session dates are plain text", async () => {
     serve({
       "/exercises/ex-bench": EXERCISE,

@@ -67,13 +67,13 @@ All under `/api/mobile/v1`, built with `mobileRoute` (token, version gate, rate 
 | E1 | `GET /goals` | — | `GoalsOverviewDto` | — | `getGoalsOverview` (reconciles first) |
 | E2 | `GET /goals/history` | — | `GoalHistoryListDto` | — | `getGoalHistoryView` (reconciles first) |
 | E3 | `GET /goals/{goalId}` | — | `GoalDetailDto` | 404 | `getGoalDetailView` (reconciles first) |
-| E4 | `POST /goals` + `Idempotency-Key` | `CreateGoalRequest` | 201 `CreateGoalResponseDto` | 400 shape/key, 422 `validation_error` with field `details`, 409 `conflict` with `details.existingGoalId`, 409 `idempotency_conflict` | `createGoal` in `withIdempotency` |
+| E4 | `POST /goals` + `Idempotency-Key` | `CreateGoalRequest` | 201 `CreateGoalResponseDto` | 400 `validation_error` (shape, key, or a rule, with field `details`), 409 `conflict` with `details.existingGoalId` (also when two different requests race to the one-active-goal index), 409 `conflict` for a key reused with a different body | `createGoal` in `withIdempotency` |
 | E5 | `PUT /goals/{goalId}/archived` | `{ archived: true }` | `ArchiveGoalResponseDto` | 400 (`archived` not `true`), 404 | `archiveGoal`; already archived → 200 with its outcome |
 | E6 | `PUT /goals/{goalId}/acknowledged` | `{ acknowledged: true }` | `AcknowledgeGoalResponseDto` | 400, 404, 409 `invalid_state_transition` (not a reached goal) | `acknowledgeGoalCompletion` |
 | E7 | `GET /exercises/{exerciseId}/goal-form?gymId=` | — | `GoalFormContextDto` | — (`kind: "not_found"` in the body, as the web) | `getGoalFormContextView` (reconciles first) |
 | E8 | `GET /exercises/{exerciseId}/history?scope=&sessions=all` | — | `ExerciseHistoryViewDto` | 404 | `getExerciseHistory` (gated) + `getExerciseGoals` |
 
-Status codes follow the 21c error map unchanged (validation_error, conflict, not_found, invalid_state_transition).
+Status codes follow the 21c error map unchanged: `validation_error` and `invalid_state_transition` are 400, `not_found` 404, `conflict` 409.
 
 ### Shared contracts (`packages/shared/src/contracts`)
 
@@ -94,7 +94,7 @@ export type ArchiveGoalResponseDto = { id: string; archived: true; outcome: "com
 export type AcknowledgeGoalResponseDto = { id: string; acknowledged: true };
 ```
 
-`requests.ts` gains `CreateGoalRequest = { exerciseId: string; gymId?: string | null; targetWeightLbs: string | number; targetReps: string | number }` (the shared goal parser's raw input; the phone sends the typed strings so the server's messages apply).
+`requests.ts` already holds `CreateGoalRequest` (21b) and it is reused unchanged: the phone checks the typed values with the shared `parseGoalInput` first (the same messages), then sends numbers; the server parses again and its field messages come back in `details`.
 
 `progression.ts` (or a new `exercise-history.ts`) gains `ExerciseHistoryViewDto = { history: ExerciseHistoryDto; goals: ExerciseGoalsDto }`, re-exporting `ExerciseHistoryDto` from `progression/history-types`.
 
@@ -189,7 +189,7 @@ Exactly the shared goal parser (`parseGoalInput`) and `createGoal`'s rules: acti
 
 - E1: reconciles first (a goal met by history arrives as a reached card, not active), active order, history count, percent null with no performance.
 - E2/E3: archived exercise and gym still resolve; another account's goal → 404; a malformed id → 404.
-- E4: valid → 201 and visible in E1; missing exercise, bad weight, bad reps → 422 with field details; second active goal → 409 with `existingGoalId`; same key + same body → the first answer, one row; same key + different body → 409; double submit with two keys → one 201, one 409; bodyweight → 422; machine without gym → 422; archived gym → 422; already-reached → `outcome: "completed"`.
+- E4: valid → 201 and visible in E1; missing exercise, bad weight, bad reps → 400 with field details; second active goal → 409 with `existingGoalId`; same key + same body → the first answer, one row; same key + different body → 409; double submit with two keys → one 201, one 409; bodyweight, machine without gym, and archived gym → 400 with field details; already-reached → `outcome: "completed"`.
 - E5: archives; replay → 200 unchanged; `archived: false` → 400; another account → 404.
 - E6: idempotent; an active goal → 409 `invalid_state_transition`.
 - E7: each `kind`.
