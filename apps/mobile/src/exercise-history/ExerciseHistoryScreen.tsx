@@ -31,6 +31,7 @@ import { Chip, Surface } from "../ui/Surface";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
 import { callView } from "../workout/insight-model";
+import { TrendChart } from "./TrendChart";
 import { TrendSection } from "./TrendSection";
 import {
   exerciseDetailHrefIn,
@@ -286,7 +287,14 @@ function HistoryBody({
       {s.records ? <Records records={s.records} scopeName={gymName} /> : null}
 
       {!s.empty ? (
-        <TrendSection view={s.trend} scopeName={gymName} noGymScope={noGym} />
+        <TrendSection
+          view={s.trend}
+          scopeName={gymName}
+          noGymScope={noGym}
+          chart={(v) => (
+            <TrendChart points={v.trend.points} unit={v.unit} title={v.title} />
+          )}
+        />
       ) : null}
 
       {!s.empty ? (
