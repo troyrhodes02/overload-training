@@ -152,6 +152,15 @@ import type {
   GoalsOverviewDto,
 } from "@overload/shared/contracts/goals";
 import { endpointKey, MOBILE_ENDPOINTS } from "../../support/mobile-endpoints";
+import {
+  GET as meProfileRoute,
+  PUT as meProfileUpdateRoute,
+} from "@/app/api/mobile/v1/me/profile/route";
+import { GET as mePlanRoute } from "@/app/api/mobile/v1/me/plan/route";
+import { GET as releaseNotesRoute } from "@/app/api/mobile/v1/release-notes/route";
+import { POST as releaseNotesSeenRoute } from "@/app/api/mobile/v1/me/release-notes/seen/route";
+import { GET as meExportRoute } from "@/app/api/mobile/v1/me/export/route";
+import { orderedReleaseNotes } from "@overload/shared/release-notes/catalog";
 import { activePlan, library, today as todayIso, type Lib } from "./fixtures";
 import { snapshotAccount } from "./support";
 
@@ -1833,6 +1842,168 @@ const SCHEDULE_CASES: Record<string, () => void> = {
   },
 };
 
+/** Pitch 21j (spec §13): account settings. Each answers about the token's account only. */
+const ACCOUNT_SETTINGS_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/me/profile": () => {
+    accountEndpointMatrix("GET /me/profile", meProfileRoute as Handler);
+    describe("GET /me/profile: isolation", () => {
+      it("B reads only its own profile", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        await getTestPrisma().profile.update({
+          where: { userId: a.userId },
+          data: { firstName: "Alphaname", lastName: "Alphasurname" },
+        });
+        const rb = await call(meProfileRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.status).toBe(200);
+        for (const marker of [
+          ...aMarkers(a, plan),
+          "Alphaname",
+          "Alphasurname",
+        ])
+          expect(rb.text).not.toContain(marker);
+      });
+    });
+  },
+  "PUT api/mobile/v1/me/profile": () => {
+    accountEndpointMatrix("PUT /me/profile", meProfileUpdateRoute as Handler, {
+      method: "PUT",
+      json: {
+        firstName: "Matrix",
+        lastName: "Lifter",
+        username: "",
+        timeZone: "UTC",
+      },
+    });
+    describe("PUT /me/profile: isolation", () => {
+      it("B's save changes only B; a body naming A is ignored", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const r = await call(meProfileUpdateRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: {
+            userId: a.userId,
+            firstName: "Bravo",
+            lastName: "Lifter",
+            username: "",
+            timeZone: "America/Chicago",
+          },
+        });
+        expect(r.status).toBe(200);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+        const bProfile = await getTestPrisma().profile.findUniqueOrThrow({
+          where: { userId: b.userId },
+        });
+        expect([bProfile.firstName, bProfile.timeZone]).toEqual([
+          "Bravo",
+          "America/Chicago",
+        ]);
+      });
+    });
+  },
+  "GET api/mobile/v1/me/plan": () => {
+    accountEndpointMatrix("GET /me/plan", mePlanRoute as Handler);
+    describe("GET /me/plan: isolation", () => {
+      it("answers about B alone, with no purchase field", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const rb = await call(mePlanRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.status).toBe(200);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        for (const key of [
+          "prices",
+          "canSubscribe",
+          "canManage",
+          "promoReminder",
+        ])
+          expect(rb.body).not.toHaveProperty(key);
+      });
+    });
+  },
+  "GET api/mobile/v1/release-notes": () => {
+    accountEndpointMatrix("GET /release-notes", releaseNotesRoute as Handler);
+    describe("GET /release-notes: isolation", () => {
+      it("is the same catalog for every account and reveals no one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const ra = await call(releaseNotesRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        const rb = await call(releaseNotesRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.body).toEqual(ra.body);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+      });
+    });
+  },
+  "POST api/mobile/v1/me/release-notes/seen": () => {
+    const newest = () => orderedReleaseNotes()[0]?.id ?? "none";
+    accountEndpointMatrix(
+      "POST /me/release-notes/seen",
+      releaseNotesSeenRoute as Handler,
+      { json: { throughId: newest() } },
+    );
+    describe("POST /me/release-notes/seen: isolation", () => {
+      it("B's mark moves only B's seen point", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const catalog = orderedReleaseNotes();
+        if (catalog.length < 2) return; // nothing to move with one entry
+        const older = catalog[catalog.length - 1].id;
+        for (const acct of [a, b]) {
+          await getTestPrisma().releaseSeen.upsert({
+            where: { userId: acct.userId },
+            create: {
+              userId: acct.userId,
+              lastSeenReleaseId: older,
+              lastSeenAt: new Date(),
+            },
+            update: { lastSeenReleaseId: older },
+          });
+        }
+        const r = await call(releaseNotesSeenRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { throughId: catalog[0].id, userId: a.userId },
+        });
+        expect([r.status, r.body]).toEqual([200, { moved: true }]);
+        const seen = async (userId: string) =>
+          (
+            await getTestPrisma().releaseSeen.findUniqueOrThrow({
+              where: { userId },
+            })
+          ).lastSeenReleaseId;
+        expect(await seen(a.userId)).toBe(older);
+        expect(await seen(b.userId)).toBe(catalog[0].id);
+      });
+    });
+  },
+  "GET api/mobile/v1/me/export": () => {
+    accountEndpointMatrix("GET /me/export", meExportRoute as Handler);
+    describe("GET /me/export: isolation", () => {
+      it("B's export holds only B's rows; A's holds A's", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const rb = await call(meExportRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.status).toBe(200);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        expect(rb.text).toContain(bGym.id);
+        const ra = await call(meExportRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(ra.text).toContain(plan.gym.id);
+        expect(ra.text).not.toContain(bGym.id);
+        expect(ra.body.loggedSets.length).toBeGreaterThan(0);
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -1852,6 +2023,9 @@ const CASES: Record<string, () => void> = {
           signupMode: expect.stringMatching(/^(public|closed)$/),
           // Pitch 21d: public widget key and web origin only, or null.
           botChallenge: mobileBotChallenge(),
+          // Pitch 21j: the public support address, or null. Never a secret.
+          supportEmail:
+            process.env.NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL?.trim() || null,
         });
       });
     }),
@@ -2557,6 +2731,7 @@ const CASES: Record<string, () => void> = {
   ...LOGGING_CASES,
   ...GOAL_CASES,
   ...SCHEDULE_CASES,
+  ...ACCOUNT_SETTINGS_CASES,
 };
 
 // The unknown-path 404, one case per method.
