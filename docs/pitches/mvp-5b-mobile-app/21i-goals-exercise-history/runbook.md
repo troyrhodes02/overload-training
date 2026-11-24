@@ -232,3 +232,27 @@ On the iPhone, More → Diagnostics must show update group `4e76746e`, commit `1
 | `21i-combined@example.com` | `21i-combined` | Goals Bench 225 × 5 86% and Leverage Chest Press @ Northside 180 × 10 75%. History: Squat reached, Military Press archived. Week: Upper B · Lower B · rest · Upper A · Lower A · rest · rest. ENGINE CHECK PASSED. Read only by the staging checks. |
 | `21i-free@example.com` | `21i-free` | Free. Bench 225 × 5 86%. ENGINE CHECK PASSED. Read only, apart from one refused cross-account skip. |
 | `21i-verify@example.com` | `21i-combined` | **Used by the staging write checks**: a Lat Pulldown goal created then archived, the Squat card acknowledged, a swap, a skip, a rest-day swap, Train today, and a started workout. Don't use it for the acceptance checks. |
+
+## 9. Owner acceptance (2026-11-24)
+
+The owner tested staging update `4e76746e` (commit `112737c`, runtime `f98506f78a`) on a physical iPhone, on development build `86e673d0`. **5 of 5 acceptance groups passed:**
+
+1. **Goals:** Goal reached acknowledgement; the active goal list and the percent; goal detail; navigation to exercise history; creating a goal; completed and archived history.
+2. **Exercise history and the chart:** native history; personal records; chart interaction; set details and RIR; gym-specific machine history; native navigation.
+3. **Weekly scheduling:** seven-day navigation; preview; swapping two workout days; the updated schedule persisting after a refresh.
+4. **Train today and Skip:** swapping a workout with a rest day; Train today, then starting the moved workout and saving a set, with no duplicate pending occurrence; skipping ahead of time; persistence.
+5. **Workout regression and the Free state:** resuming an active workout; exercise history from a card, returning with the workout state and saved sets intact; Free goals and basic history; Pro intelligence gated by the server.
+
+No defects were reported, so no corrected update was needed.
+
+## 10. Production release and sync (2026-11-24)
+
+- **Release:** #316, cut from `main` and squash-merged as **`707f981`**. It carries 21i and OVE-241 together.
+- **Production:** deployment `dpl_12bDctz58Te8CEbmmJsNfTkDiWAE` is Ready on `www.overloadtraining.app`. The non-destructive smoke checks passed 18/18.
+- **Not needed:** no migration and no environment change.
+- **Sync:** `main` was merged back into `staging` by #317 (`8abe95f`).
+- **Record:** `docs/releases/2026-11-21i-goals-history-ove-241-production.md`.
+- **The iPhone app stays on staging.** No Production Expo update, TestFlight build, or Production-connected build was made; that's slice 21l.
+- **Still deferred by decision (spec RD-6, RD-8):**
+  - on the phone: the web's Weight trend view and RIR-projection overlay;
+  - on the web Today: the goals block.
