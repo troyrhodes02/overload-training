@@ -18,7 +18,11 @@ jest.mock("@/lib/data/access-token", () => ({
 
 import { randomUUID } from "node:crypto";
 import type { Account } from "@/lib/data/account";
-import { GET as goalsRoute } from "@/app/api/mobile/v1/goals/route";
+import {
+  GET as goalsRoute,
+  POST as createGoalRoute,
+} from "@/app/api/mobile/v1/goals/route";
+import { GET as goalFormRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/goal-form/route";
 import { GET as goalHistoryRoute } from "@/app/api/mobile/v1/goals/history/route";
 import { GET as goalRoute } from "@/app/api/mobile/v1/goals/[goalId]/route";
 import { PUT as goalArchivedRoute } from "@/app/api/mobile/v1/goals/[goalId]/archived/route";
@@ -360,5 +364,206 @@ describe("GET /goals/history (E2) and GET /goals/{id} (E3)", () => {
     expect(
       (await db().goal.findUniqueOrThrow({ where: { id: goal.id } })).status,
     ).toBe("active");
+  });
+});
+
+describe("POST /goals (E4)", () => {
+  const post = (
+    account: Account,
+    json: unknown,
+    key: string = `k-${randomUUID()}`,
+  ) =>
+    call(createGoalRoute, account, {
+      json,
+      headers: { "idempotency-key": key },
+    });
+
+  it("sets a goal that E1 then lists, and a retry with the same key makes no second one", async () => {
+    const a = await createTestAccount();
+    const s = await story(a);
+    const json = {
+      exerciseId: s.bench.id,
+      gymId: null,
+      targetWeightLbs: 185,
+      targetReps: 5,
+    };
+    const first = await post(a, json, "ovl-retry-1");
+    expect(first.status).toBe(201);
+    expect(first.body).toEqual({ id: expect.any(String), outcome: "active" });
+    const again = await post(a, json, "ovl-retry-1");
+    expect([again.status, again.body]).toEqual([201, first.body]);
+    expect(await db().goal.count({ where: { userId: a.userId } })).toBe(1);
+    const overview = await call(goalsRoute, a);
+    expect(
+      (overview.body as GoalsOverviewDto).active.map((g) => g.goalId),
+    ).toEqual([first.body.id]);
+    // The same key with different values is refused, and writes nothing.
+    const other = await post(a, { ...json, targetReps: 3 }, "ovl-retry-1");
+    expect([other.status, other.body.error.code]).toEqual([409, "conflict"]);
+    expect(await db().goal.count({ where: { userId: a.userId } })).toBe(1);
+  });
+
+  it("answers the web's rules for each bad input, writing nothing", async () => {
+    const a = await createTestAccount();
+    const s = await story(a);
+    const bodyweight = await libraryExercise(
+      `Pull-up ${randomUUID()}`,
+      "bodyweight",
+    );
+    const cases: [unknown, string][] = [
+      [{ gymId: null, targetWeightLbs: 100, targetReps: 5 }, "exerciseId"],
+      [
+        { exerciseId: s.bench.id, targetWeightLbs: 0, targetReps: 5 },
+        "targetWeightLbs",
+      ],
+      [
+        { exerciseId: s.bench.id, targetWeightLbs: 100.123, targetReps: 5 },
+        "targetWeightLbs",
+      ],
+      [
+        { exerciseId: s.bench.id, targetWeightLbs: 100, targetReps: 2.5 },
+        "targetReps",
+      ],
+      [
+        { exerciseId: s.bench.id, targetWeightLbs: 100, targetReps: 0 },
+        "targetReps",
+      ],
+      [
+        { exerciseId: bodyweight.id, targetWeightLbs: 100, targetReps: 5 },
+        "exerciseId",
+      ],
+      [
+        { exerciseId: s.machine.id, targetWeightLbs: 100, targetReps: 5 },
+        "gymId",
+      ],
+      [
+        {
+          exerciseId: s.bench.id,
+          gymId: s.downtown.id,
+          targetWeightLbs: 100,
+          targetReps: 5,
+        },
+        "gymId",
+      ],
+      [
+        { exerciseId: randomUUID(), targetWeightLbs: 100, targetReps: 5 },
+        "exerciseId",
+      ],
+    ];
+    for (const [json, field] of cases) {
+      const r = await post(a, json);
+      expect([
+        r.status,
+        r.body.error.code,
+        Object.keys(r.body.error.details ?? {}),
+      ]).toEqual([400, "validation_error", expect.arrayContaining([field])]);
+    }
+    await archiveGym(a, { gymId: s.harbor.id });
+    const archivedGym = await post(a, {
+      exerciseId: s.machine.id,
+      gymId: s.harbor.id,
+      targetWeightLbs: 120,
+      targetReps: 10,
+    });
+    expect(archivedGym.body.error.details).toEqual({
+      gymId: "That gym is archived. Choose an active gym.",
+    });
+    expect(await db().goal.count({ where: { userId: a.userId } })).toBe(0);
+    // No key at all is refused before anything runs.
+    const noKey = await call(createGoalRoute, a, {
+      json: { exerciseId: s.bench.id, targetWeightLbs: 100, targetReps: 5 },
+    });
+    expect([noKey.status, noKey.body.error.code]).toEqual([
+      400,
+      "validation_error",
+    ]);
+  });
+
+  it("a second active goal on the exercise is the web's conflict, with the first goal's id", async () => {
+    const a = await createTestAccount();
+    const s = await story(a);
+    const json = {
+      exerciseId: s.bench.id,
+      targetWeightLbs: 185,
+      targetReps: 5,
+    };
+    const first = await post(a, json);
+    const second = await post(a, { ...json, targetWeightLbs: 205 });
+    expect([
+      second.status,
+      second.body.error.code,
+      second.body.error.details,
+    ]).toEqual([409, "conflict", { existingGoalId: first.body.id }]);
+    // Two different requests at once: one goal, and the other is the conflict.
+    const b = await createTestAccount();
+    const sb = await story(b);
+    const race = await Promise.all([
+      post(b, { exerciseId: sb.bench.id, targetWeightLbs: 185, targetReps: 5 }),
+      post(b, { exerciseId: sb.bench.id, targetWeightLbs: 195, targetReps: 5 }),
+    ]);
+    expect(race.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(
+      await db().goal.count({ where: { userId: b.userId, status: "active" } }),
+    ).toBe(1);
+  });
+
+  it("a target history already meets completes at creation", async () => {
+    const a = await createTestAccount();
+    const s = await story(a);
+    const r = await post(a, {
+      exerciseId: s.bench.id,
+      targetWeightLbs: "135",
+      targetReps: "5",
+    });
+    expect([r.status, r.body.outcome]).toEqual([201, "completed"]);
+    const detail = await call(goalRoute, a, { params: { goalId: r.body.id } });
+    expect(detail.body).toMatchObject({
+      kind: "archived",
+      alreadyReached: true,
+      unacknowledged: true,
+    });
+  });
+});
+
+describe("GET /exercises/{id}/goal-form (E7)", () => {
+  it("gives the web's form context for each kind of exercise", async () => {
+    const a = await createTestAccount();
+    const s = await story(a);
+    const bodyweight = await libraryExercise(
+      `Dip ${randomUUID()}`,
+      "bodyweight",
+    );
+    const form = (exerciseId: string, query?: string) =>
+      call(goalFormRoute, a, { params: { exerciseId }, query });
+
+    expect((await form(s.bench.id)).body).toMatchObject({
+      kind: "ok",
+      gymVariable: false,
+      gyms: [],
+      defaultGymId: null,
+    });
+    const machine = await form(s.machine.id, `gymId=${s.harbor.id}`);
+    expect(machine.body).toMatchObject({
+      kind: "ok",
+      gymVariable: true,
+      defaultGymId: s.harbor.id,
+    });
+    expect(
+      machine.body.gyms.map((g: { name: string }) => g.name).sort(),
+    ).toEqual(["Downtown Gym", "Harbor Barbell"]);
+    expect((await form(bodyweight.id)).body).toMatchObject({
+      kind: "bodyweight_unsupported",
+    });
+    expect((await form(randomUUID())).body).toEqual({ kind: "not_found" });
+    await createGoal(a, {
+      exerciseId: s.bench.id,
+      gymId: null,
+      targetWeightLbs: "185",
+      targetReps: "5",
+    });
+    expect((await form(s.bench.id)).body).toMatchObject({
+      kind: "duplicate",
+      existing: { targetLabel: "185 lb × 5" },
+    });
   });
 });
