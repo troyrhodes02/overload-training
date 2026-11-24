@@ -1,6 +1,5 @@
 import {
   Alert,
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,7 +9,7 @@ import { router, Stack } from "expo-router";
 import { billingCopy } from "@overload/shared/billing/copy";
 import { useMe } from "../../../api/queries";
 import { useSession } from "../../../auth/session";
-import { APP_VERSION, webOrigin } from "../../../config/env";
+import { APP_VERSION } from "../../../config/env";
 import { diagnosticsAvailable } from "../../../diagnostics/availability";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
 import { LoadErrorState } from "../../../ui/LoadErrorState";
@@ -36,9 +35,6 @@ export default function MoreScreen() {
   const { preference } = useThemeContext();
   const { signOut } = useSession();
   const me = useMe(true);
-  const origin = webOrigin();
-  const open = (path = "") =>
-    origin && void Linking.openURL(`${origin}${path}`);
   const profile = me.data?.profile;
   const plan = me.data
     ? billingCopy(me.data.entitlement.displayState, {
@@ -180,19 +176,34 @@ export default function MoreScreen() {
           />
         </GroupedList>
 
-        <GroupedList header="Account">
+        <GroupedList header="Your data">
           <ListRow
-            title="Manage account on the web"
-            accessory="external"
-            accessibilityHint="Profile, export, deletion, and billing are on the web for now."
-            onPress={() => open("/settings")}
+            title="Export your data"
+            accessory="chevron"
+            onPress={() => router.push("/more/export")}
           />
+        </GroupedList>
+
+        <GroupedList>
           <ListRow
             title="Sign out"
             tone="destructive"
             onPress={confirmSignOut}
           />
         </GroupedList>
+
+        {/* Apart and last (design M1; RD-1): discoverable, never adjacent
+            to a routine row. */}
+        <View style={{ marginTop: spacing.md }}>
+          <GroupedList>
+            <ListRow
+              title="Delete account"
+              tone="destructive"
+              accessory="chevron"
+              onPress={() => router.push("/more/delete-account")}
+            />
+          </GroupedList>
+        </View>
 
         <View style={{ gap: spacing.sm, alignItems: "center" }}>
           <Text size="xs" tone="muted" align="center">
