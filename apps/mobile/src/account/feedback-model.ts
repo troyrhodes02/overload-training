@@ -10,6 +10,7 @@ import {
 import { newIdempotencyKey } from "../api/idempotency";
 import type { FeedbackScreenshot } from "../api/account";
 import { ApiError } from "../api/errors";
+import { deleteLocalImage } from "./screenshot-files";
 
 /**
  * A6 Send feedback's draft and rules (Pitch 21j design §6 A6; RD-10, RD-11).
@@ -58,6 +59,14 @@ export function updateFeedbackDraft(patch: Partial<FeedbackDraft>): void {
     (patch.category !== undefined && patch.category !== draft.category) ||
     (patch.message !== undefined && patch.message !== draft.message) ||
     (patch.screenshot !== undefined && patch.screenshot !== draft.screenshot);
+  // A replaced or removed screenshot's local file goes at once (review #4).
+  if (
+    patch.screenshot !== undefined &&
+    draft.screenshot &&
+    patch.screenshot?.uri !== draft.screenshot.uri
+  ) {
+    deleteLocalImage(draft.screenshot.uri);
+  }
   draft = {
     ...draft,
     ...patch,
@@ -68,6 +77,8 @@ export function updateFeedbackDraft(patch: Partial<FeedbackDraft>): void {
 
 /** A confirmed send, a discard, or sign-out. */
 export function resetFeedbackDraft(): void {
+  // Sent, discarded, signed out, or deleted: the screenshot file goes too.
+  deleteLocalImage(draft.screenshot?.uri);
   draft = fresh();
   emit();
 }

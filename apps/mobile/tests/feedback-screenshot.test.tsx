@@ -27,9 +27,18 @@ jest.mock("expo-image-manipulator", () => ({
   ImageManipulator: { manipulate: jest.fn() },
   SaveFormat: { JPEG: "jpeg" },
 }));
+const mockDeleted: string[] = [];
 jest.mock("expo-file-system", () => ({
   File: class {
+    uri: string;
     size = 1000;
+    exists = true;
+    constructor(uri: string) {
+      this.uri = uri;
+    }
+    delete() {
+      mockDeleted.push(this.uri);
+    }
   },
 }));
 const mockApi = { request: jest.fn() };
@@ -65,6 +74,7 @@ const SHOT = {
 beforeEach(() => {
   jest.clearAllMocks();
   resetFeedbackDraft();
+  mockDeleted.length = 0;
 });
 
 describe("screenshot model", () => {
@@ -173,5 +183,59 @@ describe("A6 send with a screenshot", () => {
     expect(mockApi.request.mock.calls[0][1].headers).toEqual(
       mockApi.request.mock.calls[1][1].headers,
     );
+  });
+});
+
+describe("local image files (review #4)", () => {
+  it("replace, remove, and reset delete the screenshot's file", () => {
+    updateFeedbackDraft({ screenshot: SHOT });
+    updateFeedbackDraft({
+      screenshot: { ...SHOT, uri: "file:///cache/manip/2.jpg" },
+    });
+    expect(mockDeleted).toEqual([SHOT.uri]);
+    updateFeedbackDraft({ screenshot: null });
+    expect(mockDeleted).toEqual([SHOT.uri, "file:///cache/manip/2.jpg"]);
+    updateFeedbackDraft({
+      screenshot: { ...SHOT, uri: "file:///cache/manip/3.jpg" },
+    });
+    resetFeedbackDraft();
+    expect(mockDeleted.at(-1)).toBe("file:///cache/manip/3.jpg");
+  });
+
+  it("the picker's own copy is deleted after preparing", async () => {
+    const ImagePicker = jest.requireMock("expo-image-picker");
+    const { ImageManipulator } = jest.requireMock("expo-image-manipulator");
+    ImagePicker.launchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///picker/IMG_1.png", width: 1179, height: 2556 }],
+    });
+    const context = {
+      resize: jest.fn(),
+      renderAsync: jest.fn(async () => ({
+        saveAsync: async () => ({ uri: "file:///cache/manip/9.jpg" }),
+      })),
+    };
+    ImageManipulator.manipulate.mockReturnValue(context);
+    const { pickScreenshot } = jest.requireActual(
+      "../src/account/ScreenshotAttachment",
+    );
+    const result = await pickScreenshot();
+    expect(result).toEqual({
+      uri: "file:///cache/manip/9.jpg",
+      name: "screenshot.jpg",
+      type: "image/jpeg",
+    });
+    expect(context.resize).toHaveBeenCalledWith({ height: 2048 });
+    expect(mockDeleted).toEqual(["file:///picker/IMG_1.png"]);
+  });
+});
+
+describe("feedback route without the native picker (review #5)", () => {
+  it("no row on a build without the modules; the row when they exist", () => {
+    const { loadScreenshotAttachment } = jest.requireActual(
+      "../src/account/native-picker",
+    );
+    expect(loadScreenshotAttachment(() => false)).toBeNull();
+    expect(loadScreenshotAttachment(() => true)).toBe(ScreenshotAttachment);
   });
 });

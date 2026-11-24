@@ -3,6 +3,7 @@ import { Image, Linking, Modal, Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { File } from "expo-file-system";
+import { deleteLocalImage } from "./screenshot-files";
 import { Button } from "../ui/Button";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
@@ -42,6 +43,8 @@ export async function pickScreenshot(): Promise<
   }
   if (picked.canceled || !picked.assets?.[0]) return null;
   const asset = picked.assets[0];
+  // The picker's own copy (possibly the original, with its metadata) is
+  // deleted however preparation ends (review #4).
   try {
     const context = ImageManipulator.manipulate(asset.uri);
     const resize = resizeFor(asset.width, asset.height);
@@ -57,10 +60,15 @@ export async function pickScreenshot(): Promise<
     } catch {
       size = null;
     }
-    if (!fitsUpload(size)) return "failed";
+    if (!fitsUpload(size)) {
+      deleteLocalImage(saved.uri);
+      return "failed";
+    }
     return { uri: saved.uri, name: "screenshot.jpg", type: "image/jpeg" };
   } catch {
     return "failed";
+  } finally {
+    deleteLocalImage(asset.uri);
   }
 }
 
