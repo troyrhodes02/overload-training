@@ -4,7 +4,7 @@ jest.mock("@/lib/feedback/screenshots", () => ({
     {
       objectPath: "acting-user/x/0.png",
       contentType: "image/png",
-      sizeBytes: 3,
+      sizeBytes: 9,
     },
   ]),
   removeFeedbackScreenshots: jest.fn(async () => {}),
@@ -50,7 +50,13 @@ function withScreenshot(fields: Record<string, string>) {
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   fd.append(
     "screenshots",
-    new File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" }),
+    // Real PNG magic bytes: the server checks the bytes, not just the claim
+    // (Pitch 21j RD-11).
+    new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0])],
+      "shot.png",
+      { type: "image/png" },
+    ),
   );
   return fd;
 }
@@ -99,4 +105,23 @@ it("a valid submission under the limit uploads and saves", async () => {
   expect(uploadFeedbackScreenshots).toHaveBeenCalledTimes(1);
   expect(createMany).toHaveBeenCalled();
   expect(removeFeedbackScreenshots).not.toHaveBeenCalled();
+});
+
+it("a file whose bytes aren't the image type it claims is refused, and nothing is uploaded", async () => {
+  const fd = new FormData();
+  fd.set("category", "bug");
+  fd.set("message", "It broke.");
+  fd.append(
+    "screenshots",
+    new File([new TextEncoder().encode("<html>not an image</html>")], "x.png", {
+      type: "image/png",
+    }),
+  );
+  const state = await submitFeedbackAction({ status: "idle" }, fd);
+  expect(state).toMatchObject({
+    status: "error",
+    fieldErrors: { screenshots: "Screenshots must be PNG, JPEG, or WebP." },
+  });
+  expect(uploadFeedbackScreenshots).not.toHaveBeenCalled();
+  expect(create).not.toHaveBeenCalled();
 });
