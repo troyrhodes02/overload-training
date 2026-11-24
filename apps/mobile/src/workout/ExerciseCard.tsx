@@ -41,7 +41,7 @@ import { fewerSetsConfirmation, showExerciseActions } from "./exercise-actions";
 import { RirPicker } from "./RirPicker";
 import { setValueLabel, setValueSpoken } from "./labels";
 import { changeFailureMessage, needsRefresh } from "./messages";
-import { editSetHref, swapHref } from "./routes";
+import { editSetHref, exerciseAboutHref, swapHref } from "./routes";
 import {
   cardActiveSet,
   cardContext,
@@ -269,7 +269,9 @@ export function ExerciseCard({
     // Never open a sheet over a half-covered screen.
     Keyboard.dismiss();
     const action = await showExerciseActions(card, workout);
-    if (action === "swap") openSwap();
+    if (action === "details")
+      router.push(exerciseAboutHref(card.performedExerciseId));
+    else if (action === "swap") openSwap();
     else if (action === "skip") await markSkipped(true);
     else if (action === "fewer_sets") askFewerSets();
   }

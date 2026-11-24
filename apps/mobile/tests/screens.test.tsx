@@ -222,6 +222,23 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
   });
 
+  it("M1 opens Exercises and Gyms in the app (Pitch 21h)", async () => {
+    const { router } = jest.requireMock("expo-router") as {
+      router: { push: jest.Mock };
+    };
+    await render(
+      <Providers me={meDto()}>
+        <MoreScreen />
+      </Providers>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Exercises" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Gyms" }));
+    expect(router.push.mock.calls.map(([href]) => href)).toEqual([
+      "/more/exercises",
+      "/more/gyms",
+    ]);
+  });
+
   it("M2 explains System on its own row, not in a footer", async () => {
     await render(
       <Providers>

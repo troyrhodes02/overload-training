@@ -73,7 +73,11 @@ import type { Account } from "@/lib/data/account";
 import { GET as appConfig } from "@/app/api/mobile/v1/app-config/route";
 import { GET as me } from "@/app/api/mobile/v1/me/route";
 import { GET as today } from "@/app/api/mobile/v1/today/route";
-import { GET as gyms } from "@/app/api/mobile/v1/gyms/route";
+import {
+  GET as gyms,
+  POST as createGymRoute,
+} from "@/app/api/mobile/v1/gyms/route";
+import { PUT as gymArchivedRoute } from "@/app/api/mobile/v1/gyms/[gymId]/archived/route";
 import * as catchAll from "@/app/api/mobile/[[...path]]/route";
 import { mobileBotChallenge } from "@/lib/api/mobile/version";
 import { POST as signUpRoute } from "@/app/api/mobile/v1/accounts/route";
@@ -95,7 +99,22 @@ import { PATCH as plannedSetsRoute } from "@/app/api/mobile/v1/logged-exercises/
 import { PATCH as editSetRoute } from "@/app/api/mobile/v1/sets/[loggedSetId]/route";
 import { PUT as logCardioRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/cardio-logs/[scheduledFor]/route";
 import { PATCH as editCardioRoute } from "@/app/api/mobile/v1/cardio-logs/[cardioLogId]/route";
-import { createCustomExercise } from "@/lib/exercises/exercises";
+import { GET as planRoute } from "@/app/api/mobile/v1/plan/route";
+import { GET as planSessionRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]/route";
+import type {
+  PlanOverviewDto,
+  PlanSessionDto,
+} from "@overload/shared/contracts/plan";
+import { GET as exercisesRoute } from "@/app/api/mobile/v1/exercises/route";
+import { GET as exerciseRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/route";
+import { POST as createExerciseRoute } from "@/app/api/mobile/v1/exercises/route";
+import { PUT as favoriteRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/favorite/route";
+import { PUT as exerciseArchivedRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/archived/route";
+import type { ExerciseList } from "@overload/shared/contracts/exercises";
+import {
+  createCustomExercise,
+  setExerciseFavorite,
+} from "@/lib/exercises/exercises";
 import { logCardio } from "@/lib/cardio/cardio-logs";
 import type { SwapContextDto } from "@overload/shared/contracts/logging";
 import { createGoal } from "@/lib/goals/goals";
@@ -155,6 +174,8 @@ type CallInit = {
   params?: Record<string, string>;
   /** A query string without the "?" (Pitch 21e). */
   query?: string;
+  /** Extra request headers, e.g. an Idempotency-Key (Pitch 21h). */
+  headers?: Record<string, string>;
 };
 
 async function call(
@@ -166,6 +187,7 @@ async function call(
   if (version !== null) headers.set("x-overload-app-version", version);
   if (opts.token) headers.set("authorization", `Bearer ${opts.token}`);
   if (opts.ip) headers.set("x-forwarded-for", opts.ip);
+  for (const [k, v] of Object.entries(opts.headers ?? {})) headers.set(k, v);
   const hasBody = opts.json !== undefined;
   if (hasBody) headers.set("content-type", "application/json");
   const res = await handler(
@@ -1389,6 +1411,287 @@ const CASES: Record<string, () => void> = {
     });
   },
 
+  // Pitch 21h: the plan (read-only).
+  "GET api/mobile/v1/plan": () => {
+    accountEndpointMatrix("GET /plan", planRoute as Handler);
+    describe("GET /plan: isolation", () => {
+      it("B sees its own (empty) plan and nothing of A's, at any week", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        for (const query of [undefined, "week=1", "week=2"]) {
+          const rb = await call(planRoute as Handler, {
+            token: tokenFor(b.userId),
+            query,
+          });
+          expect(rb.status).toBe(200);
+          expect((rb.body as PlanOverviewDto).block).toBeNull();
+          for (const marker of aMarkers(a, plan))
+            expect(rb.text).not.toContain(marker);
+        }
+        const ra = await call(planRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect((ra.body as PlanOverviewDto).block?.summary.id).toBe(
+          plan.meso.id,
+        );
+      });
+
+      it("a Free account gets the same plan as Pro, with no progression field", async () => {
+        const { a } = await twoAccounts(lib);
+        const free = await createTestAccount("UTC", undefined, {
+          entitlement: "none",
+        });
+        await activePlan(free, lib, "Free", { startWeeksAgo: 2 });
+        for (const account of [a, free]) {
+          const r = await call(planRoute as Handler, {
+            token: tokenFor(account.userId),
+          });
+          expect(r.status).toBe(200);
+          expect(r.text).not.toMatch(
+            /"(progression|recommendation|locked|tag|e1rm|evidence)"/i,
+          );
+        }
+      });
+    });
+  },
+  "GET api/mobile/v1/mesocycles/[mesocycleId]/sessions/[sessionId]": () => {
+    accountEndpointMatrix(
+      "GET /mesocycles/{id}/sessions/{id}",
+      planSessionRoute as Handler,
+      { params: { mesocycleId: randomUUID(), sessionId: randomUUID() } },
+      404,
+    );
+    describe("GET /mesocycles/{id}/sessions/{id}: isolation", () => {
+      it("B can't read A's session, even mixing in its own block: a 404 like a missing one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const own = await activePlan(b, lib, "Bravo");
+        const missing = await call(planSessionRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: randomUUID(), sessionId: randomUUID() },
+        });
+        for (const params of [
+          { mesocycleId: plan.meso.id, sessionId: plan.session.id },
+          { mesocycleId: own.meso.id, sessionId: plan.session.id },
+          { mesocycleId: plan.meso.id, sessionId: own.session.id },
+        ]) {
+          const r = await call(planSessionRoute as Handler, {
+            token: tokenFor(b.userId),
+            params,
+          });
+          expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+        }
+        const ra = await call(planSessionRoute as Handler, {
+          token: tokenFor(a.userId),
+          params: { mesocycleId: plan.meso.id, sessionId: plan.session.id },
+        });
+        expect((ra.body as PlanSessionDto).name).toBe("Alpha Push");
+      });
+    });
+  },
+
+  // Pitch 21h: the library.
+  "GET api/mobile/v1/exercises": () => {
+    accountEndpointMatrix("GET /exercises", exercisesRoute as Handler);
+    describe("GET /exercises: isolation", () => {
+      it("B's list and search never show A's custom exercise or favorites", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        await setExerciseFavorite(a, {
+          exerciseId: lib.bench.id,
+          isFavorite: true,
+        });
+        for (const query of [
+          "q=Landmine",
+          "q=Alpha",
+          "view=favorites",
+          "muscle=chest&limit=1000",
+        ]) {
+          const r = await call(exercisesRoute as Handler, {
+            token: tokenFor(b.userId),
+            query,
+          });
+          expect(r.status).toBe(200);
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+          const body = r.body as ExerciseList;
+          expect(body.items.some((e) => e.isFavorite)).toBe(false);
+          expect(body.hasAnyFavorites).toBe(false);
+        }
+        const ra = await call(exercisesRoute as Handler, {
+          token: tokenFor(a.userId),
+          query: "q=Landmine",
+        });
+        expect((ra.body as ExerciseList).items.map((e) => e.id)).toEqual([
+          plan.custom.id,
+        ]);
+      });
+    });
+  },
+  "GET api/mobile/v1/exercises/[exerciseId]": () => {
+    accountEndpointMatrix(
+      "GET /exercises/{id}",
+      exerciseRoute as Handler,
+      { params: { exerciseId: randomUUID() } },
+      404,
+    );
+    describe("GET /exercises/{id}: isolation", () => {
+      it("A's custom exercise is a 404 for B, like a missing one; a library one is readable", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const missing = await call(exerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: randomUUID() },
+        });
+        const r = await call(exerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: plan.custom.id },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        await setExerciseFavorite(a, {
+          exerciseId: lib.bench.id,
+          isFavorite: true,
+        });
+        const shared = await call(exerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(shared.status).toBe(200);
+        expect(shared.body).toMatchObject({
+          isFavorite: false,
+          canArchive: false,
+        });
+      });
+    });
+  },
+
+  "POST api/mobile/v1/exercises": () => {
+    const form = {
+      name: "Bravo Sled Push",
+      primaryMuscle: "quads",
+      equipmentType: "other",
+      secondaryMuscles: [],
+    };
+    accountEndpointMatrix(
+      "POST /exercises",
+      createExerciseRoute as Handler,
+      { json: form, headers: { "idempotency-key": "matrix-key-0001" } },
+      201,
+    );
+    describe("POST /exercises: isolation", () => {
+      it("creates for the token's account only; another account's key reveals nothing", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const key = `shared-key-${randomUUID()}`;
+        const ra = await call(createExerciseRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: { ...form, name: "Alpha Sled Push" },
+          headers: { "idempotency-key": key },
+        });
+        expect(ra.status).toBe(201);
+        const aSnap = await snapshotAccount(a.userId);
+        // B reuses A's key with another body: B's own fresh create, not a 409.
+        const rb = await call(createExerciseRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { ...form, userId: a.userId },
+          headers: { "idempotency-key": key },
+        });
+        expect(rb.status).toBe(201);
+        expect(rb.headers.get("idempotent-replayed")).toBeNull();
+        expect(rb.body.id).not.toBe(ra.body.id);
+        for (const marker of [...aMarkers(a, plan), "Alpha Sled Push"])
+          expect(rb.text).not.toContain(marker);
+        const row = await getTestPrisma().exercise.findUniqueOrThrow({
+          where: { id: rb.body.id },
+        });
+        expect(row.userId).toBe(b.userId);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+      });
+    });
+  },
+  "PUT api/mobile/v1/exercises/[exerciseId]/favorite": () => {
+    accountEndpointMatrix(
+      "PUT /exercises/{id}/favorite",
+      favoriteRoute as Handler,
+      {
+        method: "PUT",
+        json: { isFavorite: true },
+        params: { exerciseId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /exercises/{id}/favorite: isolation", () => {
+      it("B can't star A's custom exercise (404 like a missing one); B's star on a library one is B's alone", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const missing = await call(favoriteRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { isFavorite: true },
+          params: { exerciseId: randomUUID() },
+        });
+        const r = await call(favoriteRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { isFavorite: true },
+          params: { exerciseId: plan.custom.id },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        const shared = await call(favoriteRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { isFavorite: true },
+          params: { exerciseId: lib.bench.id },
+        });
+        expect(shared.status).toBe(200);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+        expect(
+          await getTestPrisma().exerciseFavorite.count({
+            where: { exerciseId: lib.bench.id, userId: a.userId },
+          }),
+        ).toBe(0);
+      });
+    });
+  },
+  "PUT api/mobile/v1/exercises/[exerciseId]/archived": () => {
+    accountEndpointMatrix(
+      "PUT /exercises/{id}/archived",
+      exerciseArchivedRoute as Handler,
+      {
+        method: "PUT",
+        json: { archived: true },
+        params: { exerciseId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /exercises/{id}/archived: isolation", () => {
+      it("B can't archive or restore A's custom exercise, or any library one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        for (const [exerciseId, archived] of [
+          [plan.custom.id, true],
+          [plan.custom.id, false],
+          [lib.bench.id, true],
+        ] as const) {
+          const r = await call(exerciseArchivedRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            json: { archived },
+            params: { exerciseId },
+          });
+          expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+        }
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+        expect(
+          (
+            await getTestPrisma().exercise.findUniqueOrThrow({
+              where: { id: lib.bench.id },
+            })
+          ).deletedAt,
+        ).toBeNull();
+      });
+    });
+  },
+
   "GET api/mobile/v1/gyms": () => {
     accountEndpointMatrix("GET /gyms", gyms as Handler);
     describe("GET /gyms: isolation", () => {
@@ -1406,6 +1709,84 @@ const CASES: Record<string, () => void> = {
         expect((ra.body as GymsResponseDto).gyms.map((g) => g.id)).toEqual([
           plan.gym.id,
         ]);
+      });
+    });
+  },
+  "POST api/mobile/v1/gyms": () => {
+    accountEndpointMatrix(
+      "POST /gyms",
+      createGymRoute as Handler,
+      {
+        json: { name: "Matrix Gym", address: null },
+        headers: { "idempotency-key": "matrix-gym-0001" },
+      },
+      201,
+    );
+    describe("POST /gyms: isolation", () => {
+      it("creates for the token's account only, never another's baseline; a shared key reveals nothing", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const key = `gym-key-${randomUUID()}`;
+        await call(createGymRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: { name: "Alpha Annex" },
+          headers: { "idempotency-key": key },
+        });
+        const aAfter = await snapshotAccount(a.userId);
+        const r = await call(createGymRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { name: "Bravo Annex", userId: a.userId },
+          headers: { "idempotency-key": key },
+        });
+        expect(r.status).toBe(201);
+        expect(r.headers.get("idempotent-replayed")).toBeNull();
+        for (const marker of [...aMarkers(a, plan), "Alpha Annex"])
+          expect(r.text).not.toContain(marker);
+        const row = await getTestPrisma().gym.findUniqueOrThrow({
+          where: { id: r.body.id },
+        });
+        expect(row.userId).toBe(b.userId);
+        expect(
+          await getTestPrisma().gymExerciseBaseline.count({
+            where: { gymId: row.id },
+          }),
+        ).toBe(0);
+        expect(await snapshotAccount(a.userId)).toEqual(aAfter);
+        expect(aAfter).not.toEqual(aSnap); // A's own create did land.
+      });
+    });
+  },
+  "PUT api/mobile/v1/gyms/[gymId]/archived": () => {
+    accountEndpointMatrix(
+      "PUT /gyms/{id}/archived",
+      gymArchivedRoute as Handler,
+      {
+        method: "PUT",
+        json: { archived: true },
+        params: { gymId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /gyms/{id}/archived: isolation", () => {
+      it("B can't archive or restore A's gym: a 404 like a missing one, nothing changed", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const missing = await call(gymArchivedRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { archived: true },
+          params: { gymId: randomUUID() },
+        });
+        for (const archived of [true, false]) {
+          const r = await call(gymArchivedRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            json: { archived },
+            params: { gymId: plan.gym.id },
+          });
+          expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        }
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
       });
     });
   },

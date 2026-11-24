@@ -2,15 +2,7 @@ import { TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ExerciseThumb } from "@/components/exercises/exercise-thumb";
 import type { PlannedExerciseDto } from "@/lib/plan/queries";
-import { formatRepTarget } from "@overload/shared/plan/rep-target";
-
-/** "3 sets · 6–8 reps"; a fixed target reads "4 sets · 5 reps". */
-export function prescription(
-  e: Pick<PlannedExerciseDto, "plannedSets" | "targetRepMin" | "targetRepMax">,
-): string {
-  const reps = formatRepTarget(e.targetRepMin, e.targetRepMax);
-  return `${e.plannedSets} ${e.plannedSets === 1 ? "set" : "sets"} · ${reps} reps`;
-}
+import { formatPrescription } from "@overload/shared/plan/rep-target";
 
 /**
  * The body of a planned-exercise row. An archived exercise keeps its slot,
@@ -44,7 +36,9 @@ export function PlannedExerciseRowContent({ e }: { e: PlannedExerciseDto }) {
             </Badge>
           )}
         </span>
-        <span className="block text-sm tabular-nums">{prescription(e)}</span>
+        <span className="block text-sm tabular-nums">
+          {formatPrescription(e)}
+        </span>
         {e.isArchived && (
           <span className="block text-xs text-muted-foreground">
             Replace or remove it

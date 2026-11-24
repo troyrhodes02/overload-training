@@ -68,6 +68,14 @@ describe("profiles", () => {
       "deload-clarity",
       "parity-free",
       "parity-summary",
+      // Pitch 21h.
+      "no-plan",
+      "session-detail",
+      "library",
+      "custom-exercises",
+      "gyms",
+      "isolation-resources-a",
+      "isolation-resources-b",
     ]);
     for (const name of PROFILE_NAMES) {
       expect(DEMO_VARIANTS).toContain(PROFILES[name].variant);
@@ -82,6 +90,38 @@ describe("profiles", () => {
     expect(anchorFor("missed", "2026-11-17")).toBe("2026-11-16");
     expect(anchorFor("missed", "2026-12-01")).toBe("2026-11-30");
     expect(PROFILES.missed.variant).toBe("standard");
+  });
+});
+
+describe("Pitch 21h profiles", () => {
+  it("only no-plan skips the seed; the resource profiles name their plans", () => {
+    for (const name of PROFILE_NAMES) {
+      expect(profileOf(name).seed).toBe(name !== "no-plan");
+    }
+    expect(profileOf("library").resources?.favorites).toEqual([
+      "BENCH",
+      "SQUAT",
+      "LATERAL",
+    ]);
+    expect(profileOf("custom-exercises")).toMatchObject({
+      variant: "recovery",
+      anchorOffsetDays: -1,
+    });
+    expect(profileOf("gyms").resources?.archiveGyms).toEqual([
+      "Riverside Fitness",
+    ]);
+    expect(profileOf("standard").resources).toBeNull();
+  });
+
+  it("the isolation-resources accounts share no own exercise, favorite, or gym", () => {
+    const a = profileOf("isolation-resources-a").resources!;
+    const b = profileOf("isolation-resources-b").resources!;
+    const names = (r: typeof a) => [
+      ...(r.customExercises ?? []).map((c) => c.name),
+      ...(r.gyms ?? []).map((g) => g.name),
+      ...(r.favorites ?? []),
+    ];
+    expect(names(a).filter((n) => names(b).includes(n))).toEqual([]);
   });
 });
 
