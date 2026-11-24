@@ -129,4 +129,17 @@ None required. The functional behavior was accepted on the iPhone against stagin
 
 ## 6. Results (2026-11-24)
 
-Filled in at release.
+| Step | Result |
+| --- | --- |
+| Release PR | #316, merged only after every check had finished and passed (Vercel preview completed). Squash-merged as **`707f981`**. `main`'s tree equals the release branch |
+| Production deployment | `dpl_12bDctz58Te8CEbmmJsNfTkDiWAE`: **Ready**, target production, aliases `www.overloadtraining.app` and `overloadtraining.app`. GitHub status for `707f981`: success |
+| Smoke 2 | `/`, `/login`, `/pricing`, `/changelog`: 200 |
+| Smoke 3 | `app-config` 200. Minimum and latest version `0.0.0`, unchanged. Kill switches off |
+| Smoke 4 | All 11 new endpoint methods and `GET /today`, without a token: 401 `unauthorized`, JSON envelope |
+| Smoke 5 | The minimum is `0.0.0`, so 426 can't be exercised. Without the version header: 400 `validation_error` (the gate is intact) |
+| Smoke 6 | `vercel logs`, error level, last 30 minutes: 0 records returned |
+| Smoke total | 18 of 18 passed |
+| Migration and environment | none applied, none needed |
+| Authenticated Production behavior | Not exercised: no Production accounts were created and no lifter data was touched. It was verified on staging (API 30/30) and accepted on the iPhone (5/5) |
+| Sync | #317 merged `main` into `staging` with a merge commit (`8abe95f`). `main` is an ancestor of `staging`, and the trees are equal |
+| Not done (not authorized) | migrations, Production environment, Stripe, Production Expo update, TestFlight or Production-connected build |
