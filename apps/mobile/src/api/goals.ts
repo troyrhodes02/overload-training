@@ -1,10 +1,12 @@
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
 import type { CreateGoalRequest } from "@overload/shared/contracts/requests";
+import type { ExerciseHistoryViewDto } from "@overload/shared/contracts/exercise-history";
 import type {
   AcknowledgeGoalResponseDto,
   CreateGoalResponseDto,
@@ -158,5 +160,36 @@ export function useCreateGoal() {
         headers: { "Idempotency-Key": key },
       }),
     onSettled: () => invalidateGoalReads(client),
+  });
+}
+
+/**
+ * E8 `GET /exercises/{id}/history?scope=&sessions=all`: the web page's gated
+ * history and the goals on the lift. A new scope or "all sessions" keeps the
+ * shown answer until the next one lands. Training writes mark it stale
+ * (markDerivedStale), and the screen re-reads when shown.
+ */
+export function useExerciseHistory(
+  exerciseId: string,
+  opts: { scope: string | null; all: boolean },
+) {
+  const api = useApi();
+  const q: string[] = [];
+  if (opts.scope) q.push(`scope=${enc(opts.scope)}`);
+  if (opts.all) q.push("sessions=all");
+  return useQuery<ExerciseHistoryViewDto, ApiError>({
+    queryKey: [
+      ...GOAL_KEYS.exerciseHistoryAll,
+      exerciseId,
+      opts.scope ?? "default",
+      opts.all ? "all" : "recent",
+    ],
+    queryFn: ({ signal }) =>
+      api.request<ExerciseHistoryViewDto>(
+        `/exercises/${enc(exerciseId)}/history${q.length ? `?${q.join("&")}` : ""}`,
+        { signal },
+      ),
+    staleTime: OVERVIEW_STALE_MS,
+    placeholderData: keepPreviousData,
   });
 }

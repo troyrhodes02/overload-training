@@ -268,7 +268,7 @@ const detail = (over: Partial<ExerciseDetailDto> = {}): ExerciseDetailDto => ({
 });
 
 describe("X1 Exercise", () => {
-  it("shows what the exercise is, with a web link for its history", async () => {
+  it("shows what the exercise is, and opens its native history in the same stack (21i)", async () => {
     serve({ "/exercises/e-bench": detail() });
     await render(
       <Providers>
@@ -279,9 +279,13 @@ describe("X1 Exercise", () => {
     expect(screen.getByText("Chest · Barbell")).toBeTruthy();
     expect(screen.getByText("Shoulders, Triceps")).toBeTruthy();
     expect(screen.getByText("Library exercise")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "History and records, On the web" }),
-    ).toBeTruthy();
+    expect(screen.queryByText("On the web")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "History and records" }),
+    );
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      "/more/exercise-history/e-bench",
+    );
     expect(screen.queryByText("Custom")).toBeNull();
   });
 
