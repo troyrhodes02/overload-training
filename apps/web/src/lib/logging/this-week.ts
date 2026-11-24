@@ -17,9 +17,16 @@ import { isScheduledDeloadWeek } from "@overload/shared/progression/deload";
 import { activeContext } from "./queries";
 import { isUuid } from "@/lib/actions/result";
 import { parseIsoDate, toIsoDate } from "@overload/shared/plan/calendar";
+import type {
+  ThisWeekDay,
+  ThisWeekDto,
+  ThisWeekWorkout,
+  ThisWeekWorkoutState,
+} from "@overload/shared/contracts/schedule";
 
 /**
- * The current block week for Today's week strip (OVE-240), web only. Read
+ * The current block week for Today's week strip (OVE-240; on the iPhone
+ * through `GET /this-week` since OVE-241). Read
  * only, through the account-scoped client: the same effective schedule Today,
  * History, and the iPhone read, so the strip can't disagree with them. Each
  * day says what sits on it this week and which of this week's adjustments
@@ -27,50 +34,12 @@ import { parseIsoDate, toIsoDate } from "@overload/shared/plan/calendar";
  * (schedule-adjustments.ts) re-checks every rule under the block's lock.
  */
 
-export type ThisWeekWorkoutState =
-  "upcoming" | "in_progress" | "complete" | "skipped";
-
-export type ThisWeekWorkout = {
-  sessionId: string;
-  /** The occurrence's identity: its authored date (LoggedSession.scheduledFor). */
-  scheduledFor: string;
-  sessionName: string;
-  state: ThisWeekWorkoutState;
-  loggedSessionId: string | null;
-  /** Its planned day, when this week moved it ("Planned for Wed, Nov 25"). */
-  movedFrom: string | null;
-  /** Today or later, nothing started, no resolution: it can be skipped or moved. */
-  adjustable: boolean;
-  exercises: { name: string; scheme: string }[];
-};
-
-export type ThisWeekDay = {
-  dateIso: string;
-  /** "Mon" */
-  weekday: string;
-  /** "24" */
-  dayOfMonth: string;
-  /** "Mon, Nov 24" */
-  dayLabel: string;
-  isToday: boolean;
-  isPast: boolean;
-  /** The workout on this day this week (never a skipped one), or null for rest. */
-  workout: ThisWeekWorkout | null;
-  /** Workouts skipped on this day this week. */
-  skipped: ThisWeekWorkout[];
-};
-
-export type ThisWeekDto = {
-  mesocycleId: string;
-  weekNumber: number;
-  lengthWeeks: number;
-  rangeLabel: string;
-  scheduledDeloadWeek: boolean;
-  today: string;
-  days: ThisWeekDay[];
-  /** Why nothing can move right now (a missed day waits for an answer), or null. */
-  blockedReason: string | null;
-};
+export type {
+  ThisWeekDay,
+  ThisWeekDto,
+  ThisWeekWorkout,
+  ThisWeekWorkoutState,
+} from "@overload/shared/contracts/schedule";
 
 const WEEKDAY_FMT = new Intl.DateTimeFormat("en-US", {
   weekday: "short",

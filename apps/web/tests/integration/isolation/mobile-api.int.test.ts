@@ -138,6 +138,9 @@ import {
   GET as goalsRoute,
   POST as createGoalRoute,
 } from "@/app/api/mobile/v1/goals/route";
+import { GET as thisWeekRoute } from "@/app/api/mobile/v1/this-week/route";
+import { POST as scheduleSkipRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/schedule/skip/route";
+import { POST as scheduleMoveRoute } from "@/app/api/mobile/v1/mesocycles/[mesocycleId]/schedule/move/route";
 import { GET as exerciseHistoryRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/history/route";
 import { GET as goalFormRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/goal-form/route";
 import { GET as goalHistoryRoute } from "@/app/api/mobile/v1/goals/history/route";
@@ -1735,6 +1738,101 @@ const GOAL_CASES: Record<string, () => void> = {
   },
 };
 
+/** OVE-241: this week's schedule. A's block has "Alpha Push" today. */
+const SCHEDULE_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/this-week": () => {
+    accountEndpointMatrix("GET /this-week", thisWeekRoute as Handler);
+    describe("GET /this-week: isolation", () => {
+      it("B's week is its own (none); A's is A's", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const rb = await call(thisWeekRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect([rb.status, rb.body]).toEqual([200, { week: null }]);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        const ra = await call(thisWeekRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(ra.body.week.mesocycleId).toBe(plan.meso.id);
+        expect(ra.text).toContain("Alpha Push");
+      });
+    });
+  },
+
+  "POST api/mobile/v1/mesocycles/[mesocycleId]/schedule/skip": () => {
+    accountEndpointMatrix(
+      "POST /mesocycles/{id}/schedule/skip",
+      scheduleSkipRoute as Handler,
+      {
+        params: { mesocycleId: randomUUID() },
+        json: { sessionId: randomUUID(), scheduledFor: todayIso() },
+      },
+      404,
+    );
+    describe("POST /mesocycles/{id}/schedule/skip: isolation", () => {
+      it("B can't skip A's workout: a 404 like a missing block, nothing written", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const r = await call(scheduleSkipRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: plan.meso.id },
+          json: { sessionId: plan.session.id, scheduledFor: todayIso() },
+        });
+        const missing = await call(scheduleSkipRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: randomUUID() },
+          json: { sessionId: plan.session.id, scheduledFor: todayIso() },
+        });
+        expect([r.status, r.body]).toEqual([missing.status, missing.body]);
+        expect(r.status).toBe(404);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+      });
+    });
+  },
+
+  "POST api/mobile/v1/mesocycles/[mesocycleId]/schedule/move": () => {
+    accountEndpointMatrix(
+      "POST /mesocycles/{id}/schedule/move",
+      scheduleMoveRoute as Handler,
+      {
+        params: { mesocycleId: randomUUID() },
+        json: {
+          sessionId: randomUUID(),
+          scheduledFor: todayIso(),
+          from: todayIso(),
+          to: addDays(todayIso(), 1),
+          occupant: null,
+        },
+      },
+      404,
+    );
+    describe("POST /mesocycles/{id}/schedule/move: isolation", () => {
+      it("B can't move A's workout: a 404 like a missing block, nothing written", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const r = await call(scheduleMoveRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { mesocycleId: plan.meso.id },
+          json: {
+            sessionId: plan.session.id,
+            scheduledFor: todayIso(),
+            from: todayIso(),
+            to: addDays(todayIso(), 1),
+            occupant: null,
+          },
+        });
+        expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -2458,6 +2556,7 @@ const CASES: Record<string, () => void> = {
   ...WORKOUT_CASES,
   ...LOGGING_CASES,
   ...GOAL_CASES,
+  ...SCHEDULE_CASES,
 };
 
 // The unknown-path 404, one case per method.

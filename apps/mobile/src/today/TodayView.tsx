@@ -40,6 +40,16 @@ import { loggedWorkoutHref, summaryHref } from "../workout/routes";
 import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { longDateLabel, weekdayLabel } from "./date";
 import { useStartOrResume, type StartState } from "./useStartWorkout";
+import type { ThisWeekDto } from "@overload/shared/contracts/schedule";
+import { SCHEDULE_KEYS, useThisWeek } from "../api/schedule";
+import {
+  ChangeFailure,
+  DayPreview,
+  SwapSheet,
+  TodayChanges,
+  WeekStrip,
+  useWeekChanges,
+} from "./WeekSchedule";
 import { UnfinishedWorkouts } from "./UnfinishedWorkouts";
 import { plannedCalls, TODAY_PRO_NOTE } from "./today-calls";
 import { ProNote } from "../insights/ProNote";
@@ -65,6 +75,9 @@ export function TodayView() {
     TRAINING_KEYS.todayInsights,
   );
   useRefetchWhenFocused(TRAINING_KEYS.today);
+  // This week's strip (OVE-241): its own read, so Today never waits on it.
+  const thisWeek = useThisWeek();
+  useRefetchWhenFocused(SCHEDULE_KEYS.thisWeek);
   const starter = useStartOrResume();
   const clearNoGym = starter.clearNoGym;
   useFocusEffect(useCallback(() => clearNoGym(), [clearNoGym]));
@@ -84,6 +97,11 @@ export function TodayView() {
             todayInsights.data,
           )}
           view={today.data}
+          week={thisWeek.data?.week ?? null}
+          onReloadWeek={() => {
+            void thisWeek.refetch();
+            void today.refetch();
+          }}
           stale={today.isError}
           starter={starter}
           resolvedNote={
@@ -114,7 +132,10 @@ export function TodayView() {
       title="Today"
       subtitle={view?.greeting}
       refreshing={today.isRefetching}
-      onRefresh={() => void today.refetch()}
+      onRefresh={() => {
+        void today.refetch();
+        void thisWeek.refetch();
+      }}
     >
       {body}
     </TabScreen>
@@ -131,6 +152,8 @@ type Starter = ReturnType<typeof useStartOrResume>;
 function TodayContent({
   calls,
   view,
+  week,
+  onReloadWeek,
   stale,
   starter,
   resolvedNote,
@@ -138,6 +161,9 @@ function TodayContent({
 }: {
   calls: PlannedProgressionDto[] | null;
   view: TodayDto;
+  /** This block week (OVE-241), or null with none (no strip then). */
+  week: ThisWeekDto | null;
+  onReloadWeek: () => void;
   stale: boolean;
   starter: Starter;
   resolvedNote: string | null;
@@ -165,13 +191,26 @@ function TodayContent({
       {showNote ? <Banner tone="info" message={resolvedNote} /> : null}
       {/* Earlier days' workouts still in progress (Pitch 21g OVE-228). */}
       <UnfinishedWorkouts workouts={view.unfinishedWorkouts ?? []} />
-      <DashboardBlock
-        dashboard={view.dashboard}
-        stale={stale}
-        starter={checked}
-        onResolved={onResolved}
-        calls={calls}
-      />
+      {(() => {
+        const dashboard = (
+          <DashboardBlock
+            dashboard={view.dashboard}
+            stale={stale}
+            starter={checked}
+            onResolved={onResolved}
+            calls={calls}
+          />
+        );
+        // The week strip only for the account's current day: a week read
+        // from before midnight would describe another day.
+        return week && week.today === view.today ? (
+          <WeekSection week={week} starter={checked} onReload={onReloadWeek}>
+            {dashboard}
+          </WeekSection>
+        ) : (
+          dashboard
+        );
+      })()}
     </View>
   );
 }
@@ -817,6 +856,77 @@ function CardioDay({
           onPress={() => openCardio(c)}
         />
       ))}
+    </View>
+  );
+}
+
+/**
+ * This week's strip over Today (OVE-241; chore spec §3): today selected
+ * first, and Today's own block under it as always; another day shows its
+ * preview there instead. Nothing changes until the lifter confirms, and the
+ * server's answer is what the strip then shows.
+ */
+function WeekSection({
+  week,
+  starter,
+  onReload,
+  children,
+}: {
+  week: ThisWeekDto;
+  starter: Starter;
+  onReload: () => void;
+  children: React.ReactNode;
+}) {
+  const { spacing } = useTheme();
+  const [selectedIso, setSelectedIso] = useState(week.today);
+  const [note, setNote] = useState<string | null>(null);
+  const changes = useWeekChanges({
+    week,
+    onDone: (n) => {
+      setNote(n);
+      setSelectedIso(week.today);
+    },
+    startMoved: (w) =>
+      void starter.run({
+        sessionId: w.sessionId,
+        scheduledFor: w.scheduledFor,
+        loggedSessionId: null,
+      }),
+  });
+  // After midnight (or a refresh into another week) fall back to today.
+  const selected =
+    week.days.find((d) => d.dateIso === selectedIso) ??
+    week.days.find((d) => d.isToday) ??
+    week.days[0];
+  return (
+    <View style={{ gap: spacing.lg }}>
+      <WeekStrip
+        week={week}
+        selectedIso={selected.dateIso}
+        onSelect={(iso) => {
+          setNote(null);
+          changes.clearFailure();
+          setSelectedIso(iso);
+        }}
+      />
+      {note ? <Banner tone="info" message={note} /> : null}
+      {changes.swapFrom ? null : (
+        <ChangeFailure failure={changes.failure} onReload={onReload} />
+      )}
+      {selected.isToday ? (
+        <View style={{ gap: spacing.sm }}>
+          <TodayChanges week={week} changes={changes} />
+          {children}
+        </View>
+      ) : (
+        <DayPreview
+          week={week}
+          day={selected}
+          changes={changes}
+          onBackToToday={() => setSelectedIso(week.today)}
+        />
+      )}
+      <SwapSheet week={week} changes={changes} onReload={onReload} />
     </View>
   );
 }
