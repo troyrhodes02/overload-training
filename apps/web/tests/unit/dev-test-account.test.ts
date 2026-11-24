@@ -76,6 +76,9 @@ describe("profiles", () => {
       "gyms",
       "isolation-resources-a",
       "isolation-resources-b",
+      // Pitch 21i and OVE-241.
+      "21i-combined",
+      "21i-free",
     ]);
     for (const name of PROFILE_NAMES) {
       expect(DEMO_VARIANTS).toContain(PROFILES[name].variant);
@@ -129,7 +132,9 @@ describe("Pitch 21g profiles", () => {
   it("only `free` and `parity-free` start on the Free plan; every other profile is Pro", () => {
     for (const name of PROFILE_NAMES) {
       expect(profileOf(name).access).toBe(
-        name === "free" || name === "parity-free" ? "free" : "pro",
+        name === "free" || name === "parity-free" || name === "21i-free"
+          ? "free"
+          : "pro",
       );
     }
   });

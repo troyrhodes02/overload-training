@@ -18,6 +18,10 @@ import { listActiveGyms } from "@/lib/gyms/queries";
 import { logSet } from "@/lib/logging/logged-sets";
 import { completeWorkout, swapExercise } from "@/lib/logging/sessions";
 import { getPlanOverview } from "@/lib/views/plan";
+import { archiveGoal, createGoal } from "@/lib/goals/goals";
+import { listActiveGoals, listGoalHistory } from "@/lib/goals/queries";
+import { editLoggedSet } from "@/lib/logging/logged-sets";
+import { getThisWeek } from "@/lib/logging/this-week";
 import { DEMO_LIBRARY, VARIANT_LIBRARY } from "../demo/fixture";
 import type { ResourcePlan } from "./resource-plans";
 
@@ -79,6 +83,70 @@ export async function applyResources(
           tx,
         );
         created.push(`gym "${g.name}"`);
+      }
+
+      // Pitch 21i: RIR on the most recent finished sessions of one lift,
+      // through the History correction path; weights and reps unchanged.
+      if (plan.rir) {
+        const exerciseId = await libraryId(plan.rir.ex);
+        const recent = await tx.loggedExercise.findMany({
+          where: { exerciseId, loggedSession: { status: "complete" } },
+          orderBy: { loggedSession: { scheduledFor: "desc" } },
+          take: plan.rir.sessions,
+          select: {
+            sets: {
+              orderBy: { setNumber: "asc" },
+              select: { id: true, weightLbs: true, reps: true },
+            },
+          },
+        });
+        for (const le of recent) {
+          for (const [i, set] of le.sets.entries()) {
+            const rir = plan.rir.values[i];
+            if (rir === undefined) continue;
+            await editLoggedSet(
+              account,
+              {
+                loggedSetId: set.id,
+                weightLbs:
+                  set.weightLbs === null ? null : Number(set.weightLbs),
+                reps: set.reps,
+                rir,
+              },
+              tx,
+            );
+          }
+        }
+        created.push(
+          `RIR on the last ${recent.length} ${plan.rir.ex} sessions`,
+        );
+      }
+
+      // Pitch 21i: goals through the one create (completion as the app does it).
+      for (const g of plan.goals ?? []) {
+        const gym = g.gym
+          ? await tx.gym.findFirst({
+              where: { name: g.gym, deletedAt: null },
+              select: { id: true },
+            })
+          : null;
+        if (g.gym && !gym) throw new Error(`No gym named ${g.gym}.`);
+        const goal = await createGoal(
+          account,
+          {
+            exerciseId: await libraryId(g.ex),
+            gymId: gym?.id ?? null,
+            targetWeightLbs: String(g.weightLbs),
+            targetReps: String(g.reps),
+          },
+          new Date(),
+          tx,
+        );
+        if (g.archive)
+          await archiveGoal(account, { goalId: goal.id }, new Date(), tx);
+        created.push(
+          `goal ${g.ex} ${g.weightLbs} × ${g.reps}${g.gym ? ` at ${g.gym}` : ""} (${g.archive ? "archived" : goal.outcome})`,
+        );
       }
 
       const finish = plan.finishWithCustom;
@@ -191,7 +259,38 @@ export async function resourceReport(
   lines.push(
     `  Gyms:      ${gyms.map((g) => (g.address ? `${g.name} (${g.address})` : g.name)).join(", ") || "none"}`,
   );
+  // Pitch 21i and OVE-241: goals and this week, as the app reads them.
+  const [activeGoals, goalHistory, week] = await Promise.all([
+    listActiveGoals(account),
+    listGoalHistory(account),
+    getThisWeek(account),
+  ]);
+  lines.push(
+    `  Goals:     ${activeGoals.map((g) => `${g.exerciseName}${g.gymName ? ` @ ${g.gymName}` : ""} ${g.targetLabel} ${g.percent === null ? "(no performance yet)" : `${g.percent}%`}`).join("; ") || "none active"}`,
+  );
+  if (goalHistory.length > 0) {
+    lines.push(
+      `  History:   ${goalHistory.map((g) => `${g.exerciseName} ${g.targetLabel} (${g.outcome === "completed" ? "reached" : "archived"})`).join("; ")}`,
+    );
+  }
+  if (week) {
+    lines.push(
+      `  This week: ${week.days.map((d) => `${d.weekday} ${d.workout ? `${d.workout.sessionName}${d.workout.adjustable ? "" : ` (${d.workout.state})`}` : "rest"}`).join(" · ")}${week.blockedReason ? ` — ${week.blockedReason}` : ""}`,
+    );
+  }
   if (!plan) return { lines, problems };
+
+  for (const g of plan.goals ?? []) {
+    const found =
+      activeGoals.some(
+        (x) => x.targetWeightLbs === g.weightLbs && x.targetReps === g.reps,
+      ) ||
+      goalHistory.some(
+        (x) => x.targetWeightLbs === g.weightLbs && x.targetReps === g.reps,
+      );
+    if (!found)
+      problems.push(`goal ${g.ex} ${g.weightLbs} × ${g.reps} is missing`);
+  }
 
   const favNames = new Set(favorites.items.map((e) => e.name));
   for (const c of plan.customExercises ?? []) {

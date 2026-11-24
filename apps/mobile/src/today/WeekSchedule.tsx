@@ -177,15 +177,18 @@ export function useWeekChanges(opts: {
   const busy = useRef(false);
   const pending = skip.isPending || move.isPending;
 
-  async function guarded(run: () => Promise<void>) {
-    if (busy.current) return;
+  /** Runs one change; true only when the server confirmed it. */
+  async function guarded(run: () => Promise<void>): Promise<boolean> {
+    if (busy.current) return false;
     busy.current = true;
     setFailure(null);
     try {
       await run();
+      return true;
     } catch (error) {
       void haptic.warning();
       setFailure(failureOf(error));
+      return false;
     } finally {
       busy.current = false;
     }
@@ -239,10 +242,11 @@ export function useWeekChanges(opts: {
     ]);
   }
 
-  async function confirmSwap(target: ThisWeekDay) {
+  /** True when the swap was confirmed (a refusal keeps the chosen day). */
+  async function confirmSwap(target: ThisWeekDay): Promise<boolean> {
     const from = swapFrom;
-    if (!from) return;
-    await guarded(async () => {
+    if (!from) return false;
+    return guarded(async () => {
       await move.mutateAsync({
         mesocycleId: opts.week.mesocycleId,
         body: {
@@ -615,9 +619,9 @@ export function SwapSheet({
             disabled={!chosen}
             onPress={() => {
               if (chosen)
-                void changes
-                  .confirmSwap(chosen.day)
-                  .then(() => setTarget(null));
+                void changes.confirmSwap(chosen.day).then((ok) => {
+                  if (ok) setTarget(null);
+                });
             }}
           />
         </ScrollView>

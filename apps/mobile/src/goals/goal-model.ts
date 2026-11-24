@@ -59,7 +59,8 @@ export function newGoalTarget(g: GoalContextDto): NewGoalTarget {
 /** Where the new-goal flow starts: G4 in the Goals stack, or G5 as a modal. */
 export function newGoalHref(
   target: NewGoalTarget,
-  from: "goals" | "history" = "goals",
+  /** Over a live workout ("workout"), the form offers no links away (review 5b). */
+  from: "goals" | "history" | "workout" = "goals",
 ): string {
   if (target.kind === "pick") return "/goals/new";
   const q = [`exerciseId=${encodeURIComponent(target.exerciseId)}`];

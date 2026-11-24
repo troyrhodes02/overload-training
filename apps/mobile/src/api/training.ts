@@ -429,6 +429,10 @@ export function useResolveMissedDay() {
       ),
     onSettled: () => {
       void invalidateTraining(client);
+      // The week strip sits on Today with the prompt (OVE-241 review 5a):
+      // re-read it now, or it keeps the old "answer the missed workout"
+      // block and the pre-shift days until the next visit.
+      void client.invalidateQueries({ queryKey: ["this-week"] });
     },
   });
 }
