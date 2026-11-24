@@ -42,6 +42,9 @@ export const ACCOUNT_KEYS = {
 /** The export may take longer than an ordinary read (RD-12). */
 export const EXPORT_TIMEOUT_MS = 60_000;
 
+/** Deletion cancels Stripe, then runs a transaction of up to 30 s. */
+export const DELETE_TIMEOUT_MS = 60_000;
+
 /** E1 `GET /me/profile`. */
 export function useProfile() {
   const api = useApi();
@@ -204,6 +207,9 @@ export function useDeleteAccount() {
       api.request<DeleteAccountResponseDto>("/me/delete", {
         method: "POST",
         body: { password },
+        // Longer than the server's 30-second deletion transaction (review
+        // #2), so a slow delete is answered, not cut off mid-way.
+        timeoutMs: DELETE_TIMEOUT_MS,
       }),
   });
 }

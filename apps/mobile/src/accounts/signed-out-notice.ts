@@ -12,6 +12,14 @@ const emit = () => listeners.forEach((l) => l());
 
 export const ACCOUNT_DELETED_NOTICE = "Your account was deleted.";
 
+/**
+ * A half-closed account (Pitch 21j review #1): the data is deleted but the
+ * sign-in still exists. The app can't finish that (it never recreates a
+ * profile); the website can, through its own delete page.
+ */
+export const FINISH_ON_WEB_NOTICE =
+  "Your training data was deleted, but closing your sign-in didn't finish. To finish, sign in on the Overload website and delete your account there.";
+
 export function setSignedOutNotice(text: string | null): void {
   message = text;
   emit();

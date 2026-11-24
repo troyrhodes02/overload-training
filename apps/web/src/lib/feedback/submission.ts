@@ -9,7 +9,7 @@ import {
   type UploadedScreenshot,
 } from "./screenshots";
 import {
-  SCREENSHOT_TYPE_ERROR,
+  SCREENSHOT_MISMATCH_ERROR,
   sniffImageType,
   validateScreenshots,
 } from "@overload/shared/feedback/attachment-validation";
@@ -74,8 +74,8 @@ export function checkScreenshotFiles(files: ScreenshotFile[]): void {
       f.bytes.byteLength !== f.sizeBytes ||
       sniffImageType(f.bytes) !== f.contentType
     ) {
-      throw new DomainError("validation_error", SCREENSHOT_TYPE_ERROR, {
-        screenshots: SCREENSHOT_TYPE_ERROR,
+      throw new DomainError("validation_error", SCREENSHOT_MISMATCH_ERROR, {
+        screenshots: SCREENSHOT_MISMATCH_ERROR,
       });
     }
   }
@@ -118,14 +118,37 @@ export async function submitFeedbackWithScreenshots<T = { id: string }>(
       );
     }
     const { committed, result } = await write(uploaded);
-    if (!committed && uploaded.length > 0) {
-      await remove(uploaded.map((u) => u.objectPath));
-    }
+    if (!committed) await removeUnreferenced(account, uploaded, remove);
     return result;
   } catch (error) {
-    // The message never saved (the insert failed or lost the limit race), so
+    // The message didn't save (the insert failed or lost the limit race), so
     // its uploaded screenshots must not linger.
-    if (uploaded.length > 0) await remove(uploaded.map((u) => u.objectPath));
+    await removeUnreferenced(account, uploaded, remove);
     throw error;
   }
+}
+
+/**
+ * Remove this submission's uploads, but never one a saved attachment row
+ * points at (Pitch 21j review #3): a commit whose acknowledgement was lost
+ * looks like a failure or a replay to the caller, yet its rows exist. If the
+ * check itself fails, keep the objects — an orphan is a cleanup concern, a
+ * broken attachment is a lost screenshot.
+ */
+async function removeUnreferenced(
+  account: Account,
+  uploaded: UploadedScreenshot[],
+  remove: typeof removeFeedbackScreenshots,
+): Promise<void> {
+  if (uploaded.length === 0) return;
+  const paths = uploaded.map((u) => u.objectPath);
+  let referenced: number;
+  try {
+    referenced = await account.db.feedbackAttachment.count({
+      where: { objectPath: { in: paths } },
+    });
+  } catch {
+    return;
+  }
+  if (referenced === 0) await remove(paths);
 }
