@@ -1,5 +1,6 @@
 import { requireAccountForDataRights } from "@/lib/data/account";
 import { buildAccountExport, exportFilename } from "@/lib/accounts/export";
+import { serializeAccountExport } from "@overload/shared/accounts/export-file";
 
 /**
  * GET /settings/export — the data-export download (Public Accounts spec §9,
@@ -29,7 +30,7 @@ import { buildAccountExport, exportFilename } from "@/lib/accounts/export";
 export async function GET(): Promise<Response> {
   const { account } = await requireAccountForDataRights();
   const data = await buildAccountExport(account);
-  const body = JSON.stringify(data, null, 2);
+  const body = serializeAccountExport(data);
   return new Response(body, {
     status: 200,
     headers: {

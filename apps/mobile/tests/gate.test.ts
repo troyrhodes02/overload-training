@@ -14,6 +14,7 @@ const config = (over: Partial<AppConfigDto> = {}): AppConfigDto => ({
   killSwitches: { planImportEnabled: false, maintenance: false },
   signupMode: "public",
   botChallenge: null,
+  supportEmail: null,
   ...over,
 });
 const me = {} as MeDto;

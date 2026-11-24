@@ -1,7 +1,8 @@
 /**
  * Account contracts: who the acting account is, its plan, and the shell state
  * the app shows on launch (`GET /me`, `GET /me/plan`, `GET /me/profile`,
- * `GET /me/deletion-inventory`; implemented in 21c and 21j). Every value is
+ * `GET /me/deletion-inventory`, `POST /me/delete`; implemented in 21c and
+ * 21j). Every value is
  * about the acting account only; nothing here names or reveals another.
  */
 import type { Appearance } from "../appearance/appearance";
@@ -54,8 +55,30 @@ export type TrialNoticeData = TrialNoticePhase & {
   purchasable: boolean;
 };
 
-/** `GET /me/profile`: the editable profile (the Settings profile). */
+/** The editable profile (the Settings profile). */
 export type ProfileDto = SettingsProfile;
+
+/**
+ * `GET /me/profile` (Pitch 21j E1): the profile and every time zone the server
+ * accepts (sorted, always including the stored one), so the app never relies
+ * on its own `Intl` list (RD-3).
+ */
+export type ProfileViewDto = {
+  profile: ProfileDto;
+  timeZones: string[];
+};
+
+/** `PUT /me/profile` (E2): a full replace of the four editable fields. */
+export type UpdateProfileRequest = {
+  firstName: string;
+  lastName: string;
+  /** "" keeps a pre-username account without one; it can never clear one. */
+  username: string;
+  timeZone: string;
+};
+
+/** `PUT /me/profile` → 200: the values as saved (trimmed, username lowercased). */
+export type UpdateProfileResponseDto = { profile: ProfileDto };
 
 /**
  * The resolved entitlement on the wire. The server resolves it (trial, comp,
@@ -104,6 +127,22 @@ export type MePlanDto = {
   cancelAtPeriodEnd: boolean;
   /** The subscription's period end as display text, or null. */
   endsOn: string | null;
+  /**
+   * What Pro includes, in plain words, from the capability model (Pitch 21j
+   * RD-15). Plan copy only: it unlocks nothing and carries no training data.
+   */
+  proIncludes: string[];
+};
+
+/** `POST /me/delete` (Pitch 21j E9). The account is the token's; only the password is sent. */
+export type DeleteAccountRequest = { password: string };
+
+/**
+ * `POST /me/delete` → 200. `identity_pending`: the account's data was deleted
+ * but closing the sign-in identity didn't finish; a retry finishes it.
+ */
+export type DeleteAccountResponseDto = {
+  outcome: "deleted" | "identity_pending";
 };
 
 /**

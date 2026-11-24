@@ -17,3 +17,9 @@ export type WhatsNewDialogData = {
 
 /** `GET /release-notes`: the full list, newest first. */
 export type ReleaseNotesDto = { entries: ReleaseNoteView[] };
+
+/** `POST /me/release-notes/seen` (Pitch 21j E5): everything through `throughId` is seen. */
+export type MarkReleaseNotesSeenRequest = { throughId: string };
+
+/** `moved: false` when the seen point was already at or past `throughId`. */
+export type MarkReleaseNotesSeenResponseDto = { moved: boolean };
