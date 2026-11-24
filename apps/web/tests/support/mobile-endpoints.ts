@@ -155,6 +155,18 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/goals/[goalId]/acknowledged",
     auth: "account",
   },
+  // OVE-241: native weekly scheduling parity
+  { method: "GET", route: "api/mobile/v1/this-week", auth: "account" },
+  {
+    method: "POST",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/schedule/skip",
+    auth: "account",
+  },
+  {
+    method: "POST",
+    route: "api/mobile/v1/mesocycles/[mesocycleId]/schedule/move",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,
