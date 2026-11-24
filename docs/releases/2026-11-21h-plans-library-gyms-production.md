@@ -105,6 +105,17 @@ Revert the release's squash commit on `main` with a PR (`git revert <merge>`), t
 
 21h runbook §10: three corrected-layout checks on the staging update. There's no Production device check, because no Production build exists.
 
-## 6. Results
+## 6. Results (2026-11-23)
 
-Filled in by the run after the merge. See the sync PR.
+| Step | Result |
+| --- | --- |
+| Release PR | #303, squash-merged as **`db79768`**. `main`'s tree equals the release branch |
+| Production deployment | `dpl_2GYiRP4Ee5Ps1PWYzhZvAPKMJvhM`: **Ready**, target production, `www.overloadtraining.app` and `overloadtraining.app` |
+| Smoke 2 | `/`, `/login`, `/pricing`, `/changelog`: 200 |
+| Smoke 3 | `app-config` 200. Minimum and latest version `0.0.0`, unchanged. Kill switches off |
+| Smoke 4 | All 9 new endpoints and `GET /today`, without a token: 401 `unauthorized`, JSON envelope |
+| Smoke 5 | The minimum is `0.0.0`, so 426 can't be exercised. Without the version header: 400 `validation_error` (gate intact) |
+| Smoke 6 | `vercel logs`, error level, last 30 min: one `pg` deprecation warning from the previous deployment, logged before the release. Nothing from `dpl_2GYiRP4E…` |
+| Authenticated Production behavior | Not exercised. No Production accounts were created and no lifter data was touched; that behavior was verified on staging |
+| Sync | The sync PR merges `main` into `staging` with a merge commit, so `main` is an ancestor of `staging` |
+| Not done (not authorized) | Migrations, Production environment, Stripe, Production Expo update, TestFlight |
