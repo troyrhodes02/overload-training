@@ -560,3 +560,71 @@ describe("Pitch 21h profiles: resources through the write modules, read back by 
     expect(own(b)).not.toContain("Alpha");
   });
 });
+
+describe("Pitch 21i profiles: goals, RIR, and this week, through the write modules", () => {
+  async function seed(name: "21i-combined" | "21i-free") {
+    const p = profileOf(name);
+    await seedLibrary();
+    const account = await createTestAccount("UTC", undefined, {
+      entitlement: p.access === "free" ? "none" : "pro",
+    });
+    await executeDemoSeed(account, anchorFor(name, TODAY), p.variant);
+    const { applyResources, resourceReport } =
+      await import("../../scripts/dev-test-account/resources");
+    await applyResources(account, p.resources!);
+    const report = await resourceReport(account, p.resources);
+    return { account, report };
+  }
+
+  it("21i-combined: four goals (one reached, one archived), RIR on Bench, and a week with room to move", async () => {
+    const { account, report } = await seed("21i-combined");
+    expect(report.problems).toEqual([]);
+    const { listActiveGoals, listGoalHistory, listUnacknowledgedCompletions } =
+      await import("@/lib/goals/queries");
+    const active = await listActiveGoals(account);
+    expect(active.map((g) => g.targetLabel)).toEqual([
+      "225 lb × 5",
+      "180 lb × 10",
+    ]);
+    expect(active[0].percent).not.toBeNull();
+    expect(active[1].gymName).toBe("Northside Strength");
+    const history = await listGoalHistory(account);
+    expect(history.map((g) => g.outcome).sort()).toEqual([
+      "completed",
+      "manual",
+    ]);
+    expect(await listUnacknowledgedCompletions(account)).toHaveLength(1);
+    const rir = await getTestPrisma().loggedSet.count({
+      where: { userId: account.userId, rir: { not: null } },
+    });
+    expect(rir).toBeGreaterThanOrEqual(6);
+    const { getThisWeek } = await import("@/lib/logging/this-week");
+    const week = (await getThisWeek(account))!;
+    expect(week.blockedReason).toBeNull();
+    const names = week.days.map((d) => d.workout?.sessionName ?? null);
+    expect(names).toEqual([
+      "Upper B",
+      "Lower B",
+      null,
+      "Upper A",
+      "Lower A",
+      null,
+      null,
+    ]);
+    expect(week.days.filter((d) => d.workout?.adjustable)).toHaveLength(4);
+  });
+
+  it("21i-free: Free, one active goal, and the history gated by the server", async () => {
+    const { account, report } = await seed("21i-free");
+    expect(report.problems).toEqual([]);
+    const { getExerciseHistory } =
+      await import("@/lib/progression/history-queries");
+    const bench = await getTestPrisma().exercise.findFirstOrThrow({
+      where: { sourceId: "Barbell_Bench_Press_-_Medium_Grip" },
+    });
+    const history = (await getExerciseHistory(account, bench.id))!;
+    expect(history.sessions.rows.length).toBeGreaterThan(0);
+    expect(history.trend.e1rm).toBeNull();
+    expect(history.locked).not.toBeNull();
+  });
+});

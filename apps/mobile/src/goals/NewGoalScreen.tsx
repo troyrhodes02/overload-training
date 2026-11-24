@@ -25,8 +25,11 @@ import { goalHref } from "./GoalsScreen";
 type Field = "exerciseId" | "gymId" | "targetWeightLbs" | "targetReps";
 type Errors = Partial<Record<Field, string>>;
 
-/** Where the form was opened: G4 in the Goals stack, or an exercise's history. */
-export type NewGoalOrigin = "goals" | "history";
+/**
+ * Where the form was opened: G4 in the Goals stack, an exercise's history, or
+ * an exercise's history over a live workout (then it links nowhere else).
+ */
+export type NewGoalOrigin = "goals" | "history" | "workout";
 
 /** The words after a goal is set (design G5). */
 export function createdNotice(outcome: "active" | "completed"): string {
@@ -75,7 +78,9 @@ export function NewGoalScreen({
     if (ctx.kind === "ok") {
       return <GoalForm ctx={ctx} from={from} close={close} />;
     }
-    return <Unavailable ctx={ctx} close={close} />;
+    return (
+      <Unavailable ctx={ctx} close={close} linksAway={from !== "workout"} />
+    );
   })();
 
   return (
@@ -111,9 +116,12 @@ export function NewGoalScreen({
 function Unavailable({
   ctx,
   close,
+  linksAway,
 }: {
   ctx: Exclude<GoalFormContextDto, { kind: "ok" }>;
   close: () => void;
+  /** False over a live workout: no link may leave it (review 5b). */
+  linksAway: boolean;
 }) {
   switch (ctx.kind) {
     case "duplicate":
@@ -122,13 +130,17 @@ function Unavailable({
           icon="target"
           title={`${ctx.exerciseName} already has an active goal.`}
           message={`${ctx.existing.targetLabel}${ctx.existing.percent !== null ? ` · ${ctx.existing.percent}%` : ""}. Archive it to set a different one.`}
-          action={{
-            label: "View goal",
-            onPress: () => {
-              close();
-              router.push(goalHref(ctx.existing.goalId));
-            },
-          }}
+          action={
+            linksAway
+              ? {
+                  label: "View goal",
+                  onPress: () => {
+                    close();
+                    router.push(goalHref(ctx.existing.goalId));
+                  },
+                }
+              : { label: "Close", onPress: close }
+          }
         />
       );
     case "no_gyms":
@@ -137,13 +149,17 @@ function Unavailable({
           icon="building.2"
           title="Add a gym first."
           message={`${ctx.exerciseName} is a machine or cable lift, so its goal is measured at one gym.`}
-          action={{
-            label: "Gyms",
-            onPress: () => {
-              close();
-              router.push("/more/gyms");
-            },
-          }}
+          action={
+            linksAway
+              ? {
+                  label: "Gyms",
+                  onPress: () => {
+                    close();
+                    router.push("/more/gyms");
+                  },
+                }
+              : { label: "Close", onPress: close }
+          }
         />
       );
     case "bodyweight_unsupported":
@@ -240,7 +256,8 @@ function GoalForm({
       } else {
         setNotice("exercise-history", {
           message: createdNotice(created.outcome),
-          viewHref: href,
+          // Over a live workout there is no link away from it (review 5b).
+          ...(from === "workout" ? {} : { viewHref: href }),
         });
         close();
       }
@@ -281,7 +298,7 @@ function GoalForm({
         <Banner
           message={failure}
           action={
-            duplicateId
+            duplicateId && from !== "workout"
               ? {
                   label: "View goal",
                   onPress: () => {

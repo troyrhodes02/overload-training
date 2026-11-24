@@ -139,7 +139,7 @@ export function ExerciseHistoryScreen({
             tone="info"
             message={notice.message}
             action={
-              notice.viewHref
+              notice.viewHref && stack !== "root"
                 ? {
                     label: "View",
                     onPress: () => {
@@ -292,7 +292,13 @@ function HistoryBody({
           scopeName={gymName}
           noGymScope={noGym}
           chart={(v) => (
-            <TrendChart points={v.trend.points} unit={v.unit} title={v.title} />
+            <TrendChart
+              // A new scope or series starts on its own newest point (review 5c).
+              key={`${h.selectedScope?.key ?? "none"}:${v.series}:${v.trend.points.length}`}
+              points={v.trend.points}
+              unit={v.unit}
+              title={v.title}
+            />
           )}
         />
       ) : null}
@@ -336,6 +342,7 @@ function HistoryBody({
 
       <Goals
         goals={s.goals}
+        overWorkout={stack === "root"}
         exerciseId={h.exerciseId}
         gym={
           h.gymVariable && h.selectedScope && h.selectedScope.key !== "none"
@@ -495,10 +502,16 @@ function Records({
 
 function Goals({
   goals,
+  overWorkout,
   exerciseId,
   gym,
 }: {
   goals: ExerciseGoalsDto;
+  /**
+   * Over a live workout (root stack), goal rows aren't links: a goal lives in
+   * the Goals tab, and opening it would leave the workout (review 5b).
+   */
+  overWorkout: boolean;
   exerciseId: string;
   gym: { id: string; archived: boolean } | null;
 }) {
@@ -526,8 +539,12 @@ function Goals({
                 ? "No performance yet"
                 : `${goals.active.percent}%`
             }
-            accessory="chevron"
-            onPress={() => router.push(goalHref(goals.active!.goalId))}
+            accessory={overWorkout ? "none" : "chevron"}
+            onPress={
+              overWorkout
+                ? undefined
+                : () => router.push(goalHref(goals.active!.goalId))
+            }
           />
         ) : null}
         {goals.newGoalEligible ? (
@@ -542,7 +559,7 @@ function Goals({
                     exerciseId,
                     gymId: gym && !gym.archived ? gym.id : null,
                   },
-                  "history",
+                  overWorkout ? "workout" : "history",
                 ),
               )
             }
@@ -553,8 +570,10 @@ function Goals({
             key={g.goalId}
             title={g.targetLabel}
             subtitle={`${g.outcome === "completed" ? "Reached" : "Archived"} ${g.archivedLabel}`}
-            accessory="chevron"
-            onPress={() => router.push(goalHref(g.goalId))}
+            accessory={overWorkout ? "none" : "chevron"}
+            onPress={
+              overWorkout ? undefined : () => router.push(goalHref(g.goalId))
+            }
           />
         ))}
         {!goals.active && !goals.newGoalEligible && goals.past.length === 0 ? (

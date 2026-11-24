@@ -576,6 +576,33 @@ describe("G5 Set goal", () => {
     expect(mockRouter.back).toHaveBeenCalled();
   });
 
+  it("over a workout, a set goal leaves a banner with no link away (review 5b)", async () => {
+    serve({
+      [FORM_PATH]: FORM,
+      "POST /goals": { id: "goal-new", outcome: "active" },
+    });
+    function Probe() {
+      const n = useNotice("exercise-history");
+      return n ? (
+        <Text>{`${n.message}|${n.viewHref ?? "no link"}`}</Text>
+      ) : null;
+    }
+    await render(
+      <Providers>
+        <NewGoalScreen
+          exerciseId="ex-leg"
+          gymId="gym-downtown"
+          from="workout"
+        />
+        <Probe />
+      </Providers>,
+    );
+    await fill("400", "10");
+    await fireEvent.press(screen.getByRole("button", { name: "Set goal" }));
+    expect(await screen.findByText("Goal set.|no link")).toBeTruthy();
+    expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+
   it("a lift with an active goal shows the web's duplicate answer instead of the form", async () => {
     serve({
       "GET /exercises/ex-bench/goal-form": {
