@@ -74,6 +74,8 @@ export function RootNavigator({
         <Stack.Screen name="gym-new" options={modalHeader} />
         {/* Pitch 21i: G5 Set goal, one form for every entry point. */}
         <Stack.Screen name="goal-new" options={modalHeader} />
+        {/* Pitch 21j: A6 Send feedback, from More and Get help. */}
+        <Stack.Screen name="feedback" options={modalHeader} />
         {/* Pitch 21h (RD-13): an exercise's detail over the workout. */}
         <Stack.Screen name="exercise/[exerciseId]" options={workoutHeader} />
         {/* Pitch 21i: an exercise's history over the workout (RD-12). */}
