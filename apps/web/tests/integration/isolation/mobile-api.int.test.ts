@@ -134,7 +134,11 @@ import type { MeDto } from "@overload/shared/contracts/account";
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import { createTestAccount } from "../support/accounts";
 import { getTestPrisma } from "../support/db";
-import { GET as goalsRoute } from "@/app/api/mobile/v1/goals/route";
+import {
+  GET as goalsRoute,
+  POST as createGoalRoute,
+} from "@/app/api/mobile/v1/goals/route";
+import { GET as goalFormRoute } from "@/app/api/mobile/v1/exercises/[exerciseId]/goal-form/route";
 import { GET as goalHistoryRoute } from "@/app/api/mobile/v1/goals/history/route";
 import { GET as goalRoute } from "@/app/api/mobile/v1/goals/[goalId]/route";
 import { PUT as goalArchivedRoute } from "@/app/api/mobile/v1/goals/[goalId]/archived/route";
@@ -1327,6 +1331,119 @@ async function reachedGoal(a: Account) {
 }
 
 const GOAL_CASES: Record<string, () => void> = {
+  "POST api/mobile/v1/goals": () => {
+    accountEndpointMatrix(
+      "POST /goals",
+      createGoalRoute as Handler,
+      {
+        json: { exerciseId: randomUUID(), targetWeightLbs: 100, targetReps: 5 },
+        headers: { "idempotency-key": "ovl-matrix-key" },
+      },
+      400,
+    );
+    describe("POST /goals: isolation and retry", () => {
+      it("B can't set a goal on A's custom exercise or at A's gym; A's goals are unchanged", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const onCustom = await call(createGoalRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: {
+            exerciseId: plan.custom.id,
+            targetWeightLbs: 100,
+            targetReps: 5,
+          },
+          headers: { "idempotency-key": `ovl-${randomUUID()}` },
+        });
+        expect([onCustom.status, onCustom.body.error.details]).toEqual([
+          400,
+          { exerciseId: "Pick an active exercise." },
+        ]);
+        const atGym = await call(createGoalRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: {
+            exerciseId: lib.chestPress.id,
+            gymId: plan.gym.id,
+            targetWeightLbs: 100,
+            targetReps: 5,
+          },
+          headers: { "idempotency-key": `ovl-${randomUUID()}` },
+        });
+        expect([atGym.status, atGym.body.error.details]).toEqual([
+          400,
+          { gymId: "Choose the gym this goal is measured at." },
+        ]);
+        for (const r of [onCustom, atGym])
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+        // B's own goal on the same library exercise A has a goal on is fine:
+        // one active goal per exercise is per account.
+        const own = await call(createGoalRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: {
+            exerciseId: lib.incline.id,
+            targetWeightLbs: 275,
+            targetReps: 3,
+          },
+          headers: { "idempotency-key": "ovl-shared-key" },
+        });
+        expect(own.status).toBe(201);
+        // The same key used by A is A's own key: it never replays B's answer.
+        const aSame = await call(createGoalRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: {
+            exerciseId: lib.bench.id,
+            targetWeightLbs: 300,
+            targetReps: 1,
+          },
+          headers: { "idempotency-key": "ovl-shared-key" },
+        });
+        expect(aSame.status).toBe(201);
+        expect(aSame.body.id).not.toBe(own.body.id);
+      });
+    });
+  },
+
+  "GET api/mobile/v1/exercises/[exerciseId]/goal-form": () => {
+    accountEndpointMatrix(
+      "GET /exercises/{id}/goal-form",
+      goalFormRoute as Handler,
+      { params: { exerciseId: randomUUID() } },
+    );
+    describe("GET /exercises/{id}/goal-form: isolation", () => {
+      it("A's custom exercise and A's gyms never reach B's form", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const custom = await call(goalFormRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: plan.custom.id },
+        });
+        expect([custom.status, custom.body]).toEqual([
+          200,
+          { kind: "not_found" },
+        ]);
+        const machine = await call(goalFormRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: lib.chestPress.id },
+          query: `gymId=${plan.gym.id}`,
+        });
+        expect(machine.body).toMatchObject({
+          kind: "ok",
+          gyms: [{ name: "Bravo Garage Gym" }],
+          defaultGymId: expect.not.stringMatching(plan.gym.id),
+        });
+        // A's active goal on Incline doesn't make it a duplicate for B.
+        const incline = await call(goalFormRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { exerciseId: lib.incline.id },
+        });
+        expect(incline.body.kind).toBe("ok");
+        for (const r of [custom, machine, incline])
+          for (const marker of aMarkers(a, plan))
+            expect(r.text).not.toContain(marker);
+      });
+    });
+  },
+
   "GET api/mobile/v1/goals": () => {
     accountEndpointMatrix("GET /goals", goalsRoute as Handler);
     describe("GET /goals: isolation", () => {

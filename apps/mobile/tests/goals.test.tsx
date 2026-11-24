@@ -3,7 +3,7 @@
  * numbers, a reached goal's card is acknowledged on the server and celebrated
  * once, and archiving asks first and has no undo.
  */
-import { Alert } from "react-native";
+import { Alert, Text } from "react-native";
 import {
   fireEvent,
   render,
@@ -13,12 +13,14 @@ import {
 import type {
   ActiveGoalDto,
   GoalDetailDto,
+  GoalFormContextDto,
   GoalsOverviewDto,
 } from "@overload/shared/contracts/goals";
 import { ApiError } from "../src/api/errors";
 import { GoalsScreen } from "../src/goals/GoalsScreen";
 import { GoalScreen } from "../src/goals/GoalScreen";
 import { GoalHistoryScreen } from "../src/goals/GoalHistoryScreen";
+import { NewGoalScreen } from "../src/goals/NewGoalScreen";
 import {
   activeGoalLabel,
   archivedNote,
@@ -36,7 +38,12 @@ import { Providers } from "./harness";
 
 const mockApi = { request: jest.fn() };
 jest.mock("../src/api/ApiProvider", () => ({ useApi: () => mockApi }));
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  back: jest.fn(),
+  dismissTo: jest.fn(),
+};
 jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
   get router() {
@@ -296,7 +303,7 @@ describe("G3 Goal", () => {
     const alert = jest.spyOn(Alert, "alert");
     function NoticeProbe() {
       const n = useNotice("goals");
-      return n ? <>{n.message}</> : null;
+      return n ? <Text>{n.message}</Text> : null;
     }
     await render(
       <Providers>
@@ -326,6 +333,7 @@ describe("G3 Goal", () => {
     }[];
     buttons.find((b) => b.text === "Archive")!.onPress!();
     await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
+    expect(screen.getByText("Goal archived.")).toBeTruthy();
     expect(writes()).toEqual([
       {
         path: "/goals/goal-bench/archived",
@@ -417,5 +425,177 @@ describe("G2 Goal history", () => {
       await screen.findByText("Leg Press · Downtown Gym (archived)"),
     ).toBeTruthy();
     expect(screen.getByText("400 lb × 10 · Reached Nov 20, 2026")).toBeTruthy();
+  });
+});
+
+describe("G5 Set goal", () => {
+  const FORM: GoalFormContextDto = {
+    kind: "ok",
+    exercise: {
+      id: "ex-leg",
+      name: "Leg Press",
+      meta: "Quadriceps · Machine",
+      imageUrl: null,
+    },
+    gymVariable: true,
+    gyms: [
+      { id: "gym-downtown", name: "Downtown Gym" },
+      { id: "gym-harbor", name: "Harbor Barbell" },
+    ],
+    defaultGymId: "gym-downtown",
+  };
+  const FORM_PATH = "GET /exercises/ex-leg/goal-form?gymId=gym-downtown";
+
+  async function fill(weight: string, reps: string) {
+    await fireEvent.changeText(
+      await screen.findByLabelText("Target weight (lb)"),
+      weight,
+    );
+    await fireEvent.changeText(screen.getByLabelText("Target reps"), reps);
+  }
+
+  it("checks the numbers with the shared rules before sending anything", async () => {
+    serve({ [FORM_PATH]: FORM });
+    await render(
+      <Providers>
+        <NewGoalScreen exerciseId="ex-leg" gymId="gym-downtown" from="goals" />
+      </Providers>,
+    );
+    await fill("0", "2.5");
+    await fireEvent.press(screen.getByRole("button", { name: "Set goal" }));
+    expect(screen.getByText("Enter whole reps, 1 or more.")).toBeTruthy();
+    expect(writes()).toEqual([]);
+  });
+
+  it("sends once with an Idempotency-Key, then opens the new goal in Goals", async () => {
+    let release: () => void = () => {};
+    serve({
+      [FORM_PATH]: FORM,
+      "POST /goals": () =>
+        new Promise((resolve) => {
+          release = () => resolve({ id: "goal-new", outcome: "active" });
+        }),
+    });
+    await render(
+      <Providers>
+        <NewGoalScreen exerciseId="ex-leg" gymId="gym-downtown" from="goals" />
+      </Providers>,
+    );
+    await fill("400", "10");
+    const save = screen.getByRole("button", { name: "Set goal" });
+    await fireEvent.press(save);
+    await fireEvent.press(save);
+    release();
+    await waitFor(() =>
+      expect(mockRouter.push).toHaveBeenCalledWith("/goals/goal-new"),
+    );
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith("/goals");
+    const posts = mockApi.request.mock.calls.filter(
+      ([p, o]) => p === "/goals" && o?.method === "POST",
+    );
+    expect(posts).toHaveLength(1);
+    expect(posts[0][1]).toMatchObject({
+      body: {
+        exerciseId: "ex-leg",
+        gymId: "gym-downtown",
+        targetWeightLbs: 400,
+        targetReps: 10,
+      },
+      headers: { "Idempotency-Key": expect.stringMatching(/^ovl-/) },
+    });
+  });
+
+  it("a resend after a failure carries the same key; the server's field words show", async () => {
+    let attempt = 0;
+    serve({
+      [FORM_PATH]: FORM,
+      "POST /goals": () => {
+        attempt += 1;
+        if (attempt === 1) throw new ApiError("network", "offline", 0);
+        throw new ApiError(
+          "validation_error",
+          "Check the highlighted fields.",
+          400,
+          {
+            gymId: "That gym is archived. Choose an active gym.",
+          },
+        );
+      },
+    });
+    await render(
+      <Providers>
+        <NewGoalScreen
+          exerciseId="ex-leg"
+          gymId="gym-downtown"
+          from="history"
+        />
+      </Providers>,
+    );
+    await fill("400", "10");
+    await fireEvent.press(screen.getByRole("button", { name: "Set goal" }));
+    expect(await screen.findByText(/needs a connection/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Set goal" }));
+    expect(
+      await screen.findByText("That gym is archived. Choose an active gym."),
+    ).toBeTruthy();
+    const keys = mockApi.request.mock.calls
+      .filter(([p, o]) => p === "/goals" && o?.method === "POST")
+      .map(([, o]) => o.headers["Idempotency-Key"]);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    // The typed numbers are kept.
+    expect(screen.getByDisplayValue("400")).toBeTruthy();
+  });
+
+  it("from an exercise's history, a set goal closes the form with a View banner", async () => {
+    serve({
+      [FORM_PATH]: FORM,
+      "POST /goals": { id: "goal-new", outcome: "completed" },
+    });
+    function Probe() {
+      const n = useNotice("exercise-history");
+      return n ? <Text>{`${n.message}|${n.viewHref}`}</Text> : null;
+    }
+    await render(
+      <Providers>
+        <NewGoalScreen
+          exerciseId="ex-leg"
+          gymId="gym-downtown"
+          from="history"
+        />
+        <Probe />
+      </Providers>,
+    );
+    await fill("100", "10");
+    await fireEvent.press(screen.getByRole("button", { name: "Set goal" }));
+    expect(
+      await screen.findByText(
+        "Already reached. Your history meets this target.|/goals/goal-new",
+      ),
+    ).toBeTruthy();
+    expect(mockRouter.back).toHaveBeenCalled();
+  });
+
+  it("a lift with an active goal shows the web's duplicate answer instead of the form", async () => {
+    serve({
+      "GET /exercises/ex-bench/goal-form": {
+        kind: "duplicate",
+        exerciseName: "Barbell Bench Press",
+        existing: BENCH,
+      },
+    });
+    await render(
+      <Providers>
+        <NewGoalScreen exerciseId="ex-bench" gymId={null} from="goals" />
+      </Providers>,
+    );
+    expect(
+      await screen.findByText(
+        "Barbell Bench Press already has an active goal.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Target weight (lb)")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "View goal" }));
+    expect(mockRouter.push).toHaveBeenCalledWith("/goals/goal-bench");
   });
 });

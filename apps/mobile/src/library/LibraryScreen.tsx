@@ -49,12 +49,15 @@ export type RowTrailing = (exercise: ExerciseListItemDto) => React.ReactNode;
  * touches a plan or a workout.
  */
 export function LibraryScreen({
+  title = "Exercises",
   detailHref,
   trailing,
   headerRight,
   notice,
   onAddOwn,
 }: {
+  /** The screen's title (Pitch 21i: "New goal" when picking a goal's lift). */
+  title?: string;
   detailHref: (exerciseId: string) => string;
   trailing?: RowTrailing;
   headerRight?: () => React.ReactNode;
@@ -144,7 +147,7 @@ export function LibraryScreen({
 
   return (
     <>
-      <Stack.Screen options={{ title: "Exercises", headerRight }} />
+      <Stack.Screen options={{ title, headerRight }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"

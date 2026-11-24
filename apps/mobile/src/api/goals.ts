@@ -4,8 +4,11 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import type { CreateGoalRequest } from "@overload/shared/contracts/requests";
 import type {
   AcknowledgeGoalResponseDto,
+  CreateGoalResponseDto,
+  GoalFormContextDto,
   ArchiveGoalResponseDto,
   GoalDetailDto,
   GoalHistoryListDto,
@@ -116,6 +119,44 @@ export function useAcknowledgeGoal() {
         `/goals/${enc(goalId)}/acknowledged`,
         { method: "PUT", body: { acknowledged: true } },
       ),
+    onSettled: () => invalidateGoalReads(client),
+  });
+}
+
+/** E7 `GET /exercises/{id}/goal-form?gymId=`: the form's context. */
+export function useGoalForm(exerciseId: string, gymId: string | null) {
+  const api = useApi();
+  return useQuery<GoalFormContextDto, ApiError>({
+    queryKey: [...GOAL_KEYS.goalFormAll, exerciseId, gymId ?? "none"],
+    queryFn: ({ signal }) =>
+      api.request<GoalFormContextDto>(
+        `/exercises/${enc(exerciseId)}/goal-form${gymId ? `?gymId=${enc(gymId)}` : ""}`,
+        { signal },
+      ),
+    // A goal set elsewhere (the web) must show as a duplicate here.
+    staleTime: 0,
+  });
+}
+
+/**
+ * E4 `POST /goals` with one `Idempotency-Key` per intent (21h RD-21): the
+ * same values resent after a failure carry the same key, so the server
+ * answers with the first result and never makes a second goal.
+ */
+export function useCreateGoal() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    CreateGoalResponseDto,
+    ApiError,
+    { key: string; body: CreateGoalRequest }
+  >({
+    mutationFn: ({ key, body }) =>
+      api.request<CreateGoalResponseDto>("/goals", {
+        method: "POST",
+        body,
+        headers: { "Idempotency-Key": key },
+      }),
     onSettled: () => invalidateGoalReads(client),
   });
 }
