@@ -209,4 +209,16 @@ Run of 2026-11-24, on `staging` at `370ca69` (#320–#324 plus the review fixes 
 
 ## 8. Delivery record
 
-(Filled in by the run; see below.)
+**Stage A, on staging (2026-11-24).**
+
+| | |
+| --- | --- |
+| PRs merged into `staging` | docs #319; OVE-247 #320; OVE-248 #321; OVE-249 #322; OVE-250 #323; OVE-251 #324; review fixes #326; runbook #327 |
+| Staging update | group `60bc96a8-9c83-481e-ab04-45e1262cf831`, iOS update `01a20fcc-b038-72c5-a882-63ce266c8d87` |
+| Commit | `9727c2c` |
+| Runtime | `f98506f78acfef2f8bfc764d2e31f16475e2f501` (build `86e673d0`) |
+| Channel / branch | `staging` / `staging` |
+
+**Held (Stage B):** OVE-252, the feedback screenshot, is draft PR #325, on runtime `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`. It waits for your development build (§5).
+
+**Not done by the run (human steps):** a Production release, a Production Expo update, a TestFlight build, and setting `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL` for Preview.
