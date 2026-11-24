@@ -132,6 +132,12 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   },
   // Pitch 21i: goals and exercise history
   { method: "GET", route: "api/mobile/v1/goals", auth: "account" },
+  { method: "POST", route: "api/mobile/v1/goals", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/exercises/[exerciseId]/goal-form",
+    auth: "account",
+  },
   { method: "GET", route: "api/mobile/v1/goals/history", auth: "account" },
   { method: "GET", route: "api/mobile/v1/goals/[goalId]", auth: "account" },
   {
