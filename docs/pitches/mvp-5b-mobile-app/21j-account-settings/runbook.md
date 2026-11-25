@@ -229,6 +229,8 @@ Run of 2026-11-24, on `staging` at `370ca69` (#320–#324 plus the review fixes 
 | Runtime | `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c` (build `c22ac9a0`; build `86e673d0` no longer receives staging updates) |
 | Channel / branch | `staging` / `staging` |
 
+**Correction, on staging (2026-11-25): OVE-254 #330 (`f4a0888`).** On the iPhone, feedback with a screenshot showed "Couldn't send". The cause: Expo SDK 58's global `fetch` is `expo/fetch`, whose FormData encoder refuses React Native's `{ uri, name, type }` file part before anything is sent. The part is now `{ name, type, bytes() }`. Staging update group `5b3a5a39-ee7f-4db2-b720-aa517624e297` (iOS update `01a21407-4835-7182-b693-557307764c80`), same runtime `2e4a65d9cd…`, so no rebuild.
+
 Check B (§5 step 4) is the owner's iPhone check. Without a staging admin account, the run confirms the stored feedback and attachment by metadata only (counts, type, size, no EXIF block).
 
 **Not done by the run (human steps):** a Production release, a Production Expo update, a TestFlight build, and setting `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL` for Preview.
