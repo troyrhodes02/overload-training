@@ -10,6 +10,7 @@ import {
 import { newIdempotencyKey } from "../api/idempotency";
 import type { FeedbackScreenshot } from "../api/account";
 import { ApiError } from "../api/errors";
+import { deleteLocalImage } from "./screenshot-files";
 
 /**
  * A6 Send feedback's draft and rules (Pitch 21j design §6 A6; RD-10, RD-11).
@@ -28,6 +29,8 @@ export type FeedbackDraft = {
   category: FeedbackCategoryValue | null;
   message: string;
   screenshot: FeedbackScreenshot | null;
+  /** A picked image is still being prepared; Send waits for it (OVE-252). */
+  preparing: boolean;
   key: string;
 };
 
@@ -35,10 +38,14 @@ const fresh = (): FeedbackDraft => ({
   category: null,
   message: "",
   screenshot: null,
+  preparing: false,
   key: newIdempotencyKey(),
 });
 
 let draft: FeedbackDraft = fresh();
+/** Bumped on every reset, so a pick that finishes afterwards is dropped. */
+let generation = 0;
+export const feedbackDraftGeneration = () => generation;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
@@ -58,6 +65,14 @@ export function updateFeedbackDraft(patch: Partial<FeedbackDraft>): void {
     (patch.category !== undefined && patch.category !== draft.category) ||
     (patch.message !== undefined && patch.message !== draft.message) ||
     (patch.screenshot !== undefined && patch.screenshot !== draft.screenshot);
+  // A replaced or removed screenshot's local file goes at once (review #4).
+  if (
+    patch.screenshot !== undefined &&
+    draft.screenshot &&
+    patch.screenshot?.uri !== draft.screenshot.uri
+  ) {
+    deleteLocalImage(draft.screenshot.uri);
+  }
   draft = {
     ...draft,
     ...patch,
@@ -68,6 +83,9 @@ export function updateFeedbackDraft(patch: Partial<FeedbackDraft>): void {
 
 /** A confirmed send, a discard, or sign-out. */
 export function resetFeedbackDraft(): void {
+  // Sent, discarded, signed out, or deleted: the screenshot file goes too.
+  deleteLocalImage(draft.screenshot?.uri);
+  generation += 1;
   draft = fresh();
   emit();
 }
