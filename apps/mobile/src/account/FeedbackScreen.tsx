@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Alert, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { isFeedbackCategory } from "@overload/shared/feedback/validation";
@@ -32,13 +32,14 @@ import {
  * the draft's retry key makes a repeated tap or an automatic retry arrive
  * once. A failure keeps the draft; Cancel with a draft asks first.
  *
- * `attachment` is where the screenshot row goes once the native image picker
- * is in the installed build (RD-9); without it the message sends text only.
+ * `Attachment` is the screenshot row, given once the native image picker is
+ * in the installed build (RD-9); without it the message sends text only. It
+ * is locked while a send is in flight, and Send waits while it prepares.
  */
 export function FeedbackScreen({
-  attachment,
+  Attachment,
 }: {
-  attachment?: React.ReactNode;
+  Attachment?: ComponentType<{ disabled?: boolean }>;
 }) {
   const { spacing } = useTheme();
   const close = useModalClose();
@@ -49,6 +50,14 @@ export function FeedbackScreen({
   const [banner, setBanner] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const sending = useRef(false);
+  // A server error about the screenshot belongs to that screenshot: replacing
+  // or removing it clears the error (render-phase, no effect).
+  const [errorShot, setErrorShot] = useState(draft.screenshot);
+  if (errorShot !== draft.screenshot) {
+    setErrorShot(draft.screenshot);
+    if (errors.screenshots)
+      setErrors((e) => ({ ...e, screenshots: undefined }));
+  }
 
   // A7's "Send feedback" opens on Question when nothing is chosen yet.
   useEffect(() => {
@@ -60,7 +69,7 @@ export function FeedbackScreen({
   }, []);
 
   async function send() {
-    if (sending.current || !canSend(draft)) return;
+    if (sending.current || draft.preparing || !canSend(draft)) return;
     const early = checkFeedback(draft);
     if (early.category || early.message) {
       setErrors(early);
@@ -184,7 +193,7 @@ export function FeedbackScreen({
             {messageCounter(draft.message)}
           </Text>
         </View>
-        {attachment}
+        {Attachment ? <Attachment disabled={pending} /> : null}
         {errors.screenshots ? (
           <Text size="sm" tone="destructive">
             {errors.screenshots}
@@ -193,7 +202,7 @@ export function FeedbackScreen({
         <Button
           label={pending ? "Sending…" : "Send"}
           loading={pending}
-          disabled={!canSend(draft)}
+          disabled={!canSend(draft) || draft.preparing}
           onPress={() => void send()}
         />
       </FormScreen>

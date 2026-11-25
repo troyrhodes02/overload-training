@@ -16,7 +16,7 @@ export function hasScreenshotModules(): boolean {
 /** The Screenshot row, or null on a build without the native modules. */
 export function loadScreenshotAttachment(
   available: () => boolean = hasScreenshotModules,
-): ComponentType | null {
+): ComponentType<{ disabled?: boolean }> | null {
   if (!available()) return null;
   // Required only when the native modules exist, so a build without them
   // never evaluates expo-image-picker.

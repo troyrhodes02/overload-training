@@ -10,7 +10,5 @@ const Attachment = loadScreenshotAttachment();
  * help open one form (`?category=question` from Get help).
  */
 export default function FeedbackRoute() {
-  return (
-    <FeedbackScreen attachment={Attachment ? <Attachment /> : undefined} />
-  );
+  return <FeedbackScreen Attachment={Attachment ?? undefined} />;
 }

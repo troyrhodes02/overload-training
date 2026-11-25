@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Image, Linking, Modal, Pressable, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
@@ -8,7 +8,11 @@ import { Button } from "../ui/Button";
 import { Symbol } from "../ui/Symbol";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
-import { updateFeedbackDraft, useFeedbackDraft } from "./feedback-model";
+import {
+  feedbackDraftGeneration,
+  updateFeedbackDraft,
+  useFeedbackDraft,
+} from "./feedback-model";
 import {
   ATTACH_FAILED,
   ATTACH_NOTE,
@@ -54,6 +58,9 @@ export async function pickScreenshot(): Promise<
       format: SaveFormat.JPEG,
       compress: JPEG_COMPRESS,
     });
+    // The rendered bitmap and its context are native memory; free them now.
+    release(image);
+    release(context);
     let size: number | null = null;
     try {
       size = new File(saved.uri).size ?? null;
@@ -72,6 +79,14 @@ export async function pickScreenshot(): Promise<
   }
 }
 
+function release(o: { release?: () => void }) {
+  try {
+    o.release?.();
+  } catch {
+    // Already released; nothing to free.
+  }
+}
+
 /**
  * A6's Screenshot row (Pitch 21j design §6 A6, §15): add, review full
  * screen, replace, or remove one screenshot. The choice is part of the draft,
@@ -85,21 +100,34 @@ export function ScreenshotAttachment({
   disabled?: boolean;
 }) {
   const { colors, radius, spacing } = useTheme();
-  const { screenshot } = useFeedbackDraft();
-  const [preparing, setPreparing] = useState(false);
+  const { screenshot, preparing } = useFeedbackDraft();
+  // A ref, so two taps in one frame open one picker (review #3).
+  const choosing = useRef(false);
   const [problem, setProblem] = useState<"failed" | "denied" | null>(null);
   const [reviewing, setReviewing] = useState(false);
 
   async function choose() {
-    if (preparing || disabled) return;
+    if (choosing.current || preparing || disabled) return;
+    choosing.current = true;
+    // Preparing lives in the draft, so Send waits for it (review #2). A draft
+    // sent or discarded meanwhile never receives this pick.
+    const generation = feedbackDraftGeneration();
     setProblem(null);
-    setPreparing(true);
+    updateFeedbackDraft({ preparing: true });
     try {
       const result = await pick();
-      if (result === "failed" || result === "denied") setProblem(result);
-      else if (result) updateFeedbackDraft({ screenshot: result });
+      const current = generation === feedbackDraftGeneration();
+      if (result === "failed" || result === "denied") {
+        if (current) setProblem(result);
+      } else if (result) {
+        if (current) updateFeedbackDraft({ screenshot: result });
+        else deleteLocalImage(result.uri);
+      }
     } finally {
-      setPreparing(false);
+      choosing.current = false;
+      if (generation === feedbackDraftGeneration()) {
+        updateFeedbackDraft({ preparing: false });
+      }
     }
   }
 
@@ -129,8 +157,8 @@ export function ScreenshotAttachment({
             <Image
               source={{ uri: screenshot.uri }}
               style={{
-                width: 56,
-                height: 112,
+                width: 64,
+                height: 128,
                 borderRadius: radius.md,
                 backgroundColor: colors.muted,
               }}
@@ -142,6 +170,7 @@ export function ScreenshotAttachment({
             <View style={{ flexDirection: "row", gap: spacing.lg }}>
               <Button
                 label="Replace"
+                accessibilityLabel="Replace the screenshot"
                 variant="text"
                 size="md"
                 disabled={disabled || preparing}
@@ -149,6 +178,7 @@ export function ScreenshotAttachment({
               />
               <Button
                 label="Remove"
+                accessibilityLabel="Remove the screenshot"
                 variant="destructive-text"
                 size="md"
                 disabled={disabled || preparing}

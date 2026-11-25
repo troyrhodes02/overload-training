@@ -29,6 +29,8 @@ export type FeedbackDraft = {
   category: FeedbackCategoryValue | null;
   message: string;
   screenshot: FeedbackScreenshot | null;
+  /** A picked image is still being prepared; Send waits for it (OVE-252). */
+  preparing: boolean;
   key: string;
 };
 
@@ -36,10 +38,14 @@ const fresh = (): FeedbackDraft => ({
   category: null,
   message: "",
   screenshot: null,
+  preparing: false,
   key: newIdempotencyKey(),
 });
 
 let draft: FeedbackDraft = fresh();
+/** Bumped on every reset, so a pick that finishes afterwards is dropped. */
+let generation = 0;
+export const feedbackDraftGeneration = () => generation;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
@@ -79,6 +85,7 @@ export function updateFeedbackDraft(patch: Partial<FeedbackDraft>): void {
 export function resetFeedbackDraft(): void {
   // Sent, discarded, signed out, or deleted: the screenshot file goes too.
   deleteLocalImage(draft.screenshot?.uri);
+  generation += 1;
   draft = fresh();
   emit();
 }

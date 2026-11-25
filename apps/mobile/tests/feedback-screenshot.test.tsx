@@ -4,6 +4,7 @@
  * as the multipart file part with the message.
  */
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -15,6 +16,7 @@ import { ScreenshotAttachment } from "../src/account/ScreenshotAttachment";
 import {
   resetFeedbackDraft,
   updateFeedbackDraft,
+  useFeedbackDraft,
 } from "../src/account/feedback-model";
 import { fitsUpload, resizeFor } from "../src/account/screenshot-model";
 import { Providers } from "./harness";
@@ -102,7 +104,9 @@ describe("A6 screenshot row", () => {
       screen.getByRole("button", { name: "Add a screenshot" }),
     );
     expect(await screen.findByText("Screenshot attached")).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "Remove" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Remove the screenshot" }),
+    );
     expect(
       await screen.findByRole("button", { name: "Add a screenshot" }),
     ).toBeTruthy();
@@ -153,7 +157,7 @@ describe("A6 send with a screenshot", () => {
     });
     await render(
       <Providers>
-        <FeedbackScreen attachment={<ScreenshotAttachment />} />
+        <FeedbackScreen Attachment={ScreenshotAttachment} />
       </Providers>,
     );
     await fireEvent.press(screen.getByRole("button", { name: "Send" }));
@@ -183,6 +187,126 @@ describe("A6 send with a screenshot", () => {
     expect(mockApi.request.mock.calls[0][1].headers).toEqual(
       mockApi.request.mock.calls[1][1].headers,
     );
+  });
+});
+
+describe("sending and preparing never race (PR #325 review #1, #2)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+
+  it("the screenshot row is locked while a send is in flight", async () => {
+    const reply = deferred<{ sent: true }>();
+    mockApi.request.mockReturnValueOnce(reply.promise);
+    updateFeedbackDraft({ category: "bug", message: "See", screenshot: SHOT });
+    await render(
+      <Providers>
+        <FeedbackScreen Attachment={ScreenshotAttachment} />
+      </Providers>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Send" }));
+    for (const name of ["Replace the screenshot", "Remove the screenshot"]) {
+      expect(
+        screen.getByRole("button", { name }).props.accessibilityState,
+      ).toMatchObject({ disabled: true });
+    }
+    await act(async () => reply.resolve({ sent: true }));
+    expect(await screen.findByText("Thanks — sent to the owner.")).toBeTruthy();
+  });
+
+  it("Send waits while a picked image is prepared", async () => {
+    const picked = deferred<typeof SHOT>();
+    const Row = (p: { disabled?: boolean }) => (
+      <ScreenshotAttachment {...p} pick={() => picked.promise} />
+    );
+    mockApi.request.mockResolvedValue({ sent: true });
+    updateFeedbackDraft({ category: "bug", message: "See" });
+    await render(
+      <Providers>
+        <FeedbackScreen Attachment={Row} />
+      </Providers>,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Add a screenshot" }),
+    );
+    const send = screen.getByRole("button", { name: "Send" });
+    expect(send.props.accessibilityState).toMatchObject({ disabled: true });
+    await fireEvent.press(send);
+    expect(mockApi.request).not.toHaveBeenCalled();
+    await act(async () => picked.resolve(SHOT));
+    expect(await screen.findByText("Screenshot attached")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(mockApi.request).toHaveBeenCalledTimes(1));
+    const fd = mockApi.request.mock.calls[0][1].formData as {
+      getParts: () => { fieldName: string }[];
+    };
+    expect(fd.getParts().map((x) => x.fieldName)).toContain("screenshots");
+  });
+
+  it("a pick that finishes after the draft is discarded is dropped", async () => {
+    const picked = deferred<typeof SHOT>();
+    let seen: ReturnType<typeof useFeedbackDraft> | null = null;
+    const Probe = () => {
+      seen = useFeedbackDraft();
+      return null;
+    };
+    await render(
+      <Providers>
+        <ScreenshotAttachment pick={() => picked.promise} />
+        <Probe />
+      </Providers>,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Add a screenshot" }),
+    );
+    await act(async () => {
+      resetFeedbackDraft();
+      picked.resolve(SHOT);
+    });
+    await waitFor(() => expect(mockDeleted).toContain(SHOT.uri));
+    expect(seen!.screenshot).toBeNull();
+    expect(seen!.preparing).toBe(false);
+  });
+
+  it("two taps in one frame open one picker", async () => {
+    const picked = deferred<null>();
+    const pick = jest.fn(() => picked.promise);
+    await render(
+      <Providers>
+        <ScreenshotAttachment pick={pick} />
+      </Providers>,
+    );
+    const add = screen.getByRole("button", { name: "Add a screenshot" });
+    await fireEvent.press(add);
+    await fireEvent.press(add);
+    expect(pick).toHaveBeenCalledTimes(1);
+    await act(async () => picked.resolve(null));
+  });
+
+  it("a server error about the screenshot clears when it is removed", async () => {
+    mockApi.request.mockRejectedValueOnce(
+      new ApiError("validation_error", "bad", 400, {
+        screenshots: "That file isn't an image we can accept.",
+      }),
+    );
+    updateFeedbackDraft({ category: "bug", message: "See", screenshot: SHOT });
+    await render(
+      <Providers>
+        <FeedbackScreen Attachment={ScreenshotAttachment} />
+      </Providers>,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Send" }));
+    expect(
+      await screen.findByText("That file isn't an image we can accept."),
+    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Remove the screenshot" }),
+    );
+    expect(
+      screen.queryByText("That file isn't an image we can accept."),
+    ).toBeNull();
   });
 });
 
