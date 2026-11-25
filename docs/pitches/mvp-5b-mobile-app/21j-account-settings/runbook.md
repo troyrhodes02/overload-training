@@ -219,6 +219,16 @@ Run of 2026-11-24, on `staging` at `370ca69` (#320–#324 plus the review fixes 
 | Runtime | `f98506f78acfef2f8bfc764d2e31f16475e2f501` (build `86e673d0`) |
 | Channel / branch | `staging` / `staging` |
 
-**Held (Stage B):** OVE-252, the feedback screenshot, is draft PR #325, on runtime `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`. It waits for your development build (§5).
+**Stage B, on staging (2026-11-25).** The owner installed development build `c22ac9a0` (from `e2d00aa`, fingerprint `2e4a65d9cd…`). Then OVE-252 merged after an independent review, which raised two should-fix races, fixed in `3183af0`.
+
+| | |
+| --- | --- |
+| PR merged into `staging` | OVE-252 #325 (squash `6d6e5fc`) |
+| Staging update | group `93b8f51c-c424-4afb-8972-46311ad94b63`, iOS update `01a211c0-50f2-75a5-bf1d-60d25247bfc7` |
+| Commit | `6d6e5fc` |
+| Runtime | `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c` (build `c22ac9a0`; build `86e673d0` no longer receives staging updates) |
+| Channel / branch | `staging` / `staging` |
+
+Check B (§5 step 4) is the owner's iPhone check. Without a staging admin account, the run confirms the stored feedback and attachment by metadata only (counts, type, size, no EXIF block).
 
 **Not done by the run (human steps):** a Production release, a Production Expo update, a TestFlight build, and setting `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL` for Preview.
