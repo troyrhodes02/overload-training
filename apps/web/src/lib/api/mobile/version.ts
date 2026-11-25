@@ -89,6 +89,10 @@ export function mobileAppConfig(
     },
     signupMode: signupMode(env) === "public" ? "public" : "closed",
     botChallenge: mobileBotChallenge(env),
+    // The /support page's address when configured (Pitch 21j RD-20). Never the
+    // web's visible placeholder: an unset address is null, and the app then
+    // offers only Send feedback.
+    supportEmail: env.NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL?.trim() || null,
   };
 }
 

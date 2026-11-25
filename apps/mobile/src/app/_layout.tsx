@@ -32,6 +32,10 @@ import {
   UpdateRequiredGate,
 } from "../gates/Gates";
 import { LaunchingScreen } from "../ui/StateView";
+import {
+  FINISH_ON_WEB_NOTICE,
+  setSignedOutNotice,
+} from "../accounts/signed-out-notice";
 import { ThemeProvider, useThemeContext } from "../ui/ThemeProvider";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -127,6 +131,11 @@ function Gatekeeper({
   const meCode = me.error?.code;
   useEffect(() => {
     if (meCode === "unauthorized" || meCode === "signed_out") {
+      // A 401 after a successful refresh: the sign-in exists but no account
+      // answers — a deletion that removed the data and couldn't close the
+      // sign-in. Say where to finish instead of signing out silently
+      // (Pitch 21j review #1).
+      if (meCode === "unauthorized") setSignedOutNotice(FINISH_ON_WEB_NOTICE);
       void session.forgetSession();
     }
   }, [meCode, session]);

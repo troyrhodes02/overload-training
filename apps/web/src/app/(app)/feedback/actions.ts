@@ -1,15 +1,9 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { requireAccount } from "@/lib/data/account";
 import { DomainError } from "@/lib/actions/result";
-import { assertFeedbackAllowed, submitFeedback } from "@/lib/feedback/feedback";
 import type { FeedbackFieldErrors } from "@overload/shared/feedback/validation";
-import { validateScreenshots } from "@overload/shared/feedback/attachment-validation";
-import {
-  removeFeedbackScreenshots,
-  uploadFeedbackScreenshots,
-} from "@/lib/feedback/screenshots";
+import { submitFeedbackWithScreenshots } from "@/lib/feedback/submission";
 
 export type SubmitFeedbackState =
   | { status: "idle" }
@@ -39,54 +33,25 @@ export async function submitFeedbackAction(
     message: typeof message === "string" ? message : "",
   };
 
-  // Screenshots are optional; keep only non-empty files the browser attached.
-  const files = formData
-    .getAll("screenshots")
-    .filter((f): f is File => f instanceof File && f.size > 0);
-  const screenshotCheck = validateScreenshots(
-    files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
-  );
-  if (!screenshotCheck.ok) {
-    return {
-      status: "error",
-      fieldErrors: { screenshots: screenshotCheck.error },
-      formError: null,
-      draft,
-    };
-  }
-
-  let uploadedPaths: string[] = [];
   try {
-    // Validate and check the daily limit FIRST (OVE-126 / audit F-A8): a
-    // submission that will be refused uploads nothing to Storage.
-    await assertFeedbackAllowed(account, { category, message });
-    if (files.length > 0) {
-      const bytes = await Promise.all(
-        files.map(async (f) => ({
+    // Screenshots are optional; keep only non-empty files the browser attached.
+    const files = await Promise.all(
+      formData
+        .getAll("screenshots")
+        .filter((f): f is File => f instanceof File && f.size > 0)
+        .map(async (f) => ({
           bytes: new Uint8Array(await f.arrayBuffer()),
           contentType: f.type,
           sizeBytes: f.size,
+          name: f.name,
         })),
-      );
-      const uploaded = await uploadFeedbackScreenshots(
-        `${account.userId}/${randomUUID()}`,
-        bytes,
-      );
-      uploadedPaths = uploaded.map((u) => u.objectPath);
-      await submitFeedback(account, {
-        category,
-        message,
-        attachments: uploaded,
-      });
-    } else {
-      await submitFeedback(account, { category, message });
-    }
+    );
+    // The one submission both clients use (Pitch 21j RD-11): screenshot
+    // checks (now including the bytes), the limit before any upload, and the
+    // cleanup of uploads when the message doesn't save.
+    await submitFeedbackWithScreenshots(account, { category, message, files });
     return { status: "sent" };
   } catch (error) {
-    // The message never saved (the row insert failed or lost the limit race),
-    // so its uploaded screenshots must not linger.
-    if (uploadedPaths.length > 0)
-      await removeFeedbackScreenshots(uploadedPaths);
     if (error instanceof DomainError && error.code === "validation_error") {
       return {
         status: "error",

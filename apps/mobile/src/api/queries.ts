@@ -19,6 +19,7 @@ import { ApiError } from "./errors";
 import { resetProNotes } from "../insights/pro-note-store";
 import { resetNotices } from "../ui/notice-store";
 import { resetCelebrated } from "../goals/goal-model";
+import { resetFeedbackDraft } from "../account/feedback-model";
 
 /**
  * The query layer (spec §6, RD-16). Temporary failures retry twice; nothing
@@ -77,6 +78,8 @@ export function clearAccountQueries(client: QueryClient): void {
   resetProNotes();
   resetNotices();
   resetCelebrated();
+  // Pitch 21j: an unsent feedback draft is this account's words.
+  resetFeedbackDraft();
   client.removeQueries({
     predicate: (query) => query.queryKey[0] !== QUERY_KEYS.appConfig[0],
   });

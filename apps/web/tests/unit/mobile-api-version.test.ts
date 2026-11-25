@@ -63,6 +63,8 @@ describe("mobileAppConfig", () => {
       signupMode: "closed",
       // No bypass and no configured key: a challenge is required but unavailable.
       botChallenge: { provider: "turnstile", siteKey: null, origin: null },
+      // Pitch 21j: no configured support address is null, never a placeholder.
+      supportEmail: null,
     });
   });
 
@@ -133,6 +135,7 @@ describe("mobileAppConfig", () => {
       "latestAppVersion",
       "minimumAppVersion",
       "signupMode",
+      "supportEmail",
     ]);
   });
 });

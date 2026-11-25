@@ -106,6 +106,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       "expo-router",
       "expo-secure-store",
+      // Pitch 21j (RD-9, RD-10): pick one screenshot for feedback. The
+      // system photo picker needs no library permission; the string is the
+      // fallback iOS requires. No camera and no microphone.
+      [
+        "expo-image-picker",
+        {
+          photosPermission:
+            "Overload opens your photos only when you choose a screenshot to attach to feedback.",
+          cameraPermission: false,
+          microphonePermission: false,
+        },
+      ],
       [
         "expo-splash-screen",
         {

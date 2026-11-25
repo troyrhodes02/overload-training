@@ -74,3 +74,42 @@ export function screenshotExtension(contentType: string): string {
   if (contentType === "image/webp") return "webp";
   return "jpg";
 }
+
+export type ScreenshotType = (typeof FEEDBACK_SCREENSHOT_TYPES)[number];
+
+/**
+ * The image type a file's BYTES say it is (Pitch 21j RD-11; mobile audit
+ * F-A15), or null when they are none of the accepted types. A declared
+ * content type is a claim; the magic bytes are the fact:
+ *   PNG  89 50 4E 47 0D 0A 1A 0A
+ *   JPEG FF D8 FF
+ *   WebP "RIFF" <4 bytes> "WEBP"
+ */
+export function sniffImageType(bytes: Uint8Array): ScreenshotType | null {
+  const at = (i: number) => bytes[i];
+  const ascii = (from: number, text: string) =>
+    [...text].every((c, i) => at(from + i) === c.charCodeAt(0));
+  if (
+    bytes.length >= 8 &&
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
+      (b, i) => at(i) === b,
+    )
+  ) {
+    return "image/png";
+  }
+  if (bytes.length >= 3 && at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) {
+    return "image/jpeg";
+  }
+  if (bytes.length >= 12 && ascii(0, "RIFF") && ascii(8, "WEBP")) {
+    return "image/webp";
+  }
+  return null;
+}
+
+/**
+ * The message when a file's bytes aren't the image type it claims (a renamed
+ * file, or not an image at all). Review #6: says what to do, not just the
+ * accepted types.
+ */
+export const SCREENSHOT_MISMATCH_ERROR =
+  "That file isn't the PNG, JPEG, or WebP image it says it is. Save the screenshot again and attach that.";

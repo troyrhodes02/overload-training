@@ -37,4 +37,17 @@ describe("native fingerprint inputs", () => {
       "colors.dark.background",
     ]);
   });
+
+  it("expo-file-system is declared at exactly the range expo itself links (Pitch 21j RD-8)", () => {
+    const mobile = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"),
+    ) as { dependencies: Record<string, string> };
+    const expo = JSON.parse(
+      fs.readFileSync(require.resolve("expo/package.json"), "utf8"),
+    ) as { dependencies: Record<string, string> };
+    // A different range could resolve another version and move the runtime.
+    expect(mobile.dependencies["expo-file-system"]).toBe(
+      expo.dependencies["expo-file-system"],
+    );
+  });
 });

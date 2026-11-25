@@ -87,10 +87,52 @@ export type IdempotentResult<T extends IdempotentBody> = {
   body: T;
 };
 
+/**
+ * What is already committed for `key`, answered the way `withIdempotency`
+ * answers it, or null when nothing is (Pitch 21j RD-11). For a create with a
+ * side effect outside the database (a Storage upload), so a retry is answered
+ * BEFORE the side effect runs again. Read-only.
+ */
+export async function findReplay(
+  account: Account,
+  args: { key: string; scope: string; body: unknown },
+): Promise<Response | null> {
+  const requestHash = requestFingerprint(args.scope, args.body);
+  const stored = await account.db.apiIdempotencyKey.findFirst({
+    where: { key: args.key },
+    select: {
+      scope: true,
+      requestHash: true,
+      responseStatus: true,
+      responseBody: true,
+    },
+  });
+  if (!stored || stored.responseStatus === null) return null;
+  if (stored.scope === args.scope && stored.requestHash === requestHash) {
+    return apiJson(stored.responseBody, {
+      status: stored.responseStatus,
+      headers: { [REPLAYED_HEADER]: "true" },
+    });
+  }
+  return apiErrorResponse(
+    new ApiFailure(
+      "conflict",
+      "This Idempotency-Key was already used for a different request.",
+    ),
+  );
+}
+
 export async function withIdempotency<T extends IdempotentBody>(
   account: Account,
   args: { key: string; scope: string; body: unknown },
   run: (tx: AccountTx) => Promise<IdempotentResult<T>>,
+  opts: {
+    /**
+     * The transaction's isolation level (Pitch 21j): feedback's daily-limit
+     * count and insert must stay serializable when claimed with a key.
+     */
+    isolationLevel?: Prisma.TransactionIsolationLevel;
+  } = {},
 ): Promise<Response> {
   const requestHash = requestFingerprint(args.scope, args.body);
   try {
@@ -125,7 +167,11 @@ export async function withIdempotency<T extends IdempotentBody>(
         });
         return outcome;
       },
-      { timeout: TRANSACTION_TIMEOUT_MS, maxWait: TRANSACTION_TIMEOUT_MS },
+      {
+        timeout: TRANSACTION_TIMEOUT_MS,
+        maxWait: TRANSACTION_TIMEOUT_MS,
+        ...(opts.isolationLevel ? { isolationLevel: opts.isolationLevel } : {}),
+      },
     );
     return apiJson(result.body, { status: result.status });
   } catch (error) {

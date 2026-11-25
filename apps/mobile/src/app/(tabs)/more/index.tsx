@@ -1,11 +1,19 @@
-import { Alert, Linking, RefreshControl, ScrollView, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  View,
+} from "react-native";
 import { router, Stack } from "expo-router";
 import { billingCopy } from "@overload/shared/billing/copy";
 import { useMe } from "../../../api/queries";
 import { useSession } from "../../../auth/session";
-import { APP_VERSION, webOrigin } from "../../../config/env";
+import { APP_VERSION } from "../../../config/env";
 import { diagnosticsAvailable } from "../../../diagnostics/availability";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
+import { LoadErrorState } from "../../../ui/LoadErrorState";
+import { SkeletonCard } from "../../../ui/Skeleton";
 import { ScreenHeader } from "../../../ui/ScreenHeader";
 import { Symbol } from "../../../ui/Symbol";
 import { Text } from "../../../ui/Text";
@@ -18,18 +26,15 @@ const APPEARANCE_LABEL = {
 } as const;
 
 /**
- * M1 More (design §6, §15). The account card, the read-only plan row (the
- * server's words, no purchase path), appearance, the web for everything else,
- * and sign-out with a confirmation.
+ * M1 More (21d design §6; Pitch 21j design §6 M1, §15; RD-1): the account
+ * card (→ Profile), the plan (→ Plan & access, read-only, no purchase path),
+ * the app, updates and help, and sign-out with a confirmation.
  */
 export default function MoreScreen() {
   const { colors, radius, spacing } = useTheme();
   const { preference } = useThemeContext();
   const { signOut } = useSession();
   const me = useMe(true);
-  const origin = webOrigin();
-  const open = (path = "") =>
-    origin && void Linking.openURL(`${origin}${path}`);
   const profile = me.data?.profile;
   const plan = me.data
     ? billingCopy(me.data.entitlement.displayState, {
@@ -65,45 +70,73 @@ export default function MoreScreen() {
       >
         <ScreenHeader eyebrow="Account and settings" title="More" />
         {profile && me.data ? (
-          <View
-            accessible
-            accessibilityLabel={`${profile.firstName} ${profile.lastName}, @${profile.username}, ${me.data.email}${me.data.emailVerified ? ", email verified" : ""}`}
-            style={{
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${profile.firstName} ${profile.lastName}, ${profile.username ? `@${profile.username}, ` : ""}${me.data.email}${me.data.emailVerified ? ", email verified" : ""}, Profile`}
+            onPress={() => router.push("/more/profile")}
+            style={({ pressed }) => ({
+              opacity: pressed ? 0.7 : 1,
               backgroundColor: colors.card,
               borderRadius: radius.xl,
               borderWidth: 1,
               borderColor: colors.border,
               padding: spacing.lg,
-              gap: spacing.xs,
-            }}
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.sm,
+            })}
           >
-            <Text size="lg" weight="semibold">
-              {`${profile.firstName} ${profile.lastName}`}
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.xs,
-                flexWrap: "wrap",
-              }}
-            >
-              <Text size="sm" tone="muted">
-                {`@${profile.username} · ${me.data.email}`}
+            <View style={{ flex: 1, gap: spacing.xs }}>
+              <Text size="lg" weight="semibold">
+                {`${profile.firstName} ${profile.lastName}`}
               </Text>
-              {me.data.emailVerified ? (
-                <Symbol
-                  name="checkmark.seal.fill"
-                  size={14}
-                  color={colors.progress}
-                />
-              ) : null}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Text size="sm" tone="muted">
+                  {profile.username
+                    ? `@${profile.username} · ${me.data.email}`
+                    : me.data.email}
+                </Text>
+                {me.data.emailVerified ? (
+                  <Symbol
+                    name="checkmark.seal.fill"
+                    size={14}
+                    color={colors.progress}
+                  />
+                ) : null}
+              </View>
             </View>
-          </View>
-        ) : null}
+            <Symbol
+              name="chevron.right"
+              size={14}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
+        ) : me.isError ? (
+          <LoadErrorState
+            error={me.error}
+            subject="Your account"
+            request="GET /me"
+            onRetry={() => void me.refetch()}
+            retrying={me.isFetching}
+          />
+        ) : (
+          <SkeletonCard rows={2} />
+        )}
 
         <GroupedList header="Plan">
-          <ListRow title="Plan" value={plan} />
+          <ListRow
+            title="Plan"
+            value={plan}
+            accessory="chevron"
+            onPress={() => router.push("/more/plan")}
+          />
         </GroupedList>
 
         <GroupedList header="App">
@@ -125,19 +158,52 @@ export default function MoreScreen() {
           />
         </GroupedList>
 
-        <GroupedList header="Account">
+        <GroupedList header="Updates & help">
           <ListRow
-            title="Manage account on the web"
-            accessory="external"
-            accessibilityHint="Profile, export, deletion, and billing are on the web for now."
-            onPress={() => open("/settings")}
+            title="What's New"
+            accessory="chevron"
+            onPress={() => router.push("/more/whats-new")}
           />
+          <ListRow
+            title="Send feedback"
+            accessory="chevron"
+            onPress={() => router.push("/feedback")}
+          />
+          <ListRow
+            title="Get help"
+            accessory="chevron"
+            onPress={() => router.push("/more/help")}
+          />
+        </GroupedList>
+
+        <GroupedList header="Your data">
+          <ListRow
+            title="Export your data"
+            accessory="chevron"
+            onPress={() => router.push("/more/export")}
+          />
+        </GroupedList>
+
+        <GroupedList>
           <ListRow
             title="Sign out"
             tone="destructive"
             onPress={confirmSignOut}
           />
         </GroupedList>
+
+        {/* Apart and last (design M1; RD-1): discoverable, never adjacent
+            to a routine row. */}
+        <View style={{ marginTop: spacing.md }}>
+          <GroupedList>
+            <ListRow
+              title="Delete account"
+              tone="destructive"
+              accessory="chevron"
+              onPress={() => router.push("/more/delete-account")}
+            />
+          </GroupedList>
+        </View>
 
         <View style={{ gap: spacing.sm, alignItems: "center" }}>
           <Text size="xs" tone="muted" align="center">

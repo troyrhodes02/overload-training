@@ -40,6 +40,12 @@ jest.mock("@/lib/supabase/admin", () => ({
   },
   deleteAuthUser: async () => "deleted" as const,
 }));
+// Pitch 21j: the password re-check before deletion. "right" is every test
+// account's password; anything else is wrong.
+jest.mock("@/lib/accounts/password", () => ({
+  verifyCurrentPassword: async (_email: string, password: string) =>
+    password === "right" ? "ok" : "wrong",
+}));
 const resetEmails: string[] = [];
 jest.mock("@/lib/supabase/stateless", () => ({
   createStatelessAuthClient: () => ({
@@ -152,6 +158,18 @@ import type {
   GoalsOverviewDto,
 } from "@overload/shared/contracts/goals";
 import { endpointKey, MOBILE_ENDPOINTS } from "../../support/mobile-endpoints";
+import {
+  GET as meProfileRoute,
+  PUT as meProfileUpdateRoute,
+} from "@/app/api/mobile/v1/me/profile/route";
+import { GET as mePlanRoute } from "@/app/api/mobile/v1/me/plan/route";
+import { GET as releaseNotesRoute } from "@/app/api/mobile/v1/release-notes/route";
+import { POST as releaseNotesSeenRoute } from "@/app/api/mobile/v1/me/release-notes/seen/route";
+import { GET as meExportRoute } from "@/app/api/mobile/v1/me/export/route";
+import { GET as deletionInventoryRoute } from "@/app/api/mobile/v1/me/deletion-inventory/route";
+import { POST as deleteAccountRoute } from "@/app/api/mobile/v1/me/delete/route";
+import { POST as feedbackRoute } from "@/app/api/mobile/v1/feedback/route";
+import { orderedReleaseNotes } from "@overload/shared/release-notes/catalog";
 import { activePlan, library, today as todayIso, type Lib } from "./fixtures";
 import { snapshotAccount } from "./support";
 
@@ -193,6 +211,8 @@ type CallInit = {
   query?: string;
   /** Extra request headers, e.g. an Idempotency-Key (Pitch 21h). */
   headers?: Record<string, string>;
+  /** A multipart body (Pitch 21j feedback). */
+  form?: FormData;
 };
 
 async function call(
@@ -211,9 +231,9 @@ async function call(
     new Request(
       `http://localhost/api/mobile/v1/x${opts.query ? `?${opts.query}` : ""}`,
       {
-        method: opts.method ?? (hasBody ? "POST" : "GET"),
+        method: opts.method ?? (hasBody || opts.form ? "POST" : "GET"),
         headers,
-        body: hasBody ? JSON.stringify(opts.json) : undefined,
+        body: hasBody ? JSON.stringify(opts.json) : opts.form,
       },
     ),
     { params: Promise.resolve(opts.params ?? {}) } as {
@@ -1833,6 +1853,279 @@ const SCHEDULE_CASES: Record<string, () => void> = {
   },
 };
 
+/** Pitch 21j (spec §13): account settings. Each answers about the token's account only. */
+const ACCOUNT_SETTINGS_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/me/profile": () => {
+    accountEndpointMatrix("GET /me/profile", meProfileRoute as Handler);
+    describe("GET /me/profile: isolation", () => {
+      it("B reads only its own profile", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        await getTestPrisma().profile.update({
+          where: { userId: a.userId },
+          data: { firstName: "Alphaname", lastName: "Alphasurname" },
+        });
+        const rb = await call(meProfileRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.status).toBe(200);
+        for (const marker of [
+          ...aMarkers(a, plan),
+          "Alphaname",
+          "Alphasurname",
+        ])
+          expect(rb.text).not.toContain(marker);
+      });
+    });
+  },
+  "PUT api/mobile/v1/me/profile": () => {
+    accountEndpointMatrix("PUT /me/profile", meProfileUpdateRoute as Handler, {
+      method: "PUT",
+      json: {
+        firstName: "Matrix",
+        lastName: "Lifter",
+        username: "",
+        timeZone: "UTC",
+      },
+    });
+    describe("PUT /me/profile: isolation", () => {
+      it("B's save changes only B; a body naming A is ignored", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const before = await snapshotAccount(a.userId);
+        const r = await call(meProfileUpdateRoute as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: {
+            userId: a.userId,
+            firstName: "Bravo",
+            lastName: "Lifter",
+            username: "",
+            timeZone: "America/Chicago",
+          },
+        });
+        expect(r.status).toBe(200);
+        expect(await snapshotAccount(a.userId)).toEqual(before);
+        const bProfile = await getTestPrisma().profile.findUniqueOrThrow({
+          where: { userId: b.userId },
+        });
+        expect([bProfile.firstName, bProfile.timeZone]).toEqual([
+          "Bravo",
+          "America/Chicago",
+        ]);
+      });
+    });
+  },
+  "GET api/mobile/v1/me/plan": () => {
+    accountEndpointMatrix("GET /me/plan", mePlanRoute as Handler);
+    describe("GET /me/plan: isolation", () => {
+      it("answers about B alone, with no purchase field", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const rb = await call(mePlanRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.status).toBe(200);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        for (const key of [
+          "prices",
+          "canSubscribe",
+          "canManage",
+          "promoReminder",
+        ])
+          expect(rb.body).not.toHaveProperty(key);
+      });
+    });
+  },
+  "GET api/mobile/v1/release-notes": () => {
+    accountEndpointMatrix("GET /release-notes", releaseNotesRoute as Handler);
+    describe("GET /release-notes: isolation", () => {
+      it("is the same catalog for every account and reveals no one", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const ra = await call(releaseNotesRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        const rb = await call(releaseNotesRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.body).toEqual(ra.body);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+      });
+    });
+  },
+  "POST api/mobile/v1/me/release-notes/seen": () => {
+    const newest = () => orderedReleaseNotes()[0]?.id ?? "none";
+    accountEndpointMatrix(
+      "POST /me/release-notes/seen",
+      releaseNotesSeenRoute as Handler,
+      { json: { throughId: newest() } },
+    );
+    describe("POST /me/release-notes/seen: isolation", () => {
+      it("B's mark moves only B's seen point", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const catalog = orderedReleaseNotes();
+        if (catalog.length < 2) return; // nothing to move with one entry
+        const older = catalog[catalog.length - 1].id;
+        for (const acct of [a, b]) {
+          await getTestPrisma().releaseSeen.upsert({
+            where: { userId: acct.userId },
+            create: {
+              userId: acct.userId,
+              lastSeenReleaseId: older,
+              lastSeenAt: new Date(),
+            },
+            update: { lastSeenReleaseId: older },
+          });
+        }
+        const r = await call(releaseNotesSeenRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { throughId: catalog[0].id, userId: a.userId },
+        });
+        expect([r.status, r.body]).toEqual([200, { moved: true }]);
+        const seen = async (userId: string) =>
+          (
+            await getTestPrisma().releaseSeen.findUniqueOrThrow({
+              where: { userId },
+            })
+          ).lastSeenReleaseId;
+        expect(await seen(a.userId)).toBe(older);
+        expect(await seen(b.userId)).toBe(catalog[0].id);
+      });
+    });
+  },
+  "GET api/mobile/v1/me/export": () => {
+    accountEndpointMatrix("GET /me/export", meExportRoute as Handler);
+    describe("GET /me/export: isolation", () => {
+      it("B's export holds only B's rows; A's holds A's", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const rb = await call(meExportRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.status).toBe(200);
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        expect(rb.text).toContain(bGym.id);
+        const ra = await call(meExportRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(ra.text).toContain(plan.gym.id);
+        expect(ra.text).not.toContain(bGym.id);
+        expect(ra.body.loggedSets.length).toBeGreaterThan(0);
+      });
+    });
+  },
+};
+
+/** Pitch 21j (spec §13): deletion. Only the token's own account is ever counted or removed. */
+const ACCOUNT_DELETION_CASES: Record<string, () => void> = {
+  "GET api/mobile/v1/me/deletion-inventory": () => {
+    accountEndpointMatrix(
+      "GET /me/deletion-inventory",
+      deletionInventoryRoute as Handler,
+    );
+    describe("GET /me/deletion-inventory: isolation", () => {
+      it("counts only B's rows", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const rb = await call(deletionInventoryRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(rb.body).toEqual({
+          mesocycles: 0,
+          loggedSessions: 0,
+          loggedSets: 0,
+          goals: 0,
+          gyms: 1,
+          customExercises: 0,
+          cardioLogs: 0,
+        });
+        for (const marker of aMarkers(a, plan))
+          expect(rb.text).not.toContain(marker);
+        const ra = await call(deletionInventoryRoute as Handler, {
+          token: tokenFor(a.userId),
+        });
+        expect(ra.body.loggedSessions).toBe(2);
+      });
+    });
+  },
+  "POST api/mobile/v1/me/delete": () => {
+    accountEndpointMatrix(
+      "POST /me/delete",
+      deleteAccountRoute as Handler,
+      { json: { password: "wrong" } },
+      400,
+    );
+    describe("POST /me/delete: isolation", () => {
+      it("B deletes B only; a body naming A changes nothing of A's", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const aBefore = await snapshotAccount(a.userId);
+        const r = await call(deleteAccountRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { password: "right", userId: a.userId, accountId: a.userId },
+        });
+        expect([r.status, r.body]).toEqual([200, { outcome: "deleted" }]);
+        expect(await snapshotAccount(a.userId)).toEqual(aBefore);
+        expect(
+          await getTestPrisma().profile.count({ where: { userId: b.userId } }),
+        ).toBe(0);
+        const after = await call(deletionInventoryRoute as Handler, {
+          token: tokenFor(b.userId),
+        });
+        expect(after.status).toBe(401);
+      });
+    });
+  },
+  "POST api/mobile/v1/feedback": () => {
+    const feedbackForm = (message: string) => {
+      const fd = new FormData();
+      fd.set("category", "bug");
+      fd.set("message", message);
+      return fd;
+    };
+    accountEndpointMatrix(
+      "POST /feedback",
+      feedbackRoute as Handler,
+      {
+        form: feedbackForm("Matrix message"),
+        headers: { "idempotency-key": "matrix-feedback-0001" },
+      },
+      201,
+    );
+    describe("POST /feedback: isolation", () => {
+      it("B's message is stamped B; A's key in B's hands is just B's key", async () => {
+        const { a, b } = await twoAccounts(lib);
+        const key = "shared-feedback-key-01";
+        const ra = await call(feedbackRoute as Handler, {
+          token: tokenFor(a.userId),
+          form: feedbackForm("From A"),
+          headers: { "idempotency-key": key },
+        });
+        expect(ra.status).toBe(201);
+        const aBefore = await snapshotAccount(a.userId);
+        const rb = await call(feedbackRoute as Handler, {
+          token: tokenFor(b.userId),
+          form: feedbackForm("From B"),
+          headers: { "idempotency-key": key },
+        });
+        // Not A's replay: a fresh create for B (keys are per account).
+        expect([rb.status, rb.headers.get("idempotent-replayed")]).toEqual([
+          201,
+          null,
+        ]);
+        expect(rb.text).not.toContain("From A");
+        expect(await snapshotAccount(a.userId)).toEqual(aBefore);
+        const rows = await getTestPrisma().feedback.findMany({
+          where: { message: { in: ["From A", "From B"] } },
+          select: { userId: true, message: true },
+          orderBy: { message: "asc" },
+        });
+        expect(rows).toEqual([
+          { userId: a.userId, message: "From A" },
+          { userId: b.userId, message: "From B" },
+        ]);
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -1852,6 +2145,9 @@ const CASES: Record<string, () => void> = {
           signupMode: expect.stringMatching(/^(public|closed)$/),
           // Pitch 21d: public widget key and web origin only, or null.
           botChallenge: mobileBotChallenge(),
+          // Pitch 21j: the public support address, or null. Never a secret.
+          supportEmail:
+            process.env.NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL?.trim() || null,
         });
       });
     }),
@@ -2557,6 +2853,8 @@ const CASES: Record<string, () => void> = {
   ...LOGGING_CASES,
   ...GOAL_CASES,
   ...SCHEDULE_CASES,
+  ...ACCOUNT_SETTINGS_CASES,
+  ...ACCOUNT_DELETION_CASES,
 };
 
 // The unknown-path 404, one case per method.

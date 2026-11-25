@@ -167,6 +167,24 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
     route: "api/mobile/v1/mesocycles/[mesocycleId]/schedule/move",
     auth: "account",
   },
+  // Pitch 21j
+  { method: "GET", route: "api/mobile/v1/me/profile", auth: "account" },
+  { method: "PUT", route: "api/mobile/v1/me/profile", auth: "account" },
+  { method: "GET", route: "api/mobile/v1/me/plan", auth: "account" },
+  { method: "GET", route: "api/mobile/v1/release-notes", auth: "account" },
+  {
+    method: "POST",
+    route: "api/mobile/v1/me/release-notes/seen",
+    auth: "account",
+  },
+  { method: "GET", route: "api/mobile/v1/me/export", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/me/deletion-inventory",
+    auth: "account",
+  },
+  { method: "POST", route: "api/mobile/v1/me/delete", auth: "account" },
+  { method: "POST", route: "api/mobile/v1/feedback", auth: "account" },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,
