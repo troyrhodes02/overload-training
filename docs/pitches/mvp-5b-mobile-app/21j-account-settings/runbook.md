@@ -231,6 +231,61 @@ Run of 2026-11-24, on `staging` at `370ca69` (#320–#324 plus the review fixes 
 
 **Correction, on staging (2026-11-25): OVE-254 #330 (`f4a0888`).** On the iPhone, feedback with a screenshot showed "Couldn't send". The cause: Expo SDK 58's global `fetch` is `expo/fetch`, whose FormData encoder refuses React Native's `{ uri, name, type }` file part before anything is sent. The part is now `{ name, type, bytes() }`. Staging update group `5b3a5a39-ee7f-4db2-b720-aa517624e297` (iOS update `01a21407-4835-7182-b693-557307764c80`), same runtime `2e4a65d9cd…`, so no rebuild.
 
-Check B (§5 step 4) is the owner's iPhone check. Without a staging admin account, the run confirms the stored feedback and attachment by metadata only (counts, type, size, no EXIF block).
+Check B (§5 step 4) is the owner's iPhone check. Without a staging admin account, the run confirms the stored feedback and attachment by metadata only (counts, type, size, and the JPEG's metadata blocks; §9).
 
 **Not done by the run (human steps):** a Production release, a Production Expo update, a TestFlight build, and setting `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL` for Preview.
+
+## 9. Closeout: owner acceptance, Production release, and sync (2026-11-25)
+
+**Status: released to Production. 21j is complete. Pitch 21k (Native Tour) can begin.**
+
+### Owner acceptance on the iPhone
+
+All five scenarios in §4 passed on staging:
+
+1. Profile, appearance, and What's New.
+2. Feedback and help.
+3. Plan & access, and export through the share sheet.
+4. Delete account, with a disposable account.
+5. Final regression.
+
+**Feedback with a screenshot** (§5, Check B):
+
+- **First failure.** The app showed "Couldn't send. Your message is still here." Nothing reached the server. Expo SDK 58's global `fetch` is `expo/fetch`, and its multipart encoder refuses a React Native `{ uri, name, type }` file part.
+- **Correction, OVE-254 (#330, `f4a0888`).** The app appends `{ name, type, bytes() }`, reading the prepared file with `expo-file-system`. Screenshot sends also get a 60-second timeout. `apps/mobile/tests/feedback-screenshot.test.tsx` runs Expo's own `installFormDataPatch` and `convertFormDataAsync`: the old part is refused, and the new body parses to the server's fields.
+- **Final accepted staging update:** group `5b3a5a39-ee7f-4db2-b720-aa517624e297`, iOS update `01a21407-4835-7182-b693-557307764c80`, commit `f4a0888`, runtime `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`, development build `c22ac9a0`.
+- **The retest passed.** The staging database (checked by metadata only, without reading the message) holds one feedback with text and one `image/jpeg` attachment of 157,301 bytes, stored 2026-11-25 19:05:20 UTC.
+- **Location data.** The stored file was checked for its JPEG structure only: no pixels and no message text were read. Its Exif block holds orientation, resolution, and pixel size. There is **no GPS block, no XMP, and no camera make or model**.
+
+### Production release
+
+| | |
+| --- | --- |
+| Release branch | `release/21j-account-settings`, from `main` at `707f981`. 14 cherry-picks (#318, #319–#331), plus the release record. Apart from the record, its tree equalled `staging` at `9b4f095` |
+| Release PR | #332, squash-merged as **`1826803`** after the Vercel checks passed |
+| Verification | format, lint (0 errors), typecheck. Web unit 2,780, mobile 614. Integration 1,670 in 115 suites. Production build and client-bundle scan. iOS export (1,551 modules, no secret). Fingerprint `2e4a65d9…` |
+| Independent review | release-ready, no blocking finding. Two iPhone-only notes went to OVE-255 |
+| Production deployment | `dpl_CwzPn5XrdmsSaWpyRdHe6YBkYc3T`, Ready, on `www.overloadtraining.app` |
+| Smoke checks | Public pages 200. `app-config` 200 with the minimum unchanged and the support address set. The 9 new endpoint methods and `GET /today` answer 401 without a token. The version gate holds |
+| Migration and environment | none |
+
+The full record is `docs/releases/2026-11-21j-account-settings-production.md`.
+
+### Synchronization
+
+- #333 merged `main` into `staging` with a merge commit (`58e3c5c`).
+- `main` is an ancestor of `staging`, and the two trees were equal.
+- The staging deployment succeeded and answers as before.
+- The app code on `staging` is unchanged since `f4a0888`, so staging update `5b3a5a39` stays current. No new update was published.
+
+### Native distribution
+
+- The accepted iPhone app stays on the `staging` channel. Development build `c22ac9a0` carries the 21j runtime.
+- No Production Expo update, no Production-connected build, and no TestFlight or App Store submission was made. They belong to Pitch 21l.
+- **What's New:** no 21j entry, by decision (RD-6). Pitch 21l adds the first "Overload on iPhone" entry with TestFlight.
+
+### Still open
+
+- **OVE-255** (Backlog, low). Two iPhone wording and timing cases in Delete account. Neither affects Production, which has no iPhone app yet. Fix before 21l.
+- `NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL` is set for Production only. On staging, Get help offers Send feedback only. Setting it for Preview is optional and up to you.
+

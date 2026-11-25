@@ -131,6 +131,19 @@ Revert the release's squash commit on `main` with a PR (`git revert <merge>`), t
 
 None required. The functional behavior was accepted on the iPhone against staging, and there is no Production device check, because no Production build exists.
 
-## 6. Results
+## 6. Results (2026-11-25)
 
-RESULTS_TABLE
+| Step | Result |
+| --- | --- |
+| Release PR | #332. Merged only after every check had finished and passed (the Vercel preview completed). `main` has no branch protection or required review; the independent review above was the review gate. Squash-merged as **`1826803`**. `main`'s tree equals the release branch |
+| Production deployment | `dpl_CwzPn5XrdmsSaWpyRdHe6YBkYc3T`: **Ready**, target production, aliases `www.overloadtraining.app` and `overloadtraining.app`. GitHub status for `1826803`: success |
+| Smoke 2 | `/`, `/login`, `/pricing`, `/changelog`, `/support`: 200 |
+| Smoke 3 | `app-config` 200. Minimum and latest version `0.0.0`, unchanged. Kill switches off. `supportEmail` is set (value not recorded) |
+| Smoke 4 | All 9 new endpoint methods and `GET /today`, without a token: 401 `unauthorized`, JSON envelope |
+| Smoke 5 | The minimum is `0.0.0`, so 426 can't be exercised. Without the version header, and with a malformed one: 400 `validation_error` (the gate is intact) |
+| Smoke 6 | **Inconclusive.** `vercel logs`, production, last 20 minutes: 0 error-level records. The same query for the new deployment with no filter also returned 0 records, although the smoke requests had just reached it, so the CLI result shows nothing either way |
+| Smoke total | 18 of 18 request checks passed; the log check is inconclusive |
+| Migration and environment | none applied, none needed |
+| Authenticated Production behavior | Not exercised. No Production account was created, and no feedback, upload, export, or deletion was made. It was verified on staging (API 19/19, the Expo-encoded upload) and accepted on the iPhone |
+| Sync | #333 merged `main` into `staging` with a merge commit (`58e3c5c`). `main` is an ancestor of `staging`, and the trees are equal. The staging deployment succeeded |
+| Not done (not authorized) | Production Expo update, TestFlight, Production-connected build, App Store submission, any Production environment change |
