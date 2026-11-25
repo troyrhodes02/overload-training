@@ -20,6 +20,7 @@ import type {
 } from "@overload/shared/contracts/release-notes";
 import type { FeedbackResponseDto } from "@overload/shared/contracts/feedback";
 import { FEEDBACK_FORM_FIELDS } from "@overload/shared/contracts/feedback";
+import { File } from "expo-file-system";
 import { useApi } from "./ApiProvider";
 import type { ApiError } from "./errors";
 import { QUERY_KEYS } from "./queries";
@@ -140,7 +141,31 @@ export function useMarkReleaseNotesSeen() {
 
 export type FeedbackScreenshot = { uri: string; name: string; type: string };
 
-/** The multipart body of E6 (spec §6). React Native sends a file part by uri. */
+/**
+ * The screenshot as a multipart file part that `expo/fetch` can encode
+ * (OVE-254). Since Expo SDK 52 the global `fetch` is `expo/fetch`, whose
+ * FormData encoder writes a part from its `name`, `type`, and `bytes()`, and
+ * throws "Unsupported FormDataPart implementation" for React Native's
+ * `{ uri, name, type }` part — before anything is sent. The type is stated,
+ * not inferred from the file's extension, because the server refuses a part
+ * whose declared type isn't what its bytes are. The bytes are read from the
+ * prepared JPEG each time the body is encoded, so a retry sends the same file.
+ */
+export type ScreenshotPart = {
+  name: string;
+  type: string;
+  bytes: () => Promise<Uint8Array>;
+};
+
+export function screenshotPart(shot: FeedbackScreenshot): ScreenshotPart {
+  return {
+    name: shot.name,
+    type: shot.type,
+    bytes: () => new File(shot.uri).bytes(),
+  };
+}
+
+/** The multipart body of E6 (spec §6). */
 export function feedbackFormData(input: {
   category: string;
   message: string;
@@ -150,14 +175,16 @@ export function feedbackFormData(input: {
   fd.append(FEEDBACK_FORM_FIELDS.category, input.category);
   fd.append(FEEDBACK_FORM_FIELDS.message, input.message);
   if (input.screenshot) {
-    // React Native's FormData takes { uri, name, type } for a file part.
     fd.append(
       FEEDBACK_FORM_FIELDS.screenshots,
-      input.screenshot as unknown as Blob,
+      screenshotPart(input.screenshot) as unknown as Blob,
     );
   }
   return fd;
 }
+
+/** A screenshot can take longer than the 15-second default on a slow network. */
+export const FEEDBACK_UPLOAD_TIMEOUT_MS = 60_000;
 
 /** E6 `POST /feedback`, once per intent (the key). */
 export function useSubmitFeedback() {
@@ -177,6 +204,7 @@ export function useSubmitFeedback() {
         method: "POST",
         formData: feedbackFormData(input),
         headers: { "Idempotency-Key": key },
+        timeoutMs: input.screenshot ? FEEDBACK_UPLOAD_TIMEOUT_MS : undefined,
       }),
   });
 }

@@ -41,8 +41,15 @@ jest.mock("expo-file-system", () => ({
     delete() {
       mockDeleted.push(this.uri);
     }
+    async bytes() {
+      return mockJpeg;
+    }
   },
 }));
+// A JPEG's first bytes (SOI + APP0), enough for the server's sniffing.
+const mockJpeg = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70,
+]);
 const mockApi = { request: jest.fn() };
 jest.mock("../src/api/ApiProvider", () => ({ useApi: () => mockApi }));
 const mockRouter = { push: jest.fn(), back: jest.fn() };
@@ -170,7 +177,7 @@ describe("A6 send with a screenshot", () => {
       expect(screen.getByText("Thanks — sent to the owner.")).toBeTruthy(),
     );
     const fd = mockApi.request.mock.calls[1][1].formData as {
-      getParts: () => { fieldName: string; uri?: string; name?: string }[];
+      getParts: () => { fieldName: string; name?: string; type?: string }[];
     };
     const parts = fd.getParts();
     expect(parts.map((p) => p.fieldName)).toEqual([
@@ -179,14 +186,79 @@ describe("A6 send with a screenshot", () => {
       "screenshots",
     ]);
     expect(parts[2]).toMatchObject({
-      uri: SHOT.uri,
       name: "screenshot.jpg",
       type: "image/jpeg",
     });
+    // A screenshot gets the longer upload timeout.
+    expect(mockApi.request.mock.calls[1][1].timeoutMs).toBe(60_000);
     // The same intent: one key across the retry.
     expect(mockApi.request.mock.calls[0][1].headers).toEqual(
       mockApi.request.mock.calls[1][1].headers,
     );
+  });
+});
+
+describe("the body expo/fetch actually sends (OVE-254)", () => {
+  // On the phone the global fetch is expo/fetch: Expo patches FormData at
+  // startup and encodes the body with its own converter. Run exactly those.
+  const { installFormDataPatch } = jest.requireActual(
+    "expo/src/winter/FormData",
+  );
+  const { convertFormDataAsync } = jest.requireActual(
+    "expo/src/winter/fetch/convertFormData",
+  );
+  beforeAll(() => installFormDataPatch(RNFormData));
+
+  // The server's view: the platform multipart parser (React Native's types
+  // don't describe it, hence the narrow shapes).
+  type ParsedForm = { get(n: string): unknown; has(n: string): boolean };
+  type ParsedFile = {
+    name: string;
+    type: string;
+    arrayBuffer(): Promise<ArrayBuffer>;
+  };
+  async function serverParse(body: Uint8Array, boundary: string) {
+    const res = new Response(body as unknown as BodyInit, {
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+    });
+    return (await res.formData()) as unknown as ParsedForm;
+  }
+
+  async function encode(fd: FormData) {
+    const { body, boundary } = await convertFormDataAsync(fd);
+    return { body: body as Uint8Array, boundary: boundary as string };
+  }
+
+  it("React Native's { uri } part is refused before sending (the cause)", async () => {
+    const fd = new FormData();
+    fd.append("screenshots", SHOT as unknown as Blob);
+    await expect(encode(fd)).rejects.toThrow(
+      "Unsupported FormDataPart implementation",
+    );
+  });
+
+  it("the feedback body encodes, and parses as the server reads it", async () => {
+    const { feedbackFormData } = jest.requireActual("../src/api/account");
+    const { body, boundary } = await encode(
+      feedbackFormData({ category: "bug", message: "See", screenshot: SHOT }),
+    );
+    const form = await serverParse(body, boundary);
+    expect(form.get("category")).toBe("bug");
+    expect(form.get("message")).toBe("See");
+    const file = form.get("screenshots") as ParsedFile;
+    expect(file.name).toBe("screenshot.jpg");
+    expect(file.type).toBe("image/jpeg");
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(mockJpeg);
+  });
+
+  it("text-only feedback encodes without a file part", async () => {
+    const { feedbackFormData } = jest.requireActual("../src/api/account");
+    const { body, boundary } = await encode(
+      feedbackFormData({ category: "other", message: "Text only" }),
+    );
+    const form = await serverParse(body, boundary);
+    expect(form.get("message")).toBe("Text only");
+    expect(form.has("screenshots")).toBe(false);
   });
 });
 
