@@ -33,6 +33,14 @@ export type AppConfigDto = {
    * placeholder. Added in 21j; an app built before it ignores the field.
    */
   supportEmail: string | null;
+  /**
+   * Whether the app may start the onboarding tour by itself for an account
+   * whose `me.tour.autoStart` is true (Pitch 21k RD-15). False unless the
+   * server sets MOBILE_TOUR_AUTO_START=true; 21l turns it on for the beta.
+   * Added in 21k; an app built before it ignores the field, and an app that
+   * reads a server without it treats it as false.
+   */
+  tourAutoStart: boolean;
 };
 
 export type BotChallengeDto = {

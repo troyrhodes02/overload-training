@@ -11,6 +11,8 @@ import { useMe } from "../../../api/queries";
 import { useSession } from "../../../auth/session";
 import { APP_VERSION } from "../../../config/env";
 import { diagnosticsAvailable } from "../../../diagnostics/availability";
+import { TourScrollProvider, useTourScroll } from "../../../tour/anchors";
+import { useTour } from "../../../tour/TourProvider";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
 import { LoadErrorState } from "../../../ui/LoadErrorState";
 import { SkeletonCard } from "../../../ui/Skeleton";
@@ -34,6 +36,8 @@ export default function MoreScreen() {
   const { colors, radius, spacing } = useTheme();
   const { preference } = useThemeContext();
   const { signOut } = useSession();
+  const tour = useTour();
+  const tourScroll = useTourScroll();
   const me = useMe(true);
   const profile = me.data?.profile;
   const plan = me.data
@@ -53,6 +57,7 @@ export default function MoreScreen() {
     <>
       <Stack.Screen options={{ title: "More", headerShown: false }} />
       <ScrollView
+        {...tourScroll.scrollProps}
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={{
@@ -68,159 +73,170 @@ export default function MoreScreen() {
           />
         }
       >
-        <ScreenHeader eyebrow="Account and settings" title="More" />
-        {profile && me.data ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${profile.firstName} ${profile.lastName}, ${profile.username ? `@${profile.username}, ` : ""}${me.data.email}${me.data.emailVerified ? ", email verified" : ""}, Profile`}
-            onPress={() => router.push("/more/profile")}
-            style={({ pressed }) => ({
-              opacity: pressed ? 0.7 : 1,
-              backgroundColor: colors.card,
-              borderRadius: radius.xl,
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: spacing.lg,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing.sm,
-            })}
-          >
-            <View style={{ flex: 1, gap: spacing.xs }}>
-              <Text size="lg" weight="semibold">
-                {`${profile.firstName} ${profile.lastName}`}
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.xs,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Text size="sm" tone="muted">
-                  {profile.username
-                    ? `@${profile.username} · ${me.data.email}`
-                    : me.data.email}
+        <TourScrollProvider scroller={tourScroll.scroller}>
+          <ScreenHeader eyebrow="Account and settings" title="More" />
+          {profile && me.data ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${profile.firstName} ${profile.lastName}, ${profile.username ? `@${profile.username}, ` : ""}${me.data.email}${me.data.emailVerified ? ", email verified" : ""}, Profile`}
+              onPress={() => router.push("/more/profile")}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.7 : 1,
+                backgroundColor: colors.card,
+                borderRadius: radius.xl,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: spacing.lg,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.sm,
+              })}
+            >
+              <View style={{ flex: 1, gap: spacing.xs }}>
+                <Text size="lg" weight="semibold">
+                  {`${profile.firstName} ${profile.lastName}`}
                 </Text>
-                {me.data.emailVerified ? (
-                  <Symbol
-                    name="checkmark.seal.fill"
-                    size={14}
-                    color={colors.progress}
-                  />
-                ) : null}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.xs,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Text size="sm" tone="muted">
+                    {profile.username
+                      ? `@${profile.username} · ${me.data.email}`
+                      : me.data.email}
+                  </Text>
+                  {me.data.emailVerified ? (
+                    <Symbol
+                      name="checkmark.seal.fill"
+                      size={14}
+                      color={colors.progress}
+                    />
+                  ) : null}
+                </View>
               </View>
-            </View>
-            <Symbol
-              name="chevron.right"
-              size={14}
-              color={colors.mutedForeground}
+              <Symbol
+                name="chevron.right"
+                size={14}
+                color={colors.mutedForeground}
+              />
+            </Pressable>
+          ) : me.isError ? (
+            <LoadErrorState
+              error={me.error}
+              subject="Your account"
+              request="GET /me"
+              onRetry={() => void me.refetch()}
+              retrying={me.isFetching}
             />
-          </Pressable>
-        ) : me.isError ? (
-          <LoadErrorState
-            error={me.error}
-            subject="Your account"
-            request="GET /me"
-            onRetry={() => void me.refetch()}
-            retrying={me.isFetching}
-          />
-        ) : (
-          <SkeletonCard rows={2} />
-        )}
+          ) : (
+            <SkeletonCard rows={2} />
+          )}
 
-        <GroupedList header="Plan">
-          <ListRow
-            title="Plan"
-            value={plan}
-            accessory="chevron"
-            onPress={() => router.push("/more/plan")}
-          />
-        </GroupedList>
-
-        <GroupedList header="App">
-          <ListRow
-            title="Appearance"
-            value={APPEARANCE_LABEL[preference]}
-            accessory="chevron"
-            onPress={() => router.push("/more/appearance")}
-          />
-          <ListRow
-            title="Exercises"
-            accessory="chevron"
-            onPress={() => router.push("/more/exercises")}
-          />
-          <ListRow
-            title="Gyms"
-            accessory="chevron"
-            onPress={() => router.push("/more/gyms")}
-          />
-        </GroupedList>
-
-        <GroupedList header="Updates & help">
-          <ListRow
-            title="What's New"
-            accessory="chevron"
-            onPress={() => router.push("/more/whats-new")}
-          />
-          <ListRow
-            title="Send feedback"
-            accessory="chevron"
-            onPress={() => router.push("/feedback")}
-          />
-          <ListRow
-            title="Get help"
-            accessory="chevron"
-            onPress={() => router.push("/more/help")}
-          />
-        </GroupedList>
-
-        <GroupedList header="Your data">
-          <ListRow
-            title="Export your data"
-            accessory="chevron"
-            onPress={() => router.push("/more/export")}
-          />
-        </GroupedList>
-
-        <GroupedList>
-          <ListRow
-            title="Sign out"
-            tone="destructive"
-            onPress={confirmSignOut}
-          />
-        </GroupedList>
-
-        {/* Apart and last (design M1; RD-1): discoverable, never adjacent
-            to a routine row. */}
-        <View style={{ marginTop: spacing.md }}>
-          <GroupedList>
+          <GroupedList header="Plan">
             <ListRow
-              title="Delete account"
-              tone="destructive"
+              title="Plan"
+              value={plan}
               accessory="chevron"
-              onPress={() => router.push("/more/delete-account")}
+              onPress={() => router.push("/more/plan")}
             />
           </GroupedList>
-        </View>
 
-        <View style={{ gap: spacing.sm, alignItems: "center" }}>
-          <Text size="xs" tone="muted" align="center">
-            {`Overload ${APP_VERSION} · Staging`}
-          </Text>
-          {diagnosticsAvailable() ? (
-            <View style={{ alignSelf: "stretch" }}>
-              <GroupedList>
-                <ListRow
-                  title="Diagnostics"
-                  accessory="chevron"
-                  onPress={() => router.push("/more/diagnostics")}
-                />
-              </GroupedList>
-            </View>
-          ) : null}
-        </View>
+          <GroupedList header="App">
+            <ListRow
+              title="Appearance"
+              value={APPEARANCE_LABEL[preference]}
+              accessory="chevron"
+              onPress={() => router.push("/more/appearance")}
+            />
+            <ListRow
+              title="Exercises"
+              accessory="chevron"
+              tourAnchor="more-exercises"
+              onPress={() => router.push("/more/exercises")}
+            />
+            <ListRow
+              title="Gyms"
+              accessory="chevron"
+              tourAnchor="more-gyms"
+              onPress={() => router.push("/more/gyms")}
+            />
+          </GroupedList>
+
+          <GroupedList header="Updates & help">
+            <ListRow
+              title="What's New"
+              accessory="chevron"
+              onPress={() => router.push("/more/whats-new")}
+            />
+            {/* Pitch 21k K0: opens the tour over this screen, so no chevron. */}
+            <ListRow
+              title="Take a tour"
+              subtitle="A one-minute walkthrough of the app"
+              tourAnchor="more-tour"
+              onPress={() => void tour.start("manual")}
+            />
+            <ListRow
+              title="Send feedback"
+              accessory="chevron"
+              onPress={() => router.push("/feedback")}
+            />
+            <ListRow
+              title="Get help"
+              accessory="chevron"
+              onPress={() => router.push("/more/help")}
+            />
+          </GroupedList>
+
+          <GroupedList header="Your data">
+            <ListRow
+              title="Export your data"
+              accessory="chevron"
+              onPress={() => router.push("/more/export")}
+            />
+          </GroupedList>
+
+          <GroupedList>
+            <ListRow
+              title="Sign out"
+              tone="destructive"
+              onPress={confirmSignOut}
+            />
+          </GroupedList>
+
+          {/* Apart and last (design M1; RD-1): discoverable, never adjacent
+            to a routine row. */}
+          <View style={{ marginTop: spacing.md }}>
+            <GroupedList>
+              <ListRow
+                title="Delete account"
+                tone="destructive"
+                accessory="chevron"
+                onPress={() => router.push("/more/delete-account")}
+              />
+            </GroupedList>
+          </View>
+
+          <View style={{ gap: spacing.sm, alignItems: "center" }}>
+            <Text size="xs" tone="muted" align="center">
+              {`Overload ${APP_VERSION} · Staging`}
+            </Text>
+            {diagnosticsAvailable() ? (
+              <View style={{ alignSelf: "stretch" }}>
+                <GroupedList>
+                  <ListRow
+                    title="Diagnostics"
+                    accessory="chevron"
+                    onPress={() => router.push("/more/diagnostics")}
+                  />
+                </GroupedList>
+              </View>
+            ) : null}
+          </View>
+        </TourScrollProvider>
       </ScrollView>
     </>
   );

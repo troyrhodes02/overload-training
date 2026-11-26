@@ -15,6 +15,7 @@ const config = (over: Partial<AppConfigDto> = {}): AppConfigDto => ({
   signupMode: "public",
   botChallenge: null,
   supportEmail: null,
+  tourAutoStart: false,
   ...over,
 });
 const me = {} as MeDto;

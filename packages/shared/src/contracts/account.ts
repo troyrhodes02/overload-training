@@ -12,6 +12,7 @@ import type {
   EntitlementSourceKind,
 } from "../entitlements/types";
 import type { WhatsNewDialogData } from "./release-notes";
+import type { TourOutcomeValue } from "../enums";
 
 export type AccountInventoryDto = {
   mesocycles: number;
@@ -96,6 +97,17 @@ export type EntitlementDto = {
 
 /** Whether the onboarding tour should start on its own (once per account). */
 export type TourStateDto = { autoStart: boolean };
+
+/** `PUT /me/tour/outcome` (Pitch 21k): the outcome now recorded. */
+export type TourOutcomeResponseDto = { outcome: TourOutcomeValue };
+
+/**
+ * `POST /me/tour/offered` (Pitch 21k): `spent` is true only when this call
+ * stamped the account's offer time. A repeat, or an account with no tour
+ * record, answers false and changes nothing. It never changes an outcome and
+ * never makes a tour due again.
+ */
+export type TourOfferedResponseDto = { spent: boolean };
 
 /** The trial notice the shell is due to show, or null. Never purchasable in the app. */
 export type TrialNoticeDto = TrialNoticeData;
