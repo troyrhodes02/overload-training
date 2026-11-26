@@ -65,7 +65,20 @@ describe("mobileAppConfig", () => {
       botChallenge: { provider: "turnstile", siteKey: null, origin: null },
       // Pitch 21j: no configured support address is null, never a placeholder.
       supportEmail: null,
+      // Pitch 21k RD-15: the app never starts the tour by itself by default.
+      tourAutoStart: false,
     });
+  });
+
+  it('tourAutoStart is on only for exactly "true" (Pitch 21k RD-15)', () => {
+    expect(
+      mobileAppConfig({ MOBILE_TOUR_AUTO_START: "true" }).tourAutoStart,
+    ).toBe(true);
+    for (const v of ["TRUE", "1", "yes", "", "false", " true"]) {
+      expect(mobileAppConfig({ MOBILE_TOUR_AUTO_START: v }).tourAutoStart).toBe(
+        false,
+      );
+    }
   });
 
   it("reads the configured versions and raises latest to the minimum", () => {
@@ -136,6 +149,7 @@ describe("mobileAppConfig", () => {
       "minimumAppVersion",
       "signupMode",
       "supportEmail",
+      "tourAutoStart",
     ]);
   });
 });
