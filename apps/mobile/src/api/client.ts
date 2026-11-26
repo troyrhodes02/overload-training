@@ -1,6 +1,6 @@
 import { APP_VERSION, ENV } from "../config/env";
 import { bypassHeaderFor, readStagingKey } from "../staging-access/key";
-import { classifyResponse } from "./classify";
+import { classifyResponse, type RawResponse } from "./classify";
 import { ApiError, MESSAGES } from "./errors";
 
 /**
@@ -26,6 +26,12 @@ export type ClientDeps = {
   appVersion: string;
   tokens: TokenSource;
   stagingKey: () => Promise<string | null>;
+  /**
+   * Whether this build can answer Vercel protection with a staging key. When
+   * it can't (Production, 21l RD-27), such an answer is "unavailable", never
+   * "this build needs staging access".
+   */
+  stagingAccess?: boolean;
   onUpgradeRequired: () => void;
   now?: () => number;
 };
@@ -108,19 +114,28 @@ export function createApiClient(deps: ClientDeps) {
       if (!token) throw new ApiError("signed_out", MESSAGES.signed_out);
     }
 
-    let result = classifyResponse<T>(
-      await send(path, opts, token),
-      deps.apiOrigin,
-    );
+    const classify = (res: RawResponse) => {
+      const r = classifyResponse<T>(res, deps.apiOrigin);
+      return !r.ok &&
+        r.error.code === "staging_protected" &&
+        deps.stagingAccess === false
+        ? {
+            ok: false as const,
+            error: new ApiError(
+              "unavailable",
+              MESSAGES.unavailable,
+              r.error.status,
+            ),
+          }
+        : r;
+    };
+    let result = classify(await send(path, opts, token));
 
     // One refresh-and-retry on the API's own 401 (never on a Vercel page).
     if (!result.ok && authed && result.error.code === "unauthorized") {
       const fresh = await deps.tokens.refresh();
       if (!fresh) throw new ApiError("signed_out", MESSAGES.signed_out);
-      result = classifyResponse<T>(
-        await send(path, opts, fresh),
-        deps.apiOrigin,
-      );
+      result = classify(await send(path, opts, fresh));
     }
 
     if (result.ok) return result.data;

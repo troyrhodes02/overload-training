@@ -33,7 +33,8 @@
     "qa:reset": "npm run qa:reset -w @overload/web --",
     "qa:verify": "npm run qa:verify -w @overload/web --",
     "dev:test-account": "npm run dev:test-account -w @overload/web --",
-    "mobile:update:staging": "node apps/mobile/scripts/update-staging.ts"
+    "mobile:update:staging": "node apps/mobile/scripts/update-staging.ts",
+    "mobile:update:production": "node apps/mobile/scripts/update-production.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

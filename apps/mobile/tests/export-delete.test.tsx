@@ -264,13 +264,15 @@ describe("deletion model", () => {
     );
   });
 
-  it("Check again: gone → deleted; empty → pending; data → still here", () => {
+  it("Check again: gone → deleted; a present account is still here, with or without data (OVE-255 #1)", () => {
     expect(checkAgainView({ kind: "gone" })).toEqual({ kind: "deleted" });
-    expect(checkAgainView({ kind: "present", inventory: EMPTY })).toMatchObject(
-      {
-        formError: DELETE_MESSAGES.identityPending,
-      },
-    );
+    // An account that answers /me is intact: an empty inventory means it had
+    // no training data, never that a delete removed it.
+    expect(checkAgainView({ kind: "present", inventory: EMPTY })).toEqual({
+      kind: "form",
+      fieldError: null,
+      formError: DELETE_MESSAGES.stillHere,
+    });
     expect(
       checkAgainView({ kind: "present", inventory: INVENTORY }),
     ).toMatchObject({ formError: DELETE_MESSAGES.stillHere });
