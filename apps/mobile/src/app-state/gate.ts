@@ -47,6 +47,12 @@ export type GateInput = {
   me: Loadable<MeDto> | "idle";
   appVersion: string;
   upgradeRequiredSeen: boolean;
+  /**
+   * Whether this build may ask for the staging access key (staging only).
+   * When it can't, a Vercel protection answer is just "unreachable" (21l
+   * RD-27): Production never shows the staging access screen.
+   */
+  stagingAccess?: boolean;
 };
 
 /**
@@ -82,13 +88,18 @@ export function decideGate(i: GateInput): Gate {
     i.config.error?.code === "staging_protected" ||
     me?.error?.code === "staging_protected"
   ) {
-    return "staging_access";
+    return i.stagingAccess === false ? "unreachable" : "staging_access";
   }
 
   if (i.session === "none") return config ? "signed_out" : "unreachable";
 
   if (me?.error?.code === "account_suspended") return "suspended";
   if (!me || (me.status === "loading" && !me.data)) return "launching";
+  // A refused account is being confirmed (OVE-255 #2): it ends in sign-out
+  // or recovers, so it is never "unreachable" meanwhile.
+  if (me.status === "error" && !me.data && me.error.code === "unauthorized") {
+    return "launching";
+  }
   if (me.status === "error" && !me.data) return "unreachable";
   return "signed_in";
 }

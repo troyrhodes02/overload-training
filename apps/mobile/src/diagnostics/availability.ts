@@ -1,4 +1,4 @@
-import type { MobileEnvironmentCheck } from "@overload/shared/mobile/environment";
+import type { AppEnvironmentCheck } from "@overload/shared/mobile/app-environment";
 import { ENV } from "../config/env";
 
 /**
@@ -15,8 +15,6 @@ export const DIAGNOSTICS_ENVIRONMENTS: readonly string[] = ["staging"];
  * Enforced three times: the More row, the route's Stack.Protected guard, and
  * the screen itself.
  */
-export function diagnosticsAvailable(
-  env: MobileEnvironmentCheck = ENV,
-): boolean {
+export function diagnosticsAvailable(env: AppEnvironmentCheck = ENV): boolean {
   return env.ok && DIAGNOSTICS_ENVIRONMENTS.includes(env.config.environment);
 }
