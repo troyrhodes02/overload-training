@@ -106,3 +106,21 @@ Revert the release's squash commit on `main` with a PR (`git revert <merge>`), t
 ## 5. Owner checks after release
 
 None required. The behavior was accepted on the iPhone against staging, and there is no Production device check, because no Production build exists.
+
+## 6. Results (2026-11-26)
+
+| Step | Result |
+| --- | --- |
+| Release PR | #342, merged only after every check had passed (the Vercel preview completed). `main` has no branch protection or required review, so the independent review above was the review gate. Squash-merged as **`4aacae7`**. `main`'s tree equals the release branch |
+| Production deployment | `dpl_9XfRoEUzkyf6mG5NkEvgef17YFPq`: **Ready**, target production, aliases `www.overloadtraining.app` and `overloadtraining.app`. GitHub status for `4aacae7`: success |
+| Smoke 2 | `/`, `/login`, `/pricing`, `/changelog`, `/support`: 200 |
+| Smoke 3 | `app-config` 200, **`tourAutoStart: false`**. Minimum and latest version `0.0.0`, unchanged. Maintenance off |
+| Smoke 4 | `PUT /me/tour/outcome`, `POST /me/tour/offered`, and `GET /today`, without a token: 401 `unauthorized` with the JSON envelope. A bearer token that is not valid also gets 401. Before the release, the tour paths answered 404 |
+| Smoke 5 | GET on either tour path: 405 |
+| Smoke 6 | Without the version header: 400 `validation_error`. With a malformed one: 400. The minimum is `0.0.0`, so 426 can't be exercised |
+| Smoke 7 | **Inconclusive.** `vercel logs`, production, last 30 minutes, `level:error`: 0 records. The same query for the new deployment with no filter also returned 0 records, although the smoke requests had just reached it. The CLI result shows nothing either way |
+| Smoke total | 17 of 17 request checks passed. The log check is inconclusive |
+| Migration and environment | None applied, none needed. No `MOBILE_*` variable on Production or Preview |
+| Authenticated Production behavior | Not exercised. No Production account was created, and no tour outcome or offer was written. It was verified on staging (signed-in round trip) and accepted on the iPhone (2/2) |
+| Sync | #343 merged `main` into `staging` with a merge commit (`2e73f6b`). `main` is an ancestor of `staging`, and the trees are equal. The staging deployment succeeded, and staging answers `tourAutoStart: false` |
+| Not done (not authorized) | A Production Expo update, a TestFlight build, a Production-connected build, an App Store submission, setting `MOBILE_TOUR_AUTO_START`, and any Production environment change |
