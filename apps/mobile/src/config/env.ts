@@ -1,20 +1,23 @@
 import Constants from "expo-constants";
+import * as Application from "expo-application";
 import {
-  checkMobileEnvironment,
-  type MobileEnvironmentCheck,
-} from "@overload/shared/mobile/environment";
+  environmentLabel,
+  resolveMobileEnvironment,
+  type AppEnvironmentCheck,
+} from "@overload/shared/mobile/app-environment";
 
 /**
- * The app's runtime environment (spec §7): the same allowlist app.config.ts
- * enforced, checked again on the embedded values at launch. A failure is the
- * "misconfigured" gate, and the app makes no network call.
+ * The app's runtime environment (21d spec §7; 21l spec §3): the same
+ * allowlists app.config.ts enforced, checked again on the embedded values at
+ * launch. `production` is checked against the Production half of the fence,
+ * anything else against staging. A failure is the "misconfigured" gate, and
+ * the app makes no network call.
  *
  * `process.env.EXPO_PUBLIC_*` must be referenced literally so Metro inlines
- * them. The local API override is honored only in a Metro development
- * bundle (`__DEV__`); a release bundle or an over-the-air update always talks
- * to staging.
+ * them. The local API override is honored only in a staging Metro development
+ * bundle (`__DEV__`); a Production build refuses it outright.
  */
-export const ENV: MobileEnvironmentCheck = checkMobileEnvironment({
+export const ENV: AppEnvironmentCheck = resolveMobileEnvironment({
   environment: process.env.EXPO_PUBLIC_OVERLOAD_ENV,
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   localApiOrigin: process.env.EXPO_PUBLIC_LOCAL_API_ORIGIN,
@@ -23,6 +26,17 @@ export const ENV: MobileEnvironmentCheck = checkMobileEnvironment({
 
 /** The running app version, sent as X-Overload-App-Version on every call. */
 export const APP_VERSION: string = Constants.expoConfig?.version ?? "0.0.0";
+
+/** The native build number (CFBundleVersion), for display only. */
+export const BUILD_NUMBER: string | null =
+  Application.nativeBuildVersion ?? null;
+
+/** "Production", "Staging", "Staging · local API", or "Misconfigured". */
+export const ENVIRONMENT_LABEL: string = environmentLabel(ENV);
+
+/** True only for the Production build (the friends' TestFlight app). */
+export const IS_PRODUCTION: boolean =
+  ENV.ok && ENV.config.environment === "production";
 
 /**
  * The commit an over-the-air update was published from, stamped by

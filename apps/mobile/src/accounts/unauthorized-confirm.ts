@@ -19,12 +19,23 @@ export type UnauthorizedDecision = {
   readonly notice: boolean;
 };
 
-/** What the refetch of `/me` answered, read for the decision. */
-export function secondLookOf(result: {
-  status: string;
-  error: ApiError | null;
-}): SecondLook {
+/**
+ * What the refetch of `/me` answered, read for the decision. `since` is when
+ * the first refusal was recorded: an error no newer than that is the cached
+ * answer (a cancelled refetch returns it), not a second look, so it decides
+ * nothing (21l review #3).
+ */
+export function secondLookOf(
+  result: { status: string; error: ApiError | null; errorUpdatedAt?: number },
+  since?: number,
+): SecondLook {
   if (result.status === "success") return "ok";
+  if (
+    since !== undefined &&
+    (result.errorUpdatedAt === undefined || result.errorUpdatedAt <= since)
+  ) {
+    return "other";
+  }
   const code = result.error?.code;
   if (code === "unauthorized") return "unauthorized";
   if (code === "signed_out") return "signed_out";

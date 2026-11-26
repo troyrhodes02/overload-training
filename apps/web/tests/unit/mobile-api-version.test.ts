@@ -8,6 +8,7 @@ import {
   minimumAppVersion,
   mobileAppConfig,
   mobileBotChallenge,
+  mobileTourAutoStartEnabled,
   parseAppVersion,
 } from "@/lib/api/mobile/version";
 import { ApiFailure } from "@/lib/api/mobile/errors";
@@ -76,6 +77,18 @@ describe("mobileAppConfig", () => {
     ).toBe(true);
     for (const v of ["TRUE", "1", "yes", "", "false", " true"]) {
       expect(mobileAppConfig({ MOBILE_TOUR_AUTO_START: v }).tourAutoStart).toBe(
+        false,
+      );
+    }
+  });
+
+  it("app-config and the me view read the gate through one function (21l RD-22)", () => {
+    expect(mobileTourAutoStartEnabled({})).toBe(false);
+    expect(mobileTourAutoStartEnabled({ MOBILE_TOUR_AUTO_START: "true" })).toBe(
+      true,
+    );
+    for (const v of ["TRUE", "1", "yes", "", "false", " true"]) {
+      expect(mobileTourAutoStartEnabled({ MOBILE_TOUR_AUTO_START: v })).toBe(
         false,
       );
     }

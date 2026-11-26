@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo } from "react";
 import { useSession } from "../auth/session";
 import { APP_VERSION } from "../config/env";
-import { readStagingKey } from "../staging-access/key";
+import { readStagingKey, stagingAccessAllowed } from "../staging-access/key";
 import { apiOrigin, createApiClient, type ApiClient } from "./client";
 
 const ApiContext = createContext<ApiClient | null>(null);
@@ -23,6 +23,7 @@ export function ApiProvider({
         appVersion: APP_VERSION,
         tokens,
         stagingKey: readStagingKey,
+        stagingAccess: stagingAccessAllowed(),
         onUpgradeRequired,
       }),
     [tokens, onUpgradeRequired],

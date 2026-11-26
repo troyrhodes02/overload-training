@@ -127,7 +127,7 @@ Nothing marks a note seen except closing the sheet that showed it.
 
 ## 12. Mobile design (the native visual contract)
 
-Built with `overload-mobile-ui` on the 21d–21k system: `GroupedList` and `ListRow`, `Text` tones, tokens only, the system back header on pushed screens. The visual review artifact (M1 footer, A1 About this app in Production and staging, the What's New sheet with the new entry, the Check again message; light and dark; illustrative values labelled) is the design canvas linked in the spec's RD-20. Where it and this section differ, this section wins.
+Built with `overload-mobile-ui` on the 21d–21k system: `GroupedList` and `ListRow`, `Text` tones, tokens only, the system back header on pushed screens. The visual review artifact (M1 footer, A1 About this app in Production and staging, the What's New sheet with the new entry, the Check again message; light and dark; illustrative values labelled) is the design canvas https://claude.ai/artifact/MqwoLMvHnZ8cGAKJj4HUS6 (spec RD-20). Where it and this section differ, this section wins.
 
 ### M1 More footer
 

@@ -10,7 +10,7 @@ The accepted iPhone app gets a Production environment and build profile beside t
 
 ## 2. Scope
 
-**In scope.** Everything in design §11; the Production environment module and config; the `production` EAS build and submit profiles; tests; the release note; the runbook; the release PR for the server change and the note.
+**In scope.** Everything in design §11; the Production environment module and config; the `production` EAS build and submit profiles; tests; the release note; the runbook; release A (everything but the note) and release B (the note).
 
 **Out of scope.** New features, MVP 5C, purchase flows, App Store submission, Android, Production data changes by the run, enabling `MOBILE_TOUR_AUTO_START`, publishing to the `production` update channel.
 
@@ -31,6 +31,8 @@ The accepted iPhone app gets a Production environment and build profile beside t
 - Launch (`src/config/env.ts`): `resolveMobileEnvironment` sends `production` to the Production check and everything else to the existing staging check. A failure is the misconfigured gate, with no network call.
 - Tests pin both directions.
 
+**Constants in both bundles.** Every bundle carries both allowlists' constants (the resolver imports both modules), as refusal data. Only the embedded `EXPO_PUBLIC_OVERLOAD_ENV` and key decide where a build connects. The export scan confirms each bundle carries only its own key.
+
 **Fingerprint invariant.** `packages/shared/src/mobile/environment.ts` and `tokens.ts` stay byte-identical (hashes pinned in `apps/mobile/tests/fingerprint-inputs.test.ts`). The Production module (`production-environment.ts`) is loaded by the config only for a Production target. Verified: the staging fingerprint stays `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`. Version and build number are excluded from Expo's fingerprint (verified by probe), so remote build numbers don't split runtimes.
 
 ## 4. App identity and build profiles
@@ -49,7 +51,8 @@ For staging, it returns exactly what it returns today.
 
 - `cli.appVersionSource: "remote"`. Build numbers live on EAS per bundle id. The development builds already exist, and their build number isn't in the fingerprint.
 - `build.production`: `distribution: "store"`, `channel: "production"`, `environment: "production"`, `env.EXPO_PUBLIC_OVERLOAD_ENV: "production"`, `autoIncrement: true`, Node `22.23.5`.
-- `submit.production.ios`: no `ascAppId` until the record exists. The first interactive submit creates or finds it, and the runbook records the id afterwards.
+- `submit.production.ios`: no `ascAppId` until the record exists.
+- **Source of the binary:** `main` after release A, built by the owner from a clean checkout of that commit. The first interactive submit creates or finds it, and the runbook records the id afterwards.
 
 **Version rules.** The marketing version is 1.0.0 for the whole beta. Each new binary gets the next build number automatically. A new marketing version is only for a future store release.
 
@@ -140,7 +143,7 @@ There is no analytics, advertising, tracking, crash-reporting SDK, location, con
 2. **Check A** (OVE-262).
 3. **Privacy policy URL and reviewer sign-in** (OVE-263).
 4. **Beta App Review submission** (OVE-263). Apple decides.
-5. **Production web release** of §5 (OVE-263), merged at the start of the beta.
+5. **Production web releases**: release A before the build (OVE-262), release B with the note at the start of the beta (OVE-263) (RD-25).
 6. **Recipients** (OVE-263).
 7. **Check B** (OVE-264).
 8. **`MOBILE_TOUR_AUTO_START=true`** on Production (OVE-264), proposed after Check B.
@@ -176,17 +179,17 @@ There is no analytics, advertising, tracking, crash-reporting SDK, location, con
 | RD-17 | Home Screen name "Overload". The App Store Connect name falls back to a variant only if Apple says it's taken. | The brand. The store name must be unique; the display name need not be. | Brand; Apple naming rules |
 | RD-18 | Version 1.0.0; EAS remote build numbers with auto-increment. | Remote numbering never repeats a build number. Versions are excluded from the fingerprint (verified). | Expo docs; probe |
 | RD-19 | The Production allowlist is a new module loaded only for Production targets. `environment.ts` stays byte-identical. | Any byte change to a config-loaded file moves the staging runtime and cuts off build `c22ac9a0` (RD-4). | Fingerprint source (`loadedModules`); probe |
-| RD-20 | The visual review artifact is the design canvas linked in the PR. Design §12 wins where they differ. | The required step-3 artifact for a mobile-only slice. | Pipeline guide §5 step 3 |
+| RD-20 | The visual review artifact is the design canvas https://claude.ai/artifact/MqwoLMvHnZ8cGAKJj4HUS6 (light and dark: M1, A1, the What's New sheet, Check again; illustrative values). Design §12 wins where they differ. | The required step-3 artifact for a mobile-only slice. | Pipeline guide §5 step 3 |
 | RD-21 | About this app is a new screen in every build. Diagnostics stays staging-only. | The run prompt requires an on-device Production identity check. Diagnostics holds staging-only tools (21d RD-25). | Run prompt §11; 21d |
 | RD-22 | The What's New hold applies only while `MOBILE_TOUR_AUTO_START` is on. The fix is in the mobile `me` view, not the web. | It is the smallest change that keeps 21j RD-7's one-dialog order whenever a tour will actually take the launch. The web shows its own tour. | 21k release review note 2; run prompt §13 |
 | RD-23 | The sheet never opens while a tour runs. | Once the offer is spent, a mid-tour refetch would otherwise present the sheet over the tour. | 21k RD-15 |
 | RD-24 | "Overload on iPhone" is significant and internal, and is worded to make sense to a web reader who isn't invited. | It is the beta's announcement (RD-8), not a public launch (RD-14). No `platforms` field is needed (21j RD-6). | 21j RD-6; release-note rules |
-| RD-25 | The release note and the `me` change ship in one release PR, merged at the start of the beta, not before. | A note announcing a beta before any invitation is wrong, and the binary doesn't depend on either. | Release-note dating rule |
+| RD-25 | Two Production releases. **Release A** (OVE-255, the `me` change, OVE-261, docs) merges before the build, so the TestFlight binary is built from `main`. **Release B** (only the release note, re-dated to its merge day) merges at the start of the beta. The note lives in its own staging PR so it can be cherry-picked alone. | A Production binary comes from approved, released source. A note announcing a beta must not reach the web before any invitation, and the binary doesn't depend on it (the app reads notes from the API). | Branching workflow; release-note dating rule |
 | RD-26 | OVE-255's confirmation delay is 2,000 ms, with one refetch. | It is longer than the deletion's identity-removal retries (about 750 ms), and a sign-in that is really half-closed is still reported. | OVE-255; `deleteAccount` retries |
 | RD-27 | In Production, `staging_protected` is reported as unreachable. | Vercel protection can't legitimately answer Production. Showing the staging access screen to a friend would be wrong. | 21d gate design |
 | RD-28 | `expo-dev-client` is not configured for Production. | A store build has no dev launcher. Keeping its plugin there adds nothing. | Expo build model |
 | RD-29 | The owner runs the build interactively (`eas build --profile production --auto-submit`). There is no App Store Connect API key or CI pipeline. | Apple sign-in and signing need the owner. This one command also authorizes the build cost. A key is unnecessary for a private beta. | Run prompt §12; rabbit holes |
-| RD-30 | The Production public anon key is set in the EAS `production` environment by the run, read from Vercel's Production Config variable in memory, never printed or written to disk. | It is public by design (it ships in the binary), and the build needs it. | Architecture (anon key public, RLS deny-all) |
+| RD-30 | The Production public anon key is set in the EAS `production` environment by the run, read from Vercel's Production Config variable in memory, never printed or written to disk. Done 2026-11-26: `EXPO_PUBLIC_OVERLOAD_ENV=production` (plaintext) and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (sensitive; decoded ref `ycxvdiklpefyhdclxyau` verified through `eas env:exec`). | It is public by design (it ships in the binary), and the build needs it. | Architecture (anon key public, RLS deny-all) |
 | RD-31 | Apple sign-in for review: the owner creates a reviewer account through normal signup and adds a small plan on the web. If the owner declines, the review notes say sign-up is open in the app. | Apple asks for a working sign-in. A real signup through every defense is not a fabricated record (RD-12), and no friend's account is exposed. | RD-12; Apple App Review information |
 | RD-32 | The run doesn't write a privacy policy. It supplies the data inventory (§8). | A privacy policy is a legal declaration (RD-11), and published terms and privacy pages are owner items (pitch roadmap, Paid-Launch Safeguards). | RD-11; pitch roadmap |
 | RD-33 | The runbook and PR follow the two-check acceptance (RD-13). No 21d–21k retest. | Automated suites cover regression. | RD-13 |

@@ -19,7 +19,7 @@ export function MisconfiguredGate({ problems }: { problems: string[] }) {
     <GateScreen
       icon="exclamationmark.octagon"
       title="This build is misconfigured"
-      message="It can only run against staging. Rebuild it with the staging environment."
+      message="It can't connect to Overload. Install the latest version."
     >
       <Text size="xs" tone="muted" align="center">
         {problems.join("\n")}

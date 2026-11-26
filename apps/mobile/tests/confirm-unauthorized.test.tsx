@@ -120,6 +120,83 @@ describe("useConfirmUnauthorized", () => {
   });
 });
 
+describe("the confirmation is cancelled or inconclusive", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    setSignedOutNotice(null);
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it("a different answer before the timer fires cancels the second look", async () => {
+    const refetch = jest.fn(async () => refused);
+    const forget = jest.fn();
+    let code: "unauthorized" | undefined = "unauthorized";
+    const view = await renderHook(() =>
+      useConfirmUnauthorized({ code, refetch, forget }),
+    );
+    code = undefined;
+    await view.rerender({});
+    await act(async () => {
+      jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS);
+    });
+    expect(refetch).not.toHaveBeenCalled();
+    expect(forget).not.toHaveBeenCalled();
+  });
+
+  it("leaving before the timer fires does nothing", async () => {
+    const refetch = jest.fn(async () => refused);
+    const forget = jest.fn();
+    const view = await renderHook(() =>
+      useConfirmUnauthorized({ code: "unauthorized", refetch, forget }),
+    );
+    await view.unmount();
+    await act(async () => {
+      jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS);
+    });
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
+  it("a cached answer (a cancelled refetch) is not a second look", async () => {
+    const forget = jest.fn();
+    const stale = { ...refused, errorUpdatedAt: 1000 };
+    const notice = await renderHook(() => {
+      useConfirmUnauthorized({
+        code: "unauthorized",
+        errorUpdatedAt: 1000,
+        refetch: async () => stale,
+        forget,
+      });
+      return useSignedOutNotice();
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS);
+    });
+    expect(forget).not.toHaveBeenCalled();
+    expect(notice.result.current).toBeNull();
+    // A fresh refusal is.
+    expect(secondLookOf({ ...refused, errorUpdatedAt: 3000 }, 1000)).toBe(
+      "unauthorized",
+    );
+  });
+
+  it("a refetch that throws decides nothing", async () => {
+    const forget = jest.fn();
+    await renderHook(() =>
+      useConfirmUnauthorized({
+        code: "unauthorized",
+        refetch: async () => {
+          throw new Error("boom");
+        },
+        forget,
+      }),
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS);
+    });
+    expect(forget).not.toHaveBeenCalled();
+  });
+});
+
 describe("the gate while a refusal is confirmed", () => {
   const base = {
     envOk: true,

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { WhatsNewDialogData } from "@overload/shared/contracts/release-notes";
 import { useMarkReleaseNotesSeen } from "../api/account";
 import { useMe } from "../api/queries";
+import { useTour } from "../tour/TourProvider";
 import { Button } from "../ui/Button";
 import { Text } from "../ui/Text";
 import { useTheme } from "../ui/ThemeProvider";
@@ -16,7 +17,8 @@ import { markWhatsNewShown, shouldShowWhatsNew } from "./whats-new-model";
  * says significant updates are unseen, one page sheet shows them together,
  * newest first, once per launch and never over a workout. Closing it — Got it
  * or a swipe down — marks everything through the newest entry seen for the
- * account, so the web won't show it again either.
+ * account, so the web won't show it again either. It never opens while a
+ * tour is running (21l RD-23).
  */
 export function WhatsNewSheet() {
   const me = useMe(true);
@@ -24,10 +26,11 @@ export function WhatsNewSheet() {
   const due = me.data?.whatsNew ?? null;
   const [open, setOpen] = useState<WhatsNewDialogData | null>(null);
   const mark = useMarkReleaseNotesSeen();
+  const { active: tourActive } = useTour();
 
   // Decided during render (React's pattern for state that follows props):
   // once per launch, and never over a workout.
-  if (!open && due && shouldShowWhatsNew({ due: true, pathname })) {
+  if (!open && due && shouldShowWhatsNew({ due: true, pathname, tourActive })) {
     markWhatsNewShown();
     setOpen(due);
   }

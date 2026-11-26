@@ -9,7 +9,8 @@ import { router, Stack } from "expo-router";
 import { billingCopy } from "@overload/shared/billing/copy";
 import { useMe } from "../../../api/queries";
 import { useSession } from "../../../auth/session";
-import { APP_VERSION } from "../../../config/env";
+import { APP_VERSION, BUILD_NUMBER, ENV } from "../../../config/env";
+import { footerLine } from "../../../diagnostics/build-identity";
 import { diagnosticsAvailable } from "../../../diagnostics/availability";
 import { TourScrollProvider, useTourScroll } from "../../../tour/anchors";
 import { useTour } from "../../../tour/TourProvider";
@@ -222,19 +223,29 @@ export default function MoreScreen() {
 
           <View style={{ gap: spacing.sm, alignItems: "center" }}>
             <Text size="xs" tone="muted" align="center">
-              {`Overload ${APP_VERSION} · Staging`}
+              {footerLine({
+                env: ENV,
+                version: APP_VERSION,
+                buildNumber: BUILD_NUMBER,
+              })}
             </Text>
-            {diagnosticsAvailable() ? (
-              <View style={{ alignSelf: "stretch" }}>
-                <GroupedList>
+            {/* Pitch 21l A1: in every build. Diagnostics: staging only. */}
+            <View style={{ alignSelf: "stretch" }}>
+              <GroupedList>
+                <ListRow
+                  title="About this app"
+                  accessory="chevron"
+                  onPress={() => router.push("/more/about")}
+                />
+                {diagnosticsAvailable() ? (
                   <ListRow
                     title="Diagnostics"
                     accessory="chevron"
                     onPress={() => router.push("/more/diagnostics")}
                   />
-                </GroupedList>
-              </View>
-            ) : null}
+                ) : null}
+              </GroupedList>
+            </View>
           </View>
         </TourScrollProvider>
       </ScrollView>
