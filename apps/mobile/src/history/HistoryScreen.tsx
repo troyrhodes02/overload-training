@@ -264,6 +264,7 @@ export function HistoryScreen() {
     <TabScreen
       eyebrow="Every workout you've logged"
       title="History"
+      tourAnchor="history-header"
       refreshing={query.isRefetching && !query.isPlaceholderData}
       onRefresh={() => void query.refetch()}
     >
