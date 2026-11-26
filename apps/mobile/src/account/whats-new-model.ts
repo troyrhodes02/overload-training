@@ -9,8 +9,10 @@ let shownThisLaunch = false;
 export function shouldShowWhatsNew(input: {
   due: boolean;
   pathname: string;
+  /** A tour is running (21l RD-23): the sheet waits until it ends. */
+  tourActive?: boolean;
 }): boolean {
-  if (shownThisLaunch || !input.due) return false;
+  if (shownThisLaunch || !input.due || input.tourActive) return false;
   return !input.pathname.startsWith("/workout");
 }
 

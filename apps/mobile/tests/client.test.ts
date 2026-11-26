@@ -164,3 +164,34 @@ describe("API client", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("Production: a protection answer is unavailable, never staging access (21l RD-27)", () => {
+  it("a non-JSON 401 is unavailable when the build has no staging access", async () => {
+    const html = {
+      status: 401,
+      url: `${STAGING_API_ORIGIN}/api/mobile/v1/me`,
+      headers: { get: () => "text/html" },
+      text: async () => "<html></html>",
+    } as unknown as Response;
+    const { client } = setup([html], {
+      stagingAccess: false,
+      stagingKey: async () => null,
+    });
+    await expect(client.request("/me")).rejects.toMatchObject({
+      code: "unavailable",
+    });
+  });
+
+  it("staging keeps reporting staging_protected", async () => {
+    const html = {
+      status: 401,
+      url: `${STAGING_API_ORIGIN}/api/mobile/v1/me`,
+      headers: { get: () => "text/html" },
+      text: async () => "<html></html>",
+    } as unknown as Response;
+    const { client } = setup([html]);
+    await expect(client.request("/me")).rejects.toMatchObject({
+      code: "staging_protected",
+    });
+  });
+});

@@ -334,7 +334,17 @@ describe("E4 GET /release-notes and E5 POST /me/release-notes/seen", () => {
   it("a new account has no unread backlog on GET /me", async () => {
     const a = await createTestAccount();
     const me = await call(meRoute, a);
-    expect(me.body.whatsNew).toBeNull();
+    // The account floor (What's New R12): nothing dated before the account
+    // existed. An entry dated the day the account was made is not backlog,
+    // so on a significant entry's own release day it may be due (21l).
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    for (const e of me.body.whatsNew?.entries ?? []) {
+      expect(e.date >= yesterday).toBe(true);
+      expect(e.date <= today).toBe(true);
+    }
   });
 });
 
