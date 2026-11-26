@@ -138,3 +138,62 @@ When the beta starts (21l):
   - If a step's control is below the fold, the tour scrolls it into view first.
   - If the Modal ever fails to cover the tab bar on a future iOS, the fallback is a root-level overlay (spec §16).
 - A due account on the phone sees no What's New sheet until the tour has been offered (21j RD-7). This resolves itself once the flag is on.
+
+## 7. Closeout: owner acceptance, Production release, and sync (2026-11-26)
+
+**Status: released to Production. 21k is complete. Pitch 21l (TestFlight Beta) can begin.**
+
+### Owner acceptance on the iPhone
+
+Both checks in §3 passed on staging update `ad04a02b-95e3-4203-90d3-c8df40c2ebc3` (iOS update `01a215e7-4dbe-756c-b28f-45b2299097f3`, commit `04799cd`, runtime `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`, development build `c22ac9a0`):
+
+1. **Complete the tour: PASSED.**
+   - Take a tour, the intro card, and Start tour all worked.
+   - All nine steps showed their rings on the right controls, with readable text.
+   - Done returned to normal navigation, with no overlay left.
+2. **Skip and replay: PASSED.**
+   - A replay, a few steps, then Skip tour returned to normal navigation.
+   - Take a tour again, then Not now, left no overlay and no blocked control.
+
+No further 21k iPhone acceptance is needed.
+
+### Production release
+
+| | |
+| --- | --- |
+| Release branch | `release/21k-native-tour`, from `main` at `1826803`. Three cherry-picks (#334, #335, #341), plus the release record. Apart from the record, its tree equalled `staging` at `181dd28` |
+| Release PR | #342, squash-merged as **`4aacae7`** after the Vercel checks passed |
+| Verification | Format, lint (0 errors), and typecheck pass. Web unit 2,784 and mobile 719 pass, as do 1,690 integration tests in 116 suites. The Production build and its client-bundle scan pass, the iOS export holds no secret, and the release diff is clean. Fingerprint `2e4a65d9…` |
+| Independent review | Release-ready, no blocking finding |
+| Production deployment | `dpl_9XfRoEUzkyf6mG5NkEvgef17YFPq`, Ready, on `www.overloadtraining.app` |
+| Smoke checks | Public pages 200. `app-config` shows **`tourAutoStart: false`**, minimum `0.0.0`. Both tour endpoints and `GET /today` answer 401 without a token, and GET on the tour paths answers 405. The version gate holds. The log check is inconclusive |
+| Migration and environment | None. No `MOBILE_*` variable on Production or Preview |
+
+The full record is `docs/releases/2026-11-21k-native-tour-production.md`.
+
+### Synchronization
+
+- #343 merged `main` into `staging` with a merge commit (`2e73f6b`).
+- `main` is an ancestor of `staging`, and the two trees were equal.
+- The staging deployment succeeded and answers `tourAutoStart: false`.
+- The app code on `staging` is unchanged since `04799cd`, so staging update `ad04a02b` stays current. No new update was published.
+
+### Native distribution
+
+- The accepted iPhone app stays on the `staging` channel. Development build `c22ac9a0` still carries the runtime.
+- No Production Expo update, no Production-connected build, and no TestFlight or App Store submission was made. They belong to Pitch 21l.
+- **Automatic onboarding is off.** `MOBILE_TOUR_AUTO_START` is unset everywhere, so `tourAutoStart` is false on Production and staging. Section 6 is the 21l plan.
+
+### Handed to 21l
+
+- **Turning on automatic onboarding** (§6). Existing web tour outcomes stay authoritative and are never reset.
+- **"Overload on iPhone"**, the first native What's New entry.
+- **OVE-255** (Backlog). Delete account's "Check again" wording and the mid-deletion notice. Fix before TestFlight.
+- **What's New while the gate is off.** `GET /me` holds back What's New while an account is still due its tour (21j RD-7).
+  - A due account sees no What's New sheet on the phone until it finishes or skips a tour. "Not now" records nothing, so it doesn't count.
+  - This resolves itself once the gate is on.
+- **21l's other work:**
+  - final iPhone polish;
+  - the Production-connected build and App Store Connect;
+  - the first external TestFlight review;
+  - beta invitations.
