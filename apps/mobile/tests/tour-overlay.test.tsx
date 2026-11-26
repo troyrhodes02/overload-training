@@ -7,6 +7,7 @@ import { AccessibilityInfo, PixelRatio } from "react-native";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import {
   TourOverlay,
+  useReduceMotion,
   type TourOverlayActions,
   type TourOverlayView,
 } from "../src/tour/TourOverlay";
@@ -36,10 +37,14 @@ const step = (over: Partial<Extract<TourOverlayView, { kind: "step" }>> = {}) =>
     ...over,
   }) as TourOverlayView;
 
-async function show(view: TourOverlayView, a = actions()) {
+async function show(
+  view: TourOverlayView | null,
+  a = actions(),
+  reduce = false,
+) {
   await render(
     <Providers>
-      <TourOverlay view={view} actions={a} />
+      <TourOverlay view={view} actions={a} reduceMotion={reduce} />
     </Providers>,
   );
   return a;
@@ -162,16 +167,45 @@ describe("intro and locating", () => {
 });
 
 describe("motion, text size, appearance", () => {
-  it("fades in normally and appears without animation under Reduce Motion", async () => {
+  it("fades normally, and not at all under Reduce Motion", async () => {
     await show(step());
     expect(modalAnimation()).toBe("fade");
     await screen.unmount();
+    await show(step(), actions(), true);
+    expect(modalAnimation()).toBe("none");
+  });
+
+  it("useReduceMotion reads the setting and follows its changes", async () => {
+    let listener: ((v: boolean) => void) | null = null;
     jest
       .spyOn(AccessibilityInfo, "isReduceMotionEnabled")
       .mockResolvedValue(true);
-    await show(step());
+    jest
+      .spyOn(AccessibilityInfo, "addEventListener")
+      .mockImplementation((_e, l) => {
+        listener = l as (v: boolean) => void;
+        return { remove: () => {} } as ReturnType<
+          typeof AccessibilityInfo.addEventListener
+        >;
+      });
+    const seen: boolean[] = [];
+    function Probe() {
+      seen.push(useReduceMotion());
+      return null;
+    }
+    await render(<Probe />);
     await act(async () => {});
-    expect(modalAnimation()).toBe("none");
+    expect(seen.at(-1)).toBe(true);
+    await act(async () => listener?.(false));
+    expect(seen.at(-1)).toBe(false);
+  });
+
+  it("with no view nothing is presented or catches touches", async () => {
+    await show(null);
+    expect(
+      screen.queryByTestId("tour-overlay", { includeHiddenElements: true }),
+    ).toBeNull();
+    expect(screen.queryByTestId("tour-card")).toBeNull();
   });
 
   it("large text stacks the buttons; default text keeps one row", async () => {

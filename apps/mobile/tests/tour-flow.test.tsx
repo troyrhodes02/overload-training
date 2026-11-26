@@ -69,6 +69,8 @@ const FAST: TourTiming = {
   measureMs: 40,
   settleMs: 2,
   retryMs: 50,
+  trackMs: 20,
+  dismissMs: 30,
 };
 
 // ── Measurement: every anchor answers a rect, unless a test says otherwise.
@@ -487,6 +489,53 @@ describe("targets that aren't there", () => {
   });
 });
 
+describe("following the target (review fixes)", () => {
+  it("the ring follows a target that moves while its step is shown", async () => {
+    await open();
+    await startTour();
+    const before = spotlit()!.props.style.top;
+    rects = { "today-header": { ...DEFAULT_RECT, y: DEFAULT_RECT.y + 60 } };
+    await settle(120);
+    expect(spotlit()!.props.style.top).toBe(before + 60);
+  });
+
+  it("a target that disappears while shown gives way to words, never a stale ring", async () => {
+    await open();
+    await startTour();
+    expect(spotlit()).not.toBeNull();
+    rects = { "today-header": null };
+    await settle(200);
+    expect(spotlit()).toBeNull();
+    expect(screen.getByText("Find this in the Today tab.")).toBeTruthy();
+    expect(cardTitle().props.children).toBe("Today");
+  });
+
+  it("names Start or Resume for VoiceOver on the logging step", async () => {
+    await open();
+    await startTour();
+    await press("Next");
+    expect(cardTitle().props.accessibilityHint).toBe(
+      "Highlighting the Start or Resume workout button",
+    );
+  });
+
+  it("the overlay is told to dismiss, then unmounted", async () => {
+    await open();
+    await startTour();
+    await fireEvent.press(screen.getByRole("button", { name: "Skip tour" }));
+    await settle(5);
+    const modal = screen.queryByTestId("tour-modal", {
+      includeHiddenElements: true,
+    });
+    if (modal) expect(modal.props.visible).toBe(false);
+    expect(overlay()).toBeNull();
+    await settle(60);
+    expect(
+      screen.queryByTestId("tour-modal", { includeHiddenElements: true }),
+    ).toBeNull();
+  });
+});
+
 describe("interruptions", () => {
   it("backgrounding ends the run with nothing recorded", async () => {
     await open();
@@ -623,12 +672,26 @@ describe("the automatic first-login tour (gated, RD-15)", () => {
 // Last: unmounting by hand leaves Expo Router's global router unusable for
 // any later render in this file.
 describe("unmount", () => {
-  it("unmounting mid-locate (sign-out) leaves no timer behind and writes nothing", async () => {
+  // One test: a manual unmount leaves Expo Router's global router unusable
+  // for any later render in this file.
+  it("sign-out mid-locate leaves no timer behind, writes nothing, and never retries a write that was in flight", async () => {
+    let release: (() => void) | null = null;
+    outcomeAnswer = () =>
+      new Promise((_resolve, reject) => {
+        release = () => reject(new ApiError("network", "offline"));
+      });
     rects = { "today-header": null };
     const r = await open();
+    // A skip whose write is still in flight (offline)...
     await startTour();
+    await press("Skip tour");
+    // ...then a replay that is still looking for its first target...
+    await startTour();
+    expect(overlay()).not.toBeNull();
+    // ...when the lifter signs out (the tabs unmount).
     r.unmount();
-    await settle(300);
-    expect(writes()).toEqual([]);
+    await act(async () => release?.());
+    await settle(400);
+    expect(writes()).toEqual(['PUT /me/tour/outcome {"outcome":"skipped"}']);
   });
 });

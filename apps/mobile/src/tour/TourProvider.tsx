@@ -45,13 +45,12 @@ import {
 } from "./machine";
 import { overTabs, tabAtRoot, type NavState } from "./navigation";
 import { NATIVE_TOUR_STEPS } from "./steps";
-import { TourOverlay, type TourOverlayView } from "./TourOverlay";
 import {
-  TOUR_TAB_PATHS,
-  type NativeTourStep,
-  type Rect,
-  type TourTarget,
-} from "./types";
+  TourOverlay,
+  useReduceMotion,
+  type TourOverlayView,
+} from "./TourOverlay";
+import { TOUR_TAB_PATHS, type NativeTourStep, type Rect } from "./types";
 
 /**
  * The native tour (Pitch 21k spec §5, §7.2–§7.4). It owns one run at a time:
@@ -73,6 +72,10 @@ export type TourTiming = {
   settleMs: number;
   /** A failed outcome write is retried once after this (network only). */
   retryMs: number;
+  /** While a step is shown, its target is measured again this often. */
+  trackMs: number;
+  /** After the run ends, unmount the Modal by then even if iOS is silent. */
+  dismissMs: number;
 };
 
 export const TOUR_TIMING: TourTiming = {
@@ -81,9 +84,63 @@ export const TOUR_TIMING: TourTiming = {
   measureMs: 300,
   settleMs: 16,
   retryMs: 2000,
+  trackMs: 250,
+  dismissMs: 700,
 };
 
 const STABLE_TRIES = 5;
+
+type MeasureContext = {
+  sleep: (ms: number) => Promise<void>;
+  cancelled: () => boolean;
+  /** Date.now() past which measuring gives up (RD-12). */
+  deadline: number;
+  measureMs: number;
+  settleMs: number;
+  /** Bring an off-screen target into view first (locating only). */
+  scroll: boolean;
+  window: { width: number; height: number };
+  insets: { top: number; bottom: number };
+};
+
+/**
+ * A target's settled frame: measured until two readings one beat apart
+ * agree, inside the visible band, and before the deadline. Null when it
+ * isn't there, isn't visible, or won't settle in time.
+ */
+async function measureStable(
+  entry: TourAnchorEntry,
+  ctx: MeasureContext,
+): Promise<Rect | null> {
+  const band = visibleBand(ctx.window, ctx.insets);
+  const timed = () =>
+    Promise.race([
+      entry.measure().catch(() => null),
+      ctx.sleep(ctx.measureMs).then(() => null),
+    ]);
+  const usable = (r: Rect | null): r is Rect =>
+    !!r && isValidRect(r, ctx.window) && insideBand(r, band);
+  let a = await timed();
+  if (ctx.cancelled() || !a || !isValidRect(a, ctx.window)) return null;
+  if (!insideBand(a, band)) {
+    // Off screen: let its own scroll view bring it in (RD-14).
+    if (!ctx.scroll || !entry.scroller) return null;
+    entry.scroller.scrollBy(scrollDelta(a, band));
+    await ctx.sleep(ctx.settleMs);
+    a = await timed();
+    if (ctx.cancelled() || !usable(a)) return null;
+  }
+  for (let i = 0; i < STABLE_TRIES; i++) {
+    if (Date.now() > ctx.deadline) return null;
+    await ctx.sleep(ctx.settleMs);
+    if (ctx.cancelled()) return null;
+    const b = await timed();
+    if (ctx.cancelled() || !usable(b)) return null;
+    if (sameRect(a, b)) return b;
+    a = b;
+  }
+  return null;
+}
 
 type TourContextValue = {
   /** Start a run; false (and an explanation for a manual start) if refused. */
@@ -139,10 +196,19 @@ export function TourProvider({
   });
 
   const retryTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  // False once the provider is gone (sign-out): a late failure must never
+  // schedule a retry that would run as whoever signs in next.
+  const alive = useRef(true);
   useEffect(() => {
+    alive.current = true;
     const timers = retryTimers.current;
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      alive.current = false;
+      timers.forEach(clearTimeout);
+    };
   }, []);
+  // Read before any run, so even the first presentation honors it (RD-M).
+  const reduceMotion = useReduceMotion();
 
   const writeOutcome = useCallback(
     (outcome: TourOutcome) => {
@@ -154,13 +220,14 @@ export function TourProvider({
           // Fire-and-forget (RD-11): one retry when the phone was offline,
           // nothing for any other answer, and never a visible error.
           if (
+            alive.current &&
             attempt === 0 &&
             error instanceof ApiError &&
             error.code === "network"
           ) {
             const t = setTimeout(() => {
               retryTimers.current.delete(t);
-              void send(1);
+              if (alive.current) void send(1);
             }, timing.retryMs);
             retryTimers.current.add(t);
           }
@@ -241,58 +308,25 @@ export function TourProvider({
         }, ms);
         timers.add(t);
       });
-    const timed = (p: Promise<Rect | null>) =>
-      Promise.race([
-        p.catch(() => null),
-        sleep(timing.measureMs).then(() => null),
-      ]);
-
-    const measureStable = async (
-      entry: TourAnchorEntry,
-    ): Promise<Rect | null> => {
-      const { window: win, insets: ins } = live.current;
-      const band = visibleBand(win, ins);
-      let a = await timed(entry.measure());
-      if (cancelled || !a || !isValidRect(a, win)) return null;
-      if (!insideBand(a, band)) {
-        // Off screen: let its own scroll view bring it in (RD-14).
-        if (!entry.scroller) return null;
-        entry.scroller.scrollBy(scrollDelta(a, band));
-        await sleep(timing.settleMs);
-        a = await timed(entry.measure());
-        if (cancelled || !a || !isValidRect(a, win) || !insideBand(a, band)) {
-          return null;
-        }
-      }
-      for (let i = 0; i < STABLE_TRIES; i++) {
-        await sleep(timing.settleMs);
-        if (cancelled) return null;
-        const b = await timed(entry.measure());
-        if (cancelled || !b || !isValidRect(b, win)) return null;
-        if (sameRect(a, b)) return b;
-        a = b;
-      }
-      return null;
-    };
-
-    const find = async (): Promise<{
-      rect: Rect;
-      target: TourTarget;
-    } | null> => {
-      for (const target of step.targets) {
-        const entry = registry.get(target.anchor);
-        if (!entry) continue;
-        const rect = await measureStable(entry);
-        if (cancelled) return null;
-        if (rect) return { rect, target };
-      }
-      return null;
-    };
+    // A real deadline, whatever each measurement costs (RD-12).
+    const deadline = Date.now() + timing.timeoutMs;
+    const ctx = (): MeasureContext => ({
+      sleep,
+      cancelled: () => cancelled,
+      deadline,
+      measureMs: timing.measureMs,
+      settleMs: timing.settleMs,
+      scroll: true,
+      window: live.current.window,
+      insets: live.current.insets,
+    });
+    // Where the step is shown. When the tour switched tabs itself, it is
+    // that tab's root, even if the pathname hasn't re-rendered yet, so the
+    // tour's own move is never mistaken for a foreign one.
+    let expected = live.current.pathname;
 
     const missing = () => {
-      if (!cancelled) {
-        dispatch({ type: "MISSING", token, path: live.current.pathname });
-      }
+      if (!cancelled) dispatch({ type: "MISSING", token, path: expected });
     };
 
     void (async () => {
@@ -303,27 +337,25 @@ export function TourProvider({
         // so explain the step in words instead (RD-5).
         if (!tabAtRoot(live.current.navState, step.tab)) return missing();
         router.navigate(home);
+        expected = home;
       }
       if (step.kind === "note" || step.targets.length === 0) {
         // Let the tab switch land, so the note is shown on its screen.
         await sleep(timing.settleMs);
         return missing();
       }
-      const tries = Math.ceil(timing.timeoutMs / timing.pollMs);
-      for (let i = 0; i <= tries; i++) {
-        if (cancelled) return;
-        const hit = await find();
-        if (cancelled) return;
-        if (hit) {
-          dispatch({
-            type: "FOUND",
-            token,
-            rect: hit.rect,
-            target: hit.target,
-            path: live.current.pathname,
-          });
-          return;
+      while (!cancelled && Date.now() <= deadline) {
+        for (const target of step.targets) {
+          const entry = registry.get(target.anchor);
+          if (!entry) continue;
+          const rect = await measureStable(entry, ctx());
+          if (cancelled) return;
+          if (rect) {
+            dispatch({ type: "FOUND", token, rect, target, path: expected });
+            return;
+          }
         }
+        if (cancelled) return;
         await sleep(timing.pollMs);
       }
       missing();
@@ -334,6 +366,68 @@ export function TourProvider({
       timers.forEach(clearTimeout);
     };
   }, [locatingToken, locatingIndex, steps, registry, dispatch, timing]);
+
+  // While a highlighted step is shown, keep measuring its target: a pull-to-
+  // refresh, a list arriving, or a week strip loading moves the content, and
+  // the ring must follow it (or give way to words if the target is gone).
+  const shownToken =
+    state.phase === "showing" && state.rect ? state.token : null;
+  const shownAnchor =
+    state.phase === "showing" ? (state.target?.anchor ?? null) : null;
+  useEffect(() => {
+    if (shownToken === null || shownAnchor === null) return;
+    const token = shownToken;
+    let cancelled = false;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const t = setTimeout(() => {
+          timers.delete(t);
+          resolve();
+        }, ms);
+        timers.add(t);
+      });
+    void (async () => {
+      let misses = 0;
+      while (!cancelled) {
+        await sleep(timing.trackMs);
+        if (cancelled) return;
+        const entry = registry.get(shownAnchor);
+        const rect = entry
+          ? await measureStable(entry, {
+              sleep,
+              cancelled: () => cancelled,
+              deadline: Date.now() + timing.trackMs * 4,
+              measureMs: timing.measureMs,
+              settleMs: timing.settleMs,
+              scroll: false,
+              window: live.current.window,
+              insets: live.current.insets,
+            })
+          : null;
+        if (cancelled) return;
+        const now = stateRef.current;
+        if (now.phase !== "showing" || now.token !== token) return;
+        if (!rect) {
+          // Twice in a row, so one slow reading never drops the ring.
+          misses += 1;
+          if (misses >= 2) {
+            dispatch({ type: "MOVED", token, rect: null });
+            return;
+          }
+          continue;
+        }
+        misses = 0;
+        if (!now.rect || !sameRect(rect, now.rect)) {
+          dispatch({ type: "MOVED", token, rect });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+  }, [shownToken, shownAnchor, registry, dispatch, timing]);
 
   // A navigation the tour didn't make ends the run (Onboarding Tour R7).
   useEffect(() => {
@@ -358,7 +452,10 @@ export function TourProvider({
   // (app-config.tourAutoStart, off until 21l) AND the account is due, on
   // Today with nothing over the tabs, once per launch.
   const allowed = config.data?.tourAutoStart === true;
-  const due = me.data?.tour.autoStart === true;
+  // The server never sends What's New while the tour is due (21j RD-7);
+  // checked anyway, so two sheets can never present at once.
+  const due =
+    me.data?.tour.autoStart === true && (me.data?.whatsNew ?? null) === null;
   useEffect(() => {
     if (autoAttemptedThisLaunch || !allowed || !due) return;
     if (pathname !== TOUR_TAB_PATHS.today || overTabs(navState)) return;
@@ -368,6 +465,17 @@ export function TourProvider({
   }, [allowed, due, pathname, navState, start]);
 
   const view = overlayView(state, steps);
+  // The Modal stays mounted while it closes: told to dismiss (no content),
+  // then unmounted when iOS reports it gone, or after dismissMs at most.
+  const [mounted, setMounted] = useState(false);
+  if (view && !mounted) setMounted(true);
+  const closing = mounted && !view;
+  useEffect(() => {
+    if (!closing) return;
+    const t = setTimeout(() => setMounted(false), timing.dismissMs);
+    return () => clearTimeout(t);
+  }, [closing, timing.dismissMs]);
+  const dismissed = useCallback(() => setMounted(false), []);
   const context = useMemo(
     () => ({ start, active: state.phase !== "idle" }),
     [start, state.phase],
@@ -388,7 +496,14 @@ export function TourProvider({
       <TourMeasureContext.Provider value={measure}>
         <TourContext.Provider value={context}>
           {children}
-          {view ? <TourOverlay view={view} actions={actions} /> : null}
+          {view || mounted ? (
+            <TourOverlay
+              view={view}
+              actions={actions}
+              reduceMotion={reduceMotion}
+              onDismissed={dismissed}
+            />
+          ) : null}
         </TourContext.Provider>
       </TourMeasureContext.Provider>
     </TourRegistryContext.Provider>

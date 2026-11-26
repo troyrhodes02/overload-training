@@ -11,7 +11,7 @@ import { useMe } from "../../../api/queries";
 import { useSession } from "../../../auth/session";
 import { APP_VERSION } from "../../../config/env";
 import { diagnosticsAvailable } from "../../../diagnostics/availability";
-import { useTourScroll } from "../../../tour/anchors";
+import { TourScrollProvider, useTourScroll } from "../../../tour/anchors";
 import { useTour } from "../../../tour/TourProvider";
 import { GroupedList, ListRow } from "../../../ui/GroupedList";
 import { LoadErrorState } from "../../../ui/LoadErrorState";
@@ -73,7 +73,7 @@ export default function MoreScreen() {
           />
         }
       >
-        <tourScroll.Provider>
+        <TourScrollProvider scroller={tourScroll.scroller}>
           <ScreenHeader eyebrow="Account and settings" title="More" />
           {profile && me.data ? (
             <Pressable
@@ -236,7 +236,7 @@ export default function MoreScreen() {
               </View>
             ) : null}
           </View>
-        </tourScroll.Provider>
+        </TourScrollProvider>
       </ScrollView>
     </>
   );

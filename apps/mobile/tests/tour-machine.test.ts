@@ -176,6 +176,46 @@ describe("moving through the steps", () => {
   });
 });
 
+describe("MOVED (the shown target moved or vanished)", () => {
+  const shown = () => {
+    const s = run([{ type: "START", mode: "manual" }, { type: "BEGIN" }]).state;
+    return run([found(s.token)], s).state;
+  };
+
+  it("updates the rect, keeping the step and target", () => {
+    const s = shown();
+    const moved = { ...rect, y: 160 };
+    const t = transition(s, { type: "MOVED", token: s.token, rect: moved }, N);
+    expect(t.state).toMatchObject({ phase: "showing", rect: moved, target });
+    expect(t.effects).toEqual([]);
+  });
+
+  it("null drops the highlight for words", () => {
+    const s = shown();
+    const t = transition(s, { type: "MOVED", token: s.token, rect: null }, N);
+    expect(t.state).toMatchObject({ rect: null, target: null });
+  });
+
+  it("is ignored for a stale token, outside showing, or on a step in words", () => {
+    const s = shown();
+    expect(
+      transition(s, { type: "MOVED", token: s.token - 1, rect }, N).state,
+    ).toBe(s);
+    const words = transition(
+      s,
+      { type: "MOVED", token: s.token, rect: null },
+      N,
+    ).state;
+    expect(
+      transition(words, { type: "MOVED", token: s.token, rect }, N).state,
+    ).toBe(words);
+    expect(
+      transition(INITIAL_TOUR_STATE, { type: "MOVED", token: 0, rect }, N)
+        .state,
+    ).toBe(INITIAL_TOUR_STATE);
+  });
+});
+
 describe("interruptions", () => {
   const states: [string, TourState][] = [
     ["intro", run([{ type: "START", mode: "manual" }]).state],
