@@ -85,11 +85,6 @@ export function deletionFailure(error: unknown): DeletionView {
   };
 }
 
-/** Whether an inventory is empty (after identity_pending, it is). */
-export function isEmptyInventory(inv: AccountInventoryDto): boolean {
-  return Object.values(inv).every((n) => n === 0);
-}
-
 /** "Check again": the account's own reads decide what happened. */
 export function checkAgainView(
   result:
@@ -103,12 +98,14 @@ export function checkAgainView(
   if (result.kind === "unreachable") {
     return { kind: "unconfirmed", message: DELETE_MESSAGES.checkFailed };
   }
+  // The account answered, so it is intact whatever its data (OVE-255 #1): a
+  // half-closed account can't answer /me (its token is refused), and an
+  // empty inventory only means it had no training data. "Data deleted" is
+  // said only when a delete itself answers identity_pending.
   return {
     kind: "form",
     fieldError: null,
-    formError: isEmptyInventory(result.inventory)
-      ? DELETE_MESSAGES.identityPending
-      : DELETE_MESSAGES.stillHere,
+    formError: DELETE_MESSAGES.stillHere,
   };
 }
 

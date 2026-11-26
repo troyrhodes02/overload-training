@@ -89,6 +89,11 @@ export function decideGate(i: GateInput): Gate {
 
   if (me?.error?.code === "account_suspended") return "suspended";
   if (!me || (me.status === "loading" && !me.data)) return "launching";
+  // A refused account is being confirmed (OVE-255 #2): it ends in sign-out
+  // or recovers, so it is never "unreachable" meanwhile.
+  if (me.status === "error" && !me.data && me.error.code === "unauthorized") {
+    return "launching";
+  }
   if (me.status === "error" && !me.data) return "unreachable";
   return "signed_in";
 }
