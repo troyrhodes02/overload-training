@@ -84,15 +84,35 @@ Section 5 lists the results.
 
 ## 5. Delivery record
 
-Filled in at delivery (see the delivery-record commit):
+Delivered 2026-11-25:
 
 | Item | Value |
 | --- | --- |
-| Staging commit | _pending_ |
-| Update group | _pending_ |
-| iOS update id | _pending_ |
-| Runtime | `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c` |
-| Compatible build | `c22ac9a0` |
+| Staging commit | `04799cd` (feature PR #335: tickets #336–#339, review fixes #340) |
+| Update group | `ad04a02b-95e3-4203-90d3-c8df40c2ebc3` |
+| iOS update id | `01a215e7-4dbe-756c-b28f-45b2299097f3` |
+| Runtime | `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c` (unchanged) |
+| Compatible build | `c22ac9a0` (already on your iPhone) |
+
+**Run's checks on the merged code.**
+
+| Check | Result |
+| --- | --- |
+| Web unit | 2,784 passed |
+| Integration (including the isolation suite) | 1,690 passed, 116 suites |
+| Mobile | 719 passed, 58 suites |
+| Format, lint, typecheck | Clean. One lint warning is older, in a file 21k doesn't touch. |
+| Builds and scans | The web build passes and its client-bundle scan finds no secret. The iOS export passes and the bundle contains no server secret. |
+
+**Staging API checks (2026-11-25).**
+
+- `app-config` returns `tourAutoStart: false`.
+- Both tour endpoints answer 401 without a token, and a GET answers 405.
+- With `21i-verify@example.com`:
+  - `PUT /me/tour/outcome` returns 200 `{outcome}`, a repeat returns 200, and an unknown outcome returns 400;
+  - `POST /me/tour/offered` returns 200;
+  - `me.tour.autoStart` then reads false.
+- `21i-combined@example.com` signs in (read-only check).
 
 ## 6. 21l handoff (not part of 21k acceptance)
 
@@ -101,7 +121,11 @@ Filled in at delivery (see the delivery-record commit):
 When the beta starts (21l):
 
 1. In Vercel → overload-training → Settings → Environment Variables, add `MOBILE_TOUR_AUTO_START` = `true` for **Production** (and Preview, if you want testers on staging to see it). Redeploy so the API reads it. No new app build or update is needed.
-2. **Who sees it:** only accounts that are *due* the tour, meaning created by signup since Pitch 11 and never shown a tour on either client. Friends who already used the web have seen the web tour, so they won't see it again on the phone. A new account made on the phone sees it once, on Today, the first time it opens there.
+2. **Who sees it:** only accounts that are *due* the tour, meaning never shown a tour on either client.
+   - New signups since Pitch 11 are due.
+   - So are staging accounts made with `npm run dev:test-account`. The 21k staging check found `21i-combined@example.com` due. Turning the flag on for Preview would tour those test accounts once.
+   - Friends who already used the web have seen the web tour, so they won't see it again on the phone.
+   - A new account made on the phone sees it once, on Today, the first time it opens there.
 3. **Verify in the beta:** make one new account on the TestFlight build. It should show "Take a quick tour" on Today once, and never again after Not now, Skip, or Done. An existing friend's account should open straight to Today with no tour.
 4. **To switch it off**, remove the variable (or set it to anything but `true`) and redeploy. No build needed.
 
