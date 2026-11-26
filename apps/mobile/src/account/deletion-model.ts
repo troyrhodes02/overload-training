@@ -100,8 +100,8 @@ export function checkAgainView(
   }
   // The account answered, so it is intact whatever its data (OVE-255 #1): a
   // half-closed account can't answer /me (its token is refused), and an
-  // empty inventory only means it had no training data. "Data deleted" is
-  // said only when a delete itself answers identity_pending.
+  // empty inventory only means it had no training data. The app never says
+  // the data was deleted while the account still answers.
   return {
     kind: "form",
     fieldError: null,
