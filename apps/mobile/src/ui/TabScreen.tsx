@@ -1,4 +1,5 @@
 import { RefreshControl, ScrollView } from "react-native";
+import { TourScrollProvider, useTourScroll } from "../tour/anchors";
 import { ScreenHeader } from "./ScreenHeader";
 import { useTheme } from "./ThemeProvider";
 
@@ -14,6 +15,7 @@ export function TabScreen({
   subtitle,
   refreshing,
   onRefresh,
+  tourAnchor,
   children,
 }: {
   eyebrow?: string;
@@ -21,11 +23,16 @@ export function TabScreen({
   subtitle?: string;
   refreshing?: boolean;
   onRefresh?: () => void;
+  /** The tour points at this screen's title (Pitch 21k). */
+  tourAnchor?: string;
   children: React.ReactNode;
 }) {
   const { colors, spacing } = useTheme();
+  // The tour can bring an anchor on this screen into view (Pitch 21k RD-14).
+  const tour = useTourScroll();
   return (
     <ScrollView
+      {...tour.scrollProps}
       contentInsetAdjustmentBehavior="automatic"
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={{
@@ -44,8 +51,15 @@ export function TabScreen({
         ) : undefined
       }
     >
-      <ScreenHeader eyebrow={eyebrow} title={title} subtitle={subtitle} />
-      {children}
+      <TourScrollProvider scroller={tour.scroller}>
+        <ScreenHeader
+          eyebrow={eyebrow}
+          title={title}
+          subtitle={subtitle}
+          tourAnchor={tourAnchor}
+        />
+        {children}
+      </TourScrollProvider>
     </ScrollView>
   );
 }

@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { TourAnchor } from "../tour/anchors";
 import { Text } from "./Text";
 import { fontFamily, screenTitleSize } from "./theme";
 import { useTheme } from "./ThemeProvider";
@@ -14,25 +15,37 @@ export function ScreenHeader({
   eyebrow,
   title,
   subtitle,
+  tourAnchor,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
+  /** The tour points at this title (Pitch 21k). */
+  tourAnchor?: string;
 }) {
   const { spacing } = useTheme();
+  const heading = (
+    <Text
+      accessibilityRole="header"
+      style={{
+        ...screenTitleSize,
+        fontFamily: fontFamily.semibold,
+        letterSpacing: -0.3,
+      }}
+    >
+      {title}
+    </Text>
+  );
   return (
     <View style={{ gap: spacing.xs, paddingHorizontal: spacing.xs }}>
       {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-      <Text
-        accessibilityRole="header"
-        style={{
-          ...screenTitleSize,
-          fontFamily: fontFamily.semibold,
-          letterSpacing: -0.3,
-        }}
-      >
-        {title}
-      </Text>
+      {tourAnchor ? (
+        <TourAnchor name={tourAnchor} style={{ alignSelf: "flex-start" }}>
+          {heading}
+        </TourAnchor>
+      ) : (
+        heading
+      )}
       {subtitle ? (
         <Text tone="muted" style={{ fontSize: 15, lineHeight: 20 }}>
           {subtitle}

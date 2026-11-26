@@ -40,6 +40,7 @@ import { loggedWorkoutHref, summaryHref } from "../workout/routes";
 import { DeloadWeekBanner } from "../insights/DeloadWeekBanner";
 import { longDateLabel, weekdayLabel } from "./date";
 import { useStartOrResume, type StartState } from "./useStartWorkout";
+import { TourAnchor } from "../tour/anchors";
 import type { ThisWeekDto } from "@overload/shared/contracts/schedule";
 import { SCHEDULE_KEYS, useThisWeek } from "../api/schedule";
 import {
@@ -130,6 +131,7 @@ export function TodayView() {
     <TabScreen
       eyebrow={view ? longDateLabel(view.today) : undefined}
       title="Today"
+      tourAnchor="today-header"
       subtitle={view?.greeting}
       refreshing={today.isRefetching}
       onRefresh={() => {
@@ -192,14 +194,17 @@ function TodayContent({
       {/* Earlier days' workouts still in progress (Pitch 21g OVE-228). */}
       <UnfinishedWorkouts workouts={view.unfinishedWorkouts ?? []} />
       {(() => {
+        // The tour's "today's plan" (Pitch 21k): the day's block itself.
         const dashboard = (
-          <DashboardBlock
-            dashboard={view.dashboard}
-            stale={stale}
-            starter={checked}
-            onResolved={onResolved}
-            calls={calls}
-          />
+          <TourAnchor name="today-day">
+            <DashboardBlock
+              dashboard={view.dashboard}
+              stale={stale}
+              starter={checked}
+              onResolved={onResolved}
+              calls={calls}
+            />
+          </TourAnchor>
         );
         // The week strip only for the account's current day: a week read
         // from before midnight would describe another day.
@@ -337,13 +342,17 @@ function DayActions({
   return (
     <View style={{ gap: spacing.md }}>
       <StartNote state={starter.state} />
-      <Button
-        label={day.kind === "in_progress" ? "Resume workout" : "Start workout"}
-        loading={starter.state.kind === "busy"}
-        // A start needs the server; Resume only opens what it already has.
-        disabled={stale && day.kind === "pending"}
-        onPress={() => void starter.run(day)}
-      />
+      <TourAnchor name="today-start">
+        <Button
+          label={
+            day.kind === "in_progress" ? "Resume workout" : "Start workout"
+          }
+          loading={starter.state.kind === "busy"}
+          // A start needs the server; Resume only opens what it already has.
+          disabled={stale && day.kind === "pending"}
+          onPress={() => void starter.run(day)}
+        />
+      </TourAnchor>
     </View>
   );
 }

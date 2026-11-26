@@ -22,6 +22,7 @@ import { ApiFailure } from "./errors";
  *   MOBILE_MIN_APP_VERSION     default 0.0.0
  *   MOBILE_LATEST_APP_VERSION  default = the minimum (raised to it if lower)
  *   MOBILE_MAINTENANCE         on only when exactly "true" (advisory)
+ *   MOBILE_TOUR_AUTO_START     on only when exactly "true" (Pitch 21k)
  * An invalid value falls back to its default and logs the variable NAME once
  * per process — never the value — so a typo can never brick installed apps.
  */
@@ -93,6 +94,9 @@ export function mobileAppConfig(
     // web's visible placeholder: an unset address is null, and the app then
     // offers only Send feedback.
     supportEmail: env.NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL?.trim() || null,
+    // Pitch 21k RD-15: the app may start the tour by itself only when this
+    // is exactly "true". Unset everywhere until 21l begins the beta.
+    tourAutoStart: env.MOBILE_TOUR_AUTO_START === "true",
   };
 }
 

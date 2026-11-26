@@ -81,3 +81,36 @@ export const TOUR_CONTENT = [
 ] as const satisfies readonly TourStepContent[];
 
 export type TourStepId = (typeof TOUR_CONTENT)[number]["id"];
+
+/**
+ * The logging step's body where there is no Start button to point at (no
+ * plan, a rest day, a finished day): the web's `today-day` target body, moved
+ * here verbatim in Pitch 21k so both clients say the same thing.
+ */
+export const TOUR_LOGGING_NO_START_BODY =
+  "When a workout is planned, it appears here with a Start button. Each exercise gets its own card where you enter the weight and reps you lifted, and Overload uses them to tell you when to progress, hold, or deload.";
+
+/**
+ * The native tour's wording adaptations (Pitch 21k design §6, spec RD-3): only
+ * where the web sentence would be wrong on the phone. Every other native step
+ * uses its TOUR_CONTENT body verbatim. Kept here, beside the canonical words,
+ * so the tour has one source of copy.
+ */
+export const TOUR_NATIVE_BODIES: Partial<Record<TourStepId, string>> = {
+  // The phone has a tab bar, not a menu.
+  navigation:
+    "Use the tabs along the bottom to get around: Today, History, Plan, Goals, and More. Exercises, Gyms, and your settings are under More.",
+  // The phone's plan is read-only (Pitch 21h); it is built on the web.
+  plan: "Your training plan lives here: the weeks of your mesocycle, the sessions on the days you train, and the sets and rep ranges for each exercise. You build and edit it on the web; Overload follows the plan you write.",
+  // There is no "Account & app section of the navigation" on the phone.
+  settings:
+    "Your profile, time zone, and appearance live here in More. Come back to Take a tour to see this again any time.",
+};
+
+/** The native tour's introduction card (Pitch 21k design K1). */
+export const TOUR_NATIVE_INTRO = {
+  title: "Take a quick tour",
+  body: "A one-minute walk through the app. It only shows you around: nothing in your training changes, and you can skip at any time.",
+  start: "Start tour",
+  dismiss: "Not now",
+} as const;
