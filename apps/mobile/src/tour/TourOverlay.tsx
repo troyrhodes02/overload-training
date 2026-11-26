@@ -95,110 +95,129 @@ export function useReduceMotion(): boolean {
   return reduce;
 }
 
+/**
+ * `view` null means the run has ended: the Modal is told to dismiss
+ * (`visible` false) with nothing in it, and the provider unmounts it once iOS
+ * reports it gone (`onDismissed`), so it is dismissed the way React Native
+ * expects and never lingers over the app.
+ */
 export function TourOverlay({
   view,
   actions,
+  reduceMotion,
+  onDismissed,
 }: {
-  view: TourOverlayView;
+  view: TourOverlayView | null;
   actions: TourOverlayActions;
+  /** Read by the provider before the first run, so even it doesn't fade. */
+  reduceMotion: boolean;
+  onDismissed?: () => void;
 }) {
   const theme = useTheme();
   const window = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const reduceMotion = useReduceMotion();
   const band = visibleBand(window, insets);
   const spot =
-    view.kind === "step" && view.rect
+    view?.kind === "step" && view.rect
       ? spotlight(view.rect, band, window)
       : null;
 
   return (
     <Modal
       testID="tour-modal"
-      visible
+      visible={view !== null}
       transparent
       animationType={reduceMotion ? "none" : "fade"}
       presentationStyle="overFullScreen"
       statusBarTranslucent
       supportedOrientations={["portrait"]}
+      onDismiss={onDismissed}
       onRequestClose={
-        view.kind === "intro" ? actions.onDismiss : actions.onSkip
+        view?.kind === "intro" ? actions.onDismiss : actions.onSkip
       }
     >
-      <View
-        testID="tour-overlay"
-        accessibilityViewIsModal
-        // The overlay swallows every touch that isn't on the card.
-        onStartShouldSetResponder={() => true}
-        style={{ flex: 1 }}
-      >
+      {view ? (
         <View
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          pointerEvents="none"
-          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+          testID="tour-overlay"
+          accessibilityViewIsModal
+          // The overlay swallows every touch that isn't on the card.
+          onStartShouldSetResponder={() => true}
+          style={{ flex: 1 }}
         >
-          {spot ? (
-            <>
-              {dimRects(spot, window).map((r, i) => (
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+          >
+            {spot ? (
+              <>
+                {dimRects(spot, window).map((r, i) => (
+                  <View
+                    key={i}
+                    testID="tour-dim"
+                    style={{
+                      position: "absolute",
+                      left: r.x,
+                      top: r.y,
+                      width: r.width,
+                      height: r.height,
+                      backgroundColor: theme.overlay,
+                    }}
+                  />
+                ))}
                 <View
-                  key={i}
-                  testID="tour-dim"
+                  testID="tour-spotlight"
                   style={{
                     position: "absolute",
-                    left: r.x,
-                    top: r.y,
-                    width: r.width,
-                    height: r.height,
-                    backgroundColor: theme.overlay,
+                    left: spot.x,
+                    top: spot.y,
+                    width: spot.width,
+                    height: spot.height,
+                    borderRadius: theme.radius.lg,
+                    borderWidth: 2,
+                    borderColor: theme.colors.primary,
                   }}
                 />
-              ))}
+              </>
+            ) : (
               <View
-                testID="tour-spotlight"
-                style={{
-                  position: "absolute",
-                  left: spot.x,
-                  top: spot.y,
-                  width: spot.width,
-                  height: spot.height,
-                  borderRadius: theme.radius.lg,
-                  borderWidth: 2,
-                  borderColor: theme.colors.primary,
-                }}
+                testID="tour-dim"
+                style={{ flex: 1, backgroundColor: theme.overlay }}
               />
-            </>
+            )}
+          </View>
+
+          {view.kind === "locating" ? (
+            <Locating onSkip={actions.onSkip} bottomInset={insets.bottom} />
           ) : (
-            <View
-              testID="tour-dim"
-              style={{ flex: 1, backgroundColor: theme.overlay }}
+            <Card
+              view={view}
+              actions={actions}
+              placement={
+                view.kind === "intro"
+                  ? cardPlacement(null, band, window, "center")
+                  : cardPlacement(
+                      spot,
+                      band,
+                      window,
+                      view.variant === "note"
+                        ? "note"
+                        : spot
+                          ? "highlight"
+                          : "center",
+                    )
+              }
             />
           )}
         </View>
-
-        {view.kind === "locating" ? (
-          <Locating onSkip={actions.onSkip} bottomInset={insets.bottom} />
-        ) : (
-          <Card
-            view={view}
-            actions={actions}
-            placement={
-              view.kind === "intro"
-                ? cardPlacement(null, band, window, "center")
-                : cardPlacement(
-                    spot,
-                    band,
-                    window,
-                    view.variant === "note"
-                      ? "note"
-                      : spot
-                        ? "highlight"
-                        : "center",
-                  )
-            }
-          />
-        )}
-      </View>
+      ) : null}
     </Modal>
   );
 }

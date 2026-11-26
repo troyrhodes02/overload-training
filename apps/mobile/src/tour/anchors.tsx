@@ -3,6 +3,7 @@ import {
   type ComponentRef,
   useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useRef,
   type ReactNode,
@@ -18,7 +19,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { SafeAreaInsetsContext } from "react-native-safe-area-context";
-import { clampOffset, TAB_BAR_CLEARANCE } from "./geometry";
+import { clampOffset } from "./geometry";
 import type { Rect } from "./types";
 
 /**
@@ -146,11 +147,35 @@ function RegisteredAnchor({
   );
 }
 
+/** Gives the anchors inside a screen that screen's scroller. */
+export function TourScrollProvider({
+  scroller,
+  children,
+}: {
+  scroller: TourScroller;
+  children: ReactNode;
+}) {
+  return (
+    <TourScrollContext.Provider value={scroller}>
+      {children}
+    </TourScrollContext.Provider>
+  );
+}
+
+/** UITabBar's height above the bottom safe area. */
+const TAB_BAR_HEIGHT = 49;
+
 /**
- * Gives a screen's ScrollView to the anchors inside it, so the tour can bring
- * an off-screen target into view. Spread `scrollProps` on the ScrollView and
- * wrap its content in `Provider`. It only tracks where the view is; it never
- * scrolls on its own.
+ * Lets the tour bring an off-screen anchor into view on a tab root's
+ * ScrollView (RD-14). Spread `scrollProps` on the ScrollView and wrap its
+ * content in `<TourScrollProvider scroller={scroller}>`. It only tracks where
+ * the view is; it never scrolls on its own.
+ *
+ * A tab root (contentInsetAdjustmentBehavior "automatic", no navigation bar)
+ * rests at minus the top safe-area inset, and iOS adds the bottom inset and
+ * the tab bar below its content. Those insets are what UIKit adjusts with,
+ * not the scroll view's own `contentInset` (which stays 0), so they come from
+ * the safe area, never from the scroll event.
  */
 export function useTourScroll(): {
   scrollProps: {
@@ -160,53 +185,42 @@ export function useTourScroll(): {
     onContentSizeChange: (w: number, h: number) => void;
     scrollEventThrottle: number;
   };
-  Provider: (props: { children: ReactNode }) => ReactNode;
+  scroller: TourScroller;
 } {
-  // No provider (some screen tests): zero insets, and nothing ever scrolls.
+  // No provider (some screen tests): zero insets.
   const insets = useContext(SafeAreaInsetsContext) ?? { top: 0, bottom: 0 };
   const ref = useRef<ScrollViewInstance | null>(null);
-  // Until the first scroll event, a tab root rests at minus the top inset
-  // (contentInsetAdjustmentBehavior "automatic" with no navigation bar).
   const metrics = useRef({
     offset: -insets.top,
-    min: -insets.top,
+    top: insets.top,
+    bottom: insets.bottom,
     content: 0,
     layout: 0,
   });
+  useLayoutEffect(() => {
+    metrics.current.top = insets.top;
+    metrics.current.bottom = insets.bottom;
+  }, [insets.top, insets.bottom]);
   const scroller = useMemo<TourScroller>(
     () => ({
       scrollBy(delta) {
         const m = metrics.current;
         const target = clampOffset(m.offset + delta, {
-          min: m.min,
-          max: m.content - m.layout + insets.bottom + TAB_BAR_CLEARANCE,
+          min: -m.top,
+          max: m.content - m.layout + m.bottom + TAB_BAR_HEIGHT,
         });
         m.offset = target;
         ref.current?.scrollTo({ y: target, animated: false });
       },
     }),
-    [insets.bottom],
-  );
-  const Provider = useMemo(
-    () =>
-      function TourScrollProvider({ children }: { children: ReactNode }) {
-        return (
-          <TourScrollContext.Provider value={scroller}>
-            {children}
-          </TourScrollContext.Provider>
-        );
-      },
-    [scroller],
+    [],
   );
   return {
     scrollProps: {
       ref,
       scrollEventThrottle: 16,
       onScroll: (e) => {
-        const y = e.nativeEvent.contentOffset.y;
-        const top = e.nativeEvent.contentInset?.top;
-        metrics.current.offset = y;
-        if (typeof top === "number") metrics.current.min = -top;
+        metrics.current.offset = e.nativeEvent.contentOffset.y;
       },
       onLayout: (e) => {
         metrics.current.layout = e.nativeEvent.layout.height;
@@ -215,6 +229,6 @@ export function useTourScroll(): {
         metrics.current.content = h;
       },
     },
-    Provider,
+    scroller,
   };
 }

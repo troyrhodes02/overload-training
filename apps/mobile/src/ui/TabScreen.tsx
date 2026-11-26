@@ -1,5 +1,5 @@
 import { RefreshControl, ScrollView } from "react-native";
-import { useTourScroll } from "../tour/anchors";
+import { TourScrollProvider, useTourScroll } from "../tour/anchors";
 import { ScreenHeader } from "./ScreenHeader";
 import { useTheme } from "./ThemeProvider";
 
@@ -51,7 +51,7 @@ export function TabScreen({
         ) : undefined
       }
     >
-      <tour.Provider>
+      <TourScrollProvider scroller={tour.scroller}>
         <ScreenHeader
           eyebrow={eyebrow}
           title={title}
@@ -59,7 +59,7 @@ export function TabScreen({
           tourAnchor={tourAnchor}
         />
         {children}
-      </tour.Provider>
+      </TourScrollProvider>
     </ScrollView>
   );
 }

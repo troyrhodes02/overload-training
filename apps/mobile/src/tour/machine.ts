@@ -46,6 +46,15 @@ export type TourEvent =
       readonly path: string;
     }
   | { readonly type: "MISSING"; readonly token: number; readonly path: string }
+  /**
+   * The shown target moved (a refresh pushed the content, a list loaded) or
+   * can no longer be measured (null: explain the step in words instead).
+   */
+  | {
+      readonly type: "MOVED";
+      readonly token: number;
+      readonly rect: Rect | null;
+    }
   | { readonly type: "NEXT" }
   | { readonly type: "BACK" }
   | { readonly type: "SKIP" }
@@ -127,6 +136,21 @@ export function transition(
           target: event.type === "FOUND" ? event.target : null,
           expectedPath: event.path,
         },
+        effects: [],
+      };
+
+    case "MOVED":
+      if (
+        state.phase !== "showing" ||
+        event.token !== state.token ||
+        state.rect === null
+      ) {
+        return same(state);
+      }
+      return {
+        state: event.rect
+          ? { ...state, rect: event.rect }
+          : { ...state, rect: null, target: null },
         effects: [],
       };
 

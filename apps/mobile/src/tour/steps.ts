@@ -54,7 +54,7 @@ const PLACEMENT: Record<TourStepId, NativePlacement | null> = {
     tab: "today",
     kind: "anchored",
     targets: [
-      { anchor: "today-start", label: "the Start workout button" },
+      { anchor: "today-start", label: "the Start or Resume workout button" },
       {
         anchor: "today-day",
         label: "today's plan",
