@@ -174,14 +174,25 @@ Their word is the evidence. Don't ask for their password, don't look at their da
 
 | State | Status |
 | --- | --- |
-| 1. Engineering complete | **Yes.** On staging (PRs below) |
-| 2. Production-ready (release A merged) | Waiting for Gate 1 |
-| 3. TestFlight build created | No |
+| 1. Engineering complete | **Yes** (2026-11-26). Staging `845a486` (#347: #345, #346) and the release note `44817b5` (#348) |
+| 2. Production-ready (release A merged) | **Waiting for Gate 1:** release PR #349 (`release/21l-testflight-beta-a`), not merged |
+| 3. TestFlight build created | No (Gate 2) |
 | 4. Uploaded and processed | No |
 | 5. External review approved | No |
 | 6. Private invitations sent | No |
 | 7. Existing-user workout accepted | No |
 | 8. Milestone complete | No |
+
+**Delivery record (2026-11-26).**
+
+| | |
+| --- | --- |
+| Staging | `845a486` (#347), then `44817b5` (#348, the note; staging only until release B) |
+| Release A | PR #349. Its tree equals staging `845a486` plus its record. Not merged |
+| Staging update | group `b615c92c-89bc-4ccf-b34f-bc2b4c17b038`, iOS update `01a218d5-bea7-7743-beac-ed00fdbf169f`, commit `44817b5`, runtime `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`, build `c22ac9a0`. Optional: open it on your development build to see OVE-255 and About this app (it says Staging) |
+| Production runtime (expected) | `e8a58a870acefc8cfee5f9b8d7068dd6edd97c0b` (the EAS build reports the real one) |
+| EAS `production` environment | `EXPO_PUBLIC_OVERLOAD_ENV`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (ref `ycxvdiklpefyhdclxyau` checked) |
+| Checks | unit: web 2,785, mobile 775; integration 1,696 (isolation included); web build and bundle scan; iOS export both environments; review: nothing blocking |
 
 **Configuration matrix:** design.md §3.
 
