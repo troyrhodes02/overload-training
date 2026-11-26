@@ -18,6 +18,7 @@ import {
   useMe,
 } from "../api/queries";
 import { decideGate, toLoadable, type Gate } from "../app-state/gate";
+import { useConfirmUnauthorized } from "../accounts/use-confirm-unauthorized";
 import { RootNavigator } from "../app-state/RootNavigator";
 import { stackScreenOptions } from "../ui/stackOptions";
 import { SessionProvider, useSession } from "../auth/session";
@@ -32,10 +33,6 @@ import {
   UpdateRequiredGate,
 } from "../gates/Gates";
 import { LaunchingScreen } from "../ui/StateView";
-import {
-  FINISH_ON_WEB_NOTICE,
-  setSignedOutNotice,
-} from "../accounts/signed-out-notice";
 import { ThemeProvider, useThemeContext } from "../ui/ThemeProvider";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -128,17 +125,11 @@ function Gatekeeper({
 
   // The API refused the account itself after a refresh (no profile, deleted
   // identity): the session is unusable, so forget it.
-  const meCode = me.error?.code;
-  useEffect(() => {
-    if (meCode === "unauthorized" || meCode === "signed_out") {
-      // A 401 after a successful refresh: the sign-in exists but no account
-      // answers — a deletion that removed the data and couldn't close the
-      // sign-in. Say where to finish instead of signing out silently
-      // (Pitch 21j review #1).
-      if (meCode === "unauthorized") setSignedOutNotice(FINISH_ON_WEB_NOTICE);
-      void session.forgetSession();
-    }
-  }, [meCode, session]);
+  useConfirmUnauthorized({
+    code: me.error?.code,
+    refetch: me.refetch,
+    forget: session.forgetSession,
+  });
 
   const show = fontsLoaded && ready;
   useEffect(() => {
