@@ -11,9 +11,12 @@ import type {
   MePlanDto,
   ProfileDto,
   ProfileViewDto,
+  TourOfferedResponseDto,
+  TourOutcomeResponseDto,
   UpdateProfileRequest,
   UpdateProfileResponseDto,
 } from "@overload/shared/contracts/account";
+import type { TourOutcomeValue } from "@overload/shared/enums";
 import type {
   MarkReleaseNotesSeenResponseDto,
   ReleaseNotesDto,
@@ -239,5 +242,31 @@ export function useDeleteAccount() {
         // #2), so a slow delete is answered, not cut off mid-way.
         timeoutMs: DELETE_TIMEOUT_MS,
       }),
+  });
+}
+
+/**
+ * Pitch 21k T1 `PUT /me/tour/outcome`: the native tour was finished or
+ * skipped. The web tour's own recorder on the server (Onboarding Tour R7).
+ */
+export function recordTourOutcome(
+  api: Pick<ReturnType<typeof useApi>, "request">,
+  outcome: TourOutcomeValue,
+): Promise<TourOutcomeResponseDto> {
+  return api.request<TourOutcomeResponseDto>("/me/tour/outcome", {
+    method: "PUT",
+    body: { outcome },
+  });
+}
+
+/**
+ * Pitch 21k T2 `POST /me/tour/offered`: an automatically started tour has
+ * appeared, so its one offer is spent (Onboarding Tour R8).
+ */
+export function markTourOffered(
+  api: Pick<ReturnType<typeof useApi>, "request">,
+): Promise<TourOfferedResponseDto> {
+  return api.request<TourOfferedResponseDto>("/me/tour/offered", {
+    method: "POST",
   });
 }

@@ -2,6 +2,7 @@ import { NativeTabs } from "expo-router/native-tabs";
 import { useEffect } from "react";
 import { WhatsNewSheet } from "../../account/WhatsNewSheet";
 import { clearExportFiles } from "../../account/export-file";
+import { TourProvider } from "../../tour/TourProvider";
 import { fontFamily } from "../../ui/theme";
 import { useTheme } from "../../ui/ThemeProvider";
 
@@ -15,7 +16,9 @@ export default function TabsLayout() {
   // Pitch 21j RD-13: an export interrupted last time never lingers.
   useEffect(() => clearExportFiles(), []);
   return (
-    <>
+    // Pitch 21k: the native tour spans the tabs, and only the signed-in
+    // shell, so signing out or any gate unmounts it.
+    <TourProvider>
       {/* Pitch 21j A5: significant unseen updates, once per launch. */}
       <WhatsNewSheet />
       <NativeTabs
@@ -56,6 +59,6 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Label>More</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
-    </>
+    </TourProvider>
   );
 }

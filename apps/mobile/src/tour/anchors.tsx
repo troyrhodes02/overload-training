@@ -17,7 +17,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { clampOffset, TAB_BAR_CLEARANCE } from "./geometry";
 import type { Rect } from "./types";
 
@@ -38,7 +38,11 @@ export type TourScroller = {
 
 /** Measures a host view in window points, or null when it can't. */
 export type TourHost = ComponentRef<typeof View>;
-export type TourMeasure = (node: TourHost | null) => Promise<Rect | null>;
+export type TourMeasure = (
+  node: TourHost | null,
+  /** The anchor's name (tests answer by name). */
+  name: string,
+) => Promise<Rect | null>;
 
 export type TourAnchorEntry = {
   readonly name: string;
@@ -129,7 +133,7 @@ function RegisteredAnchor({
       () =>
         registry.register({
           name,
-          measure: () => measure(ref.current),
+          measure: () => measure(ref.current, name),
           scroller,
         }),
       [registry, name, measure, scroller],
@@ -158,7 +162,8 @@ export function useTourScroll(): {
   };
   Provider: (props: { children: ReactNode }) => ReactNode;
 } {
-  const insets = useSafeAreaInsets();
+  // No provider (some screen tests): zero insets, and nothing ever scrolls.
+  const insets = useContext(SafeAreaInsetsContext) ?? { top: 0, bottom: 0 };
   const ref = useRef<ScrollViewInstance | null>(null);
   // Until the first scroll event, a tab root rests at minus the top inset
   // (contentInsetAdjustmentBehavior "automatic" with no navigation bar).

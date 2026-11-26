@@ -19,6 +19,16 @@ export type NavState = {
 
 /** The signed-in shell's group in the root stack (`src/app/(tabs)`). */
 export const TABS_ROUTE = "(tabs)";
+/** Expo Router's own wrapper around the app's root layout. */
+export const ROUTER_ROOT = "__root";
+
+/** The app's root stack: Expo Router's `__root` wrapper, unwrapped. */
+function appRoot(state: NavState | undefined): NavState | undefined {
+  if (!state) return undefined;
+  const only = state.routes.length === 1 ? state.routes[0] : undefined;
+  if (only?.name === ROUTER_ROOT) return only.state;
+  return state;
+}
 
 function focused(state: NavState | undefined): NavRoute | undefined {
   if (!state || state.routes.length === 0) return undefined;
@@ -30,7 +40,8 @@ function focused(state: NavState | undefined): NavRoute | undefined {
  * True when something other than the tabs is on top of the root stack, or the
  * state is not known yet (treated as unsafe).
  */
-export function overTabs(state: NavState | undefined): boolean {
+export function overTabs(raw: NavState | undefined): boolean {
+  const state = appRoot(raw);
   if (!state) return true;
   const top = focused(state);
   if (!top) return true;
@@ -40,7 +51,7 @@ export function overTabs(state: NavState | undefined): boolean {
 }
 
 function tabsState(state: NavState | undefined): NavState | undefined {
-  return state?.routes.find((r) => r.name === TABS_ROUTE)?.state;
+  return appRoot(state)?.routes.find((r) => r.name === TABS_ROUTE)?.state;
 }
 
 /**

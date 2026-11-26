@@ -88,6 +88,7 @@ export function PlanScreen() {
     <TabScreen
       eyebrow="Your training block"
       title="Plan"
+      tourAnchor="plan-header"
       refreshing={query.isRefetching && !query.isPlaceholderData}
       onRefresh={() => void query.refetch()}
     >

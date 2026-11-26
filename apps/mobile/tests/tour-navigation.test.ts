@@ -60,3 +60,18 @@ describe("tabAtRoot", () => {
     expect(tabAtRoot(s, "plan")).toBe(true);
   });
 });
+
+it("reads through Expo Router's __root wrapper", () => {
+  const wrapped = (inner: NavState): NavState => ({
+    index: 0,
+    routes: [{ name: "__root", state: inner }],
+  });
+  expect(overTabs(wrapped(tabs()))).toBe(false);
+  const s = tabs({ goals: stack("index", "new") });
+  expect(tabAtRoot(wrapped(s), "goals")).toBe(false);
+  expect(
+    overTabs(
+      wrapped({ index: 1, routes: [...tabs().routes, { name: "feedback" }] }),
+    ),
+  ).toBe(true);
+});

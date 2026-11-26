@@ -114,6 +114,7 @@ export function GoalsScreen() {
     <TabScreen
       eyebrow="Strength targets"
       title="Goals"
+      tourAnchor="goals-header"
       refreshing={query.isRefetching}
       onRefresh={() => void query.refetch()}
     >
