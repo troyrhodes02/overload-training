@@ -70,8 +70,12 @@ function productionConfig(config: ConfigContext["config"]): ExpoConfig {
   });
   // As for staging: eas-cli evaluates this file once before it injects the EAS
   // environment, so a value that is simply absent is left to the bundle step
-  // and the launch check. A value that is present and wrong is refused.
-  const absent = (name: string) => !process.env[name]?.trim();
+  // and the launch check. A value that is present and wrong is refused. On the
+  // EAS builder (EAS_BUILD=true) the environment is injected, so an absent
+  // value is refused there: a Production build never ships without its key
+  // (21l review #2).
+  const onBuilder = process.env.EAS_BUILD === "true";
+  const absent = (name: string) => !onBuilder && !process.env[name]?.trim();
   const problems = [
     ...(env.ok ? [] : env.problems).filter(
       (p) =>

@@ -312,6 +312,47 @@ describe("app.config.ts for a Production target", () => {
     expect(() => load({ ...prod, ...bad })).toThrow(/\(Production\)/);
   });
 
+  it("on the EAS builder a Production build without its key is refused (review #2)", () => {
+    expect(() =>
+      load({
+        EXPO_PUBLIC_OVERLOAD_ENV: "production",
+        EAS_BUILD_PROFILE: "production",
+        EAS_BUILD: "true",
+      }),
+    ).toThrow(/EXPO_PUBLIC_SUPABASE_ANON_KEY is missing/);
+    // eas-cli's first local evaluation, before the environment is injected.
+    expect(
+      load({
+        EXPO_PUBLIC_OVERLOAD_ENV: "production",
+        EAS_BUILD_PROFILE: "production",
+      }).ios.bundleIdentifier,
+    ).toBe("app.overloadtraining");
+  });
+
+  it("app.config.ts's Production detection agrees with isProductionTarget", () => {
+    const cases = [
+      { environment: "production", profile: undefined, channel: undefined },
+      { environment: undefined, profile: "production", channel: undefined },
+      { environment: undefined, profile: undefined, channel: "production" },
+      { environment: "staging", profile: "development", channel: "staging" },
+      { environment: undefined, profile: undefined, channel: undefined },
+    ];
+    for (const t of cases) {
+      const env = {
+        EXPO_PUBLIC_OVERLOAD_ENV: t.environment,
+        EAS_BUILD_PROFILE: t.profile,
+        EAS_UPDATE_CHANNEL: t.channel,
+      };
+      let production: boolean;
+      try {
+        production = load(env).name === "Overload";
+      } catch (e) {
+        production = /\(Production\)/.test(String(e));
+      }
+      expect(production).toBe(isProductionTarget(t));
+    }
+  });
+
   it("the staging target still builds the development identity", () => {
     const c = load({
       EXPO_PUBLIC_OVERLOAD_ENV: "staging",

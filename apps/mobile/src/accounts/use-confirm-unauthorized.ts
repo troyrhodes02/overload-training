@@ -16,7 +16,13 @@ import {
  */
 export function useConfirmUnauthorized(options: {
   code: ClientErrorCode | undefined;
-  refetch: () => Promise<{ status: string; error: ApiError | null }>;
+  /** When the current error was recorded (TanStack's errorUpdatedAt). */
+  errorUpdatedAt?: number;
+  refetch: () => Promise<{
+    status: string;
+    error: ApiError | null;
+    errorUpdatedAt?: number;
+  }>;
   forget: () => Promise<void> | void;
   delayMs?: number;
 }): void {
@@ -33,13 +39,18 @@ export function useConfirmUnauthorized(options: {
     }
     if (code !== "unauthorized") return;
     let alive = true;
+    const since = latest.current.errorUpdatedAt;
     const t = setTimeout(() => {
-      void latest.current.refetch().then((result) => {
-        if (!alive) return;
-        const decision = afterSecondLook(secondLookOf(result));
-        if (decision.notice) setSignedOutNotice(FINISH_ON_WEB_NOTICE);
-        if (decision.forget) void latest.current.forget();
-      });
+      latest.current
+        .refetch()
+        .then((result) => {
+          if (!alive) return;
+          const decision = afterSecondLook(secondLookOf(result, since));
+          if (decision.notice) setSignedOutNotice(FINISH_ON_WEB_NOTICE);
+          if (decision.forget) void latest.current.forget();
+        })
+        // A refetch that throws decides nothing; the next answer will.
+        .catch(() => {});
     }, delayMs);
     return () => {
       alive = false;

@@ -22,6 +22,44 @@ const ENVIRONMENT = path.resolve(
 );
 
 describe("native fingerprint inputs", () => {
+  it("the evaluated staging config is unchanged (it is hashed into runtime 2e4a65d9cd; 21l review)", () => {
+    const saved = { ...process.env };
+    for (const k of Object.keys(process.env))
+      if (k.startsWith("EXPO_PUBLIC_") || k.startsWith("EAS_"))
+        delete process.env[k];
+    Object.assign(process.env, {
+      EXPO_PUBLIC_OVERLOAD_ENV: "staging",
+      EAS_BUILD_PROFILE: "development",
+    });
+    let config: unknown;
+    try {
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const mod = require("../app.config");
+        config = (mod.default ?? mod)({ config: {} });
+      });
+    } finally {
+      process.env = saved;
+    }
+    const sorted = (v: unknown): unknown =>
+      Array.isArray(v)
+        ? v.map(sorted)
+        : v && typeof v === "object"
+          ? Object.fromEntries(
+              Object.keys(v as object)
+                .sort()
+                .map((k) => [k, sorted((v as Record<string, unknown>)[k])]),
+            )
+          : v;
+    const hash = crypto
+      .createHash("sha256")
+      .update(JSON.stringify(sorted(config)))
+      .digest("hex");
+    expect(hash).toBe(
+      "73b342bb840520179a665a98dc384d82ecfe8f0d2e9de18e4324b2fcd4449ebb",
+    );
+  });
+
   it("environment.ts is byte-identical to installed build c22ac9a0's input (runtime 2e4a65d9cd; 21l RD-19)", () => {
     // app.config.ts loads it for every staging build and update, so any
     // change moves the staging runtime and cuts the installed development

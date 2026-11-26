@@ -129,6 +129,7 @@ function Gatekeeper({
   // identity): the session is unusable, so forget it.
   useConfirmUnauthorized({
     code: me.error?.code,
+    errorUpdatedAt: me.errorUpdatedAt,
     refetch: me.refetch,
     forget: session.forgetSession,
   });

@@ -17,6 +17,7 @@ import { plannedOccurrence } from "./support/planned";
 import { getTodayView, DASHBOARD_GOAL_LIMIT } from "@/lib/views/today";
 import { getWorkoutView } from "@/lib/views/workout";
 import { getMeView } from "@/lib/views/me";
+import { RELEASE_NOTES } from "@overload/shared/release-notes/entries";
 import { getTodayDashboard, getWorkout } from "@/lib/logging/queries";
 import {
   getOccurrenceProgression,
@@ -415,6 +416,9 @@ describe("getMeView", () => {
     });
   });
 
+  /** The catalog's newest significant entry (any catalog, so the release note can ship separately). */
+  const NEWEST_SIGNIFICANT = RELEASE_NOTES.find((e) => e.significant)!.id;
+
   /** An account old enough that significant notes are unseen (no seen row). */
   async function accountWithUnseenNotes(
     tour: "due" | "completed" | "skipped" | "offered" | "none",
@@ -456,9 +460,7 @@ describe("getMeView", () => {
     const a = await accountWithUnseenNotes("due");
     const me = await getMeView(a, "a@example.test", { tourAutoStartOn: false });
     expect(me.tour).toEqual({ autoStart: true });
-    expect(me.whatsNew?.entries.map((e) => e.id)).toContain(
-      "2026-11-26-overload-on-iphone",
-    );
+    expect(me.whatsNew?.entries[0]?.id).toBe(NEWEST_SIGNIFICANT);
     // Reading it changed nothing: the tour is still due, nothing is seen.
     const row = await getTestPrisma().tourProgress.findUniqueOrThrow({
       where: { userId: a.userId },
@@ -496,9 +498,7 @@ describe("getMeView", () => {
           tourAutoStartOn: on,
         });
         expect(me.tour).toEqual({ autoStart: false });
-        expect(me.whatsNew?.entries[0]?.id).toBe(
-          "2026-11-26-overload-on-iphone",
-        );
+        expect(me.whatsNew?.entries[0]?.id).toBe(NEWEST_SIGNIFICANT);
       }
       // Existing outcomes are never rewritten by a read.
       const row = await getTestPrisma().tourProgress.findUnique({
