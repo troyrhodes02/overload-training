@@ -13,6 +13,7 @@ import {
 } from "../src/accounts/signed-out-notice";
 import {
   afterSecondLook,
+  CONFIRM_UNAUTHORIZED_LOOKS,
   CONFIRM_UNAUTHORIZED_MS,
   secondLookOf,
 } from "../src/accounts/unauthorized-confirm";
@@ -43,13 +44,35 @@ describe("the second look (pure)", () => {
     expect(afterSecondLook("unauthorized")).toEqual({
       forget: true,
       notice: true,
+      again: false,
     });
     expect(afterSecondLook("signed_out")).toEqual({
       forget: true,
       notice: false,
+      again: false,
     });
-    expect(afterSecondLook("ok")).toEqual({ forget: false, notice: false });
-    expect(afterSecondLook("other")).toEqual({ forget: false, notice: false });
+    expect(afterSecondLook("ok")).toEqual({
+      forget: false,
+      notice: false,
+      again: false,
+    });
+    expect(afterSecondLook("other")).toEqual({
+      forget: false,
+      notice: false,
+      again: true,
+    });
+  });
+
+  it("an inconclusive look is repeated, then signs out quietly (never hangs)", () => {
+    expect(CONFIRM_UNAUTHORIZED_LOOKS).toBeGreaterThanOrEqual(2);
+    for (let looks = 1; looks < CONFIRM_UNAUTHORIZED_LOOKS; looks++) {
+      expect(afterSecondLook("other", looks).again).toBe(true);
+    }
+    expect(afterSecondLook("other", CONFIRM_UNAUTHORIZED_LOOKS)).toEqual({
+      forget: true,
+      notice: false,
+      again: false,
+    });
   });
 });
 
@@ -193,6 +216,104 @@ describe("the confirmation is cancelled or inconclusive", () => {
     await act(async () => {
       jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS);
     });
+    expect(forget).not.toHaveBeenCalled();
+  });
+});
+
+describe("an inconclusive look never leaves the launch screen waiting", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    setSignedOutNotice(null);
+  });
+  afterEach(() => jest.useRealTimers());
+
+  async function looksUntil(refetch: jest.Mock, forget: jest.Mock) {
+    const notice = await renderHook(() => {
+      useConfirmUnauthorized({
+        code: "unauthorized",
+        errorUpdatedAt: 1000,
+        refetch,
+        forget,
+      });
+      return useSignedOutNotice();
+    });
+    for (let i = 0; i < CONFIRM_UNAUTHORIZED_LOOKS; i++) {
+      await act(async () => {
+        jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS);
+      });
+    }
+    return notice;
+  }
+
+  it("cached answers every time: looks again, then signs out quietly", async () => {
+    const refetch = jest.fn(async () => ({ ...refused, errorUpdatedAt: 1000 }));
+    const forget = jest.fn();
+    const notice = await looksUntil(refetch, forget);
+    expect(refetch).toHaveBeenCalledTimes(CONFIRM_UNAUTHORIZED_LOOKS);
+    expect(forget).toHaveBeenCalledTimes(1);
+    expect(notice.result.current).toBeNull();
+    // And it stops there.
+    await act(async () => {
+      jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS * 3);
+    });
+    expect(refetch).toHaveBeenCalledTimes(CONFIRM_UNAUTHORIZED_LOOKS);
+  });
+
+  it("a refetch that keeps throwing: looks again, then signs out quietly", async () => {
+    const refetch = jest.fn(async () => {
+      throw new Error("boom");
+    });
+    const forget = jest.fn();
+    const notice = await looksUntil(refetch, forget);
+    expect(refetch).toHaveBeenCalledTimes(CONFIRM_UNAUTHORIZED_LOOKS);
+    expect(forget).toHaveBeenCalledTimes(1);
+    expect(notice.result.current).toBeNull();
+  });
+
+  it("a fresh refusal on a later look still shows the notice", async () => {
+    let n = 0;
+    const refetch = jest.fn(async () => {
+      n += 1;
+      return { ...refused, errorUpdatedAt: n === 1 ? 1000 : 5000 };
+    });
+    const forget = jest.fn();
+    const notice = await looksUntil(refetch, forget);
+    expect(refetch).toHaveBeenCalledTimes(2);
+    expect(forget).toHaveBeenCalledTimes(1);
+    expect(notice.result.current).not.toBeNull();
+  });
+
+  it("the account answers on a later look: nothing happens", async () => {
+    let n = 0;
+    const refetch = jest.fn(async () => {
+      n += 1;
+      return n === 1 ? { ...refused, errorUpdatedAt: 1000 } : answered;
+    });
+    const forget = jest.fn();
+    await looksUntil(refetch, forget);
+    expect(refetch).toHaveBeenCalledTimes(2);
+    expect(forget).not.toHaveBeenCalled();
+  });
+
+  it("leaving between looks stops them", async () => {
+    const refetch = jest.fn(async () => ({ ...refused, errorUpdatedAt: 1000 }));
+    const forget = jest.fn();
+    const view = await renderHook(() =>
+      useConfirmUnauthorized({
+        code: "unauthorized",
+        errorUpdatedAt: 1000,
+        refetch,
+        forget,
+      }),
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS);
+    });
+    await view.unmount();
+    await act(async () => {
+      jest.advanceTimersByTime(CONFIRM_UNAUTHORIZED_MS * 5);
+    });
+    expect(refetch).toHaveBeenCalledTimes(1);
     expect(forget).not.toHaveBeenCalled();
   });
 });
