@@ -415,14 +415,100 @@ describe("getMeView", () => {
     });
   });
 
-  it("a due tour comes first: no trial notice and no What's New with it", async () => {
+  /** An account old enough that significant notes are unseen (no seen row). */
+  async function accountWithUnseenNotes(
+    tour: "due" | "completed" | "skipped" | "offered" | "none",
+  ) {
     const a = await createTestAccount();
-    await getTestPrisma().tourProgress.create({ data: { userId: a.userId } });
-    const me = await getMeView(a, "a@example.test");
+    await getTestPrisma().profile.update({
+      where: { userId: a.userId },
+      data: { createdAt: new Date("2026-01-01T12:00:00Z") },
+    });
+    const now = new Date();
+    if (tour === "due") {
+      await getTestPrisma().tourProgress.create({ data: { userId: a.userId } });
+    } else if (tour === "completed" || tour === "skipped") {
+      await getTestPrisma().tourProgress.create({
+        data: {
+          userId: a.userId,
+          offeredAt: now,
+          outcome: tour,
+          outcomeAt: now,
+        },
+      });
+    } else if (tour === "offered") {
+      await getTestPrisma().tourProgress.create({
+        data: { userId: a.userId, offeredAt: now },
+      });
+    }
+    return a;
+  }
+
+  it("a due tour comes first when the automatic tour is on: no trial notice and no What's New with it", async () => {
+    const a = await accountWithUnseenNotes("due");
+    const me = await getMeView(a, "a@example.test", { tourAutoStartOn: true });
     expect(me.tour).toEqual({ autoStart: true });
     expect(me.trialNotice).toBeNull();
     expect(me.whatsNew).toBeNull();
   });
+
+  it("with the automatic tour off, a due account still gets What's New, and stays due (21l RD-22)", async () => {
+    const a = await accountWithUnseenNotes("due");
+    const me = await getMeView(a, "a@example.test", { tourAutoStartOn: false });
+    expect(me.tour).toEqual({ autoStart: true });
+    expect(me.whatsNew?.entries.map((e) => e.id)).toContain(
+      "2026-11-26-overload-on-iphone",
+    );
+    // Reading it changed nothing: the tour is still due, nothing is seen.
+    const row = await getTestPrisma().tourProgress.findUniqueOrThrow({
+      where: { userId: a.userId },
+    });
+    expect(row).toMatchObject({ offeredAt: null, outcome: null });
+    expect(
+      await getTestPrisma().releaseSeen.findUnique({
+        where: { userId: a.userId },
+      }),
+    ).toBeNull();
+  });
+
+  it("the variable decides when no override is given: unset is off", async () => {
+    const before = process.env.MOBILE_TOUR_AUTO_START;
+    const a = await accountWithUnseenNotes("due");
+    try {
+      delete process.env.MOBILE_TOUR_AUTO_START;
+      expect((await getMeView(a, "a@example.test")).whatsNew).not.toBeNull();
+      process.env.MOBILE_TOUR_AUTO_START = "true";
+      expect((await getMeView(a, "a@example.test")).whatsNew).toBeNull();
+      process.env.MOBILE_TOUR_AUTO_START = "TRUE";
+      expect((await getMeView(a, "a@example.test")).whatsNew).not.toBeNull();
+    } finally {
+      if (before === undefined) delete process.env.MOBILE_TOUR_AUTO_START;
+      else process.env.MOBILE_TOUR_AUTO_START = before;
+    }
+  });
+
+  it.each(["completed", "skipped", "offered", "none"] as const)(
+    "an account whose tour is %s gets What's New with the automatic tour on or off (RD-10)",
+    async (tour) => {
+      const a = await accountWithUnseenNotes(tour);
+      for (const on of [true, false]) {
+        const me = await getMeView(a, "a@example.test", {
+          tourAutoStartOn: on,
+        });
+        expect(me.tour).toEqual({ autoStart: false });
+        expect(me.whatsNew?.entries[0]?.id).toBe(
+          "2026-11-26-overload-on-iphone",
+        );
+      }
+      // Existing outcomes are never rewritten by a read.
+      const row = await getTestPrisma().tourProgress.findUnique({
+        where: { userId: a.userId },
+      });
+      expect(row?.outcome ?? null).toBe(
+        tour === "completed" || tour === "skipped" ? tour : null,
+      );
+    },
+  );
 
   it("a trial that has ended carries its notice, never purchasable", async () => {
     const a = await createTestAccount("UTC", undefined, {

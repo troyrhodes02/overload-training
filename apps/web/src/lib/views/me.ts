@@ -5,6 +5,7 @@ import { getEmailVerification } from "@/lib/accounts/verification";
 import { getAccountAppearance } from "@/lib/accounts/appearance";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
 import { getTourAutoStart } from "@/lib/tour/progress";
+import { mobileTourAutoStartEnabled } from "@/lib/api/mobile/version";
 import { getWhatsNewDialog } from "@/lib/release-notes/seen";
 import { getTrialNotice } from "@/lib/billing/trial-notice";
 import type { ResolvedEntitlement } from "@overload/shared/entitlements/types";
@@ -41,7 +42,7 @@ export function toEntitlementDto(
 export async function getMeView(
   account: Account,
   email: string,
-  opts: { now?: Date } = {},
+  opts: { now?: Date; tourAutoStartOn?: boolean } = {},
 ): Promise<MeDto> {
   const now = opts.now ?? new Date();
   const [
@@ -61,9 +62,15 @@ export async function getMeView(
     getWhatsNewDialog(account),
     getTrialNotice(account, { inAppShell: true, now }),
   ]);
-  // One dialog per launch, in the web layout's order.
-  const trialNotice = tourAutoStart ? null : notice;
-  const whatsNew = tourAutoStart || trialNotice ? null : unseen;
+  // One dialog per launch, in the web layout's order. A due tour takes the
+  // launch only when the phone will actually start it (the automatic tour is
+  // switched on); otherwise holding these back would hide What's New from a
+  // due account indefinitely (21l RD-22). `tour.autoStart` still says the
+  // account is due.
+  const tourFirst =
+    tourAutoStart && (opts.tourAutoStartOn ?? mobileTourAutoStartEnabled());
+  const trialNotice = tourFirst ? null : notice;
+  const whatsNew = tourFirst || trialNotice ? null : unseen;
   return {
     profile,
     email: verification.email,

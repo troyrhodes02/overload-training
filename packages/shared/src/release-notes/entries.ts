@@ -35,6 +35,23 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Pitch 21l (OVE-260, overload-onboarding): the iPhone app's private
+    // TestFlight beta, the first native announcement (21j RD-6). Significant:
+    // a new way to use the whole product. Internal, not public: it is an
+    // invite-only beta, not a store launch (21l RD-14, RD-24), and its words
+    // make sense to a web reader who isn't invited. No tour step: the tour
+    // already covers the app, and About this app is a support screen.
+    // PROVISIONAL date: written 2026-11-26. It reaches Production with the
+    // 21l release PR at the start of the beta; if that is a later day, change
+    // the id and date to that day BEFORE release (21l RD-25).
+    id: "2026-11-26-overload-on-iphone",
+    date: "2026-11-26",
+    title: "Overload on iPhone",
+    body: "Overload now has an iPhone app, in a private beta for invited testers. Log your workouts, follow your plan and this week's schedule, and check your history, goals, exercises, and gyms, all on the same account as the web. If you're invited, install it with Apple's TestFlight app and sign in as usual.",
+    significant: true,
+    audience: "internal",
+  },
+  {
     // This week's schedule on Today (OVE-240, overload-onboarding). Not
     // significant: an optional tool on Today, not a change to any call or
     // number. No tour step: the strip sits on Today in plain view and the

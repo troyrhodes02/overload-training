@@ -95,9 +95,21 @@ export function mobileAppConfig(
     // offers only Send feedback.
     supportEmail: env.NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL?.trim() || null,
     // Pitch 21k RD-15: the app may start the tour by itself only when this
-    // is exactly "true". Unset everywhere until 21l begins the beta.
-    tourAutoStart: env.MOBILE_TOUR_AUTO_START === "true",
+    // is exactly "true". Off until the owner turns it on for the beta (21l).
+    tourAutoStart: mobileTourAutoStartEnabled(env),
   };
+}
+
+/**
+ * Whether the iPhone app may start the tour by itself (Pitch 21k RD-15): on
+ * only when MOBILE_TOUR_AUTO_START is exactly "true". The one reader of the
+ * variable: app-config reports it, and the mobile `me` view uses it to decide
+ * whether a due tour takes the launch ahead of What's New (21l RD-22).
+ */
+export function mobileTourAutoStartEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.MOBILE_TOUR_AUTO_START === "true";
 }
 
 /**
