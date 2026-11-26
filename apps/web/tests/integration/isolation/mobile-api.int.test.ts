@@ -89,6 +89,8 @@ import { mobileBotChallenge } from "@/lib/api/mobile/version";
 import { POST as signUpRoute } from "@/app/api/mobile/v1/accounts/route";
 import { POST as passwordReset } from "@/app/api/mobile/v1/password-reset/route";
 import { PUT as putAppearance } from "@/app/api/mobile/v1/me/appearance/route";
+import { PUT as putTourOutcome } from "@/app/api/mobile/v1/me/tour/outcome/route";
+import { POST as postTourOffered } from "@/app/api/mobile/v1/me/tour/offered/route";
 import { POST as startWorkoutRoute } from "@/app/api/mobile/v1/workouts/route";
 import { GET as getWorkoutRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/route";
 import { POST as completeWorkoutRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/complete/route";
@@ -2148,6 +2150,8 @@ const CASES: Record<string, () => void> = {
           // Pitch 21j: the public support address, or null. Never a secret.
           supportEmail:
             process.env.NEXT_PUBLIC_OVERLOAD_SUPPORT_EMAIL?.trim() || null,
+          // Pitch 21k RD-15: off unless MOBILE_TOUR_AUTO_START is "true".
+          tourAutoStart: process.env.MOBILE_TOUR_AUTO_START === "true",
         });
       });
     }),
@@ -2801,6 +2805,81 @@ const CASES: Record<string, () => void> = {
         expect(old.status).toBe(426);
       });
     }),
+
+  // Pitch 21k: the native tour's progress (spec §6, §13 "Isolation").
+  "PUT api/mobile/v1/me/tour/outcome": () => {
+    accountEndpointMatrix("PUT /me/tour/outcome", putTourOutcome as Handler, {
+      method: "PUT",
+      json: { outcome: "completed" },
+    });
+    describe("PUT /me/tour/outcome: isolation", () => {
+      it("B's outcome changes only B's row, whatever id the body names", async () => {
+        const { a, b } = await twoAccounts(lib);
+        for (const acct of [a, b]) {
+          await getTestPrisma().tourProgress.upsert({
+            where: { userId: acct.userId },
+            create: { userId: acct.userId },
+            update: { offeredAt: null, outcome: null, outcomeAt: null },
+          });
+        }
+        const before = await getTestPrisma().tourProgress.findUnique({
+          where: { userId: a.userId },
+        });
+        const r = await call(putTourOutcome as Handler, {
+          token: tokenFor(b.userId),
+          method: "PUT",
+          json: { outcome: "skipped", userId: a.userId },
+        });
+        expect([r.status, r.body]).toEqual([200, { outcome: "skipped" }]);
+        expect(
+          (
+            await getTestPrisma().tourProgress.findUnique({
+              where: { userId: b.userId },
+            })
+          )?.outcome,
+        ).toBe("skipped");
+        expect(
+          await getTestPrisma().tourProgress.findUnique({
+            where: { userId: a.userId },
+          }),
+        ).toEqual(before);
+      });
+    });
+  },
+  "POST api/mobile/v1/me/tour/offered": () => {
+    accountEndpointMatrix("POST /me/tour/offered", postTourOffered as Handler, {
+      method: "POST",
+    });
+    describe("POST /me/tour/offered: isolation", () => {
+      it("B's call spends only B's offer and never reveals A's", async () => {
+        const { a, b } = await twoAccounts(lib);
+        for (const acct of [a, b]) {
+          await getTestPrisma().tourProgress.upsert({
+            where: { userId: acct.userId },
+            create: { userId: acct.userId },
+            update: { offeredAt: null, outcome: null, outcomeAt: null },
+          });
+        }
+        const r = await call(postTourOffered as Handler, {
+          token: tokenFor(b.userId),
+          method: "POST",
+          json: { userId: a.userId },
+        });
+        expect([r.status, r.body]).toEqual([200, { spent: true }]);
+        const rowOf = (userId: string) =>
+          getTestPrisma().tourProgress.findUniqueOrThrow({ where: { userId } });
+        expect((await rowOf(b.userId)).offeredAt).not.toBeNull();
+        expect((await rowOf(a.userId)).offeredAt).toBeNull();
+        // A second call by B answers the same as for any spent account.
+        const again = await call(postTourOffered as Handler, {
+          token: tokenFor(b.userId),
+          method: "POST",
+        });
+        expect(again.body).toEqual({ spent: false });
+        expect(again.text).not.toContain(a.userId);
+      });
+    });
+  },
 
   "PUT api/mobile/v1/me/appearance": () => {
     accountEndpointMatrix("PUT /me/appearance", putAppearance as Handler, {

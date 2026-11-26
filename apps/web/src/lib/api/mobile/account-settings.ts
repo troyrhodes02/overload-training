@@ -9,6 +9,7 @@ import { buildAccountExport, type AccountExport } from "@/lib/accounts/export";
 import { getBillingScreen } from "@/lib/billing/screen";
 import { proHighlights } from "@/lib/billing/pro-highlights";
 import { markReleaseNotesSeen } from "@/lib/release-notes/seen";
+import { markTourOffered, recordTourOutcome } from "@/lib/tour/progress";
 import {
   orderedReleaseNotes,
   toReleaseNoteView,
@@ -16,6 +17,8 @@ import {
 import type {
   MePlanDto,
   ProfileViewDto,
+  TourOfferedResponseDto,
+  TourOutcomeResponseDto,
   UpdateProfileResponseDto,
 } from "@overload/shared/contracts/account";
 import type {
@@ -104,4 +107,31 @@ export async function markSeen(
  */
 export function readExport(account: Account): Promise<AccountExport> {
   return buildAccountExport(account);
+}
+
+/**
+ * `PUT /me/tour/outcome` (Pitch 21k spec §6, T1): the native tour was finished
+ * or skipped. The one recorder the web's tour uses (Onboarding Tour R7): the
+ * latest outcome wins, a repeat sets the same value, and an outcome never
+ * re-arms the automatic offer. Only `outcome` is read; any id in the body is
+ * ignored, because the account is the verified token's.
+ */
+export async function putTourOutcome(
+  account: Account,
+  request: Request,
+): Promise<TourOutcomeResponseDto> {
+  const body = await readJsonObject(request, ACCOUNT_BODY_LIMIT);
+  return { outcome: await recordTourOutcome(account, body.outcome) };
+}
+
+/**
+ * `POST /me/tour/offered` (Pitch 21k spec §6, T2): an automatically started
+ * native tour has appeared, so the account's one offer is spent (Onboarding
+ * Tour R8). A repeat, or an account that was never due, changes nothing.
+ * No body is read.
+ */
+export function postTourOffered(
+  account: Account,
+): Promise<TourOfferedResponseDto> {
+  return markTourOffered(account);
 }

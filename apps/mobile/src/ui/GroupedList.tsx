@@ -1,4 +1,5 @@
 import { Children, Fragment, isValidElement } from "react";
+import { TourAnchor } from "../tour/anchors";
 import { Pressable, View } from "react-native";
 import { Symbol } from "./Symbol";
 import { Text } from "./Text";
@@ -85,6 +86,7 @@ export function ListRow({
   accessibilityHint,
   selected,
   valuePlacement = "trailing",
+  tourAnchor,
 }: {
   title: string;
   /** A second line under the title that explains this row, as in iOS Settings. */
@@ -96,11 +98,13 @@ export function ListRow({
   accessibilityHint?: string;
   selected?: boolean;
   valuePlacement?: ListRowValuePlacement;
+  /** The tour points at this row (Pitch 21k). */
+  tourAnchor?: string;
 }) {
   const { colors, spacing, controlHeight } = useTheme();
   const label = [title, subtitle, value].filter(Boolean).join(", ");
   const below = valuePlacement === "below";
-  const content = (
+  const row = (
     <View
       style={{
         minHeight: controlHeight.touchMin,
@@ -162,6 +166,11 @@ export function ListRow({
         />
       ) : null}
     </View>
+  );
+  const content = tourAnchor ? (
+    <TourAnchor name={tourAnchor}>{row}</TourAnchor>
+  ) : (
+    row
   );
   if (!onPress) {
     return (
