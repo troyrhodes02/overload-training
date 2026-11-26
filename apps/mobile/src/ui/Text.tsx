@@ -1,3 +1,4 @@
+import type { ComponentRef, Ref } from "react";
 import { Text as RNText, type TextProps as RNTextProps } from "react-native";
 import { fontFamily, textSize, type FontSize, type FontWeight } from "./theme";
 import { useTheme } from "./ThemeProvider";
@@ -10,6 +11,8 @@ export type TextProps = RNTextProps & {
   weight?: FontWeight;
   tone?: TextTone;
   align?: "left" | "center" | "right";
+  /** The host text, for focus (the tour moves VoiceOver to a card's title). */
+  ref?: Ref<ComponentRef<typeof RNText>>;
 };
 
 /**
