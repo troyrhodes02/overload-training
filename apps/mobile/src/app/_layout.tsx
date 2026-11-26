@@ -23,6 +23,7 @@ import { RootNavigator } from "../app-state/RootNavigator";
 import { stackScreenOptions } from "../ui/stackOptions";
 import { SessionProvider, useSession } from "../auth/session";
 import { APP_VERSION, ENV } from "../config/env";
+import { stagingAccessAllowed } from "../staging-access/key";
 import { runHermesChecks } from "../diagnostics/hermes-checks";
 import {
   MaintenanceGate,
@@ -115,6 +116,7 @@ function Gatekeeper({
     me: session.status === "present" ? toLoadable(me) : "idle",
     appVersion: APP_VERSION,
     upgradeRequiredSeen,
+    stagingAccess: stagingAccessAllowed(),
   });
 
   // The account's appearance is authoritative once signed in (RD-10).

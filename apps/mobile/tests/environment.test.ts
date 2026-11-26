@@ -119,19 +119,36 @@ describe("EAS profiles and channels", () => {
     ).toHaveLength(1);
   });
 
-  it("eas.json has exactly the two development profiles, on the staging channel only", () => {
+  it("eas.json: the development profiles stay on staging; one production profile on its own channel (21l)", () => {
     const eas = JSON.parse(
       fs.readFileSync(path.join(ROOT, "eas.json"), "utf8"),
     );
     expect(Object.keys(eas.build).sort()).toEqual([
       "development",
       "development-simulator",
+      "production",
     ]);
     expect(eas.build.development.channel).toBe("staging");
+    expect(eas.build.development.environment).toBe("development");
+    expect(eas.build.development.env).toEqual({
+      EXPO_PUBLIC_OVERLOAD_ENV: "staging",
+    });
     expect(eas.build.development.developmentClient).toBe(true);
     expect(eas.build.development.distribution).toBe("internal");
-    expect(eas.submit).toBeUndefined();
-    expect(JSON.stringify(eas)).not.toMatch(/production/i);
+    expect(JSON.stringify(eas.build.development)).not.toMatch(/production/i);
+    expect(eas.build["development-simulator"].extends).toBe("development");
+
+    const prod = eas.build.production;
+    expect(prod.channel).toBe("production");
+    expect(prod.environment).toBe("production");
+    expect(prod.env).toEqual({ EXPO_PUBLIC_OVERLOAD_ENV: "production" });
+    expect(prod.distribution).toBe("store");
+    expect(prod.developmentClient).toBeUndefined();
+    expect(prod.extends).toBeUndefined();
+    expect(prod.autoIncrement).toBe(true);
+    expect(eas.cli.appVersionSource).toBe("remote");
+    expect(JSON.stringify(prod)).not.toMatch(/staging|development/i);
+    expect(Object.keys(eas.submit ?? {})).toEqual(["production"]);
   });
 });
 
@@ -205,12 +222,19 @@ describe("app.config.ts refuses a bad environment before anything is bundled", (
   });
 
   it.each([
+    [{ EXPO_PUBLIC_SUPABASE_ANON_KEY: jwt({ ref: "ycxvdiklpefyhdclxyau" }) }],
+    [{ EXPO_PUBLIC_EXTRA: "https://www.overloadtraining.app" }],
+  ])("a staging target refuses %j", (bad) => {
+    expect(() => load({ ...good, ...bad })).toThrow(/staging only/);
+  });
+
+  // Pitch 21l: any Production signal is checked by the Production rules, so a
+  // half-set target is refused, never treated as staging.
+  it.each([
     [{ EAS_BUILD_PROFILE: "production" }],
     [{ EAS_UPDATE_CHANNEL: "production" }],
     [{ EXPO_PUBLIC_OVERLOAD_ENV: "production" }],
-    [{ EXPO_PUBLIC_SUPABASE_ANON_KEY: jwt({ ref: "ycxvdiklpefyhdclxyau" }) }],
-    [{ EXPO_PUBLIC_EXTRA: "https://www.overloadtraining.app" }],
-  ])("refuses %j", (bad) => {
-    expect(() => load({ ...good, ...bad })).toThrow(/staging only/);
+  ])("a Production signal with staging values is refused: %j", (signal) => {
+    expect(() => load({ ...good, ...signal })).toThrow(/\(Production\)/);
   });
 });

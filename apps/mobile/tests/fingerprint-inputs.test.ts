@@ -16,7 +16,50 @@ const TOKENS = path.resolve(
   "../../../packages/shared/src/design/tokens.ts",
 );
 
+const ENVIRONMENT = path.resolve(
+  __dirname,
+  "../../../packages/shared/src/mobile/environment.ts",
+);
+
 describe("native fingerprint inputs", () => {
+  it("environment.ts is byte-identical to installed build c22ac9a0's input (runtime 2e4a65d9cd; 21l RD-19)", () => {
+    // app.config.ts loads it for every staging build and update, so any
+    // change moves the staging runtime and cuts the installed development
+    // build off from staging updates. Production rules go in
+    // production-environment.ts, which the config loads only for Production.
+    const hash = crypto
+      .createHash("sha256")
+      .update(fs.readFileSync(ENVIRONMENT))
+      .digest("hex");
+    expect(hash).toBe(
+      "f46a5039255a64d25a0bbf75b48bb60e67950ef46b42996cd1ef3f965b92b5a4",
+    );
+  });
+
+  it("app.config.ts imports only environment.ts and tokens.ts at the top, and loads the Production module only for a Production target", () => {
+    const config = fs.readFileSync(
+      path.resolve(__dirname, "../app.config.ts"),
+      "utf8",
+    );
+    const imports = [...config.matchAll(/^import [^;]*? from "([^"]+)";/gms)]
+      .map((m) => m[1])
+      .filter((p) => !p.startsWith("expo/"));
+    expect(imports).toEqual([
+      "../../packages/shared/src/mobile/environment.ts",
+      "../../packages/shared/src/design/tokens.ts",
+    ]);
+    const requires = [...config.matchAll(/require\("([^"]+)"\)/g)].map(
+      (m) => m[1],
+    );
+    expect(requires).toEqual([
+      "../../packages/shared/src/mobile/production-environment.ts",
+    ]);
+    const body = config.slice(config.indexOf("function productionConfig"));
+    expect(body.indexOf("require(")).toBeLessThan(
+      body.indexOf("export default"),
+    );
+  });
+
   it("tokens.ts is unchanged since the installed build (runtime f98506f78a)", () => {
     const hash = crypto
       .createHash("sha256")
@@ -32,7 +75,8 @@ describe("native fingerprint inputs", () => {
       path.resolve(__dirname, "../app.config.ts"),
       "utf8",
     );
-    expect(config.match(/colors\.[a-z]+\.[a-zA-Z]+/g)).toEqual([
+    // Both targets (staging and, since 21l, Production) use the same two.
+    expect([...new Set(config.match(/colors\.[a-z]+\.[a-zA-Z]+/g))]).toEqual([
       "colors.light.background",
       "colors.dark.background",
     ]);

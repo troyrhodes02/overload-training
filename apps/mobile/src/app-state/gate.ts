@@ -47,6 +47,12 @@ export type GateInput = {
   me: Loadable<MeDto> | "idle";
   appVersion: string;
   upgradeRequiredSeen: boolean;
+  /**
+   * Whether this build may ask for the staging access key (staging only).
+   * When it can't, a Vercel protection answer is just "unreachable" (21l
+   * RD-27): Production never shows the staging access screen.
+   */
+  stagingAccess?: boolean;
 };
 
 /**
@@ -82,7 +88,7 @@ export function decideGate(i: GateInput): Gate {
     i.config.error?.code === "staging_protected" ||
     me?.error?.code === "staging_protected"
   ) {
-    return "staging_access";
+    return i.stagingAccess === false ? "unreachable" : "staging_access";
   }
 
   if (i.session === "none") return config ? "signed_out" : "unreachable";
