@@ -21,7 +21,11 @@
  * added" table (both pinned by tests/unit/tour-registry.test.ts).
  */
 
-import { TOUR_CONTENT, type TourStepId } from "@overload/shared/tour/content";
+import {
+  TOUR_CONTENT,
+  TOUR_LOGGING_NO_START_BODY,
+  type TourStepId,
+} from "@overload/shared/tour/content";
 
 export const TOUR_ANCHORS = [
   "today-heading",
@@ -88,7 +92,7 @@ const PLACEMENT: Record<TourStepId, TourPlacement> = {
       { anchor: "today-start" },
       {
         anchor: "today-day",
-        body: "When a workout is planned, it appears here with a Start button. Each exercise gets its own card where you enter the weight and reps you lifted, and Overload uses them to tell you when to progress, hold, or deload.",
+        body: TOUR_LOGGING_NO_START_BODY,
       },
     ],
   },

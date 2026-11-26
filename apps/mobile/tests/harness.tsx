@@ -12,6 +12,7 @@ export const appConfig = (over: Partial<AppConfigDto> = {}): AppConfigDto => ({
   signupMode: "public",
   botChallenge: null,
   supportEmail: null,
+  tourAutoStart: false,
   ...over,
 });
 
