@@ -21,6 +21,8 @@ What the owner does outside the codebase, one gate at a time. Each gate says wha
 
 **Next.** The run checks the Production deployment, syncs `main` into `staging`, and hands you Gate 2.
 
+**Done (2026-11-26).** Approved by the owner. #349 merged as `ee38aa4`, after the release review's should-fix (#351) was added. Production deployment `dpl_3AFTMG8NZ5z8rC5nUjLs9spQq5gd` is Ready. Synced into staging by #352.
+
 ## 3. Gate 2: build and upload (one command, your Apple sign-in)
 
 **Why you.** It needs your Apple ID sign-in and two-factor code, which a run can't do. Running it is also your approval of one EAS build.
@@ -175,8 +177,8 @@ Their word is the evidence. Don't ask for their password, don't look at their da
 | State | Status |
 | --- | --- |
 | 1. Engineering complete | **Yes** (2026-11-26). Staging `845a486` (#347: #345, #346) and the release note `44817b5` (#348) |
-| 2. Production-ready (release A merged) | **Waiting for Gate 1:** release PR #349 (`release/21l-testflight-beta-a`), not merged |
-| 3. TestFlight build created | No (Gate 2) |
+| 2. Production-ready (release A merged) | **Yes** (2026-11-26). `main` `ee38aa4` (#349), deployment `dpl_3AFTMG8NZ5z8rC5nUjLs9spQq5gd` Ready, synced by #352 |
+| 3. TestFlight build created | **Waiting for Gate 2** (§3) |
 | 4. Uploaded and processed | No |
 | 5. External review approved | No |
 | 6. Private invitations sent | No |
@@ -188,11 +190,14 @@ Their word is the evidence. Don't ask for their password, don't look at their da
 | | |
 | --- | --- |
 | Staging | `845a486` (#347), then `44817b5` (#348, the note; staging only until release B) |
-| Release A | PR #349. Its tree equals staging `845a486` plus its record. Not merged |
-| Staging update | group `b615c92c-89bc-4ccf-b34f-bc2b4c17b038`, iOS update `01a218d5-bea7-7743-beac-ed00fdbf169f`, commit `44817b5`, runtime `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`, build `c22ac9a0`. Optional: open it on your development build to see OVE-255 and About this app (it says Staging) |
-| Production runtime (expected) | `e8a58a870acefc8cfee5f9b8d7068dd6edd97c0b` (the EAS build reports the real one) |
+| Release A | PR #349, merged as `main` `ee38aa4`. Its tree equals staging `845a486` plus `805e27f` (#351, the release-review fix) plus its record. It does not carry the note |
+| Production deployment | `dpl_3AFTMG8NZ5z8rC5nUjLs9spQq5gd` from `ee38aa4`, Ready. Live checks: `app-config` 200 with `tourAutoStart: false` and `minimumAppVersion` `0.0.0`; `/me` 401 `unauthorized` with no token or a bad one; a missing or malformed version header gets 400; the apex 308s to www |
+| Sync | #352 (merge commit `8bcc4f1`). `main` is an ancestor of `staging` |
+| Staging update (latest) | group `3cbb7ae0-3b28-4989-ad11-8ad54d1066a5`, iOS update `01a2193c-1bee-7b27-8d13-7a4909d54bc5`, commit `8bcc4f1`, runtime `2e4a65d9…`, build `c22ac9a0` (carries #351) |
+| Staging update (earlier) | group `b615c92c-89bc-4ccf-b34f-bc2b4c17b038`, iOS update `01a218d5-bea7-7743-beac-ed00fdbf169f`, commit `44817b5`, runtime `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c`, build `c22ac9a0`. Optional: open it on your development build to see OVE-255 and About this app (it says Staging) |
+| Production runtime (expected) | `920ec3f2fadf247795ba7876b975db0d35706fec`, measured locally at `ee38aa4`; the EAS build reports the real one. The earlier `e8a58a87…` came from a malformed local command |
 | EAS `production` environment | `EXPO_PUBLIC_OVERLOAD_ENV`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (ref `ycxvdiklpefyhdclxyau` checked) |
-| Checks | unit: web 2,785, mobile 775; integration 1,696 (isolation included); web build and bundle scan; iOS export both environments; review: nothing blocking |
+| Checks (release branch) | lint, typecheck, format; unit: web 2,785, mobile 781; integration 1,696 (isolation included); web build and bundle scan; `eas config --profile production` evaluates as Overload / `app.overloadtraining` / 1.0.0 / channel `production`; release-diff review: nothing blocking, one should-fix fixed (#351) |
 
 **Configuration matrix:** design.md §3.
 
