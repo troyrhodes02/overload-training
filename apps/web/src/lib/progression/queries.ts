@@ -1,5 +1,7 @@
 import "server-only";
 import { planSnapshot } from "@/lib/logging/snapshot";
+import { WING_IT_NAME } from "@overload/shared/logging/wing-it";
+import type { StrengthPerformance } from "@overload/shared/progression/history";
 import { isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb } from "@/lib/data/account-db";
@@ -258,6 +260,76 @@ export async function gatherRows(
   });
 }
 
+/**
+ * A performance as the strength reads see it (records, trends, Sessions,
+ * goals): its strength facts and display context, never a plan range.
+ * Every PerformanceRow is one; a Wing-It row (Pitch 25) is one with
+ * `wingIt: true` and is never judged by the engine (RD-25).
+ */
+export type StrengthRow = {
+  perf: StrengthPerformance;
+  loggedSessionId: string;
+  gymName: string | null;
+  gymArchived: boolean;
+  extraSets: Performance["workingSets"];
+  plannedExerciseId: string;
+  plannedExerciseName: string;
+  plannedSets: number;
+  sessionName: string | null;
+  createdAtIso: string;
+  finished: boolean;
+  wingIt?: boolean;
+};
+
+/**
+ * Every performance of the PERFORMED exercise in a Wing-It workout (Pitch 25):
+ * all its sets are working sets (no plan, so no extra sets), it is never a
+ * scheduled-deload week, and it carries no planned range. Strength reads only.
+ */
+export async function gatherWingItRows(
+  account: Account,
+  exerciseId: string,
+  db: AccountDb = account.db,
+): Promise<StrengthRow[]> {
+  const les = await db.loggedExercise.findMany({
+    where: { exerciseId, loggedSession: { kind: "wing_it" } },
+    include: {
+      sets: { orderBy: { setNumber: "asc" } },
+      gym: { select: { name: true, deletedAt: true } },
+      plannedExercise: { select: { name: true } },
+      loggedSession: { select: { status: true, scheduledFor: true } },
+    },
+  });
+  return les.map((le) => {
+    const workingSets = le.sets.map((s) => ({
+      setNumber: s.setNumber,
+      weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
+      reps: s.reps,
+      rir: s.rir,
+    }));
+    return {
+      perf: {
+        loggedExerciseId: le.id,
+        dateIso: toIsoDate(le.loggedSession.scheduledFor),
+        scheduledDeload: false,
+        gymId: le.gymId,
+        workingSets,
+      },
+      loggedSessionId: le.loggedSessionId,
+      gymName: le.gym?.name ?? null,
+      gymArchived: le.gym?.deletedAt != null,
+      extraSets: [],
+      plannedExerciseId: le.plannedExerciseId,
+      plannedExerciseName: le.plannedExercise.name,
+      plannedSets: workingSets.length,
+      sessionName: WING_IT_NAME,
+      createdAtIso: le.createdAt.toISOString(),
+      finished: le.loggedSession.status === "complete",
+      wingIt: true,
+    };
+  });
+}
+
 /** One qualifying performance's session-level e1RM, with the set behind it. */
 export type QualifyingE1rm = {
   loggedExerciseId: string;
@@ -290,7 +362,13 @@ export async function getQualifyingSessionE1rms(
   gymId: string | null,
   db: AccountDb = account.db,
 ): Promise<QualifyingE1rm[]> {
-  const rows = await gatherRows(account, exerciseId, db);
+  // Wing-It sets are demonstrated strength too (Pitch 25 RD-10): they count
+  // toward goals exactly as a finished planned workout's sets do.
+  const [planned, wingIt] = await Promise.all([
+    gatherRows(account, exerciseId, db),
+    gatherWingItRows(account, exerciseId, db),
+  ]);
+  const rows: StrengthRow[] = [...planned, ...wingIt];
   const scoped = (
     gymId ? rows.filter((r) => r.perf.gymId === gymId) : rows
   ).filter((r) => r.finished && !r.perf.scheduledDeload);
