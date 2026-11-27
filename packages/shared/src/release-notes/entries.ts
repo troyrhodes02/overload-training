@@ -35,6 +35,21 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Pitch 25 (OVE-272, overload-onboarding): Wing-It workouts on the web and
+    // the iPhone. Significant: a new way to log training, from Today. No tour
+    // step (spec RD-30): the Today step already covers the day's actions, and
+    // the native tour's registry is left as it is under TestFlight review.
+    // PROVISIONAL date: written 2026-11-27. It reaches Production only in the
+    // owner's Pitch 25 release, after migration 9t; change the id and date to
+    // that day BEFORE the release merges, and keep it out of 21l's release B.
+    id: "2026-11-27-wing-it-workouts",
+    date: "2026-11-27",
+    title: "Wing-It workouts",
+    body: "Start a workout from Today without a plan, even on a planned day. Choose a gym, add exercises as you go, and finish when you're done. It's saved to History, and your plan stays exactly as it is.",
+    significant: true,
+    audience: "internal",
+  },
+  {
     // Pitch 21l (OVE-260, overload-onboarding): the iPhone app's private
     // TestFlight beta, the first native announcement (21j RD-6). Significant:
     // a new way to use the whole product. Internal, not public: it is an
