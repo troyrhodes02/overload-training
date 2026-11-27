@@ -24,8 +24,14 @@ export const SIGNED_OUT_DOORS = ["/login", "/signup"] as const;
  * read no account data, so they render for signed-in and signed-out visitors
  * alike; a signed-in visitor sees "Open Overload" instead of a signup action.
  * `/welcome` is the landing page that signed-out `/` is rewritten to.
+ * `/privacy` is the privacy policy (OVE-265), for the website and the app.
  */
-export const MARKETING_PATHS = ["/welcome", "/pricing", "/changelog"] as const;
+export const MARKETING_PATHS = [
+  "/welcome",
+  "/pricing",
+  "/changelog",
+  "/privacy",
+] as const;
 
 /** Next's metadata file routes: crawlers and browsers fetch them signed out. */
 const METADATA_ROUTES = [

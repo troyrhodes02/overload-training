@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PRIVACY_POLICY_PATH } from "@overload/shared/legal/privacy";
 import { OverloadLockup } from "@/components/brand/overload-lockup";
 import { ModeCta } from "./mode-cta";
 import { SiteLinks, SiteMobileNav } from "./marketing-nav";
@@ -41,6 +42,7 @@ const FOOTER_LINKS = [
   { href: "/pricing", label: "Pricing" },
   { href: "/changelog", label: "Changelog" },
   { href: "/support", label: "Support" },
+  { href: PRIVACY_POLICY_PATH, label: "Privacy Policy" },
 ] as const;
 
 export function MarketingFooter() {

@@ -280,6 +280,7 @@ describe("robots.txt (RD-15)", () => {
       "/pricing",
       "/changelog",
       "/support",
+      "/privacy", // OVE-265
       // Assets public pages need (review finding 1): JS/CSS, social card,
       // icons, brand images, and the landing screenshots.
       "/_next/static/",

@@ -6,6 +6,7 @@ import {
   USERNAME_HELP,
 } from "@overload/shared/accounts/validation";
 import type { SignUpRequest } from "@overload/shared/contracts/requests";
+import { PRIVACY_POLICY_URL } from "@overload/shared/legal/privacy";
 import type { SignUpResponseDto } from "@overload/shared/contracts/account";
 import { useApi } from "../../api/ApiProvider";
 import { ApiError, MESSAGES } from "../../api/errors";
@@ -281,6 +282,12 @@ export default function SignUpScreen() {
             onPress={() => void Linking.openURL(`${webOrigin()}/signup`)}
           />
         ) : null}
+        {/* OVE-265: how Overload handles what this form collects. */}
+        <Button
+          label="Privacy Policy"
+          variant="text"
+          onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+        />
       </FormScreen>
     </>
   );

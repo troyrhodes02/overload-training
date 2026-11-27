@@ -193,7 +193,7 @@ Their word is the evidence. Don't ask for their password, don't look at their da
 | Bundle id | `app.overloadtraining` (registered at Gate 2) |
 | App Store Connect app | name and app id recorded at Gate 2 |
 | Export compliance | `ITSAppUsesNonExemptEncryption = NO` in the build |
-| Privacy policy URL | Gate 4 item 1 |
+| Privacy policy URL | `https://www.overloadtraining.app/privacy` (OVE-265; live once its release merges, see `../chores/ove-265-privacy-policy/runbook.md`) |
 | Internal group | Gate 3 |
 | External group | "Friends", no public link (Gate 4) |
 

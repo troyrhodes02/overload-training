@@ -4,7 +4,7 @@
  * server outcome to the web's words, never claims success before the server
  * (or the token) says so, and afterwards leaves nothing private behind.
  */
-import { Alert, Share } from "react-native";
+import { Alert, Linking, Share } from "react-native";
 import {
   act,
   fireEvent,
@@ -477,6 +477,27 @@ describe("M1 More (21j final)", () => {
     );
     expect(mockRouter.push).toHaveBeenLastCalledWith("/more/delete-account");
     expect(screen.queryByText("Manage account on the web")).toBeNull();
+    await act(async () => {});
+  });
+
+  it("opens the public privacy policy in every build (OVE-265)", async () => {
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    serve({});
+    await render(
+      <Providers>
+        <MoreScreen />
+      </Providers>,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Privacy Policy" }),
+    );
+    expect(open).toHaveBeenCalledWith(
+      "https://www.overloadtraining.app/privacy",
+    );
+    expect(mockRouter.push).not.toHaveBeenCalledWith(
+      expect.stringContaining("privacy"),
+    );
+    open.mockRestore();
     await act(async () => {});
   });
 });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
+import { PRIVACY_POLICY_PATH } from "@overload/shared/legal/privacy";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
 import { signupMode } from "@/lib/accounts/signup-gate";
@@ -69,12 +70,18 @@ export default async function SignupPage() {
       footer={
         <div className="space-y-1">
           <p>Already have an account? {signInLink}</p>
-          <p>
+          <p className="flex flex-wrap justify-center gap-x-4 gap-y-1">
             <Link
               href="/support"
               className="font-medium text-muted-foreground underline-offset-4 hover:underline"
             >
               Need help?
+            </Link>
+            <Link
+              href={PRIVACY_POLICY_PATH}
+              className="font-medium text-muted-foreground underline-offset-4 hover:underline"
+            >
+              Privacy Policy
             </Link>
           </p>
         </div>
