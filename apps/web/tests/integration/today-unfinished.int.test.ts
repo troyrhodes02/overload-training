@@ -152,6 +152,7 @@ describe("an earlier day's unfinished workout stays on Today", () => {
     expect(view.unfinishedWorkouts).toEqual([
       {
         loggedSessionId: old.loggedSessionId,
+        kind: "planned",
         sessionName: "Day A",
         scheduledFor: b.sessions[0].date,
         gymName: b.gym.name,

@@ -3,7 +3,7 @@ import { RIR_MAX } from "@overload/shared/logging/rir";
 import {
   e1rmPoints,
   projectedE1rmPoints,
-  type HistoryRow,
+  type JudgedHistoryRow as HistoryRow,
 } from "@overload/shared/progression/history";
 import type { WorkingSet } from "@overload/shared/progression/engine";
 

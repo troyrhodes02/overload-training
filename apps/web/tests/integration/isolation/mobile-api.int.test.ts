@@ -160,6 +160,9 @@ import type {
   GoalsOverviewDto,
 } from "@overload/shared/contracts/goals";
 import { endpointKey, MOBILE_ENDPOINTS } from "../../support/mobile-endpoints";
+import { POST as startWingItRoute } from "@/app/api/mobile/v1/wing-it-workouts/route";
+import { GET as addCandidatesRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/exercise-candidates/route";
+import { PUT as addWingItExerciseRoute } from "@/app/api/mobile/v1/workouts/[loggedSessionId]/exercises/[exerciseId]/route";
 import {
   GET as meProfileRoute,
   PUT as meProfileUpdateRoute,
@@ -266,7 +269,7 @@ async function twoAccounts(lib: Lib) {
       where: { loggedSessionId },
     });
     for (const le of les) {
-      for (let n = 1; n <= le.plannedSets; n++) {
+      for (let n = 1; n <= (le.plannedSets ?? 0); n++) {
         await logSetAndReconcile(a, {
           loggedExerciseId: le.id,
           setNumber: n,
@@ -2128,6 +2131,255 @@ const ACCOUNT_DELETION_CASES: Record<string, () => void> = {
   },
 };
 
+/**
+ * Pitch 25: A's Wing-It workout, open, at A's gym, with one exercise and one
+ * saved set (so a second account has every kind of target to try).
+ */
+async function aWingIt(
+  a: Account,
+  plan: Awaited<ReturnType<typeof activePlan>>,
+) {
+  const started = await call(startWingItRoute as Handler, {
+    token: tokenFor(a.userId),
+    json: { gymId: plan.gym.id },
+  });
+  expect(started.status).toBe(200);
+  const loggedSessionId = started.body.loggedSessionId as string;
+  const added = await call(addWingItExerciseRoute as Handler, {
+    token: tokenFor(a.userId),
+    method: "PUT",
+    params: { loggedSessionId, exerciseId: plan.custom.id },
+  });
+  expect(added.status).toBe(200);
+  const loggedExerciseId = added.body.loggedExerciseId as string;
+  const set = await call(putSetRoute as Handler, {
+    token: tokenFor(a.userId),
+    method: "PUT",
+    json: { weightLbs: 100, reps: 8 },
+    params: { loggedExerciseId, setNumber: "1" },
+  });
+  expect(set.status).toBe(200);
+  return { loggedSessionId, loggedExerciseId };
+}
+
+const WING_IT_CASES: Record<string, () => void> = {
+  "POST api/mobile/v1/wing-it-workouts": () => {
+    accountEndpointMatrix(
+      "POST /wing-it-workouts",
+      startWingItRoute as Handler,
+      { json: { gymId: randomUUID() } },
+      400,
+    );
+    describe("POST /wing-it-workouts: isolation", () => {
+      it("B can't start at A's gym: it reads as unavailable, like a missing gym", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aSnap = await snapshotAccount(a.userId);
+        const post = (gymId: string) =>
+          call(startWingItRoute as Handler, {
+            token: tokenFor(b.userId),
+            json: { gymId, userId: a.userId },
+          });
+        const missing = await post(randomUUID());
+        const foreign = await post(plan.gym.id);
+        expect([foreign.status, foreign.body]).toEqual([
+          missing.status,
+          missing.body,
+        ]);
+        for (const marker of aMarkers(a, plan))
+          expect(foreign.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+      });
+
+      it("B's start never resumes, names, or is blocked by A's open workout", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const aw = await aWingIt(a, plan);
+        const aSnap = await snapshotAccount(a.userId);
+        const r = await call(startWingItRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { gymId: bGym.id },
+        });
+        expect(r.status).toBe(200);
+        expect(r.body.resumed).toBe(false);
+        expect(r.body.loggedSessionId).not.toBe(aw.loggedSessionId);
+        for (const marker of [...aMarkers(a, plan), aw.loggedSessionId])
+          expect(r.text).not.toContain(marker);
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+        // A's own start resumes A's workout.
+        const again = await call(startWingItRoute as Handler, {
+          token: tokenFor(a.userId),
+          json: { gymId: plan.gym.id },
+        });
+        expect(again.body).toEqual({
+          loggedSessionId: aw.loggedSessionId,
+          resumed: true,
+        });
+      });
+    });
+  },
+
+  "GET api/mobile/v1/workouts/[loggedSessionId]/exercise-candidates": () => {
+    accountEndpointMatrix(
+      "GET /workouts/{id}/exercise-candidates",
+      addCandidatesRoute as Handler,
+      { params: { loggedSessionId: randomUUID() } },
+      404,
+    );
+    describe("GET /workouts/{id}/exercise-candidates: isolation", () => {
+      it("B can't read A's Wing-It workout's picker", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aw = await aWingIt(a, plan);
+        const get = (id: string) =>
+          call(addCandidatesRoute as Handler, {
+            token: tokenFor(b.userId),
+            params: { loggedSessionId: id },
+          });
+        await expectLikeMissing(
+          a,
+          plan,
+          () => get(aw.loggedSessionId),
+          () => get(randomUUID()),
+        );
+      });
+
+      it("B's own picker lists the library and B's exercises, never A's custom exercise", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const started = await call(startWingItRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { gymId: bGym.id },
+        });
+        const r = await call(addCandidatesRoute as Handler, {
+          token: tokenFor(b.userId),
+          params: { loggedSessionId: started.body.loggedSessionId },
+        });
+        expect(r.status).toBe(200);
+        expect(r.body.candidates.length).toBeGreaterThan(0);
+        expect(r.text).not.toContain(plan.custom.id);
+        for (const marker of aMarkers(a, plan))
+          expect(r.text).not.toContain(marker);
+      });
+    });
+  },
+
+  "PUT api/mobile/v1/workouts/[loggedSessionId]/exercises/[exerciseId]": () => {
+    accountEndpointMatrix(
+      "PUT /workouts/{id}/exercises/{exerciseId}",
+      addWingItExerciseRoute as Handler,
+      {
+        method: "PUT",
+        params: { loggedSessionId: randomUUID(), exerciseId: randomUUID() },
+      },
+      404,
+    );
+    describe("PUT /workouts/{id}/exercises/{exerciseId}: isolation", () => {
+      it("B can't add to A's Wing-It workout, even its own exercise", async () => {
+        const { a, b, plan } = await twoAccounts(lib);
+        const aw = await aWingIt(a, plan);
+        const put = (id: string) =>
+          call(addWingItExerciseRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            params: { loggedSessionId: id, exerciseId: lib.bench.id },
+          });
+        await expectLikeMissing(
+          a,
+          plan,
+          () => put(aw.loggedSessionId),
+          () => put(randomUUID()),
+        );
+      });
+
+      it("B can't add A's custom exercise to its own workout: unavailable, like a missing one", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const started = await call(startWingItRoute as Handler, {
+          token: tokenFor(b.userId),
+          json: { gymId: bGym.id },
+        });
+        const put = (exerciseId: string) =>
+          call(addWingItExerciseRoute as Handler, {
+            token: tokenFor(b.userId),
+            method: "PUT",
+            params: {
+              loggedSessionId: started.body.loggedSessionId,
+              exerciseId,
+            },
+          });
+        const missing = await put(randomUUID());
+        const foreign = await put(plan.custom.id);
+        expect([foreign.status, foreign.body]).toEqual([
+          missing.status,
+          missing.body,
+        ]);
+        expect([foreign.status, foreign.body.error.code]).toEqual([
+          400,
+          "validation_error",
+        ]);
+        expect(foreign.text).not.toContain(a.userId);
+      });
+
+      it("B can't read, log in, remove from, change the gym of, or finish A's Wing-It workout", async () => {
+        const { a, b, plan, bGym } = await twoAccounts(lib);
+        const aw = await aWingIt(a, plan);
+        const bt = tokenFor(b.userId);
+        const attempts = [
+          () =>
+            call(getWorkoutRoute as Handler, {
+              token: bt,
+              params: { loggedSessionId: aw.loggedSessionId },
+            }),
+          () =>
+            call(putSetRoute as Handler, {
+              token: bt,
+              method: "PUT",
+              json: { weightLbs: 999, reps: 1 },
+              params: { loggedExerciseId: aw.loggedExerciseId, setNumber: "2" },
+            }),
+          () =>
+            call(setSkippedRoute as Handler, {
+              token: bt,
+              method: "PUT",
+              json: { skipped: true },
+              params: { loggedExerciseId: aw.loggedExerciseId },
+            }),
+          () =>
+            call(changeGymRoute as Handler, {
+              token: bt,
+              method: "PUT",
+              json: { gymId: bGym.id },
+              params: { loggedSessionId: aw.loggedSessionId },
+            }),
+          () =>
+            call(completeWorkoutRoute as Handler, {
+              token: bt,
+              method: "POST",
+              params: { loggedSessionId: aw.loggedSessionId },
+            }),
+          () =>
+            call(historyWorkoutRoute as Handler, {
+              token: bt,
+              params: { loggedSessionId: aw.loggedSessionId },
+            }),
+        ];
+        const aSnap = await snapshotAccount(a.userId);
+        for (const attempt of attempts) {
+          const r = await attempt();
+          expect([r.status, r.body.error.code]).toEqual([404, "not_found"]);
+          for (const marker of [...aMarkers(a, plan), aw.loggedSessionId])
+            expect(r.text).not.toContain(marker);
+        }
+        expect(await snapshotAccount(a.userId)).toEqual(aSnap);
+        // B's Today and History know nothing of it.
+        const bToday = await call(today as Handler, { token: bt });
+        expect(bToday.body.wingIt).toEqual({
+          open: null,
+          finishedToday: [],
+          blockedBy: null,
+        });
+        expect(bToday.text).not.toContain(aw.loggedSessionId);
+      });
+    });
+  },
+};
+
 const CASES: Record<string, () => void> = {
   "GET api/mobile/v1/app-config": () =>
     describe("GET /app-config", () => {
@@ -2934,6 +3186,7 @@ const CASES: Record<string, () => void> = {
   ...SCHEDULE_CASES,
   ...ACCOUNT_SETTINGS_CASES,
   ...ACCOUNT_DELETION_CASES,
+  ...WING_IT_CASES,
 };
 
 // The unknown-path 404, one case per method.

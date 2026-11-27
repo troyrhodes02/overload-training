@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { accountToday, requireAccount } from "@/lib/data/account";
 import { startWhileUnfinished } from "@overload/shared/logging/unfinished";
 import { movedDayOf } from "@/lib/logging/this-week";
+import { getWingItToday } from "@/lib/logging/wing-it";
+import { WING_IT_NAME } from "@overload/shared/logging/wing-it";
 
 export const metadata = { title: "Start workout · Overload" };
 
@@ -28,7 +30,28 @@ export default async function StartWorkoutPage({
   // while an earlier one is unfinished, say so once, with Resume as the
   // first choice; "Start today's anyway" carries on to the gym choice.
   if (proceed !== "1") {
-    const unfinished = await listUnfinishedWorkouts(account);
+    const [earlier, wingIt] = await Promise.all([
+      listUnfinishedWorkouts(account),
+      getWingItToday(account),
+    ]);
+    // Pitch 25 (RD-21): an open Wing-It workout with saved sets is named
+    // first — warned about like any unfinished workout, never forbidden.
+    const open = wingIt.open;
+    const unfinished =
+      open && open.setsLogged > 0
+        ? [
+            {
+              loggedSessionId: open.loggedSessionId,
+              sessionName: WING_IT_NAME,
+              scheduledFor: open.startedOn,
+              gymName: open.gymName,
+              setsLogged: open.setsLogged,
+            },
+            ...earlier.filter(
+              (w) => w.loggedSessionId !== open.loggedSessionId,
+            ),
+          ]
+        : earlier;
     const latest = unfinished[0];
     if (latest) {
       // A workout moved this week (OVE-240) starts on its new day: name

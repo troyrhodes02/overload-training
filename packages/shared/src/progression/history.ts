@@ -35,10 +35,21 @@ export const RECENT_SESSIONS = 10;
 /** Rep records listed, heaviest first (R10). Display constant, Bucket C. */
 export const REP_RECORDS_MAX = 6;
 
+/**
+ * What records, trends, and the Sessions list read from a performance: its
+ * identity, date, gym, deload flag, and working sets. A Wing-It workout's
+ * performance (Pitch 25) has these and nothing more — no planned range, no
+ * week — so it can be a record or a point but never be judged.
+ */
+export type StrengthPerformance = Pick<
+  Performance,
+  "loggedExerciseId" | "dateIso" | "scheduledDeload" | "gymId" | "workingSets"
+>;
+
 /** One performance of the scope, as the history page needs it. */
 export type HistoryRow = {
-  /** The engine-facing performance (its working sets, plan range, week). */
-  perf: Performance;
+  /** Its strength facts (a planned row passes its full engine performance). */
+  perf: StrengthPerformance;
   /** The workout was finished (complete), whether or not every set was logged. */
   finished: boolean;
   /** Sets beyond the plan: shown in Sessions, never a record or a point. */
@@ -85,8 +96,16 @@ export type TrendPoint = {
   workingSets: WorkingSet[];
 };
 
+/**
+ * A row the engine can judge: a planned performance, with its plan range and
+ * week (Pitch 25: only these reach callsBySession).
+ */
+export type JudgedHistoryRow = HistoryRow & { perf: Performance };
+
 /** Chronological (the engine's order), so "earliest" ties are well defined. */
-function chronological<T extends { perf: Performance }>(rows: T[]): T[] {
+function chronological<
+  T extends { perf: Pick<Performance, "dateIso" | "loggedExerciseId"> },
+>(rows: T[]): T[] {
   return rows.slice().sort((a, b) => byDate(a.perf, b.perf));
 }
 
@@ -197,7 +216,7 @@ export function computeRecords(
  * the whole scope — the current call.
  */
 export function callsBySession(
-  rows: HistoryRow[],
+  rows: JudgedHistoryRow[],
   opts: {
     externalLoad: boolean;
     noGymScope: boolean;
@@ -206,7 +225,7 @@ export function callsBySession(
      * §7.5): its recurring workout's comparable run ending at it. Omitted,
      * every earlier row in scope counts (the single-context history).
      */
-    segmentEndingAt?: (row: HistoryRow) => HistoryRow[];
+    segmentEndingAt?: (row: JudgedHistoryRow) => JudgedHistoryRow[];
   },
 ): Map<string, SessionCallKind> {
   const ordered = chronological(rows);

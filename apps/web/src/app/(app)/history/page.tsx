@@ -5,6 +5,7 @@ import {
   getHistoryWeek,
   type HistoryWeekDto,
   type LoggedHistoryDay,
+  type WingItHistoryRowDto,
 } from "@/lib/logging/history-week";
 import type { CardioOccurrenceDto } from "@/lib/cardio/queries";
 import { CardioHistoryLine } from "@/components/cardio/cardio-history-line";
@@ -35,6 +36,7 @@ type DayGroup = {
 function groupByDay(
   days: WeekDayDto[],
   cardio: CardioOccurrenceDto[],
+  wingIt: WingItHistoryRowDto[] = [],
 ): DayGroup[] {
   const groups = new Map<string, DayGroup>();
   const group = (dateIso: string) => {
@@ -46,6 +48,9 @@ function groupByDay(
     return g;
   };
   for (const d of days) group(d.dateIso).lifting.push(d);
+  // Pitch 25: a Wing-It workout belongs to no block, so the planned days
+  // never show it; it sits on its day, after that day's planned workout.
+  for (const w of wingIt) group(w.dateIso).lifting.push(w);
   for (const c of cardio) group(c.dateIso).cardio.push(c);
   return [...groups.values()].sort((a, b) =>
     a.dateIso < b.dateIso ? -1 : a.dateIso > b.dateIso ? 1 : 0,
@@ -226,7 +231,11 @@ export default async function HistoryPage({
 
       {week.view.kind === "active" ? (
         (() => {
-          const groups = groupByDay(week.view.days, week.view.cardio);
+          const groups = groupByDay(
+            week.view.days,
+            week.view.cardio,
+            week.view.wingItWorkouts,
+          );
           return groups.length === 0 ? (
             <EmptyWeek text="No training scheduled this week." />
           ) : (

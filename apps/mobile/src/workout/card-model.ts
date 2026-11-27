@@ -4,6 +4,7 @@ import {
   offerFor,
   type Offer,
 } from "@overload/shared/logging/set-entry";
+import { formatOpenEndedContext } from "@overload/shared/logging/wing-it";
 import type {
   ExerciseCardDto,
   LoggedWorkoutDetailDto,
@@ -69,6 +70,8 @@ export function savedWorkingSets(card: ExerciseCardDto): number {
  * how many extras there can be).
  */
 export function nextExtraSetNumber(card: ExerciseCardDto): number | null {
+  // Open-ended (Pitch 25): every set is the next one; there are no extras.
+  if (card.openEnded === true) return null;
   if (card.sets.length === 0) return null;
   if (card.sets.some((s) => !s.extra && !s.saved)) return null;
   return Math.max(...card.sets.map((s) => s.setNumber)) + 1;
@@ -82,6 +85,18 @@ export function cardContext(
     "sessionName" | "scheduledDeloadWeek" | "scheduledFor"
   >,
 ): { line: string; reference: string | null } {
+  // Open-ended (Pitch 25 RD-26): last time as reference, no rep range.
+  if (card.openEnded === true) {
+    return {
+      line: formatOpenEndedContext({
+        reference: card.referencePerformance,
+        isGymVariable: card.isGymVariable,
+        gymName: card.gymName,
+        referenceIso: workout.scheduledFor,
+      }),
+      reference: null,
+    };
+  }
   return formatCardContext({
     previous: card.previousPerformance,
     reference: card.referencePerformance,
@@ -112,6 +127,27 @@ export function parseRepsText(text: string): number {
   return /^\d+$/.test(t) ? Number(t) : Number.NaN;
 }
 
+/** An exercise of a Wing-It workout: no plan, sets logged as they go (Pitch 25). */
+export function isOpenEnded(card: ExerciseCardDto): boolean {
+  return card.openEnded === true;
+}
+
+/** A Wing-It workout (Pitch 25); an older server's answer is planned. */
+export function isWingIt(workout: Pick<WorkoutDto, "kind">): boolean {
+  return workout.kind === "wing_it";
+}
+
+/**
+ * The cards a workout shows: every one, except an open-ended exercise removed
+ * from a Wing-It workout (marked not done with nothing saved; the server
+ * hides it too, spec RD-23) — so a confirmed removal leaves at once.
+ */
+export function visibleExercises(workout: WorkoutDto): WorkoutDto["exercises"] {
+  return workout.exercises.filter(
+    (e) => !(isOpenEnded(e) && e.skipped && !e.sets.some((s) => s.saved)),
+  );
+}
+
 export type CardMode = "log" | "not_done" | "unavailable";
 
 /**
@@ -137,6 +173,9 @@ export function cardMode(card: ExerciseCardDto): CardMode {
  * unlogged planned set, else the last card (everything is logged).
  */
 export function initialExerciseIndex(workout: WorkoutDto): number {
+  // A Wing-It workout always has an open row on every card: it opens on the
+  // exercise added last, where the lifter left off.
+  if (isWingIt(workout)) return Math.max(0, workout.exercises.length - 1);
   const i = workout.exercises.findIndex(
     (e) => cardMode(e) === "log" && cardActiveSet(e) !== null,
   );
@@ -158,11 +197,13 @@ export function unfinishedExercises(
 ): { name: string; done: number; planned: number }[] {
   return workout.exercises
     .filter((e) => !e.skipped)
-    .map((e) => ({
-      name: e.performedExerciseName,
-      done: e.sets.filter((s) => s.saved && !s.extra).length,
-      planned: e.plannedSets,
-    }))
+    .map((e) => {
+      const done = e.sets.filter((s) => s.saved && !s.extra).length;
+      // Open-ended: nothing is "short of the plan"; one with no sets is
+      // listed so the lifter knows it is recorded as not done.
+      const planned = isOpenEnded(e) ? (done === 0 ? 1 : done) : e.plannedSets;
+      return { name: e.performedExerciseName, done, planned };
+    })
     .filter((e) => e.done < e.planned);
 }
 
