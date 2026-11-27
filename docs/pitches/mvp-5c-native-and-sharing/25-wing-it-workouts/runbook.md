@@ -7,9 +7,9 @@ What the owner does outside the codebase. The run delivered Pitch 25 to **stagin
 | Step | State |
 | --- | --- |
 | Migration `9t_wing_it_workouts` on `overload-dev` | Applied by the run (2026-11-27), through `scripts/operator/migrate-dev` |
-| Feature merged into `staging` | See §4 |
-| Staging web deployment | See §4 |
-| Expo **staging** update (runtime `2e4a65d9cd…`) | See §4 |
+| Feature merged into `staging` | Done — #361, `6c13019` |
+| Staging web deployment | Ready; staging API smoke-checked (§4) |
+| Expo **staging** update (runtime `2e4a65d9cd…`) | Published — group `05da3995…` (§4) |
 | Owner device check 1 — Wing-It without a plan | **Pending (owner)** |
 | Owner device check 2 — Wing-It beside a scheduled workout | **Pending (owner)** |
 | Production release (web + migration) | **Not authorized by this run** — a separate owner-run promotion |
@@ -77,12 +77,11 @@ Not part of this run. When the owner approves Pitch 25 for Production, follow `d
 
 ## 4. Staging delivery record
 
-Filled in when the feature merges and the update is published:
-
-- Feature PR → `staging`: _pending_
-- Staging web: `https://overload-training-git-staging-wtrhodes02-gmailcoms-projects.vercel.app`
-- Expo staging update group: _pending_ · iOS update id: _pending_
-- Runtime: `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c` (unchanged) · compatible build: `c22ac9a0` (Overload Dev)
+- Feature PR → `staging`: #361, squash `6c1301910f11f2d7e3eeea7bf28d1b0e1a4f4f3d` (tickets #362–#368).
+- Staging web: `https://overload-training-git-staging-wtrhodes02-gmailcoms-projects.vercel.app` (deployment Ready). Smoke: `GET /api/mobile/v1/app-config` 200 and unchanged (`tourAutoStart: false`); `POST /wing-it-workouts`, `GET /workouts/{id}/exercise-candidates`, `GET /today` without a token → JSON 401 (the new routes are deployed, not 404).
+- Expo staging update group: `05da3995-4390-4bd4-b8b8-1825dbabf3d4` · iOS update id: `01a21f50-acc6-76b0-a961-f02c7c98e2ee` · built from `6c13019`.
+- Runtime: `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c` (unchanged) · compatible build: `c22ac9a0` (Overload Dev). No new build is needed.
+- Owner accounts (overload-dev, made 2026-11-27): `p25-owner-noplan@example.com` (no plan, gym "P25 Garage"), `p25-owner-planned@example.com` (active block; Friday Upper A, Saturday Lower A).
 
 ## 5. What the run verified
 
