@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  WING_IT_COPY,
+  formatOpenEndedContext,
+  openEndedSchemeLine,
+} from "@overload/shared/logging/wing-it";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
 import { formatRepTarget } from "@overload/shared/plan/rep-target";
@@ -136,6 +141,10 @@ export function ExerciseCard({
   );
 
   const anySaved = exercise.sets.some((s) => s.saved);
+  // Pitch 25: an exercise of a Wing-It workout — no plan, sets logged as
+  // they go. Its old fields (plannedSets, plannedRepRange) are only for
+  // older app builds and are never shown.
+  const openEnded = exercise.openEnded === true;
   const plannedDone = exercise.sets
     .filter((s) => !s.extra)
     .every((s) => s.saved);
@@ -216,7 +225,7 @@ export function ExerciseCard({
         disabled={skipping}
         onClick={() => markSkipped(true)}
       >
-        Didn&apos;t do this exercise
+        {openEnded ? WING_IT_COPY.remove : <>Didn&apos;t do this exercise</>}
       </Button>
       {skipError ? (
         <p role="alert" className="text-xs text-destructive">
@@ -289,20 +298,32 @@ export function ExerciseCard({
   // This recurring workout's last time, or — when it has none — what else
   // exists, as reference only (Prescription-Aware Intelligence, Screen 1).
   // The reference never sets the weight box.
-  const { line: contextLine, reference: referenceLine } = formatCardContext({
-    previous: exercise.previousPerformance,
-    reference: exercise.referencePerformance,
-    workoutName,
-    plannedRepRange: exercise.plannedRepRange,
-    scheduledDeloadWeek,
-    isGymVariable: exercise.isGymVariable,
-    gymName: exercise.gymName,
-    referenceIso:
-      workoutDateIso ??
-      exercise.previousPerformance?.dateIso ??
-      exercise.referencePerformance?.dateIso ??
-      "",
-  });
+  const referenceIso =
+    workoutDateIso ??
+    exercise.previousPerformance?.dateIso ??
+    exercise.referencePerformance?.dateIso ??
+    "";
+  // Open-ended (Pitch 25 RD-26): last time as reference, no rep range.
+  const { line: contextLine, reference: referenceLine } = openEnded
+    ? {
+        line: formatOpenEndedContext({
+          reference: exercise.referencePerformance,
+          isGymVariable: exercise.isGymVariable,
+          gymName: exercise.gymName,
+          referenceIso,
+        }),
+        reference: null,
+      }
+    : formatCardContext({
+        previous: exercise.previousPerformance,
+        reference: exercise.referencePerformance,
+        workoutName,
+        plannedRepRange: exercise.plannedRepRange,
+        scheduledDeloadWeek,
+        isGymVariable: exercise.isGymVariable,
+        gymName: exercise.gymName,
+        referenceIso,
+      });
 
   function addExtraSet() {
     const next = Math.max(...exercise.sets.map((s) => s.setNumber)) + 1;
@@ -402,10 +423,16 @@ export function ExerciseCard({
             {exercise.performedExerciseName}
           </h2>
           <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
-            {exercise.plannedSets} ×{" "}
-            {formatRepTarget(
-              exercise.plannedRepRange.min,
-              exercise.plannedRepRange.max,
+            {openEnded ? (
+              openEndedSchemeLine(exercise.sets.filter((s) => s.saved).length)
+            ) : (
+              <>
+                {exercise.plannedSets} ×{" "}
+                {formatRepTarget(
+                  exercise.plannedRepRange.min,
+                  exercise.plannedRepRange.max,
+                )}
+              </>
             )}
             {!needsWeight ? " · bodyweight, reps only" : ""}
           </p>
@@ -690,7 +717,8 @@ export function ExerciseCard({
         </p>
       ) : null}
 
-      {plannedDone && pendingExtra === null ? (
+      {/* Open-ended: every row is the next set; there is no extra set. */}
+      {!openEnded && plannedDone && pendingExtra === null ? (
         <>
           <p className="ml-2 mt-2 text-sm text-muted-foreground">
             All {exercise.plannedSets} sets logged.

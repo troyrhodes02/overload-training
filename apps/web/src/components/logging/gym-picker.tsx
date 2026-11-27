@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { startWorkoutAction, changeGymAction } from "@/app/(app)/log/actions";
+import Link from "next/link";
+import {
+  startWorkoutAction,
+  startWingItAction,
+  changeGymAction,
+} from "@/app/(app)/log/actions";
+import { wingItBlockedResume } from "@overload/shared/logging/wing-it";
 
 export type GymOption = { id: string; name: string };
 
@@ -17,6 +23,8 @@ type Props = {
   confirmLabel?: string;
 } & (
   | { mode: "start"; sessionId: string; scheduledFor: string }
+  // Pitch 25: start (or resume) a Wing-It workout at the chosen gym.
+  | { mode: "wing_it" }
   | { mode: "change"; loggedSessionId: string; onDone?: () => void }
 );
 
@@ -32,6 +40,10 @@ export function GymPicker(props: Props) {
     currentGymId ?? gyms[0]?.id ?? "",
   );
   const [error, setError] = useState<string | null>(null);
+  // Pitch 25: the workout to resume instead, when the server names one.
+  const [resume, setResume] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const [pending, startTransition] = useTransition();
 
   if (gyms.length === 0) {
@@ -49,8 +61,19 @@ export function GymPicker(props: Props) {
 
   function submit() {
     setError(null);
+    setResume(null);
     startTransition(async () => {
-      if (props.mode === "start") {
+      if (props.mode === "wing_it") {
+        const res = await startWingItAction({ gymId: selected });
+        if (res.ok) router.push(`/log/${res.data.loggedSessionId}`);
+        else {
+          setError(res.error.message);
+          const id = res.error.details?.loggedSessionId;
+          const name = res.error.details?.sessionName;
+          if (res.error.code === "conflict" && id && name)
+            setResume({ id, name });
+        }
+      } else if (props.mode === "start") {
         const res = await startWorkoutAction({
           sessionId: props.sessionId,
           scheduledFor: props.scheduledFor,
@@ -94,7 +117,20 @@ export function GymPicker(props: Props) {
       </RadioGroup>
       {error ? (
         <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {resume ? (
+              <>
+                {" "}
+                <Link
+                  href={`/log/${resume.id}`}
+                  className="font-medium underline"
+                >
+                  {wingItBlockedResume(resume.name)}
+                </Link>
+              </>
+            ) : null}
+          </AlertDescription>
         </Alert>
       ) : null}
       <Button
@@ -104,7 +140,7 @@ export function GymPicker(props: Props) {
         disabled={pending || !selected}
       >
         {confirmLabel ??
-          (props.mode === "start" ? "Start logging" : "Save gym")}
+          (props.mode === "change" ? "Save gym" : "Start logging")}
       </Button>
     </div>
   );
