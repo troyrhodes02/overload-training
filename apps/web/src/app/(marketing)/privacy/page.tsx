@@ -97,7 +97,7 @@ const PROVIDERS = [
   {
     name: "Vercel",
     role: "Hosts the website and the server the iPhone app talks to.",
-    data: "Requests to the website and to the app's server pass through it. It keeps short-lived request and error logs, such as IP address, browser or device type, the page requested, and the time.",
+    data: "Requests to the website and to the app's server pass through it. It keeps request and error logs, such as IP address, browser or device type, the page requested, and the time, for a limited period under its own retention settings.",
   },
   {
     name: "Stripe",
@@ -339,10 +339,10 @@ export default function PrivacyPolicyPage() {
           We don&apos;t sell or rent your personal information, and we
           don&apos;t share it for advertising. No other Overload account can see
           your data. We share information only with the service providers below,
-          and only what each needs to do its job for us. Each is bound by its
-          terms with us to protect that information and use it only to provide
-          its service. Stripe and Apple also handle some information under their
-          own privacy policies.
+          and only what each needs to do its job for us. Each handles it under
+          its own terms of service and privacy and security commitments, which
+          you can read on its website. Stripe and Apple also handle some
+          information as independent companies under their own privacy policies.
         </P>
         <dl className="divide-y divide-border rounded-xl border border-border">
           {PROVIDERS.map((p) => (
@@ -427,8 +427,8 @@ export default function PrivacyPolicyPage() {
             expire;
           </li>
           <li>
-            our hosting provider&apos;s short-lived request and error logs,
-            until they expire;
+            our hosting provider&apos;s request and error logs, until they
+            expire under its retention settings;
           </li>
           <li>
             our sign-in provider&apos;s security log of sign-in events (such as
@@ -436,8 +436,10 @@ export default function PrivacyPolicyPage() {
             period;
           </li>
           <li>
-            Stripe&apos;s records of your subscription and payments, which
-            Stripe and the law require to be kept;
+            Stripe&apos;s records, including the customer record with your email
+            address and your subscription and payment history, which Stripe
+            keeps under its own policies and legal obligations (deleting your
+            Overload account doesn&apos;t delete them);
           </li>
           <li>
             a record of any admin action taken on your account (such as a
@@ -445,9 +447,8 @@ export default function PrivacyPolicyPage() {
             email;
           </li>
           <li>the hashed abuse-prevention counters described above;</li>
-          <li>
-            emails you sent us, and anything Apple keeps about TestFlight.
-          </li>
+          <li>emails you sent us, which stay in our support mailbox;</li>
+          <li>anything Apple keeps about your use of TestFlight.</li>
         </List>
       </Section>
 
@@ -504,31 +505,33 @@ export default function PrivacyPolicyPage() {
           above.
         </P>
         <P>
-          If you test the app through Apple&apos;s TestFlight, Apple shares some
-          information with us so we can run the beta: the email address you were
-          invited with (and your name, if you gave it), your installs and
-          sessions, crash reports from your device if you allow them, and any
-          feedback or screenshots you send through TestFlight. Apple&apos;s own
-          privacy policy covers what Apple collects. We use this only to run and
-          improve the beta.
+          If you test the app through Apple&apos;s TestFlight, Apple makes some
+          information available to us so we can run the beta, such as the email
+          address you were invited with (and your name, if you gave it), your
+          installs and sessions, crash reports from your device if you allow
+          them, and any feedback or screenshots you send through TestFlight.
+          Apple&apos;s own privacy policy covers what Apple collects. We use
+          this only to run and improve the beta.
         </P>
       </Section>
 
       <Section id="children">
         <P>
-          Overload isn&apos;t meant for children under 13, and we don&apos;t
-          knowingly collect their personal information. If you believe a child
-          under 13 has created an account, contact us and we will delete it.
+          Overload is meant for people 13 and older. Sign-up doesn&apos;t ask
+          for or check your age, and we don&apos;t knowingly collect personal
+          information from children under 13. If you believe a child under 13
+          has created an account, contact us and we will delete it.
         </P>
       </Section>
 
       <Section id="where">
         <P>
-          Overload is run from the United States, and your account and training
-          records are stored there. Some providers, such as Cloudflare, Stripe,
-          Expo, and Apple, also process information in other countries under
-          their own terms. If you use Overload from outside the United States,
-          your information is transferred there.
+          Overload is run from the United States. Our database and servers are
+          in the United States, so your account and training records are stored
+          there. Some providers, such as Cloudflare, Stripe, Expo, and Apple,
+          also process information in other countries under their own terms. If
+          you use Overload from outside the United States, your information is
+          transferred there.
         </P>
       </Section>
 
