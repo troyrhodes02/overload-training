@@ -39,6 +39,29 @@ The code backs every other statement in the policy. These depend on facts outsid
 | C13 | "Plan import ... isn't available. We will update this policy before it is."                                                                                                                                                      | `PLAN_IMPORT_ENABLED` stays off and `ANTHROPIC_API_KEY` stays unset in Production (both true on 2026-11-26).                                                                                                           | Before turning it on, add Anthropic and the uploaded files to the policy.                                                           |
 | C14 | No mention of one trial per person                                                                                                                                                                                               | `TRIAL_DEDUPE_ENABLED` is unset in Production, so `trial_claims` isn't used.                                                                                                                                           | If you turn it on, add: "a hashed form of your email address is kept after deletion so a new account doesn't start a second trial". |
 
+**Final accuracy pass (2026-11-26, before release).** The owner approved the release with qualified wording wherever a fact can't be confirmed. The page now:
+
+- **C2:** says Overload is meant for people 13 and older, and that sign-up doesn't ask for or check age.
+- **C3:** says the database and servers are in the United States. That was **verified**:
+  - The Production database host (`db.ycxvdiklpefyhdclxyau.supabase.co`) resolves to an address in AWS's published `us-east-1` range.
+  - Vercel's function region is `iad1` (`vercel project inspect`).
+  - Other providers are described as possibly processing elsewhere.
+- **C4:** names Resend from the documented Production setup (Pitch 18 runbook). The dashboard setting itself is unconfirmed.
+- **C5:** no longer claims contracts. Providers handle data "under their own terms of service and privacy and security commitments". Stripe and Apple are named as independent companies. Apple 5.1.1(i) asks for a statement that providers give equal protection. Add it once you've confirmed each provider's data processing terms.
+- **C6:** gives no backup retention period.
+- **Logs:** Vercel's are described as kept "for a limited period under its retention settings", with no "short-lived".
+- **C7:** says Stripe keeps the customer record (email, subscription and payment history) and that deleting the Overload account doesn't delete it.
+- **C8:** says support emails stay in the support mailbox.
+- **C12:** says Apple makes "such as" information available.
+
+Still owner commitments rather than verified facts:
+
+- **C1:** operator identity, and any address or entity requirement.
+- **C9:** limits on direct data access.
+- **C10:** email changes on request.
+- **C11:** in-app notice of significant changes.
+- **C13–C14:** keep the policy in step before turning on plan import or one trial per person.
+
 **Audit facts behind the policy** (Production, 2026-11-26):
 
 - **Not used:** analytics, advertising, tracking, or crash-reporting SDKs (web and mobile `package.json`), third-party script tags, location, contacts, camera, microphone, health data, and push notifications.
