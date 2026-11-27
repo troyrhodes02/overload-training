@@ -1,7 +1,12 @@
 import "server-only";
 import type { Account } from "@/lib/data/account";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
-import { BLIZZY, PRICE_DISPLAY, isCheckoutEnabled } from "@/lib/billing/config";
+import {
+  BLIZZY,
+  PRICE_DISPLAY,
+  isCheckoutEnabled,
+  isFreeProPeriod,
+} from "@/lib/billing/config";
 import type { DisplayState } from "@overload/shared/entitlements/types";
 import { billingCopy } from "@overload/shared/billing/copy";
 
@@ -28,6 +33,12 @@ export type BillingScreenDto = {
   problem: boolean;
   /** Whether paid checkout is enabled on this deployment (kill switch). */
   billingEnabled: boolean;
+  /**
+   * Whether the free-Pro period is on (OVE-266). Presentation only: the
+   * resolver has already granted Pro and checkout already refuses. The screen
+   * uses it to tell a paying lifter that their subscription is unchanged.
+   */
+  freeProPeriod: boolean;
   /**
    * Whether this request is from an app shell (OVE-112). The shell shows the
    * plan read-only: no Subscribe, no Manage billing, no promo reminder.
@@ -122,6 +133,7 @@ export async function getBillingScreen(
     prices: { monthly: PRICE_DISPLAY.monthly, annual: PRICE_DISPLAY.annual },
     problem: state === "grace",
     billingEnabled,
+    freeProPeriod: isFreeProPeriod(),
     inAppShell,
     cancelAtPeriodEnd: billing?.cancelAtPeriodEnd ?? false,
     endsOn,

@@ -370,3 +370,22 @@ describe("the trial, explained once on /pricing (OVE-118)", () => {
     expect(TRIAL_NOTE).not.toMatch(/no card\b/i);
   });
 });
+
+describe("/pricing during the free-Pro period (OVE-266)", () => {
+  it("says Pro is included for everyone, with no way to pay and no 'not on sale' line", async () => {
+    const html = await page(
+      "pricing",
+      off({ signupMode: "public", billingEnabled: false, freeProPeriod: true }),
+    );
+    const t = text(html);
+    expect(t).toContain("Included for everyone right now");
+    expect(t).toContain(
+      "Pro is currently included for everyone at no charge. Paid subscriptions are temporarily unavailable.",
+    );
+    expect(t).not.toContain("Not on sale yet");
+    expect(html).not.toContain('href="/settings/billing"');
+    expect(t.toLowerCase()).not.toMatch(
+      /lifetime|free forever for pro|pro is free forever/,
+    );
+  });
+});

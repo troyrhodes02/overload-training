@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { DomainError } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
-import { isCheckoutEnabled } from "@/lib/billing/config";
+import { isCheckoutEnabled, isFreeProPeriod } from "@/lib/billing/config";
 import { proHighlights } from "@/lib/billing/pro-highlights";
 import { trialNoticePhase } from "@/lib/billing/trial-notice-phase";
 import type { TrialNoticeData } from "@overload/shared/contracts/account";
@@ -24,6 +24,11 @@ export const getTrialNotice = cache(async function getTrialNotice(
   account: Account,
   opts: { inAppShell: boolean; now?: Date },
 ): Promise<TrialNoticeData | null> {
+  // During the free-Pro period (OVE-266) a trial's end changes nothing the
+  // lifter has, so neither "ending" nor "ended" is true to say. Nothing is
+  // recorded as shown, so a notice that is still due after the period ends
+  // follows the normal rules then.
+  if (isFreeProPeriod()) return null;
   try {
     const [entitlements, billing, profile] = await Promise.all([
       account.db.entitlement.findMany(),
