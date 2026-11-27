@@ -19,7 +19,7 @@ import {
   repsPoints,
   weightPoints,
   REP_RECORDS_MAX,
-  type HistoryRow,
+  type JudgedHistoryRow as HistoryRow,
   type LoadedRecordSet,
 } from "@overload/shared/progression/history";
 import { bestPerformance } from "@overload/shared/goals/progress";
