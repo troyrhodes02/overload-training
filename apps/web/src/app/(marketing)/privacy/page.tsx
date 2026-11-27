@@ -58,8 +58,11 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 function Section({ id, children }: { id: SectionId; children: ReactNode }) {
   const title = SECTIONS.find((s) => s.id === id)?.title;
   return (
-    <section aria-labelledby={id} className="scroll-mt-20 space-y-4">
-      <h2 id={id} className="text-2xl font-semibold tracking-tight">
+    <section aria-labelledby={id} className="space-y-4">
+      <h2
+        id={id}
+        className="scroll-mt-20 text-2xl font-semibold tracking-tight"
+      >
         {title}
       </h2>
       {children}
@@ -225,7 +228,8 @@ export default function PrivacyPolicyPage() {
           <li>
             Facts about the account itself: when you signed up, the last day you
             were active, whether you verified your email, your plan (Free, a Pro
-            trial, or Pro), and whether the account is active or suspended.
+            trial, or Pro), whether the account is active or suspended, and, for
+            some early accounts, the invitation campaign it signed up through.
           </li>
           <li>
             Small records that keep the app working the way you left it, such as
@@ -273,9 +277,11 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>
             To slow down automated abuse, we count sign-up and password-reset
-            attempts and requests to the app&apos;s server. These counters store
-            only a scrambled (hashed) key, never your network address or account
-            identifier in readable form.
+            attempts and requests to the app&apos;s server. Each counter is
+            stored under a one-way hash of your IP address (or, without one,
+            your browser details) or of your account identifier, not the value
+            itself. Sign-up and password-reset counters have no set deletion
+            date.
           </li>
           <li>
             The iPhone app sends its version with each request, so the server
@@ -285,15 +291,17 @@ export default function PrivacyPolicyPage() {
 
         <H3>What we don&apos;t collect</H3>
         <P>
-          We don&apos;t use advertising, analytics, or crash-reporting tools,
-          and we don&apos;t track you across other apps or websites. The iPhone
-          app doesn&apos;t use your location, contacts, camera, microphone, or
-          Apple Health. It doesn&apos;t send you push notifications.
+          We don&apos;t add advertising, analytics, or crash-reporting tools to
+          the website or the app, and we don&apos;t track you across other apps
+          or websites. (If you test the app through TestFlight and allow it,
+          Apple shares crash reports with us; see below.) The iPhone app
+          doesn&apos;t use your location, contacts, camera, microphone, or Apple
+          Health. It doesn&apos;t send you push notifications.
         </P>
         <P>
-          Plan import, a planned feature that would read a training plan you
-          paste or upload with the help of an AI service, isn&apos;t available.
-          We will update this policy before it is.
+          Plan import, a feature that reads a training plan you paste or upload
+          with the help of an AI service, is turned off. We will update this
+          policy before it&apos;s turned on.
         </P>
       </Section>
 
@@ -348,11 +356,14 @@ export default function PrivacyPolicyPage() {
         </dl>
         <P>
           <strong className="font-semibold">Inside Overload.</strong> Our admin
-          tools show your name, email, account status, sign-up and last-active
-          dates, plan, and any feedback you send. They don&apos;t show your
-          plans, workouts, goals, gyms, or cardio. We look at your account data
-          directly only when that&apos;s needed to run or secure the service, to
-          fix a problem you report, or when the law requires it.
+          tools show your name, username, email, time zone, account status,
+          sign-up and last-active dates, whether you finished the guided tour,
+          your plan and subscription status (including billing interval and
+          renewal date), and any feedback and screenshots you send. They
+          don&apos;t show your plans, workouts, goals, gyms, or cardio. We look
+          at your account data directly only when that&apos;s needed to run or
+          secure the service, to fix a problem you report, or when the law
+          requires it.
         </P>
         <P>
           We may also disclose information if the law requires it, to protect
@@ -405,8 +416,8 @@ export default function PrivacyPolicyPage() {
         <P>
           <strong className="font-semibold">Deleting your account</strong>{" "}
           deletes your profile, training records, gyms, goals, custom exercises,
-          and feedback from our database, removes your screenshots from storage,
-          and removes your sign-in. It first cancels any active Pro
+          and feedback from our database, then removes your screenshots from
+          storage and your sign-in. It first cancels any active Pro
           subscription. It can&apos;t be undone, so download a copy first if you
           want one. Some information can remain after deletion:
         </P>
@@ -416,8 +427,13 @@ export default function PrivacyPolicyPage() {
             expire;
           </li>
           <li>
-            our hosting providers&apos; short-lived request and error logs,
+            our hosting provider&apos;s short-lived request and error logs,
             until they expire;
+          </li>
+          <li>
+            our sign-in provider&apos;s security log of sign-in events (such as
+            IP address and device type), kept for that provider&apos;s retention
+            period;
           </li>
           <li>
             Stripe&apos;s records of your subscription and payments, which
@@ -425,13 +441,10 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>
             a record of any admin action taken on your account (such as a
-            suspension), kept with a random account identifier and no name or
+            suspension), kept with your former account identifier and no name or
             email;
           </li>
-          <li>
-            the hashed abuse-prevention counters described above, which hold no
-            name, email, or readable network address;
-          </li>
+          <li>the hashed abuse-prevention counters described above;</li>
           <li>
             emails you sent us, and anything Apple keeps about TestFlight.
           </li>
@@ -447,7 +460,8 @@ export default function PrivacyPolicyPage() {
             Export a copy of your account&apos;s records, including your profile
             and all your training, as a JSON file, from Settings on the website
             or More &rarr; Export your data in the app. It&apos;s free on every
-            plan.
+            plan. The file doesn&apos;t include your email address or screenshot
+            images; ask us if you want those.
           </li>
           <li>
             <strong className="font-semibold">Correct it.</strong> Change your
@@ -462,11 +476,15 @@ export default function PrivacyPolicyPage() {
           </li>
           <li>
             <strong className="font-semibold">Withdraw a choice.</strong>{" "}
-            Attaching a screenshot is always optional, and you can turn off
-            Overload&apos;s photo access in the iPhone&apos;s Settings. To stop
-            all use of your information, delete your account.
+            Attaching a screenshot is always optional, and the app sees only the
+            image you pick, never the rest of your photos. To stop all use of
+            your information, delete your account.
           </li>
         </List>
+        <P>
+          If your account is suspended, you can still export your data and
+          delete your account on the website.
+        </P>
         <P>
           Depending on where you live, you may have other rights, such as to ask
           what we hold about you, to object to or restrict some uses, or to
@@ -506,9 +524,11 @@ export default function PrivacyPolicyPage() {
 
       <Section id="where">
         <P>
-          Overload is run from the United States, and our providers store and
-          process your information in the United States. If you use Overload
-          from elsewhere, your information is transferred there.
+          Overload is run from the United States, and your account and training
+          records are stored there. Some providers, such as Cloudflare, Stripe,
+          Expo, and Apple, also process information in other countries under
+          their own terms. If you use Overload from outside the United States,
+          your information is transferred there.
         </P>
       </Section>
 

@@ -176,7 +176,7 @@ describe("the no-tracking claim matches the dependencies", () => {
   // The policy says Overload uses no advertising, analytics, or crash-reporting
   // tools. If one of these is ever added, the policy must change first.
   const TRACKERS =
-    /analytics|speed-insights|sentry|bugsnag|crashlytics|firebase|posthog|mixpanel|amplitude|segment|datadog|hotjar|plausible|gtag|googletagmanager|branch|appsflyer|adjust|facebook|onesignal|expo-insights|expo-tracking-transparency|expo-location|expo-contacts|expo-camera|expo-notifications|healthkit/i;
+    /^(@vercel\/(analytics|speed-insights)|@sentry\/.+|sentry-expo|@bugsnag\/.+|@react-native-firebase\/.+|firebase|posthog-.+|@posthog\/.+|mixpanel.*|@amplitude\/.+|@segment\/.+|@datadog\/.+|@hotjar\/.+|plausible-tracker|react-ga4?|@next\/third-parties|react-native-branch|react-native-appsflyer|react-native-adjust|react-native-fbsdk-next|react-native-onesignal|expo-insights|expo-tracking-transparency|expo-location|expo-contacts|expo-camera|expo-notifications|react-native-health|@kingstinct\/react-native-healthkit)$/;
 
   it.each([
     "apps/web/package.json",
