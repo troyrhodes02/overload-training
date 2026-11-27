@@ -39,6 +39,8 @@ export function shortOfPlan(
   e: LoggedWorkoutDetailDto["exercises"][number],
 ): { workingSets: number; plannedSets: number } | null {
   const workingSets = e.sets.filter((s) => !s.extra).length;
+  // A Wing-It exercise has no plan to be short of (Pitch 25).
+  if (e.openEnded === true) return null;
   return e.sets.length > 0 && workingSets < e.plannedSets
     ? { workingSets, plannedSets: e.plannedSets }
     : null;
