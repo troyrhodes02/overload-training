@@ -1,4 +1,5 @@
 import { PRICE_DISPLAY, TRIAL_DURATION_DAYS } from "@/lib/billing/config";
+import { FREE_PRO_PERIOD_NOTE } from "@overload/shared/billing/copy";
 
 /**
  * The public pages' words (design doc §6; spec RD-14). Kept in one module so
@@ -208,6 +209,9 @@ export const PRICING = {
   proCardNote: `Free for your first ${TRIAL_DURATION_DAYS} days.`,
   notOnSale:
     "Pro subscriptions aren't on sale yet. These are the prices when they are.",
+  /** The free-Pro period (OVE-266): the Pro card's badge and line. */
+  includedBadge: "Included for everyone right now",
+  freeProPeriod: FREE_PRO_PERIOD_NOTE,
 } as const;
 
 export const FREE_FEATURES = [

@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { ModeCta } from "@/components/marketing/mode-cta";
 import {
   NotOnSaleBadge,
+  ProAvailability,
   WhenBilling,
 } from "@/components/marketing/availability";
 import { publicPageMetadata } from "@/lib/marketing/site";
@@ -168,8 +169,8 @@ export default function PricingPage() {
                 month)
               </p>
               <p className="mt-1 text-sm font-medium">{PRICING.proCardNote}</p>
-              <WhenBilling
-                off={
+              <ProAvailability
+                notOnSale={
                   <div className="mt-3 space-y-1.5">
                     <NotOnSaleBadge />
                     <p className="text-sm text-muted-foreground">

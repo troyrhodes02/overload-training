@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BLIZZY } from "@/lib/billing/config";
+import { BLIZZY, isFreeProPeriod } from "@/lib/billing/config";
 import { requireAdmin } from "@/lib/data/admin/identity";
 import { getBillingOverview } from "@/lib/data/admin/billing";
 
@@ -28,6 +28,21 @@ export default async function AdminBillingPage() {
   return (
     <section className="space-y-6">
       <h1 className="text-xl font-semibold">Billing</h1>
+
+      {isFreeProPeriod() ? (
+        <div
+          role="status"
+          className="rounded-lg border border-border bg-muted/40 p-4 text-sm"
+        >
+          <p className="font-medium">The free-Pro period is on</p>
+          <p className="mt-1 text-muted-foreground">
+            Every account has Pro and checkout is refused
+            (OVERLOAD_FREE_PRO_PERIOD). The counts below are each account&apos;s
+            own plan, which is what it returns to when the period is turned off.
+            Existing subscriptions still renew in Stripe.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         {counts.map(([label, value]) => (

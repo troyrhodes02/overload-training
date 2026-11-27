@@ -222,6 +222,7 @@ describe("CTA matrix (design §6.9; RD-5/RD-6)", () => {
       signedIn: false,
       signupMode: "closed",
       billingEnabled: false,
+      freeProPeriod: false,
     });
     expect(resolveCta(FAIL_CLOSED_CONTEXT).primary.href).toBe("/login");
   });

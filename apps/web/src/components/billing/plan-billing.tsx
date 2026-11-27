@@ -14,7 +14,11 @@ import {
 } from "@/app/(app)/settings/billing/actions";
 import { sendVerificationEmailAction } from "@/app/(app)/settings/actions";
 import type { BillingScreenDto } from "@/lib/billing/screen";
-import { isConfirmingCheckout } from "@/lib/billing/pending";
+import { FREE_PRO_PERIOD_NOTE } from "@overload/shared/billing/copy";
+import {
+  isConfirmingCheckout,
+  subscriptionConfirmed,
+} from "@/lib/billing/pending";
 import {
   CHECKOUT_CANCELLED_MESSAGE,
   checkoutReturn,
@@ -199,6 +203,10 @@ export function PlanBilling({
     !confirming &&
     (screen.displayState === "free" || screen.displayState === "trial");
   const trial = screen.displayState === "trial";
+  // The free-Pro period (OVE-266) changes no real subscription: a paying
+  // lifter is told so plainly, never that it was paused or canceled.
+  const subscriptionDuringPeriod =
+    screen.freeProPeriod && subscriptionConfirmed(screen.displayState);
 
   return (
     <div className="space-y-5">
@@ -219,6 +227,13 @@ export function PlanBilling({
           <p className="mt-1 text-sm text-muted-foreground">
             {screen.explanation}
           </p>
+
+          {subscriptionDuringPeriod ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              {FREE_PRO_PERIOD_NOTE} Your subscription hasn&apos;t changed. Use
+              Manage billing to change or cancel it.
+            </p>
+          ) : null}
 
           {confirming ? (
             <div
@@ -394,11 +409,13 @@ export function PlanBilling({
             accent
           />
         </div>
-        <p className="text-xs text-muted-foreground">
-          Annual is {screen.prices.annual}/yr (about two months free). Billed
-          through Stripe. Renews automatically. Cancel anytime in Manage
-          billing.
-        </p>
+        {screen.displayState === "included" ? null : (
+          <p className="text-xs text-muted-foreground">
+            Annual is {screen.prices.annual}/yr (about two months free). Billed
+            through Stripe. Renews automatically. Cancel anytime in Manage
+            billing.
+          </p>
+        )}
       </section>
     </div>
   );

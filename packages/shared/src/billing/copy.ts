@@ -13,12 +13,25 @@ export type BillingCopyInput = {
   endsOn: string | null;
 };
 
+/**
+ * The free-Pro period's one sentence (OVE-266). Temporary and exact: never
+ * "free forever", "lifetime", or "complimentary" for an ordinary account.
+ */
+export const FREE_PRO_PERIOD_NOTE =
+  "Pro is currently included for everyone at no charge. Paid subscriptions are temporarily unavailable.";
+
 /** The label / short label / explanation for a resolved billing state. */
 export function billingCopy(
   state: DisplayState,
   { trialDaysLeft, endsOn }: BillingCopyInput,
 ): { label: string; shortLabel: string; explanation: string } {
   switch (state) {
+    case "included":
+      return {
+        label: "Pro — included for everyone",
+        shortLabel: "Pro — included",
+        explanation: `${FREE_PRO_PERIOD_NOTE} When this ends, your account returns to its usual plan, with nothing you logged lost.`,
+      };
     case "trial":
       return {
         label: `Pro — trial · ${trialDaysLeft ?? 0} days left`,

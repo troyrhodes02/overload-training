@@ -8,7 +8,7 @@ import {
   type BillingInterval,
   type BillingProvider,
 } from "@/lib/billing/stripe";
-import { isCheckoutEnabled } from "@/lib/billing/config";
+import { isCheckoutEnabled, isFreeProPeriod } from "@/lib/billing/config";
 import { resolveEntitlement } from "@/lib/entitlements/resolve";
 import { lockCheckoutForAccount } from "@/lib/data/locks";
 import { isAppShellRequest } from "@/lib/platform/request";
@@ -60,6 +60,16 @@ export async function startCheckout(
   deps: Partial<CheckoutDeps> = {},
 ): Promise<{ url: string; sessionId: string }> {
   const { provider, ownEmail, inAppShell, now } = { ...defaultDeps, ...deps };
+
+  // The free-Pro period (OVE-266) takes no payments at all: refuse before
+  // touching Stripe, whatever STRIPE_BILLING_ENABLED says, so a direct call to
+  // the action can never create a Checkout session while Pro is included.
+  if (isFreeProPeriod()) {
+    throw new DomainError(
+      "invalid_state_transition",
+      "Pro is currently included for everyone at no charge. Paid subscriptions are temporarily unavailable.",
+    );
+  }
 
   // Kill switch (safe by default): refuse before touching Stripe, so a deploy
   // with billing disabled can never start a checkout or use a Stripe key — even

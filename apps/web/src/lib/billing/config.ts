@@ -54,7 +54,24 @@ export const BLIZZY = {
  * (refuses before any Stripe call) read it, so the UI and the server agree.
  */
 export function isCheckoutEnabled(): boolean {
-  return process.env.STRIPE_BILLING_ENABLED === "true";
+  return process.env.STRIPE_BILLING_ENABLED === "true" && !isFreeProPeriod();
+}
+
+/**
+ * The free-Pro period (OVE-266): a temporary, reversible, server-only switch.
+ * While `OVERLOAD_FREE_PRO_PERIOD` is exactly "true", the entitlement resolver
+ * grants Pro to every account and paid checkout is off (it outranks
+ * `STRIPE_BILLING_ENABLED`, above). Any other value, including unset, is the
+ * normal rules, so a missing or mistyped value can never open checkout and
+ * never leaves Pro on by accident.
+ *
+ * Nothing is stored because of it: no Entitlement row, no trial or comp
+ * change, no Stripe call. Turning it off returns every account to exactly what
+ * its own records give it. The resolver (`resolveEntitlement`) and the
+ * checkout switch above are its only readers outside billing presentation.
+ */
+export function isFreeProPeriod(): boolean {
+  return process.env.OVERLOAD_FREE_PRO_PERIOD === "true";
 }
 
 /** The existing plan-selection flow: every upgrade invitation links here. */
