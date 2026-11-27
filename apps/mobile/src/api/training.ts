@@ -14,11 +14,14 @@ import type {
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
+  AddExerciseContextDto,
+  AddWingItExerciseResponseDto,
   ChangeGymResponseDto,
   CompleteWorkoutResponseDto,
   EditPlannedSetsResponseDto,
   MissedDayResolutionDto,
   SetSkippedResponseDto,
+  StartWingItResponseDto,
   StartWorkoutResponseDto,
   SwapContextDto,
   SwapExerciseResponseDto,
@@ -39,6 +42,7 @@ import {
   type TodayDto,
   type WorkoutViewDto,
 } from "@overload/shared/contracts/views";
+import { WING_IT_MAX_SETS } from "@overload/shared/logging/wing-it";
 import { useApi } from "./ApiProvider";
 import type { ApiError } from "./errors";
 
@@ -73,6 +77,9 @@ export const TRAINING_KEYS = {
   /** The swap picker's list for one muscle group (null: the planned group). */
   swap: (loggedExerciseId: string, muscle: MuscleGroupValue | null) =>
     ["swap", loggedExerciseId, muscle ?? "planned"] as const,
+  /** The Add exercise picker's list for one group, or all (Pitch 25 W2). */
+  addCandidates: (loggedSessionId: string, muscle: MuscleGroupValue | null) =>
+    ["add-candidates", loggedSessionId, muscle ?? "all"] as const,
 };
 
 const enc = encodeURIComponent;
@@ -465,7 +472,7 @@ export function mergeConfirmedSet(
           ? e
           : {
               ...e,
-              sets: upsertSet(e.sets, e.plannedSets, set),
+              sets: upsertSet(e.sets, e.plannedSets, set, e.openEnded === true),
             },
       ),
     },
@@ -476,6 +483,7 @@ function upsertSet(
   sets: WorkoutViewDto["workout"]["exercises"][number]["sets"],
   plannedSets: number,
   set: LoggedSetDto,
+  openEnded = false,
 ) {
   const row = {
     setNumber: set.setNumber,
@@ -484,12 +492,29 @@ function upsertSet(
     reps: set.reps,
     rir: set.rir,
     saved: true,
-    extra: set.setNumber > plannedSets,
+    // An open-ended (Wing-It) exercise has no plan, so no set is extra.
+    extra: !openEnded && set.setNumber > plannedSets,
   };
   const exists = sets.some((s) => s.setNumber === set.setNumber);
   const next = exists
     ? sets.map((s) => (s.setNumber === set.setNumber ? row : s))
     : [...sets, row];
+  // Open-ended: the next set gets its open row right away, as the server's
+  // next read will show it (Pitch 25), up to the shared limit.
+  if (openEnded && !next.some((s) => !s.saved)) {
+    const n = Math.max(...next.map((s) => s.setNumber)) + 1;
+    if (n <= WING_IT_MAX_SETS) {
+      next.push({
+        setNumber: n,
+        loggedSetId: null,
+        weightLbs: null,
+        reps: null,
+        rir: null,
+        saved: false,
+        extra: false,
+      });
+    }
+  }
   return next.sort((a, b) => a.setNumber - b.setNumber);
 }
 
@@ -952,5 +977,78 @@ export function useEditCardio() {
         { method: "PATCH", body },
       ),
     onSuccess: () => invalidateCardioReads(client),
+  });
+}
+
+/**
+ * Start a Wing-It workout at a gym, or resume the open one (Pitch 25 W1).
+ * Safe to repeat: an account has at most one open Wing-It workout, so a
+ * second tap, or the web at the same time, answers with the same one.
+ */
+export function useStartWingIt() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<StartWingItResponseDto, ApiError, { gymId: string }>({
+    mutationFn: (body) =>
+      api.request<StartWingItResponseDto>("/wing-it-workouts", {
+        method: "POST",
+        body,
+      }),
+    onSuccess: (data) => {
+      void invalidateTraining(client, data.loggedSessionId);
+    },
+  });
+}
+
+/** The Add exercise picker's list (Pitch 25 W2); null lists every group. */
+export function useAddExerciseCandidates(
+  loggedSessionId: string,
+  muscle: MuscleGroupValue | null,
+) {
+  const api = useApi();
+  return useQuery<AddExerciseContextDto, ApiError>({
+    queryKey: TRAINING_KEYS.addCandidates(loggedSessionId, muscle),
+    queryFn: ({ signal }) =>
+      api.request<AddExerciseContextDto>(
+        `/workouts/${enc(loggedSessionId)}/exercise-candidates${
+          muscle ? `?muscle=${enc(muscle)}` : ""
+        }`,
+        { signal },
+      ),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export type AddWingItExerciseVariables = {
+  loggedSessionId: string;
+  exerciseId: string;
+};
+
+/**
+ * Add an exercise to a Wing-It workout (Pitch 25 W3). A natural-key PUT: one
+ * card per exercise, so a retry or a second tap answers with the same card.
+ * The workout is read again before the picker closes.
+ */
+export function useAddWingItExercise() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    AddWingItExerciseResponseDto,
+    ApiError,
+    AddWingItExerciseVariables
+  >({
+    mutationFn: ({ loggedSessionId, exerciseId }) =>
+      api.request<AddWingItExerciseResponseDto>(
+        `/workouts/${enc(loggedSessionId)}/exercises/${enc(exerciseId)}`,
+        { method: "PUT" },
+      ),
+    onSuccess: async (_data, { loggedSessionId }) => {
+      void client.invalidateQueries({
+        queryKey: ["add-candidates", loggedSessionId],
+        refetchType: "none",
+      });
+      await refreshWorkout(client, loggedSessionId);
+    },
   });
 }

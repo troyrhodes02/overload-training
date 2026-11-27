@@ -3,7 +3,8 @@ import type {
   ExerciseCardDto,
   WorkoutDto,
 } from "@overload/shared/contracts/logging";
-import { savedWorkingSets } from "./card-model";
+import { WING_IT_COPY } from "@overload/shared/logging/wing-it";
+import { isOpenEnded, savedWorkingSets } from "./card-model";
 
 /**
  * What the card's More button offers (Pitch 21f design §6, RD-14). The rows
@@ -12,13 +13,17 @@ import { savedWorkingSets } from "./card-model";
  * write; this only keeps a row the server would refuse off the sheet, and
  * says why.
  */
-export type ExerciseAction = "details" | "swap" | "skip" | "fewer_sets";
+export type ExerciseAction =
+  "details" | "swap" | "skip" | "fewer_sets" | "remove";
 
 const LABELS: Record<ExerciseAction, string> = {
   details: "About this exercise",
   swap: "Swap exercise",
   skip: "Didn't do this exercise",
   fewer_sets: "I meant to do fewer sets",
+  // Pitch 25: the "not done" mark on a Wing-It exercise with no sets, which
+  // hides it from the workout (RD-23). Nothing is lost.
+  remove: WING_IT_COPY.remove,
 };
 
 export const SETS_LOGGED_MESSAGE =
@@ -40,6 +45,16 @@ function workoutChanges(
 ): { actions: ExerciseAction[]; message: string | null } {
   if (workout.status !== "in_progress") return { actions: [], message: null };
   const anySaved = card.sets.some((s) => s.saved);
+  // A Wing-It exercise (Pitch 25) was chosen, not planned: no swap, no plan
+  // to shorten. With nothing saved it can be removed; after that it stays.
+  if (isOpenEnded(card)) {
+    return anySaved
+      ? {
+          actions: [],
+          message: "Sets are logged, so this exercise stays in the workout.",
+        }
+      : { actions: ["remove"], message: null };
+  }
   if (anySaved) {
     // Short of the plan with something logged: it can be counted as planned.
     const short = fewerSetsConfirmation({
@@ -74,6 +89,9 @@ export function showExerciseActions(
         message: message ?? undefined,
         options: [...actions.map((a) => LABELS[a]), "Cancel"],
         cancelButtonIndex: actions.length,
+        destructiveButtonIndex: actions.includes("remove")
+          ? actions.indexOf("remove")
+          : undefined,
       },
       (index) => resolve(actions[index] ?? null),
     );

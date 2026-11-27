@@ -64,6 +64,11 @@ export function RootNavigator({
           name="workout/[loggedSessionId]/swap"
           options={modalHeader}
         />
+        {/* Pitch 25: add an exercise to a Wing-It workout, a modal. */}
+        <Stack.Screen
+          name="workout/[loggedSessionId]/add"
+          options={modalHeader}
+        />
         <Stack.Screen
           name="workout/[loggedSessionId]/edit-set"
           options={modalHeader}

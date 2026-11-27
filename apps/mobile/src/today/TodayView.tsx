@@ -52,6 +52,9 @@ import {
   useWeekChanges,
 } from "./WeekSchedule";
 import { UnfinishedWorkouts } from "./UnfinishedWorkouts";
+import { WingItSection, type WingItPlacement } from "./WingItSection";
+import { WING_IT_NAME } from "@overload/shared/logging/wing-it";
+import { useStartWingItWorkout } from "./useStartWingIt";
 import { plannedCalls, TODAY_PRO_NOTE } from "./today-calls";
 import { ProNote } from "../insights/ProNote";
 import { ProgressChip } from "../insights/ProgressChip";
@@ -82,6 +85,10 @@ export function TodayView() {
   const starter = useStartOrResume();
   const clearNoGym = starter.clearNoGym;
   useFocusEffect(useCallback(() => clearNoGym(), [clearNoGym]));
+  // Pitch 25: the Wing-It start, beside (never instead of) the day's workout.
+  const wingItStarter = useStartWingItWorkout();
+  const clearWingItNoGym = wingItStarter.clearNoGym;
+  useFocusEffect(useCallback(() => clearWingItNoGym(), [clearWingItNoGym]));
   // What a resolution did, for the day it was made on (RD-23).
   const [resolved, setResolved] = useState<{
     note: string;
@@ -105,6 +112,7 @@ export function TodayView() {
           }}
           stale={today.isError}
           starter={starter}
+          wingItStarter={wingItStarter}
           resolvedNote={
             resolved?.on === today.data.today ? resolved.note : null
           }
@@ -150,6 +158,14 @@ function openWeb(path = "/") {
 }
 
 type Starter = ReturnType<typeof useStartOrResume>;
+type WingItStarter = ReturnType<typeof useStartWingItWorkout>;
+
+/** Which helper the Wing-It section shows for the day's state (Pitch 25). */
+function wingItPlacement(dashboard: DashboardDto): WingItPlacement {
+  if (dashboard.kind === "no_plan") return "no_plan";
+  if (dashboard.kind === "rest") return "rest";
+  return "planned";
+}
 
 function TodayContent({
   calls,
@@ -158,10 +174,12 @@ function TodayContent({
   onReloadWeek,
   stale,
   starter,
+  wingItStarter,
   resolvedNote,
   onResolved,
 }: {
   calls: PlannedProgressionDto[] | null;
+  wingItStarter: WingItStarter;
   view: TodayDto;
   /** This block week (OVE-241), or null with none (no strip then). */
   week: ThisWeekDto | null;
@@ -177,7 +195,27 @@ function TodayContent({
   const showNote = resolvedNote && view.dashboard.kind !== "missed_day";
   // Every start from Today (the day's workout, or a missed day logged late)
   // first asks about an earlier unfinished workout (Pitch 21g OVE-228).
-  const unfinished = view.unfinishedWorkouts ?? [];
+  // Pitch 25: the open Wing-It workout shows in its own section, so it is
+  // not listed twice; with saved sets it is still named first by the
+  // planned start's warning (RD-21: warn, never forbid).
+  const openWingIt = view.wingIt?.open ?? null;
+  const listed = (view.unfinishedWorkouts ?? []).filter(
+    (w) => w.loggedSessionId !== openWingIt?.loggedSessionId,
+  );
+  const unfinished =
+    openWingIt && openWingIt.setsLogged > 0
+      ? [
+          {
+            loggedSessionId: openWingIt.loggedSessionId,
+            kind: "wing_it" as const,
+            sessionName: WING_IT_NAME,
+            scheduledFor: openWingIt.startedOn,
+            gymName: openWingIt.gymName,
+            setsLogged: openWingIt.setsLogged,
+          },
+          ...listed,
+        ]
+      : listed;
   const checked: Starter = {
     ...starter,
     run: (day) => starter.run(day, unfinished, view.today),
@@ -192,7 +230,7 @@ function TodayContent({
       ) : null}
       {showNote ? <Banner tone="info" message={resolvedNote} /> : null}
       {/* Earlier days' workouts still in progress (Pitch 21g OVE-228). */}
-      <UnfinishedWorkouts workouts={view.unfinishedWorkouts ?? []} />
+      <UnfinishedWorkouts workouts={listed} />
       {(() => {
         // The tour's "today's plan" (Pitch 21k): the day's block itself.
         const dashboard = (
@@ -216,6 +254,14 @@ function TodayContent({
           dashboard
         );
       })()}
+      {/* Pitch 25: on every state, outside the dimmed missed-day block. */}
+      <WingItSection
+        wingIt={view.wingIt}
+        placement={wingItPlacement(view.dashboard)}
+        state={wingItStarter.state}
+        stale={stale}
+        onStart={() => void wingItStarter.run(view.wingIt)}
+      />
     </View>
   );
 }
