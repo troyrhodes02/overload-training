@@ -41,12 +41,16 @@ export const TRIAL = {
       body: `Like it already? Subscribe to Pro during the trial, for ${PRICE_DISPLAY.monthly} a month or ${PRICE_DISPLAY.annual} a year.`,
       billingOff:
         "Pro subscriptions aren't on sale yet. When they are, you can subscribe during the trial or after it.",
+      freeProPeriod:
+        "Paid subscriptions are temporarily unavailable. Pro is currently included for everyone at no charge.",
     },
     {
       title: `Day ${TRIAL_DURATION_DAYS}: your call`,
       body: "Subscribe to keep Pro, or do nothing and your account moves to Free on its own. Nothing you logged is deleted.",
       billingOff:
         "Your account moves to Free on its own. Nothing you logged is deleted.",
+      freeProPeriod:
+        "While Pro is included for everyone, your account keeps Pro when the trial ends. Nothing you logged is deleted.",
     },
   ],
 } as const;
@@ -205,6 +209,8 @@ export const PRICING = {
     "Free forever. Your account moves here when the trial ends, unless you've subscribed.",
   freeCardNoteBillingOff:
     "Free forever. Your account moves here when the trial ends.",
+  freeCardNoteFreeProPeriod:
+    "Free forever. While Pro is included for everyone, every account has Pro.",
   /** Under the Pro card's price. */
   proCardNote: `Free for your first ${TRIAL_DURATION_DAYS} days.`,
   notOnSale:
@@ -240,6 +246,8 @@ export const PRICING_FAQ: readonly {
   q: string;
   a: string;
   aBillingOff?: string;
+  /** The free-Pro period's wording (OVE-266), where the answer changes. */
+  aFreeProPeriod?: string;
 }[] = [
   {
     q: "How does the free trial work?",
@@ -250,10 +258,14 @@ export const PRICING_FAQ: readonly {
     a: "Yes. Subscribe from Plan & Billing whenever you like. Paid billing starts that day, and the rest of the free trial isn't added on.",
     aBillingOff:
       "Not yet: Pro subscriptions aren't on sale. When they are, you'll be able to subscribe during the trial or after it.",
+    aFreeProPeriod:
+      "Not right now. Pro is currently included for everyone at no charge, and paid subscriptions are temporarily unavailable.",
   },
   {
     q: "What happens when the trial ends?",
     a: "If you haven't subscribed, your account moves to Free on its own. Your plans, history, goals, and export stay. The calls and trends are Pro.",
+    aFreeProPeriod:
+      "While Pro is included for everyone, nothing changes: your account keeps Pro. Your plans, history, goals, and export stay either way.",
   },
   {
     q: "What if I stop paying?",

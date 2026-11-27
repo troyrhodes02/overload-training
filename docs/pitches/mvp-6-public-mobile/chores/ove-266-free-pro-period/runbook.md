@@ -36,6 +36,8 @@ This works on the code already in Production.
 2. Redeploy Production. Vercel applies a variable change only on the next deployment.
 3. Check `/pricing`: the Pro card says "Not on sale yet". Signed in on Free or a trial, `/settings/billing` shows no Subscribe button.
 
+4. Confirm that no Checkout session opened before the switch can still be paid. A Checkout session stays payable for up to 24 hours after it opens, and turning either switch off refuses only new ones. Every Checkout writes a `billing_accounts` row before Stripe opens it, so check that `/admin/billing` still shows 0 active subscriptions, and in Stripe (live) → Payments → Checkout sessions, check that none is open. Expire any you find.
+
 On the server, `startCheckout` refuses before any Stripe call. Webhooks, the portal, and account deletion are unchanged.
 
 ### 2.2 Confirm there are no recurring subscriptions in Stripe
@@ -86,7 +88,7 @@ Consider telling lifters before you end the period. The code sends no email.
 
 ## 5. If a real paid subscriber exists
 
-The period never changes a Stripe subscription. A paying lifter keeps their own plan line ("Pro — Monthly", renewal date), with the note "Pro is currently included for everyone at no charge. Your subscription hasn't changed. Use Manage billing to change or cancel it." They can cancel in the Customer Portal.
+The period never changes a Stripe subscription. A paying lifter keeps their own plan line ("Pro — Monthly", renewal date), with the note "Pro is currently included for everyone at no charge. Paid subscriptions are temporarily unavailable. Your subscription hasn't changed. Use Manage billing to change or cancel it." A subscription already set to cancel is told it still ends as scheduled. They can cancel in the Customer Portal.
 
 Your choices, all owner decisions made in the Stripe dashboard, never from a run:
 
