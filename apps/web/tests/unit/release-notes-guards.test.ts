@@ -141,12 +141,13 @@ it("nothing sends email or push", () => {
   const PROVIDER_NAMED_IN_PROSE = "src/app/(marketing)/privacy/page.tsx";
   const offenders = walkCode()
     .filter((f) => rel(f) !== EMAIL_SENDER_EXEMPT)
-    .filter((f) => rel(f) !== PROVIDER_NAMED_IN_PROSE)
-    .filter((f) =>
-      /\b(resend|nodemailer|web-push|PushManager|showNotification)\b/i.test(
-        fs.readFileSync(f, "utf8"),
-      ),
-    )
+    .filter((f) => {
+      const banned =
+        rel(f) === PROVIDER_NAMED_IN_PROSE
+          ? /\b(nodemailer|web-push|PushManager|showNotification)\b/i
+          : /\b(resend|nodemailer|web-push|PushManager|showNotification)\b/i;
+      return banned.test(fs.readFileSync(f, "utf8"));
+    })
     .map(rel);
   expect(offenders).toEqual([]);
 });
