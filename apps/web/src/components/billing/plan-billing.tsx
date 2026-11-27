@@ -230,8 +230,10 @@ export function PlanBilling({
 
           {subscriptionDuringPeriod ? (
             <p className="mt-3 text-sm text-muted-foreground">
-              {FREE_PRO_PERIOD_NOTE} Your subscription hasn&apos;t changed. Use
-              Manage billing to change or cancel it.
+              {FREE_PRO_PERIOD_NOTE}{" "}
+              {screen.displayState === "canceling"
+                ? "Your subscription hasn’t changed and still ends as scheduled; after that you keep Pro while it’s included for everyone."
+                : "Your subscription hasn’t changed. Use Manage billing to change or cancel it."}
             </p>
           ) : null}
 

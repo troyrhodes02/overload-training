@@ -383,6 +383,16 @@ describe("/pricing during the free-Pro period (OVE-266)", () => {
       "Pro is currently included for everyone at no charge. Paid subscriptions are temporarily unavailable.",
     );
     expect(t).not.toContain("Not on sale yet");
+    // No sentence on the page contradicts it (independent review, OVE-266).
+    expect(t).not.toMatch(/on sale/i);
+    expect(t).not.toContain("moves to Free on its own");
+    expect(t).not.toContain("Your account moves here when the trial ends");
+    expect(t).toContain(
+      "While Pro is included for everyone, your account keeps Pro when the trial ends.",
+    );
+    expect(t).toContain(
+      "Not right now. Pro is currently included for everyone at no charge",
+    );
     expect(html).not.toContain('href="/settings/billing"');
     expect(t.toLowerCase()).not.toMatch(
       /lifetime|free forever for pro|pro is free forever/,

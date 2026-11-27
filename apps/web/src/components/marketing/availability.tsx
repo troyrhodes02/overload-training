@@ -19,8 +19,17 @@ export function NotOnSaleBadge() {
   );
 }
 
-async function Inner({ off, on }: { off: ReactNode; on: ReactNode }) {
-  const { billingEnabled } = await getMarketingContext();
+async function Inner({
+  off,
+  on,
+  period,
+}: {
+  off: ReactNode;
+  on: ReactNode;
+  period?: ReactNode;
+}) {
+  const { billingEnabled, freeProPeriod } = await getMarketingContext();
+  if (freeProPeriod && period !== undefined) return <>{period}</>;
   return <>{billingEnabled ? on : off}</>;
 }
 
@@ -52,21 +61,26 @@ export function ProAvailability({ notOnSale }: { notOnSale: ReactNode }) {
   );
 }
 
-/** Renders `off` while billing is off and `on` once it is enabled. */
+/**
+ * Renders `off` while billing is off and `on` once it is enabled. With
+ * `period`, that wording replaces both during the free-Pro period (OVE-266).
+ */
 export function WhenBilling({
   off,
   on = null,
+  period,
   skeleton = "line",
 }: {
   off: ReactNode;
   on?: ReactNode;
+  period?: ReactNode;
   skeleton?: "line" | "none";
 }) {
   return (
     <Suspense
       fallback={skeleton === "line" ? <Skeleton className="h-5 w-64" /> : null}
     >
-      <Inner off={off} on={on} />
+      <Inner off={off} on={on} period={period} />
     </Suspense>
   );
 }
