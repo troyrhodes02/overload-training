@@ -1,5 +1,6 @@
 import {
   Alert,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -7,6 +8,7 @@ import {
 } from "react-native";
 import { router, Stack } from "expo-router";
 import { billingCopy } from "@overload/shared/billing/copy";
+import { PRIVACY_POLICY_URL } from "@overload/shared/legal/privacy";
 import { useMe } from "../../../api/queries";
 import { useSession } from "../../../auth/session";
 import { APP_VERSION, BUILD_NUMBER, ENV } from "../../../config/env";
@@ -197,6 +199,12 @@ export default function MoreScreen() {
               title="Export your data"
               accessory="chevron"
               onPress={() => router.push("/more/export")}
+            />
+            {/* OVE-265: the one public policy, in every build (Apple 5.1.1(i)). */}
+            <ListRow
+              title="Privacy Policy"
+              accessory="external"
+              onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
             />
           </GroupedList>
 

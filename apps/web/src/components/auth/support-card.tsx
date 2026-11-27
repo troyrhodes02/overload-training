@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, LifeBuoy, Mail } from "lucide-react";
+import { PRIVACY_POLICY_PATH } from "@overload/shared/legal/privacy";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
 
@@ -52,6 +53,7 @@ export function SupportCard({
             {supportAddress}
           </a>
         </p>
+        <PrivacyLine />
       </AuthCard>
     );
   }
@@ -86,6 +88,21 @@ export function SupportCard({
           Back to sign in
         </Link>
       </Button>
+      <PrivacyLine />
     </AuthCard>
+  );
+}
+
+/** How Overload handles your data (OVE-265): the public privacy policy. */
+function PrivacyLine() {
+  return (
+    <p className="text-center text-sm text-muted-foreground">
+      <Link
+        href={PRIVACY_POLICY_PATH}
+        className="underline-offset-4 hover:text-foreground hover:underline"
+      >
+        Privacy Policy
+      </Link>
+    </p>
   );
 }

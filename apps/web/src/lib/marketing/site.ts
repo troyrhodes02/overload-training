@@ -17,6 +17,7 @@ export const INDEXABLE_PUBLIC_PATHS = [
   "/pricing",
   "/changelog",
   "/support",
+  "/privacy",
 ] as const;
 
 /**
