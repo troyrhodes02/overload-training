@@ -132,7 +132,7 @@ The code cannot answer these. This list is not legal or tax advice.
 ## 6. Switching it off (rollback)
 
 - **Stop new subscriptions.**
-  - Remove `STRIPE_BILLING_ENABLED` (or set it to anything but `true`) in Vercel Production and redeploy.
+  - Remove `STRIPE_BILLING_ENABLED` (or set it to anything but `true`) in Vercel Production and redeploy. Setting `OVERLOAD_FREE_PRO_PERIOD=true` also closes Checkout, and includes Pro for everyone (section 7).
   - Subscribe disappears and `startCheckout` refuses on the server.
   - Existing subscribers keep their access and can still open the portal to cancel, because the portal does not read the switch.
   - Webhooks keep updating the mirror.
@@ -140,3 +140,12 @@ The code cannot answer these. This list is not legal or tax advice.
 - **Stop charging existing subscribers** (only if you need to). Cancel their subscriptions in the Stripe dashboard. The webhook moves each account to Free and keeps all their data.
 - **Do not delete the webhook endpoint** while live subscriptions exist, or cancellations and renewals stop reaching the mirror.
 - Never revert code or force anything in Production to roll payments back. The flag is the off switch.
+
+## 7. The free-Pro period (OVE-266)
+
+`OVERLOAD_FREE_PRO_PERIOD=true` (server-only, Production only, read in `src/lib/billing/config.ts`) includes Pro for every account at no charge and refuses Checkout on the server, whatever `STRIPE_BILLING_ENABLED` says. It stores nothing: no `Entitlement` row, no trial change, and no Stripe call. Removing it returns every account to its own trial, comp, or subscription, otherwise Free. It does not stop renewals of an existing subscription; only Stripe does that.
+
+- **Stopping new payments without it:** remove `STRIPE_BILLING_ENABLED` (section 6).
+- **Turning the period on and off, and the Production audit of 2026-11-27:** `docs/pitches/mvp-6-public-mobile/chores/ove-266-free-pro-period/runbook.md`.
+- **Going live after the period:** remove `OVERLOAD_FREE_PRO_PERIOD` and redeploy first, then follow section 2. Checkout stays closed while the period is on, so step 6 there has no effect until it is removed.
+

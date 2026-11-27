@@ -22,6 +22,12 @@ export type MarketingContext = {
   signedIn: boolean;
   signupMode: SignupMode;
   billingEnabled: boolean;
+  /**
+   * The free-Pro period (OVE-266) is on. Checkout is already off then
+   * (`billingEnabled` is false), so this only changes the Pro card's words:
+   * Pro is included for everyone, not "not on sale yet". Absent means off.
+   */
+  freeProPeriod?: boolean;
 };
 
 export type CtaHref = "/" | "/signup" | "/login" | "/settings/billing";
@@ -49,6 +55,7 @@ export const FAIL_CLOSED_CONTEXT: MarketingContext = {
   signedIn: false,
   signupMode: "closed",
   billingEnabled: false,
+  freeProPeriod: false,
 };
 
 const SIGN_IN: CtaAction = { label: "Sign in", href: "/login" };

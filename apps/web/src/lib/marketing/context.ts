@@ -3,7 +3,7 @@ import { cache } from "react";
 import { connection } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { signupMode } from "@/lib/accounts/signup-gate";
-import { isCheckoutEnabled } from "@/lib/billing/config";
+import { isCheckoutEnabled, isFreeProPeriod } from "@/lib/billing/config";
 import { FAIL_CLOSED_CONTEXT, type MarketingContext } from "./cta";
 
 /**
@@ -25,6 +25,7 @@ export const getMarketingContext = cache(
         signedIn: user !== null,
         signupMode: signupMode(),
         billingEnabled: isCheckoutEnabled(),
+        freeProPeriod: isFreeProPeriod(),
       };
     } catch {
       return FAIL_CLOSED_CONTEXT;

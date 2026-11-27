@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { ModeCta } from "@/components/marketing/mode-cta";
 import {
   NotOnSaleBadge,
+  ProAvailability,
   WhenBilling,
 } from "@/components/marketing/availability";
 import { publicPageMetadata } from "@/lib/marketing/site";
@@ -34,9 +35,24 @@ export const metadata = publicPageMetadata({
  * sentence offering a way to pay has a billing-off wording.
  */
 
-/** A sentence that offers a way to pay, with its billing-off wording. */
-function Billed({ on, off }: { on: string; off?: string }) {
-  return off ? <WhenBilling on={on} off={off} skeleton="none" /> : <>{on}</>;
+/**
+ * A sentence that offers a way to pay, with its billing-off wording and, where
+ * it changes, its free-Pro period wording (OVE-266).
+ */
+function Billed({
+  on,
+  off,
+  period,
+}: {
+  on: string;
+  off?: string;
+  period?: string;
+}) {
+  return off || period ? (
+    <WhenBilling on={on} off={off ?? on} period={period} skeleton="none" />
+  ) : (
+    <>{on}</>
+  );
 }
 
 function TrialExplainer() {
@@ -66,6 +82,9 @@ function TrialExplainer() {
                 <Billed
                   on={step.body}
                   off={"billingOff" in step ? step.billingOff : undefined}
+                  period={
+                    "freeProPeriod" in step ? step.freeProPeriod : undefined
+                  }
                 />
               </p>
             </div>
@@ -141,6 +160,7 @@ export default function PricingPage() {
                 <Billed
                   on={PRICING.freeCardNote}
                   off={PRICING.freeCardNoteBillingOff}
+                  period={PRICING.freeCardNoteFreeProPeriod}
                 />
               </p>
             </div>
@@ -168,8 +188,8 @@ export default function PricingPage() {
                 month)
               </p>
               <p className="mt-1 text-sm font-medium">{PRICING.proCardNote}</p>
-              <WhenBilling
-                off={
+              <ProAvailability
+                notOnSale={
                   <div className="mt-3 space-y-1.5">
                     <NotOnSaleBadge />
                     <p className="text-sm text-muted-foreground">
@@ -196,11 +216,11 @@ export default function PricingPage() {
           Questions
         </h2>
         <dl className="grid gap-6 md:grid-cols-2">
-          {PRICING_FAQ.map(({ q, a, aBillingOff }) => (
+          {PRICING_FAQ.map(({ q, a, aBillingOff, aFreeProPeriod }) => (
             <div key={q}>
               <dt className="font-medium">{q}</dt>
               <dd className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                <Billed on={a} off={aBillingOff} />
+                <Billed on={a} off={aBillingOff} period={aFreeProPeriod} />
               </dd>
             </div>
           ))}
