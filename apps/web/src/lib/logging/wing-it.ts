@@ -75,8 +75,6 @@ export async function startWingItWorkout(
     }
   }
 
-  await requireActiveGym(input.gymId, tx);
-
   const open = await tx.loggedSession.findFirst({
     where: { kind: "wing_it", status: "in_progress" },
     select: { id: true },
@@ -88,7 +86,11 @@ export async function startWingItWorkout(
     const setCount = await tx.loggedSet.count({
       where: { loggedExercise: { loggedSessionId: open.id } },
     });
+    // With sets saved the gym stays, so the chosen one isn't even read: a
+    // start sent from stale data (its gym archived since) still resumes
+    // (review #9).
     if (setCount === 0) {
+      await requireActiveGym(input.gymId, tx);
       // The workout's gym, on the session and every exercise (no set exists).
       await tx.loggedSession.update({
         where: { id: open.id },
@@ -102,6 +104,7 @@ export async function startWingItWorkout(
     return { loggedSessionId: open.id, resumed: true };
   }
 
+  await requireActiveGym(input.gymId, tx);
   const active = await activeWorkout(tx);
   if (active) {
     throw new DomainError(
@@ -203,7 +206,11 @@ export async function addWingItExercise(
       added: hidden,
     };
   }
-  if (existing.length >= WING_IT_MAX_EXERCISES) {
+  // Only the cards the workout shows count: a removed one (marked not done,
+  // nothing saved) can come back but takes no place (review #3).
+  if (
+    existing.filter((e) => isShownOpenEnded(e)).length >= WING_IT_MAX_EXERCISES
+  ) {
     throw new DomainError(
       "validation_error",
       `A Wing-It workout holds up to ${WING_IT_MAX_EXERCISES} exercises.`,
@@ -245,6 +252,7 @@ export async function getAddExerciseContext(
     select: {
       id: true,
       kind: true,
+      status: true,
       loggedExercises: {
         select: {
           exerciseId: true,
@@ -254,7 +262,9 @@ export async function getAddExerciseContext(
       },
     },
   });
-  if (!ls || ls.kind !== "wing_it") return null;
+  // Only an open Wing-It workout takes exercises (review #2): a finished one
+  // is a record, corrected from History.
+  if (!ls || ls.kind !== "wing_it" || ls.status !== "in_progress") return null;
   const selected = isMuscleGroup(muscle) ? muscle : "all";
   const [rows, favorites] = await Promise.all([
     account.db.exercise.findMany({

@@ -30,6 +30,7 @@ import { fontFamily, inputTextSize } from "../ui/theme";
 import { useModalClose } from "../ui/use-modal-close";
 import { useTheme } from "../ui/ThemeProvider";
 import { changeFailureMessage } from "./messages";
+import { requestCardFocus } from "./focus-request";
 
 /** The chips: every group first ("All"), then each group in library order. */
 export const ADD_CHIPS: readonly (MuscleGroupValue | null)[] = [
@@ -71,8 +72,13 @@ export function AddExerciseScreen({
     choosing.current = true;
     setFailure(null);
     try {
-      await add.mutateAsync({ loggedSessionId, exerciseId: candidate.id });
+      const answer = await add.mutateAsync({
+        loggedSessionId,
+        exerciseId: candidate.id,
+      });
       void haptic.light();
+      // The workout shows the server's card: new, restored, or already there.
+      requestCardFocus(loggedSessionId, answer.loggedExerciseId);
       close();
     } catch (error) {
       void haptic.warning();

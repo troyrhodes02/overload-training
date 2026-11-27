@@ -333,12 +333,6 @@ export type AddWingItExerciseResponseDto = {
   added: boolean;
 };
 
-/** `DELETE /logged-exercises/{loggedExerciseId}` (Pitch 25 W4): only with no sets. */
-export type RemoveWingItExerciseResponseDto = {
-  loggedExerciseId: string;
-  removed: true;
-};
-
 export type AddExerciseCandidateDto = {
   id: string;
   name: string;

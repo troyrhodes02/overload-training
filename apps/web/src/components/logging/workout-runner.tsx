@@ -255,7 +255,8 @@ export function WorkoutRunner({
           </Link>
         </Button>
       ) : null}
-      {!canFinish ? (
+      {wingIt && !canFinish ? (
+        // Pitch 25: a Wing-It workout starts empty, so say why Finish waits.
         <p className="text-center text-xs text-muted-foreground">
           Log at least one set before finishing.
         </p>

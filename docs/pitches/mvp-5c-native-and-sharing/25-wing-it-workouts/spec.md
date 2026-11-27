@@ -238,6 +238,14 @@ Decided in this run:
 - **RD-30 No tour step.** The native tour is under TestFlight review and Today's step already covers the day; a release note only. *RD-14; overload-onboarding.*
 - **RD-31 Picker lists all groups by default.** "All muscle groups" first, favorites first, search over the listed group; same component pattern as Swap. *Design §6.8.*
 
+Decided after the independent review of the feature branch:
+
+- **RD-32 Picker returns to the server's card.** The iPhone picker passes the card the server answered with (new, restored, or already there) to the workout, which shows it; the web does the same with `?exercise=`. *Review #1; design §6.8.*
+- **RD-33 Only shown cards count toward 30; a finished workout's picker is closed.** *Review #2, #3.*
+- **RD-34 A Wing-It workout is dated by its start.** One started before midnight and finished after shows on its start day (Today's "finished today" and History), as a planned workout keeps its date. *Review #5; consistency with planned dating.*
+- **RD-35 The planned card's trend link stays planned-only.** `getExerciseProgression`/`trendExists` feed the planned card; the Exercise History page, which the link opens, includes Wing-It sets. *Review #6; RD-25.*
+- **RD-36 Per-set baselines can move with warm-ups.** Accepted: the median damps one light set, nothing offers the baseline as a weight today (PAI RD-9), and it is re-tunable from history. Revisit before any feature reads it as an offer. *Review #10; Architecture Doc top risk.*
+
 ## Open Questions
 
 None that block the build. Upstream amendments for the owner: the Architecture Doc's open question "Wing-it workouts: how progression treats an exercise with no planned rep range" is settled by RD-10/RD-25 and can be moved to Settled; the data-model section can note `LoggedSession.kind` and `gymId`.

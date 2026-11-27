@@ -453,7 +453,11 @@ async function computeExerciseHistory(
         swappedFromName:
           r.plannedExerciseId !== exercise.id ? r.plannedExerciseName : null,
         sessionName: r.sessionName,
-        call: calls.get(r.perf.loggedExerciseId) ?? "none",
+        // A Wing-It session is never judged (RD-25): "none" once finished,
+        // "in_progress" while open — as an open planned session reads.
+        call:
+          calls.get(r.perf.loggedExerciseId) ??
+          (r.finished ? "none" : "in_progress"),
       })),
       total: newestFirst.length,
       showingAll: !!opts.allSessions || newestFirst.length <= RECENT_SESSIONS,

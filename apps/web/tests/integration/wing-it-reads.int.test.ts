@@ -555,6 +555,23 @@ describe("exercise history, records, e1RM, and goals (RD-10, RD-25)", () => {
     expect(after!.sessions.total).toBe(before!.sessions.total + 1);
   });
 
+  it("an open Wing-It session reads 'in progress' in exercise history, not finished (#4)", async () => {
+    const a = await createTestAccount();
+    const g = await gym(a);
+    const bench = await exercise(a, "Bench");
+    const w = await wingIt(
+      a,
+      g.id,
+      [{ exerciseId: bench.id, sets: [[100, 5]] }],
+      false,
+    );
+    const h = await getExerciseHistory(a, bench.id);
+    expect(
+      h!.sessions.rows.find((r) => r.loggedSessionId === w.loggedSessionId)
+        ?.call,
+    ).toBe("in_progress");
+  });
+
   it("goals count Wing-It strength and complete on it", async () => {
     const a = await createTestAccount();
     const g = await gym(a);
