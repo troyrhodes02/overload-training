@@ -25,7 +25,10 @@ import {
 } from "@/lib/logging/wing-it";
 import { getTodayDashboard } from "@/lib/logging/queries";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
-import { WING_IT_MAX_SETS } from "@overload/shared/logging/wing-it";
+import {
+  WING_IT_MAX_EXERCISES,
+  WING_IT_MAX_SETS,
+} from "@overload/shared/logging/wing-it";
 import { createTestAccount, unknownId } from "./support/accounts";
 import { getTestPrisma } from "./support/db";
 import {
@@ -742,6 +745,73 @@ describe("Wing-It workouts: exercises and sets", () => {
     // A new Wing-It workout can start the same day.
     const next = await startWingItWorkout(a, { gymId: ls.gymId! });
     expect(next.loggedSessionId).not.toBe(loggedSessionId);
+  });
+});
+
+describe("Wing-It workouts: review fixes", () => {
+  it("removed exercises take no place toward the 30-exercise limit (#3)", async () => {
+    const a = await createTestAccount();
+    const g = await gym(a);
+    const { loggedSessionId } = await startWingItWorkout(a, { gymId: g.id });
+    for (let i = 0; i < WING_IT_MAX_EXERCISES; i++) {
+      const ex = await exercise(a, `Lift ${i}`);
+      const { loggedExerciseId } = await addWingItExercise(a, {
+        loggedSessionId,
+        exerciseId: ex.id,
+      });
+      await setExerciseSkipped(a, { loggedExerciseId, skipped: true });
+    }
+    const one = await exercise(a, "One more");
+    const out = await addWingItExercise(a, {
+      loggedSessionId,
+      exerciseId: one.id,
+    });
+    expect(out.added).toBe(true);
+  });
+
+  it("a stale start resumes the open workout with sets even if its gym was archived since (#9)", async () => {
+    const a = await createTestAccount();
+    const g = await gym(a);
+    const { loggedSessionId } = await startWingItWorkout(a, { gymId: g.id });
+    const bench = await exercise(a, "Bench");
+    const le = await addWingItExercise(a, {
+      loggedSessionId,
+      exerciseId: bench.id,
+    });
+    await logSet(a, {
+      loggedExerciseId: le.loggedExerciseId,
+      setNumber: 1,
+      weightLbs: 100,
+      reps: 5,
+    });
+    await db().gym.update({
+      where: { id: g.id },
+      data: { deletedAt: new Date() },
+    });
+    expect(await startWingItWorkout(a, { gymId: g.id })).toEqual({
+      loggedSessionId,
+      resumed: true,
+    });
+  });
+
+  it("the picker is closed for a finished Wing-It workout (#2)", async () => {
+    const a = await createTestAccount();
+    const g = await gym(a);
+    const { loggedSessionId } = await startWingItWorkout(a, { gymId: g.id });
+    const bench = await exercise(a, "Bench");
+    const le = await addWingItExercise(a, {
+      loggedSessionId,
+      exerciseId: bench.id,
+    });
+    await logSet(a, {
+      loggedExerciseId: le.loggedExerciseId,
+      setNumber: 1,
+      weightLbs: 100,
+      reps: 5,
+    });
+    expect(await getAddExerciseContext(a, loggedSessionId)).not.toBeNull();
+    await completeWorkout(a, { loggedSessionId });
+    expect(await getAddExerciseContext(a, loggedSessionId)).toBeNull();
   });
 });
 

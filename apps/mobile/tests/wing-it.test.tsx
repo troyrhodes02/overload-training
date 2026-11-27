@@ -649,3 +649,56 @@ describe("TestFlight 1.0.0 (2) compatibility (spec §8, RD-28)", () => {
     ).not.toThrow();
   });
 });
+
+describe("the picker's card focus request (review #1)", () => {
+  it("one request per workout, read until cleared, and listeners hear it", () => {
+    const fr = jest.requireActual<
+      typeof import("../src/workout/focus-request")
+    >("../src/workout/focus-request");
+    const heard = jest.fn();
+    const stop = fr.subscribeCardFocus(heard);
+    fr.requestCardFocus("ls-w", "le-b");
+    expect(fr.peekCardFocus("ls-w")).toBe("le-b");
+    expect(fr.peekCardFocus("ls-other")).toBeNull();
+    fr.clearCardFocus("ls-w");
+    expect(fr.peekCardFocus("ls-w")).toBeNull();
+    expect(heard).toHaveBeenCalledTimes(2);
+    stop();
+  });
+});
+
+describe("the Wing-It workout screen", () => {
+  it("opens on the card added last, then shows the card the picker chose", async () => {
+    const { WorkoutScreen } = jest.requireActual<
+      typeof import("../src/workout/WorkoutScreen")
+    >("../src/workout/WorkoutScreen");
+    const { requestCardFocus } = jest.requireActual<
+      typeof import("../src/workout/focus-request")
+    >("../src/workout/focus-request");
+    const { act } = jest.requireActual<
+      typeof import("@testing-library/react-native")
+    >("@testing-library/react-native");
+    const w = wingItWorkout([
+      wingItCard(),
+      wingItCard({
+        loggedExerciseId: "le-row",
+        performedExerciseName: "Seated Row",
+        plannedExerciseName: "Seated Row",
+      }),
+    ]);
+    serve({ "/workouts/ls-1": view({ ...w, loggedSessionId: "ls-1" }) });
+    await render(
+      <Providers>
+        <WorkoutScreen loggedSessionId="ls-1" />
+      </Providers>,
+    );
+    expect(
+      await screen.findByRole("header", { name: "Seated Row" }),
+    ).toBeTruthy();
+    await act(async () => requestCardFocus("ls-1", "le-press"));
+    expect(
+      await screen.findByRole("header", { name: "Leg Press" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add exercise" })).toBeTruthy();
+  });
+});

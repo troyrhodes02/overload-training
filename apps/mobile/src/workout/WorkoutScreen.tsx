@@ -1,4 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   Alert,
   Keyboard,
@@ -45,6 +51,11 @@ import { callForCard, insightFor } from "./insight-model";
 import { useKeepAboveKeyboard } from "./keep-above-keyboard";
 import { changeFailureMessage } from "./messages";
 import { addExerciseHref, loggedWorkoutHref, summaryHref } from "./routes";
+import {
+  clearCardFocus,
+  peekCardFocus,
+  subscribeCardFocus,
+} from "./focus-request";
 
 /** The finish confirmation (design F1), with the web runner's rule and copy. */
 export function finishConfirmation(workout: WorkoutDto): {
@@ -123,16 +134,29 @@ export function WorkoutScreen({
   // Open on the first unfinished card once, when the workout first loads
   // (state adjusted during render, so there is no auto-advance afterwards).
   if (workout && index === null) setIndex(initialExerciseIndex(workout));
-  // A Wing-It workout (Pitch 25): when a card is added, show it. Tracked as
-  // the card count, adjusted during render like the line above.
-  const shownCount = workout ? visibleExercises(workout).length : 0;
-  const [seenCount, setSeenCount] = useState<number | null>(null);
-  if (workout && seenCount !== shownCount) {
-    if (seenCount !== null && shownCount > seenCount && isWingIt(workout)) {
-      setIndex(shownCount - 1);
-    }
-    setSeenCount(shownCount);
+  // A Wing-It workout (Pitch 25 review #1): the card the Add exercise picker
+  // chose — added, restored, or already there — is shown once it is listed.
+  const focusId = useSyncExternalStore(subscribeCardFocus, () =>
+    peekCardFocus(loggedSessionId),
+  );
+  // Applied during render, like the index above; the request itself is
+  // cleared after the commit (it is outside React).
+  const focusAt =
+    focusId && workout
+      ? visibleExercises(workout).findIndex(
+          (e) => e.loggedExerciseId === focusId,
+        )
+      : -1;
+  const [appliedFocus, setAppliedFocus] = useState<string | null>(null);
+  if (focusId && focusAt >= 0 && appliedFocus !== focusId) {
+    setAppliedFocus(focusId);
+    setIndex(focusAt);
+  } else if (!focusId && appliedFocus !== null) {
+    setAppliedFocus(null);
   }
+  useEffect(() => {
+    if (focusId && appliedFocus === focusId) clearCardFocus(loggedSessionId);
+  }, [focusId, appliedFocus, loggedSessionId]);
 
   const scrollTop = useCallback(
     () => scroll.current?.scrollTo({ y: 0, animated: false }),
