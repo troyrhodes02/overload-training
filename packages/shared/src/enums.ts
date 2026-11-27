@@ -39,6 +39,10 @@ export type GoalArchiveReasonValue = (typeof GOAL_ARCHIVE_REASONS)[number];
 export const LOGGED_SESSION_STATUSES = ["in_progress", "complete"] as const;
 export type LoggedSessionStatusValue = (typeof LOGGED_SESSION_STATUSES)[number];
 
+/** What a logged workout records: a planned occurrence, or a Wing-It workout (Pitch 25). */
+export const LOGGED_SESSION_KINDS = ["planned", "wing_it"] as const;
+export type LoggedSessionKindValue = (typeof LOGGED_SESSION_KINDS)[number];
+
 export const MISSED_DAY_OUTCOMES = [
   "logged_late",
   "shifted",
@@ -70,6 +74,7 @@ export const SHARED_ENUMS = {
   GoalStatus: GOAL_STATUSES,
   GoalArchiveReason: GOAL_ARCHIVE_REASONS,
   LoggedSessionStatus: LOGGED_SESSION_STATUSES,
+  LoggedSessionKind: LOGGED_SESSION_KINDS,
   MissedDayOutcome: MISSED_DAY_OUTCOMES,
   MuscleGroup: MUSCLE_GROUPS,
   Equipment: EQUIPMENT_TYPES,

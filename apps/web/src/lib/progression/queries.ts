@@ -1,4 +1,5 @@
 import "server-only";
+import { planSnapshot } from "@/lib/logging/snapshot";
 import { isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb } from "@/lib/data/account-db";
@@ -172,8 +173,11 @@ export async function gatherRows(
   exerciseId: string,
   db: AccountDb = account.db,
 ): Promise<Row[]> {
+  // Planned workouts only (Pitch 25 RD-25): a Wing-It workout has no plan,
+  // so it never enters a segment, a call, or the stall check. Its sets reach
+  // the strength reads (records, trend, goals) through gatherWingItRows.
   const les = await db.loggedExercise.findMany({
-    where: { exerciseId },
+    where: { exerciseId, loggedSession: { kind: "planned" } },
     include: {
       sets: { orderBy: { setNumber: "asc" } },
       gym: { select: { name: true, deletedAt: true } },
@@ -192,7 +196,9 @@ export async function gatherRows(
     },
   });
 
-  return les.map((le) => {
+  return les.flatMap((le) => {
+    const plan = planSnapshot(le);
+    if (!plan) return []; // unreachable: a planned workout keeps its plan
     const scheduledForIso = toIsoDate(le.loggedSession.scheduledFor);
     const startDate = le.loggedSession.mesocycle?.startDate
       ? toIsoDate(le.loggedSession.mesocycle.startDate)
@@ -204,7 +210,7 @@ export async function gatherRows(
     const scheduledDeload = isScheduledDeloadWeek(week, deloadEvery);
 
     const workingSets = le.sets
-      .filter((s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets)
+      .filter((s) => s.setNumber >= 1 && s.setNumber <= plan.plannedSets)
       .map((s) => ({
         setNumber: s.setNumber,
         weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
@@ -212,7 +218,7 @@ export async function gatherRows(
         rir: s.rir,
       }));
     const extraSets = le.sets
-      .filter((s) => s.setNumber > le.plannedSets)
+      .filter((s) => s.setNumber > plan.plannedSets)
       .map((s) => ({
         setNumber: s.setNumber,
         weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
@@ -221,7 +227,7 @@ export async function gatherRows(
       }));
     const completed =
       le.loggedSession.status === "complete" &&
-      workingSets.length >= le.plannedSets;
+      workingSets.length >= plan.plannedSets;
 
     return {
       perf: {
@@ -232,8 +238,8 @@ export async function gatherRows(
         gymId: le.gymId,
         complete: completed,
         finished: le.loggedSession.status === "complete",
-        repMin: le.targetRepMin,
-        repMax: le.targetRepMax,
+        repMin: plan.repMin,
+        repMax: plan.repMax,
         workingSets,
       },
       loggedSessionId: le.loggedSessionId,
@@ -242,7 +248,7 @@ export async function gatherRows(
       extraSets,
       plannedExerciseId: le.plannedExerciseId,
       plannedExerciseName: le.plannedExercise.name,
-      plannedSets: le.plannedSets,
+      plannedSets: plan.plannedSets,
       lineageId: le.loggedSession.session?.lineageId ?? null,
       sessionName: le.loggedSession.session?.name ?? null,
       createdAtIso: le.createdAt.toISOString(),
@@ -718,14 +724,18 @@ async function plannedAnchor(
       },
       select: { targetRepMin: true, targetRepMax: true, gymId: true },
     });
-    if (le) {
+    const plan = le ? planSnapshot({ ...le, plannedSets: 0 }) : null;
+    if (le && plan) {
       return {
         key: {
           lineageId: session.lineageId,
           exerciseId: occurrence.exerciseId,
           gymId: le.gymId,
         },
-        prescription: prescriptionOf(le),
+        prescription: prescriptionOf({
+          targetRepMin: plan.repMin,
+          targetRepMax: plan.repMax,
+        }),
         gymVariable,
       };
     }
@@ -839,6 +849,10 @@ async function computeOccurrenceProgression(
     },
   });
   if (!le) return null;
+  // An open-ended Wing-It exercise has no plan to judge against (RD-10): no
+  // call, no suggestion, and nothing locked — there is nothing to withhold.
+  const plan = planSnapshot(le);
+  if (!plan) return null;
 
   const gymVariable = isGymVariable(le.exercise);
   const externalLoad = requiresExternalWeight(le.exercise);
@@ -879,7 +893,10 @@ async function computeOccurrenceProgression(
           exerciseId: le.exercise.id,
           gymId: le.gymId,
         },
-        prescription: prescriptionOf(le),
+        prescription: prescriptionOf({
+          targetRepMin: plan.repMin,
+          targetRepMax: plan.repMax,
+        }),
         gymVariable,
       });
   // Any finished workout in scope has a history to link to (R4), bodyweight too.
@@ -971,6 +988,7 @@ async function computeSessionProgressionSummary(
     where: { id: loggedSessionId },
     select: {
       id: true,
+      kind: true,
       scheduledFor: true,
       mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
       loggedExercises: {
@@ -985,7 +1003,9 @@ async function computeSessionProgressionSummary(
       },
     },
   });
-  if (!ls) return null;
+  // A Wing-It workout has no plan, so no call per lift (RD-10): no summary,
+  // and no locked note on a Free account (nothing is withheld).
+  if (!ls || ls.kind === "wing_it") return null;
 
   const startDate = ls.mesocycle?.startDate
     ? toIsoDate(ls.mesocycle.startDate)
@@ -1006,8 +1026,10 @@ async function computeSessionProgressionSummary(
       // The UNGATED occurrence: this summary is gated once, as a whole, by
       // gateSessionSummary below (so its `locked` marker sees what it withholds).
       const occ = await computeOccurrenceProgression(account, le.id);
+      // A planned workout keeps its plan (CHECK, migration 9t).
+      const plannedSets = le.plannedSets ?? 0;
       const loggedWorkingSets = le.sets.filter(
-        (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
+        (s) => s.setNumber >= 1 && s.setNumber <= plannedSets,
       ).length;
       return {
         performedExerciseId: le.exercise.id,
@@ -1017,7 +1039,7 @@ async function computeSessionProgressionSummary(
         suggestion: occ?.suggestion ?? null,
         historyHref: occ?.historyHref ?? null,
         recommendation: occ?.recommendation ?? null,
-        plannedSets: le.plannedSets,
+        plannedSets,
         loggedWorkingSets,
       };
     }),

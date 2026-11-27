@@ -12,7 +12,7 @@ See `pitch.md` §1. The model already reserves the shape (`LoggedSession.mesocyc
 
 ## 3. Scope and non-scope
 
-**In scope:** migration `9t_wing_it_workouts`; the Wing-It domain module; read-path integration (Today, workout, history week, logged detail, unfinished list, exercise history, qualifying e1RMs, card context, baselines); four new mobile endpoints and additive fields; web Today, start, runner, picker, history; native Today, start, runner, picker, history; tests; a release note; runbook.
+**In scope:** migration `9t_wing_it_workouts`; the Wing-It domain module; read-path integration (Today, workout, history week, logged detail, unfinished list, exercise history, qualifying e1RMs, card context, baselines); three new mobile endpoints and additive fields; web Today, start, runner, picker, history; native Today, start, runner, picker, history; tests; a release note; runbook.
 
 **Out of scope:** exercise suggestions, converting to a plan, any change to the planned start flow's server rules, the engine, its constants, entitlements, billing, the tour registry, and Production.
 
@@ -21,7 +21,7 @@ See `pitch.md` §1. The model already reserves the shape (`LoggedSession.mesocyc
 | Term | Meaning |
 | --- | --- |
 | Wing-It workout | `LoggedSession.kind = wing_it`. `mesocycleId`, `sessionId` NULL; `gymId` NOT NULL. Shown as "Wing-It workout". |
-| Planned workout | `kind = planned` (every existing row). `sessionId`, `mesocycleId` NOT NULL; `gymId` NULL (the gym stays on its exercises, unchanged). |
+| Planned workout | `kind = planned` (every existing row). `sessionId`, `mesocycleId` written by `startOrResumeWorkout`; `gymId` NULL (the gym stays on its exercises, unchanged). |
 | Open-ended exercise | A `LoggedExercise` with NULL plan snapshot. Only inside a Wing-It workout. Every logged set is a working set; there are no extra sets. |
 | Active workout | An in-progress workout with at least one saved set — the definition Today's unfinished list already uses ("a workout with no saved set is left out"). |
 | Open Wing-It workout | The account's one in-progress Wing-It workout, with or without sets. |
@@ -37,7 +37,7 @@ complete --correct a set--> complete   (editLoggedSet; no baseline replay)
 
 - **Start** (`startWingItWorkout`): if an open Wing-It workout exists, return it (`resumed: true`), and if it has no set and a different gym was chosen, move it to that gym. Otherwise, if any active workout exists, refuse with `conflict` and `details { loggedSessionId, sessionName }`. Otherwise create it: `scheduledFor` and `performedOn` = today in the account's timezone (the planned convention of a date at UTC midnight), `status in_progress`. A concurrent second create loses the partial unique index; the transaction re-runs and resumes the winner (the `startOrResumeWorkout` retry pattern).
 - **Planned start while a Wing-It workout is active:** the server rule is unchanged (21g "warn, never forbid"): refusing it would let a Wing-It workout block the plan. New clients include an active Wing-It workout in the existing unfinished-workout warning, with Resume first.
-- **Abandon:** an open Wing-It workout with no set is a draft: it is not listed as unfinished, never shown in History as anything but "In progress" with no sets, and the next Start resumes it. Nothing deletes a `LoggedSession`. There is no "discard workout"; an exercise with no sets can be removed.
+- **Abandon:** an open Wing-It workout with no set is a draft: it is not listed as unfinished, never shown in History as anything but "In progress" with no sets, and the next Start resumes it. Nothing deletes a row. There is no "discard workout". An exercise with no sets can be removed: it is marked not done (the existing `setExerciseSkipped`), and every Wing-It read hides an open-ended exercise that is marked and has no sets.
 
 ## 6. Data model — migration `9t_wing_it_workouts` (hand-written, additive)
 
@@ -46,8 +46,9 @@ CREATE TYPE "LoggedSessionKind" AS ENUM ('planned', 'wing_it');
 ALTER TABLE logged_sessions ADD COLUMN kind "LoggedSessionKind" NOT NULL DEFAULT 'planned';
 ALTER TABLE logged_sessions ADD COLUMN gym_id uuid NULL REFERENCES gyms(id) ON DELETE RESTRICT;
 ALTER TABLE logged_sessions ADD CONSTRAINT logged_sessions_kind_shape_check CHECK (
-  (kind = 'planned' AND session_id IS NOT NULL AND mesocycle_id IS NOT NULL AND gym_id IS NULL)
+  (kind = 'planned' AND gym_id IS NULL)
   OR (kind = 'wing_it' AND session_id IS NULL AND mesocycle_id IS NULL AND gym_id IS NOT NULL));
+-- trigger: a kind never changes
 CREATE UNIQUE INDEX logged_sessions_one_open_wing_it_per_user
   ON logged_sessions (user_id) WHERE kind = 'wing_it' AND status = 'in_progress';
 CREATE INDEX logged_sessions_gym_id_idx ON logged_sessions (gym_id);
@@ -61,7 +62,7 @@ ALTER TABLE logged_exercises ADD CONSTRAINT logged_exercises_plan_snapshot_check
 ```
 
 - **Why the existing model cannot carry it safely:** the plan snapshot is NOT NULL and defines "working sets" (1..plannedSets) everywhere; any value written for a Wing-It exercise would be an invented target (RD-6, RD-10). A Wing-It workout starts with no exercises, so its gym has no row to live on. A kind column makes the unplanned identity explicit and lets the database check the shape instead of trusting every writer.
-- **Existing rows:** every row is planned and satisfies the CHECK (both ids are set; the audit found no writer of NULL). `ADD CONSTRAINT` validates and fails loudly otherwise; the runbook has the read-only pre-check for Production.
+- **Existing rows:** every row becomes `planned` with `gym_id` NULL, which satisfies the CHECK. The planned half does not newly require `session_id`/`mesocycle_id`: the database never did, and test fixtures model planned history without a session. The runbook still counts such rows read-only before the Production migration, for the record.
 - **RLS:** no new table. The enum, column, and constraints do not touch RLS (tables already deny-all).
 - **Compatibility:** relaxing NOT NULL and adding a defaulted column are invisible to the deployed web and the installed app until Wing-It rows exist, which only new code writes.
 - **Prisma:** `enum LoggedSessionKind`, `LoggedSession.kind @default(planned)`, `LoggedSession.gymId` + `gym` relation (Restrict), `Gym.loggedSessions`, nullable snapshot fields. The partial index and CHECKs are documented on the model (precedent: `goals_one_active_per_exercise_per_user`). The enum is added to `packages/shared/src/enums.ts` (`LOGGED_SESSION_KINDS`) with the parity test.
@@ -75,7 +76,7 @@ Every function takes the acting `Account`, runs on the scoped client, accepts an
 
 - `startWingItWorkout(account, { gymId }, tx?) → { loggedSessionId, resumed }`.
 - `addWingItExercise(account, { loggedSessionId, exerciseId }, tx?) → { loggedExerciseId, exerciseId, added }`. Wing-It and in progress, else `invalid_state_transition`; exercise active and visible (library or own custom), else `validation_error` "That exercise isn't available."; already in the workout → return that entry (`added: false`; natural key, so a retry or a duplicate pick never creates a second card); at most `WING_IT_MAX_EXERCISES = 30` (shared, Bucket C). New row: `exerciseId = plannedExerciseId = chosen`, `gymId = session.gymId`, `position = max + 1`, NULL snapshot.
-- `removeWingItExercise(account, { loggedExerciseId }, tx?) → { loggedExerciseId }`. Wing-It and in progress; no sets (`invalid_state_transition` "Sets are logged for this exercise, so it stays in the workout."). Deletes the one `LoggedExercise`; `logged_sets.logged_exercise_id` RESTRICT makes a delete with sets impossible at the database too.
+- **Remove** is the existing `setExerciseSkipped(skipped: true)` (only with no sets, only while in progress). `isShownOpenEnded` is the one rule every Wing-It read applies to hide it; adding the exercise again clears the mark. No row is deleted (the invariant guard keeps `LoggedExercise` deletes inside account deletion).
 - `getAddExerciseContext(account, loggedSessionId, muscle) → AddExerciseContextDto | null` (read): active exercises visible to the account, all groups by default or one group, favorites first, `inWorkout` flag.
 - `getWingItToday(account) → WingItTodayDto` (read): `open`, `finishedToday`, `blockedBy`.
 
@@ -100,10 +101,10 @@ Every function takes the acting `Account`, runs on the scoped client, accepts an
 | --- | --- |
 | Start tapped twice, two tabs, web + phone | Partial unique index; the loser's transaction re-runs and resumes. One workout. |
 | Add exercise twice | Natural key (session, exercise): the second returns the first entry. Serialized by the workout lock. |
-| Remove twice | The second is `not_found`; clients treat it as done and refetch. |
+| Remove twice | `setExerciseSkipped` keeps the first mark: the same answer, nothing more written. |
 | Same set twice | Existing `logSet` replay rule (identical → stored row; different → 409). |
 | Finish twice | Existing idempotent completion. |
-| Remove vs. first set, concurrently | Both take the workout lock: either the set lands first (remove refused) or the delete lands first (the set is `not_found`). |
+| Remove vs. first set, concurrently | Both take the workout lock: either the set lands first (remove refused) or the mark lands first (the set is refused: "marked as not done"). |
 | Add after finish | Refused under the lock (`invalid_state_transition`). |
 | Planned start vs. Wing-It start at the same instant | Both may be created with no sets; neither loses data. Accepted (no account-wide lock: it would add a statement to every set write, OVE-212 seed budget). |
 | Stale client overwrites | No write is last-write-wins on a set: a different value for a saved set number is a 409, corrections go through `editLoggedSet`. |
@@ -117,9 +118,9 @@ New endpoints (`mobileRoute`; token, version gate, suspension, rate limit as eve
 | W1 | `POST /wing-it-workouts` | `{ gymId }` | `StartWingItResponseDto { loggedSessionId, resumed }` | one open per account |
 | W2 | `GET /workouts/{loggedSessionId}/exercise-candidates?muscle=` | — | `AddExerciseContextDto` | read |
 | W3 | `PUT /workouts/{loggedSessionId}/exercises/{exerciseId}` | none | `AddWingItExerciseResponseDto { loggedExerciseId, exerciseId, added }` | natural key |
-| W4 | `DELETE /logged-exercises/{loggedExerciseId}` | none | `RemoveWingItExerciseResponseDto { loggedExerciseId, removed: true }` | second is 404 |
+Remove uses the existing `PUT /logged-exercises/{loggedExerciseId}/skipped` (21f E11), unchanged.
 
-W1 refusal while another workout is active: 409 `conflict`, `details: { loggedSessionId, sessionName }`. W3/W4 on a planned workout: 409 `invalid_state_transition`.
+W1 refusal while another workout is active: 409 `conflict`, `details: { loggedSessionId, sessionName }`. W3 on a planned workout: 409 `invalid_state_transition`.
 
 Additive fields (all optional on the type where an older server could omit them; the server always sends them):
 
@@ -152,7 +153,7 @@ The old client can open a Wing-It workout from History or the unfinished list, l
 | Start | `startWingItAction(gymId)` on `/log/wing-it` | W1 |
 | Runner | `getWorkoutView` | `GET /workouts/{id}` |
 | Picker | `getAddExerciseContext` on `/log/{id}/add`, `addWingItExerciseAction` | W2, W3 |
-| Remove | `removeWingItExerciseAction` | W4 |
+| Remove | `setExerciseSkippedAction` (existing) | existing `PUT …/skipped` |
 | Sets / gym / finish | existing actions | existing endpoints |
 | History | `getHistoryWeek`, `getLoggedWorkoutDetail` | `GET /history`, `GET /history/{id}` |
 
@@ -178,7 +179,7 @@ Release note `2026-11-27-wing-it-workouts` (What's New, significant). No tour st
 
 - **Integration, domain (`tests/integration/wing-it.int.test.ts`):** start with no plan; start with an active plan leaves `mesocycles`, `sessions`, `session_exercises`, `missed_day_resolutions`, `schedule_moves` byte-identical and Today's planned kind unchanged after start and after finish (the mandatory regression); missed-day detection unchanged; resume; one open per account (sequential and concurrent); refused while another workout is active, allowed when it has no sets; add / duplicate add / remove / remove with sets refused / add after finish refused; set numbering; finish; baselines (first establishes, deviation corrects, other gym untouched, free weight none); e1RM qualifying rows and goals include Wing-It; engine rows exclude Wing-It and a planned card's call is unchanged by a Wing-It workout between two planned ones; history week (active and logged views), detail, unfinished list; multiple Wing-It workouts in one day; Free with the free-Pro period off and on; database constraints (CHECK, trigger, partial index, Restrict on a set-bearing exercise).
 - **Isolation (`tests/integration/isolation/`):** a second account cannot read, add to, remove from, log in, change the gym of, or finish the first account's Wing-It workout, and cannot use its gym or custom exercise; every new endpoint has cases in `mobile-api.int.test.ts`; the registry lists them.
-- **Mobile API (`tests/integration/mobile-wing-it.int.test.ts`):** W1–W4 happy paths, shapes, 401/403/426, conflict details, legacy values on `GET /workouts/{id}` and `GET /history/{id}`, `GET /today` `wingIt`.
+- **Mobile API (`tests/integration/mobile-wing-it.int.test.ts`):** W1–W3 happy paths, remove through the existing skip endpoint, shapes, 401/403/426, conflict details, legacy values on `GET /workouts/{id}` and `GET /history/{id}`, `GET /today` `wingIt`.
 - **Static guards:** workout-lock guard covers `wing-it.ts`; `LoggedSet` writers unchanged; enum parity.
 - **Web unit:** Wing-It copy, the open-ended card rows, the Today section states (jsdom).
 - **Mobile unit:** `WingItSection`, `useStartWingIt` (single gym, sheet, conflict, busy guard), `AddExerciseScreen` filter and duplicate handling, open-ended `ExerciseCard`, exercise actions, History group, and the legacy-client compatibility test.
@@ -220,14 +221,14 @@ Owner pre-resolved (run prompt of 2026-11-27):
 
 Decided in this run:
 
-- **RD-16 Kind column plus CHECK, not "sessionId IS NULL".** Explicit identity the database checks; the History Calendar needs it. *Judgment; CLAUDE.md layered enforcement.*
+- **RD-16 Kind column plus CHECK, not "sessionId IS NULL".** Explicit identity the database checks (immutable by trigger); the History Calendar needs it. Every read decides Wing-It by `kind`, never by a NULL session. The CHECK is strict for `wing_it` (no session, no mesocycle, a gym) and requires only `gym_id IS NULL` for `planned`: the database never required a planned row's session, 19 integration suites seed planned history without one, and adding that requirement is not this pitch's concern. *Judgment; CLAUDE.md layered enforcement.*
 - **RD-17 Gym on the session for Wing-It only.** A Wing-It workout exists before any exercise; planned workouts keep the gym on exercises (gym_id NULL by CHECK) so no planned code changes. *Judgment.*
 - **RD-18 Nullable plan snapshot, guarded.** CHECK (all or none, none only without a session exercise) and a parent-kind trigger. *CLAUDE.md "nothing invented"; RD-6.*
 - **RD-19 `plannedExerciseId` = the chosen exercise.** Keeps the column NOT NULL and "swapped" false; no swap on Wing-It (remove and add instead). *Judgment; smallest change.*
 - **RD-20 Active workout = in progress with a saved set.** The 21g unfinished-list definition; an empty planned start never blocks Wing-It. *Codebase pattern.*
 - **RD-21 Planned start never refused because of Wing-It.** Clients warn (21g pattern); a refusal would let a deviation block the plan. *21g OVE-228 "warn, never forbid"; RD-4.*
 - **RD-22 One card per exercise per Wing-It workout.** Adding again opens the existing card; makes W3 a natural-key PUT (no Idempotency-Key table write). *CLAUDE.md natural-key retry rule.*
-- **RD-23 Remove only an exercise with no sets; no discard of a workout.** Hard delete of an empty `LoggedExercise` is named by the pitch ("removing unused exercise entries"); a set-bearing one is impossible by FK Restrict. A `LoggedSession` is never deleted. *Pitch; CLAUDE.md history rule.*
+- **RD-23 Remove = the existing "not done" mark, never a delete.** The invariant guard (`tests/unit/invariant-guards.test.ts`) and CLAUDE.md keep every `LoggedExercise` delete inside account deletion, so an unused Wing-It exercise is marked not done (only with no sets) and hidden by Wing-It reads; adding it again restores it. No discard of a workout. *CLAUDE.md first and second invariants; existing 21f endpoint.*
 - **RD-24 Baseline per set for open-ended exercises.** Working sets = every logged set; applied in the set's transaction with the existing median and 15% threshold. Applying at Finish would move a baseline write outside the set's transaction. *CLAUDE.md baseline invariant.*
 - **RD-25 Engine rows exclude Wing-It.** `gatherRows` reads planned rows only; strength reads (records, trend, goals) add Wing-It rows separately. A finished-but-short row inside a segment would change a planned call. *Engine semantics (WLR RD-3).*
 - **RD-26 No weight prefill on Wing-It cards.** Reference "Last time" only (any workout, gym-scoped for machines). Prescription-Aware RD forbids another workout's weight as an offer. *PAI spec §7.2.*

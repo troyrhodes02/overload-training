@@ -6,6 +6,7 @@
  * the contract). Wire conventions: ./wire.ts.
  */
 import type {
+  LoggedSessionKindValue as LoggedSessionKind,
   LoggedSessionStatusValue as LoggedSessionStatus,
   ResolvableMissedDayOutcome,
 } from "../enums";
@@ -114,6 +115,15 @@ export type ExerciseCardDto = {
   weightContext: WeightContext;
   /** Marked "Didn't do" (or left with no sets when the workout finished). */
   skipped: boolean;
+  /**
+   * Pitch 25: an exercise of a Wing-It workout, with no plan. Its rows are
+   * the saved sets plus, while the workout is open, one open row (the next
+   * set number); none is extra. `plannedSets` then counts the rows sent and
+   * `plannedRepRange` is LEGACY_OPEN_REP_RANGE, only so an installed app that
+   * predates Wing-It keeps working (spec §8): never show either as a target.
+   * Absent from an older server: treat as false.
+   */
+  openEnded?: boolean;
   /** Planned rows 1..plannedSets, then any logged extra sets. */
   sets: {
     setNumber: number;
@@ -144,6 +154,11 @@ export type PreviousPerformanceDto = {
   sessionName: string | null;
   /** That occurrence's planned rep range (its copied plan context). */
   repRange: { min: number; max: number };
+  /**
+   * Pitch 25: it was logged in a Wing-It workout, which has no rep range;
+   * `repRange` is then LEGACY_OPEN_REP_RANGE and must not be shown.
+   */
+  openEnded?: boolean;
 };
 
 /** Another performance shown only as labeled reference (never prefilled). */
@@ -154,6 +169,11 @@ export type WeightContext = "trusted" | "reference_only" | "none";
 
 export type WorkoutDto = {
   loggedSessionId: string;
+  /**
+   * Pitch 25: "planned" or "wing_it" (no plan: exercises are added while
+   * training). Absent from an older server: "planned".
+   */
+  kind?: LoggedSessionKind;
   sessionName: string;
   scheduledFor: string;
   status: LoggedSessionStatus;
@@ -203,6 +223,8 @@ export type WeekScheduleDto = {
 
 export type LoggedWorkoutDetailDto = {
   loggedSessionId: string;
+  /** Pitch 25; absent from an older server: "planned". */
+  kind?: LoggedSessionKind;
   sessionName: string;
   dateIso: string;
   dateLabel: string;
@@ -222,7 +244,10 @@ export type LoggedWorkoutDetailDto = {
     skipped: boolean;
     /** False for a pure bodyweight exercise: corrections edit reps only. */
     requiresExternalWeight: boolean;
+    /** For an open-ended (Wing-It) exercise: the sets logged (no plan). */
     plannedSets: number;
+    /** Pitch 25: a Wing-It exercise — no plan, no "x of y planned sets". */
+    openEnded?: boolean;
     sets: {
       loggedSetId: string;
       setNumber: number;
@@ -284,4 +309,53 @@ export type SetSkippedResponseDto = {
 export type EditPlannedSetsResponseDto = {
   loggedExerciseId: string;
   plannedSets: number;
+};
+
+/**
+ * `POST /wing-it-workouts` (Pitch 25 W1): the open Wing-It workout, started
+ * now or resumed (an account has at most one open). Refused with 409
+ * `conflict` and `details { loggedSessionId, sessionName }` while another
+ * workout is in progress with saved sets.
+ */
+export type StartWingItResponseDto = {
+  loggedSessionId: string;
+  resumed: boolean;
+};
+
+/**
+ * `PUT /workouts/{loggedSessionId}/exercises/{exerciseId}` (Pitch 25 W3).
+ * One card per exercise per Wing-It workout: adding one already there
+ * answers with it (`added: false`) and creates nothing.
+ */
+export type AddWingItExerciseResponseDto = {
+  loggedExerciseId: string;
+  exerciseId: string;
+  added: boolean;
+};
+
+/** `DELETE /logged-exercises/{loggedExerciseId}` (Pitch 25 W4): only with no sets. */
+export type RemoveWingItExerciseResponseDto = {
+  loggedExerciseId: string;
+  removed: true;
+};
+
+export type AddExerciseCandidateDto = {
+  id: string;
+  name: string;
+  primaryMuscle: MuscleGroupValue;
+  isFavorite: boolean;
+  /** Already in this workout: choosing it opens its card, adds nothing. */
+  inWorkout: boolean;
+};
+
+/**
+ * `GET /workouts/{loggedSessionId}/exercise-candidates?muscle=` (Pitch 25
+ * W2): every active exercise the account can see (the library and its own
+ * custom ones), favorites first, for one muscle group or `all` (the default).
+ */
+export type AddExerciseContextDto = {
+  loggedSessionId: string;
+  selectedMuscle: MuscleGroupValue | "all";
+  selectedMuscleLabel: string;
+  candidates: AddExerciseCandidateDto[];
 };
