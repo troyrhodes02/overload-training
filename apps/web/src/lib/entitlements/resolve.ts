@@ -5,6 +5,7 @@ import type { Account } from "@/lib/data/account";
 import {
   MS_PER_DAY,
   PLAN_CAPABILITIES,
+  isFreeProPeriod,
   type Capability,
   type Plan,
 } from "@/lib/billing/config";
@@ -113,11 +114,53 @@ export function subscriptionResolution(
   }
 }
 
+/** Request-level facts the resolver applies on top of an account's records. */
+export type ResolverOptions = {
+  /**
+   * The free-Pro period (OVE-266) is on: every account resolves to Pro. Only
+   * `resolveEntitlement` passes it, from the server switch. The admin area and
+   * the trial-notice rule call without it, so they read each account's own,
+   * underlying plan.
+   */
+  freeProPeriod?: boolean;
+};
+
+/**
+ * Display states the free-Pro period replaces with `included`: the accounts
+ * with no paid or complimentary Pro of their own. A comp or a subscription
+ * keeps its own line, because it is real and outlives the period.
+ */
+const INCLUDED_REPLACES: ReadonlySet<DisplayState> = new Set(["free", "trial"]);
+
 /**
  * PURE resolution — unit-testable with no database. The async wrapper below
  * reads the rows through the account-scoped client and calls this.
+ *
+ * With `freeProPeriod`, the account gets Pro capabilities while `sources` and
+ * `trialDaysLeft` still describe only its own records, so nothing about the
+ * underlying entitlement is lost or rewritten. Without it the result is
+ * exactly the normal rules, which is what turning the period off restores.
  */
 export function computeEntitlement(
+  entitlements: ResolverEntitlement[],
+  billing: ResolverBilling | null,
+  now: Date,
+  options: ResolverOptions = {},
+): ResolvedEntitlement {
+  const own = computeOwnEntitlement(entitlements, billing, now);
+  if (!options.freeProPeriod) return own;
+  return {
+    ...own,
+    plan: "pro",
+    capabilities: capabilitiesFor("pro"),
+    displayState: INCLUDED_REPLACES.has(own.displayState)
+      ? "included"
+      : own.displayState,
+  };
+}
+
+/** The normal rules: an account's own trial, comp, and subscription only. */
+function computeOwnEntitlement(
   entitlements: ResolverEntitlement[],
   billing: ResolverBilling | null,
   now: Date,
@@ -175,7 +218,9 @@ export const resolveEntitlement = cache(
         where: { userId: account.userId },
       }),
     ]);
-    return computeEntitlement(entitlements, billing, now);
+    return computeEntitlement(entitlements, billing, now, {
+      freeProPeriod: isFreeProPeriod(),
+    });
   },
 );
 

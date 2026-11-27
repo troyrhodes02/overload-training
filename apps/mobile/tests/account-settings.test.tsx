@@ -327,6 +327,28 @@ describe("A3 Plan & access", () => {
     ).toBeNull();
   });
 
+  it("the free-Pro period (OVE-266): the server's words, 'Included in your plan', and no purchase path", async () => {
+    serve({
+      "GET /me/plan": plan({
+        displayState: "included",
+        label: "Pro — included for everyone",
+        shortLabel: "Pro — included",
+        explanation:
+          "Pro is currently included for everyone at no charge. Paid subscriptions are temporarily unavailable. When this ends, your account returns to its usual plan, with nothing you logged lost.",
+      }),
+    });
+    await render(
+      <Providers>
+        <PlanAccessScreen />
+      </Providers>,
+    );
+    expect(await screen.findByText("Pro — included for everyone")).toBeTruthy();
+    expect(screen.getByText("Included in your plan")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /subscribe|upgrade|manage|buy/i }),
+    ).toBeNull();
+  });
+
   it("Free reads 'Pro adds'; a payment problem says so", () => {
     expect(planSections(plan({ displayState: "free" })).proHeading).toBe(
       "Pro adds",

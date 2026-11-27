@@ -1,8 +1,17 @@
 import type { Capability, Plan } from "../billing/plans";
 
-/** How the lifter's single plan line reads (UI only; never enforced). */
+/**
+ * How the lifter's single plan line reads (UI only; never enforced).
+ *
+ * `included` (OVE-266) is the free-Pro period: Pro is included for everyone
+ * at no charge while the server switch is on. It replaces only the `free` and
+ * `trial` lines; comp and subscription states keep their own. An app build
+ * that predates it reads it through `billingCopy`'s default (the Free words),
+ * so the value is additive and never breaks an installed client.
+ */
 export type DisplayState =
   | "free"
+  | "included"
   | "trial"
   | "paid_monthly"
   | "paid_annual"
@@ -10,7 +19,11 @@ export type DisplayState =
   | "canceling"
   | "grace";
 
-/** Which valid sources currently grant the account Pro. */
+/**
+ * Which valid sources currently grant the account Pro. Only an account's own
+ * records: the free-Pro period (OVE-266) is not a source, so an account it
+ * covers reads `plan: "pro"` with whatever real sources it has, possibly none.
+ */
 export type EntitlementSourceKind = "trial" | "comp" | "subscription";
 
 /**
