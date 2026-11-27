@@ -266,7 +266,7 @@ async function twoAccounts(lib: Lib) {
       where: { loggedSessionId },
     });
     for (const le of les) {
-      for (let n = 1; n <= le.plannedSets; n++) {
+      for (let n = 1; n <= (le.plannedSets ?? 0); n++) {
         await logSetAndReconcile(a, {
           loggedExerciseId: le.id,
           setNumber: n,

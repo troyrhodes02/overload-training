@@ -12,7 +12,7 @@ import type { WeekDayDto } from "./logging";
 export type BlockRef = {
   mesocycleId: string;
   name: string;
-  /** "" when the workout belongs to no mesocycle (reserved for wing-it workouts; no current writer). */
+  /** "" when the workout belongs to no mesocycle (a Wing-It workout, Pitch 25). */
   status: MesocycleStatusValue | "";
 };
 
@@ -23,6 +23,8 @@ export type LoggedHistoryDay = {
     loggedSessionId: string;
     sessionName: string;
     state: "complete" | "in_progress";
+    /** Pitch 25; absent from an older server: "planned". */
+    kind?: "planned" | "wing_it";
   })[];
   cardio: (BlockRef & {
     cardioLogId: string;
@@ -45,6 +47,11 @@ export type HistoryWeekView =
       lengthWeeks: number;
       days: WeekDayDto[];
       cardio: CardioOccurrenceDto[];
+      /**
+       * Pitch 25: Wing-It workouts logged this week, by date. They belong to
+       * no block, so the planned days above never show them.
+       */
+      wingItWorkouts?: WingItHistoryRowDto[];
     }
   | {
       kind: "logged";
@@ -66,4 +73,13 @@ export type HistoryWeekDto = {
   earlierBlocks: EarlierBlock[];
   /** False when nothing has ever been logged and there is no active block. */
   hasAnyHistory: boolean;
+};
+
+/** A Wing-It workout in an active block's week (Pitch 25). */
+export type WingItHistoryRowDto = {
+  loggedSessionId: string;
+  dateIso: string;
+  dayLabel: string;
+  sessionName: string;
+  state: "complete" | "in_progress";
 };

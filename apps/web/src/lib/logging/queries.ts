@@ -20,6 +20,14 @@ import {
   muscleGroupLabel,
 } from "@overload/shared/exercises/taxonomy";
 import { favoriteExerciseIds } from "@/lib/exercises/queries";
+import {
+  LEGACY_OPEN_REP_RANGE,
+  WING_IT_MAX_SETS,
+  openEndedSchemeLine,
+} from "@overload/shared/logging/wing-it";
+import { isShownOpenEnded } from "./wing-it";
+import { loggedWorkoutName, planSnapshot } from "./snapshot";
+export { loggedWorkoutName, planSnapshot } from "./snapshot";
 import { getCardioWeek } from "@/lib/cardio/queries";
 import { loadScheduleContext } from "./schedule-context";
 import type { UnfinishedWorkoutDto } from "@overload/shared/contracts/views";
@@ -147,10 +155,13 @@ async function loggedPreview(
   const exercises = les.map((le) => {
     const valid = workingSetCount(le.sets, le.plannedSets);
     setsLogged += valid;
+    const plan = planSnapshot(le);
     return {
       name: le.exercise.name,
-      scheme: scheme(le.plannedSets, le.targetRepMin, le.targetRepMax),
-      done: valid >= le.plannedSets,
+      scheme: plan
+        ? scheme(plan.plannedSets, plan.repMin, plan.repMax)
+        : openEndedSchemeLine(valid),
+      done: plan ? valid >= plan.plannedSets : valid > 0,
       exerciseId: le.exercise.id,
       isGymVariable: isGymVariable(le.exercise),
     };
@@ -215,10 +226,12 @@ export async function listUnfinishedWorkouts(
     orderBy: [{ scheduledFor: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
+      kind: true,
       sessionId: true,
       scheduledFor: true,
       performedOn: true,
       session: { select: { name: true } },
+      gym: { select: { name: true } },
       loggedExercises: {
         // Position order: the same exercise (and gym) the dashboard shows first.
         orderBy: { position: "asc" },
@@ -241,9 +254,13 @@ export async function listUnfinishedWorkouts(
     .filter(({ day }) => day < today)
     .map(({ ls, day }) => ({
       loggedSessionId: ls.id,
-      sessionName: ls.session?.name ?? "Workout",
+      kind: ls.kind,
+      sessionName: loggedWorkoutName(ls),
       scheduledFor: day,
-      gymName: ls.loggedExercises.find((le) => le.gym)?.gym?.name ?? null,
+      gymName:
+        ls.gym?.name ??
+        ls.loggedExercises.find((le) => le.gym)?.gym?.name ??
+        null,
       setsLogged: ls.loggedExercises.reduce(
         (n, le) => n + workingSetCount(le.sets, le.plannedSets),
         0,
@@ -251,13 +268,19 @@ export async function listUnfinishedWorkouts(
     }));
 }
 
-/** Saved planned (working) sets: setNumber 1..plannedSets. One rule for Today's previews. */
+/**
+ * Saved planned (working) sets: setNumber 1..plannedSets. One rule for
+ * Today's previews. An open-ended Wing-It exercise (plannedSets NULL) has no
+ * extra sets: every saved set counts.
+ */
 function workingSetCount(
   sets: readonly { setNumber: number }[],
-  plannedSets: number,
+  plannedSets: number | null,
 ): number {
-  return sets.filter((s) => s.setNumber >= 1 && s.setNumber <= plannedSets)
-    .length;
+  return sets.filter(
+    (s) =>
+      s.setNumber >= 1 && (plannedSets === null || s.setNumber <= plannedSets),
+  ).length;
 }
 
 export async function getTodayDashboard(
@@ -390,8 +413,10 @@ async function loadCardHistory(
   account: Account,
   exerciseId: string,
 ): Promise<CardHistoryRow[]> {
+  // Planned workouts only (Pitch 25 RD-27): a planned card's offer and its
+  // reference lines are exactly as before Wing-It workouts existed.
   const les = await account.db.loggedExercise.findMany({
-    where: { exerciseId },
+    where: { exerciseId, loggedSession: { kind: "planned" } },
     select: {
       id: true,
       createdAt: true,
@@ -412,7 +437,9 @@ async function loadCardHistory(
       },
     },
   });
-  return les.map((le) => {
+  return les.flatMap((le) => {
+    const plan = planSnapshot(le);
+    if (!plan) return []; // unreachable: a planned workout keeps its plan
     const dateIso = toIsoDate(le.loggedSession.scheduledFor);
     return {
       id: le.id,
@@ -421,9 +448,9 @@ async function loadCardHistory(
       gymId: le.gymId,
       lineageId: le.loggedSession.session?.lineageId ?? null,
       sessionName: le.loggedSession.session?.name ?? null,
-      plannedSets: le.plannedSets,
-      repMin: le.targetRepMin,
-      repMax: le.targetRepMax,
+      plannedSets: plan.plannedSets,
+      repMin: plan.repMin,
+      repMax: plan.repMax,
       scheduledDeload: isDeloadOccurrence(le.loggedSession.mesocycle, dateIso),
       sets: le.sets.map((x) => ({
         setNumber: x.setNumber,
@@ -446,6 +473,7 @@ export async function getWorkout(
     include: {
       session: { select: { name: true, lineageId: true } },
       mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
+      gym: { select: { name: true } },
       loggedExercises: {
         orderBy: { position: "asc" },
         include: {
@@ -460,8 +488,15 @@ export async function getWorkout(
     },
   });
   if (!ls) return null;
+  const wingIt = ls.kind === "wing_it";
+  const open = ls.status === "in_progress";
   const scheduledForIso = toIsoDate(ls.scheduledFor);
   const scheduledDeloadWeek = isDeloadOccurrence(ls.mesocycle, scheduledForIso);
+  // A Wing-It exercise removed from the workout (marked not done with no
+  // sets, spec RD-23) is not a card.
+  const loggedExercises = wingIt
+    ? ls.loggedExercises.filter((le) => isShownOpenEnded(le))
+    : ls.loggedExercises;
   // One history read per performed exercise (an exercise appears once per
   // workout, but a swap can repeat one across cards).
   const histories = new Map<string, Promise<CardHistoryRow[]>>();
@@ -474,60 +509,84 @@ export async function getWorkout(
     return h;
   };
 
-  const totalSets = ls.loggedExercises.reduce((n, le) => n + le.sets.length, 0);
+  const totalSets = loggedExercises.reduce((n, le) => n + le.sets.length, 0);
   const gymLocked = totalSets > 0;
-  const gymName = ls.loggedExercises[0]?.gym?.name ?? null;
+  // A Wing-It workout holds its gym on the session (it may have no exercise).
+  const gymName = wingIt
+    ? (ls.gym?.name ?? null)
+    : (ls.loggedExercises[0]?.gym?.name ?? null);
 
   // Each exercise's two context reads run in parallel, and the exercises run
   // in parallel too: this read sits between a confirmed set and the next set
   // taking focus (review of #76).
   const exercises: ExerciseCardDto[] = await Promise.all(
-    ls.loggedExercises.map(async (le) => {
+    loggedExercises.map(async (le) => {
       const variable = isGymVariable(le.exercise);
       const externalLoad = requiresExternalWeight(le.exercise);
-      const saved = new Map(le.sets.map((s) => [s.setNumber, s]));
-      const rows = Array.from({ length: le.plannedSets }, (_, i) => {
-        const n = i + 1;
-        const s = saved.get(n);
-        return {
-          setNumber: n,
-          loggedSetId: s?.id ?? null,
-          weightLbs: s?.weightLbs != null ? Number(s.weightLbs) : null,
-          reps: s ? s.reps : null,
-          rir: s ? s.rir : null,
-          saved: Boolean(s),
-          extra: false,
-        };
+      const plan = planSnapshot(le);
+      const savedRow = (s: (typeof le.sets)[number], extra: boolean) => ({
+        setNumber: s.setNumber,
+        loggedSetId: s.id,
+        weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
+        reps: s.reps,
+        rir: s.rir,
+        saved: true,
+        extra,
       });
-      for (const s of le.sets) {
-        if (s.setNumber > le.plannedSets) {
-          rows.push({
-            setNumber: s.setNumber,
-            loggedSetId: s.id,
-            weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
-            reps: s.reps,
-            rir: s.rir,
-            saved: true,
-            extra: true,
-          });
+      const openRow = (n: number) => ({
+        setNumber: n,
+        loggedSetId: null,
+        weightLbs: null,
+        reps: null,
+        rir: null,
+        saved: false,
+        extra: false,
+      });
+      let rows: ExerciseCardDto["sets"];
+      if (plan) {
+        const saved = new Map(le.sets.map((s) => [s.setNumber, s]));
+        rows = Array.from({ length: plan.plannedSets }, (_, i) => {
+          const s = saved.get(i + 1);
+          return s ? savedRow(s, false) : openRow(i + 1);
+        });
+        for (const s of le.sets) {
+          if (s.setNumber > plan.plannedSets) rows.push(savedRow(s, true));
         }
+      } else {
+        // Open-ended (Pitch 25): the saved sets, then — while the workout is
+        // open and the limit allows — one open row for the next set number.
+        rows = le.sets.map((s) => savedRow(s, false));
+        const next = le.sets.length + 1;
+        if (open && !le.skippedAt && next <= WING_IT_MAX_SETS)
+          rows.push(openRow(next));
       }
-      // This recurring workout's comparable history only (Prescription-
-      // Aware Intelligence §7.2): never another workout's weight, never the
-      // gym baseline.
-      const context = cardWeightContext(await historyOf(le.exerciseId), {
-        id: le.id,
-        dateIso: scheduledForIso,
-        createdAtIso: le.createdAt.toISOString(),
-        exerciseId: le.exerciseId,
-        gymId: le.gymId,
-        lineageId: ls.session?.lineageId ?? null,
-        repMin: le.targetRepMin,
-        repMax: le.targetRepMax,
-        scheduledDeload: scheduledDeloadWeek,
-        gymVariable: variable,
-        externalLoad,
-      });
+      const context = plan
+        ? // This recurring workout's comparable history only (Prescription-
+          // Aware Intelligence §7.2): never another workout's weight, never
+          // the gym baseline.
+          cardWeightContext(await historyOf(le.exerciseId), {
+            id: le.id,
+            dateIso: scheduledForIso,
+            createdAtIso: le.createdAt.toISOString(),
+            exerciseId: le.exerciseId,
+            gymId: le.gymId,
+            lineageId: ls.session?.lineageId ?? null,
+            repMin: plan.repMin,
+            repMax: plan.repMax,
+            scheduledDeload: scheduledDeloadWeek,
+            gymVariable: variable,
+            externalLoad,
+          })
+        : // No recurring workout and no target (RD-26): last time as
+          // reference only, never an offered weight.
+          await openEndedCardContext(account, {
+            id: le.id,
+            exerciseId: le.exerciseId,
+            dateIso: scheduledForIso,
+            createdAtIso: le.createdAt.toISOString(),
+            gymId: le.gymId,
+            gymVariable: variable,
+          });
       return {
         loggedExerciseId: le.id,
         performedExerciseName: le.exercise.name,
@@ -539,8 +598,13 @@ export async function getWorkout(
         isGymVariable: variable,
         requiresExternalWeight: externalLoad,
         gymName: variable ? gymName : null,
-        plannedSets: le.plannedSets,
-        plannedRepRange: { min: le.targetRepMin, max: le.targetRepMax },
+        // Open-ended: the rows sent and the logged-reps limit, only so an
+        // installed app that predates Wing-It keeps working (spec §8).
+        plannedSets: plan ? plan.plannedSets : rows.length,
+        plannedRepRange: plan
+          ? { min: plan.repMin, max: plan.repMax }
+          : { ...LEGACY_OPEN_REP_RANGE },
+        openEnded: !plan,
         skipped: le.skippedAt !== null,
         suggestedWeightLbs: context.suggestedWeightLbs,
         workingWeightFromBaseline: false,
@@ -552,15 +616,19 @@ export async function getWorkout(
     }),
   );
   const allComplete =
-    ls.loggedExercises.length > 0 &&
-    ls.loggedExercises.every(
-      (le) =>
-        le.exercise.deletedAt === null && le.sets.length >= le.plannedSets,
-    );
+    loggedExercises.length > 0 &&
+    loggedExercises.every((le) => {
+      const plan = planSnapshot(le);
+      return (
+        le.exercise.deletedAt === null &&
+        (plan ? le.sets.length >= plan.plannedSets : le.sets.length > 0)
+      );
+    });
 
   return {
     loggedSessionId: ls.id,
-    sessionName: ls.session?.name ?? "Workout",
+    kind: ls.kind,
+    sessionName: loggedWorkoutName(ls),
     scheduledFor: toIsoDate(ls.scheduledFor),
     status: ls.status,
     gymName,
@@ -569,6 +637,109 @@ export async function getWorkout(
     scheduledDeloadWeek,
     exercises,
     complete: allComplete && ls.status === "complete",
+  };
+}
+
+/**
+ * An open-ended (Wing-It) card's context (Pitch 25 RD-26): the most recent
+ * EARLIER performance of the exercise in any workout — this gym's only for a
+ * machine or cable — shown as reference. Nothing is ever offered in the box:
+ * a Wing-It workout has no recurring workout whose weight could be trusted.
+ */
+async function openEndedCardContext(
+  account: Account,
+  current: {
+    id: string;
+    exerciseId: string;
+    dateIso: string;
+    createdAtIso: string;
+    gymId: string | null;
+    gymVariable: boolean;
+  },
+): Promise<
+  Pick<
+    ExerciseCardDto,
+    | "suggestedWeightLbs"
+    | "previousPerformance"
+    | "referencePerformance"
+    | "weightContext"
+  >
+> {
+  const none = {
+    suggestedWeightLbs: null,
+    previousPerformance: null,
+    referencePerformance: null,
+    weightContext: "none" as const,
+  };
+  // A machine or cable with no gym has no context at all (Faster Logging R9).
+  if (current.gymVariable && !current.gymId) return none;
+  const rows = await account.db.loggedExercise.findMany({
+    where: {
+      exerciseId: current.exerciseId,
+      id: { not: current.id },
+      sets: { some: {} },
+      ...(current.gymVariable ? { gymId: current.gymId } : {}),
+    },
+    select: {
+      createdAt: true,
+      plannedSets: true,
+      targetRepMin: true,
+      targetRepMax: true,
+      sets: {
+        orderBy: { setNumber: "asc" },
+        select: { setNumber: true, weightLbs: true, reps: true },
+      },
+      loggedSession: {
+        select: {
+          kind: true,
+          scheduledFor: true,
+          session: { select: { name: true } },
+        },
+      },
+    },
+  });
+  const earlier = rows
+    .map((r) => ({
+      r,
+      dateIso: toIsoDate(r.loggedSession.scheduledFor),
+      orderKey: r.createdAt.toISOString(),
+    }))
+    .filter((x) =>
+      x.dateIso !== current.dateIso
+        ? x.dateIso < current.dateIso
+        : x.orderKey < current.createdAtIso,
+    )
+    .sort((a, b) =>
+      a.dateIso !== b.dateIso
+        ? a.dateIso < b.dateIso
+          ? 1
+          : -1
+        : a.orderKey < b.orderKey
+          ? 1
+          : -1,
+    );
+  const latest = earlier[0];
+  if (!latest) return none;
+  const plan = planSnapshot(latest.r);
+  return {
+    suggestedWeightLbs: null,
+    previousPerformance: null,
+    referencePerformance: {
+      dateIso: latest.dateIso,
+      gymScoped: current.gymVariable,
+      sets: latest.r.sets.map((x) => ({
+        setNumber: x.setNumber,
+        // A pure bodyweight (NULL) set is never read back as 0.
+        weightLbs: x.weightLbs === null ? null : Number(x.weightLbs),
+        reps: x.reps,
+      })),
+      sessionName: loggedWorkoutName(latest.r.loggedSession),
+      repRange: plan
+        ? { min: plan.repMin, max: plan.repMax }
+        : { ...LEGACY_OPEN_REP_RANGE },
+      openEnded: !plan,
+    },
+    weightContext: "reference_only",
   };
 }
 
@@ -751,6 +922,7 @@ export async function getLoggedWorkoutDetail(
     where: { id: loggedSessionId },
     include: {
       session: { select: { name: true } },
+      gym: { select: { name: true } },
       loggedExercises: {
         orderBy: { position: "asc" },
         include: {
@@ -779,14 +951,23 @@ export async function getLoggedWorkoutDetail(
       })
     : null;
   const dateIso = toIsoDate(move ? ls.performedOn : ls.scheduledFor);
+  const wingIt = ls.kind === "wing_it";
 
   return {
     loggedSessionId: ls.id,
-    sessionName: ls.session?.name ?? "Workout",
+    kind: ls.kind,
+    sessionName: loggedWorkoutName(ls),
     dateIso,
     dateLabel: formatPlanDate(dateIso),
-    gymName: ls.loggedExercises[0]?.gym?.name ?? null,
-    exercises: ls.loggedExercises.map((le) => ({
+    gymName: wingIt
+      ? (ls.gym?.name ?? null)
+      : (ls.loggedExercises[0]?.gym?.name ?? null),
+    // A Wing-It exercise removed (or left untouched at Finish) has no sets
+    // and is not part of the record (spec RD-23).
+    exercises: (wingIt
+      ? ls.loggedExercises.filter((le) => le.sets.length > 0)
+      : ls.loggedExercises
+    ).map((le) => ({
       loggedExerciseId: le.id,
       exerciseId: le.exerciseId,
       historyHref: exerciseHistoryHref(
@@ -799,14 +980,16 @@ export async function getLoggedWorkoutDetail(
       archived: le.exercise.deletedAt !== null,
       skipped: le.skippedAt !== null || le.sets.length === 0,
       requiresExternalWeight: requiresExternalWeight(le.exercise),
-      plannedSets: le.plannedSets,
+      // Open-ended: the sets logged, so no "x of y planned sets" (spec §8).
+      plannedSets: le.plannedSets ?? le.sets.length,
+      openEnded: le.plannedSets === null,
       sets: le.sets.map((s) => ({
         loggedSetId: s.id,
         setNumber: s.setNumber,
         weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
         reps: s.reps,
         rir: s.rir,
-        extra: s.setNumber > le.plannedSets,
+        extra: le.plannedSets !== null && s.setNumber > le.plannedSets,
       })),
     })),
   };
