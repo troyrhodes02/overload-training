@@ -96,7 +96,7 @@ The swap picker's layout and behavior, retitled: "Add an exercise". A muscle-gro
 
 ### 6.9 History
 
-- **Week list.** In an active block week, after the planned days, a group "Wing-It workouts" lists each by day: "{Tue, Nov 24} · Wing-It workout · Complete / In progress", opening the logged workout. In a week outside the active block, Wing-It workouts appear in the day list like any other logged workout, named "Wing-It workout".
+- **Week list.** In an active block week, each Wing-It workout sits on its day, after that day's planned workout, as its own row: "{Tue, Nov 24} · Wing-It workout · Complete / In progress", opening the logged workout (both clients sort the week by day; a Wing-It workout with no saved set is left out). In a week outside the active block, Wing-It workouts appear in the day list like any other logged workout, named "Wing-It workout".
 - **Detail.** Title "Wing-It workout", date, gym, each exercise and its sets as recorded, set corrections exactly as for planned workouts. No "x of y planned sets" line, no progression summary, no upgrade note.
 - **Exercise history.** Wing-It sessions appear in Sessions named "Wing-It workout" with no call; they count toward records and the trend.
 
@@ -157,7 +157,7 @@ Free. No capability check anywhere in the Wing-It lifecycle; the progression cal
 - **Runner:** `WorkoutScreen` header title "Wing-It workout", subtitle the gym. Empty state uses `StateView` (icon `plus.circle`) with "Add exercise". Below the card pager: `Button variant="secondary"` "Add exercise" (icon `plus`). The exercise action sheet offers "About this exercise" and, with no sets, "Remove from workout" (destructive style, no second confirmation).
 - **Card:** `ExerciseCard` open-ended: the scheme line reads "Logged as you go" / "{n} sets logged"; one open row; no Add set; reference line from `referencePerformance` formatted without a rep range.
 - **Add exercise:** a modal stack screen like Swap ("Add an exercise", Cancel left), chips "All" + muscle groups, a search `TextInput`, a `FlatList` of rows with a star for favorites and "In this workout" detail text. Choosing closes the modal only on the server's answer.
-- **History:** the active-week list gets a "Wing-It workouts" group after the planned days, same row component as logged days.
+- **History:** in an active week, each Wing-It workout is a row on its day, after the planned workout, with the same row component.
 - Light and dark from the theme; no new colors.
 
 The web preview (`preview.tsx`) shows the same states; the iPhone renders them natively with the components above.

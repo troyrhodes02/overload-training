@@ -283,25 +283,24 @@ function Picker() {
 }
 
 function HistoryRows() {
+  // Active block week: each Wing-It workout sits on its day, after that
+  // day's planned workout (design §6.9).
+  const rows = [
+    ["Mon, Nov 23", "Upper A", "Complete"],
+    ["Wed, Nov 25", "Lower A", "Upcoming"],
+    ["", "Wing-It workout", "Complete"],
+  ];
   return (
     <section className="space-y-3">
       <p className="font-medium">Week 2 of 5 · Nov 23 – Nov 29</p>
       <ul className="divide-y divide-border rounded-lg border border-border bg-card text-sm">
-        <li className="flex justify-between px-4 py-3">
-          <span>Mon, Nov 23 · Upper A</span>
-          <span className="text-muted-foreground">Complete</span>
-        </li>
-        <li className="flex justify-between px-4 py-3">
-          <span>Wed, Nov 25 · Lower A</span>
-          <span className="text-muted-foreground">Upcoming</span>
-        </li>
-      </ul>
-      <h3 className="pt-2 text-sm font-medium">Wing-It workouts</h3>
-      <ul className="divide-y divide-border rounded-lg border border-border bg-card text-sm">
-        <li className="flex justify-between px-4 py-3">
-          <span>Wed, Nov 25 · Wing-It workout</span>
-          <span className="text-muted-foreground">Complete</span>
-        </li>
+        {rows.map(([day, name, state], i) => (
+          <li key={i} className="flex justify-between px-4 py-3">
+            <span className="w-28 text-muted-foreground">{day}</span>
+            <span className="flex-1">{name}</span>
+            <span className="text-muted-foreground">{state}</span>
+          </li>
+        ))}
       </ul>
     </section>
   );

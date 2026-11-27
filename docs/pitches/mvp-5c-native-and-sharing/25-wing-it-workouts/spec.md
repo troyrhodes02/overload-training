@@ -159,7 +159,7 @@ The old client can open a Wing-It workout from History or the unfinished list, l
 
 Shared copy and pure rules: `packages/shared/src/logging/wing-it.ts` — `WING_IT_NAME`, button and helper sentences, `wingItBlockedMessage`, `openEndedSchemeLine`, `wingItSummaryLine`, `WING_IT_MAX_EXERCISES`, `WING_IT_MAX_SETS`, `LEGACY_OPEN_REP_RANGE`, `filterAddCandidates`.
 
-UI requirements carried from `preview.tsx`: the Wing-It section is its own card below the planned block (outside the inert missed-day region), secondary button except in the no-plan state, one open row per open-ended card, "Add exercise" under the card navigation, the picker's "All muscle groups" default and "In this workout" marker, and the History "Wing-It workouts" group in active weeks.
+UI requirements carried from `preview.tsx`: the Wing-It section is its own card below the planned block (outside the inert missed-day region), secondary button except in the no-plan state, one open row per open-ended card, "Add exercise" under the card navigation, the picker's "All muscle groups" default and "In this workout" marker, and History rows for Wing-It workouts on their day in active weeks.
 
 ### User guidance
 

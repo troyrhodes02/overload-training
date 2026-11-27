@@ -25,6 +25,7 @@ export type {
   EarlierBlock,
   HistoryWeekView,
   HistoryWeekDto,
+  WingItHistoryRowDto,
 } from "@overload/shared/contracts/history";
 
 /**
