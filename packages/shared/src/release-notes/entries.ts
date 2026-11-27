@@ -35,6 +35,22 @@ import type { ReleaseNoteEntry } from "./types";
  */
 export const RELEASE_NOTES: readonly ReleaseNoteEntry[] = [
   {
+    // Pitch 25 (OVE-272, overload-onboarding): Wing-It workouts reach
+    // Production on the WEB only; the approved TestFlight build keeps its UI
+    // until the owner authorizes native distribution. So the note names the
+    // website and is NOT significant: the installed iPhone app reads What's
+    // New too, and must not open a dialog about a feature it doesn't show.
+    // The iPhone gets its own note with its native release. No tour step
+    // (spec RD-30). Dated the day it reached Production. The reserved
+    // "Overload on iPhone" entry is not part of this release (21l release B).
+    id: "2026-11-28-wing-it-workouts",
+    date: "2026-11-28",
+    title: "Wing-It workouts on the web",
+    body: "On the website, start a workout from Today without a plan, even on a planned day. Choose a gym, add exercises as you go, and finish when you're done. It's saved to History, and your plan stays exactly as it is.",
+    significant: false,
+    audience: "internal",
+  },
+  {
     // This week's schedule on Today (OVE-240, overload-onboarding). Not
     // significant: an optional tool on Today, not a change to any call or
     // number. No tour step: the strip sits on Today in plain view and the

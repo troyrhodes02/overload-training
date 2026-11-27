@@ -197,7 +197,7 @@ export async function changeGym(
   const workout = isUuid(input.loggedSessionId)
     ? await tx.loggedSession.findUnique({
         where: { id: input.loggedSessionId },
-        select: { id: true },
+        select: { id: true, kind: true },
       })
     : null;
   if (!workout)
@@ -212,6 +212,14 @@ export async function changeGym(
     );
   }
   await requireActiveGym(input.gymId, tx);
+  // A Wing-It workout (Pitch 25) also holds its gym on the session row: it
+  // exists before any exercise, and exercises added later take it.
+  if (workout.kind === "wing_it") {
+    await tx.loggedSession.update({
+      where: { id: workout.id },
+      data: { gymId: input.gymId },
+    });
+  }
   await tx.loggedExercise.updateMany({
     where: { loggedSessionId: input.loggedSessionId },
     data: { gymId: input.gymId },
@@ -266,6 +274,14 @@ export async function swapExercise(
     throw new DomainError(
       "invalid_state_transition",
       "Sets are logged — this exercise is locked.",
+    );
+  }
+  // A Wing-It exercise (Pitch 25 RD-19) was chosen, not planned: there is
+  // nothing to swap from. Remove it and add the one being done instead.
+  if (le.plannedSets === null) {
+    throw new DomainError(
+      "invalid_state_transition",
+      "Remove it and add the exercise you're doing instead.",
     );
   }
   if (!isUuid(input.newExerciseId)) {
@@ -400,6 +416,13 @@ export async function editPlannedSets(
     throw new DomainError(
       "not_found",
       "That exercise isn't part of this workout.",
+    );
+  }
+  // An open-ended Wing-It exercise (Pitch 25) has no planned sets to lower.
+  if (le.plannedSets === null) {
+    throw new DomainError(
+      "invalid_state_transition",
+      "This exercise has no planned sets.",
     );
   }
   if (input.plannedSets > le.plannedSets) {

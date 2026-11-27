@@ -34,6 +34,9 @@ export async function getWorkoutView(
   if (!workout) return null;
   if (
     opts.skipProgression ||
+    // Pitch 25: a Wing-It workout has no plan, so no card has a call (and
+    // nothing is locked on Free).
+    workout.kind === "wing_it" ||
     (opts.skipProgressionWhenComplete && workout.status === "complete")
   ) {
     return { workout, progression: [] };

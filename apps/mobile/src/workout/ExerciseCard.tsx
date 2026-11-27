@@ -21,6 +21,7 @@ import { rirSpoken } from "@overload/shared/logging/rir";
 import { formatWeight } from "@overload/shared/logging/set-entry";
 import { weightGuidance } from "@overload/shared/logging/weight-guidance";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
+import { openEndedSchemeLine } from "@overload/shared/logging/wing-it";
 import { ApiError } from "../api/errors";
 import {
   invalidateTraining,
@@ -47,6 +48,7 @@ import {
   cardContext,
   cardMode,
   cardOffer,
+  isOpenEnded,
   nextExtraSetNumber,
   parseRepsText,
   parseWeightText,
@@ -274,6 +276,9 @@ export function ExerciseCard({
     else if (action === "swap") openSwap();
     else if (action === "skip") await markSkipped(true);
     else if (action === "fewer_sets") askFewerSets();
+    // Pitch 25: a Wing-It exercise with no sets leaves the workout (marked
+    // not done on the server, hidden by every Wing-It read; RD-23).
+    else if (action === "remove") await markSkipped(true);
   }
 
   /**
@@ -386,10 +391,16 @@ export function ExerciseCard({
 
   const gymLine =
     card.isGymVariable && card.gymName ? ` · ${card.gymName}` : "";
-  const scheme = `${card.plannedSets} × ${formatRepTarget(
-    card.plannedRepRange.min,
-    card.plannedRepRange.max,
-  )}${needsWeight ? "" : " · bodyweight, reps only"}${gymLine}`;
+  // An open-ended Wing-It card (Pitch 25) has no target: it says what was
+  // logged, never "n × range" (its old fields are only for older builds).
+  const scheme = `${
+    isOpenEnded(card)
+      ? openEndedSchemeLine(card.sets.filter((s) => s.saved).length)
+      : `${card.plannedSets} × ${formatRepTarget(
+          card.plannedRepRange.min,
+          card.plannedRepRange.max,
+        )}`
+  }${needsWeight ? "" : " · bodyweight, reps only"}${gymLine}`;
 
   return (
     <Surface style={{ gap: spacing.lg }}>

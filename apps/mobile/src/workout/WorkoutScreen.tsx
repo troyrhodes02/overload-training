@@ -1,4 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   Alert,
   Keyboard,
@@ -35,13 +41,21 @@ import {
   cardActiveSet,
   cardMode,
   initialExerciseIndex,
+  isWingIt,
   unfinishedExercises,
+  visibleExercises,
 } from "./card-model";
+import { WING_IT_COPY } from "@overload/shared/logging/wing-it";
 import { ExerciseCard } from "./ExerciseCard";
 import { callForCard, insightFor } from "./insight-model";
 import { useKeepAboveKeyboard } from "./keep-above-keyboard";
 import { changeFailureMessage } from "./messages";
-import { loggedWorkoutHref, summaryHref } from "./routes";
+import { addExerciseHref, loggedWorkoutHref, summaryHref } from "./routes";
+import {
+  clearCardFocus,
+  peekCardFocus,
+  subscribeCardFocus,
+} from "./focus-request";
 
 /** The finish confirmation (design F1), with the web runner's rule and copy. */
 export function finishConfirmation(workout: WorkoutDto): {
@@ -120,6 +134,29 @@ export function WorkoutScreen({
   // Open on the first unfinished card once, when the workout first loads
   // (state adjusted during render, so there is no auto-advance afterwards).
   if (workout && index === null) setIndex(initialExerciseIndex(workout));
+  // A Wing-It workout (Pitch 25 review #1): the card the Add exercise picker
+  // chose — added, restored, or already there — is shown once it is listed.
+  const focusId = useSyncExternalStore(subscribeCardFocus, () =>
+    peekCardFocus(loggedSessionId),
+  );
+  // Applied during render, like the index above; the request itself is
+  // cleared after the commit (it is outside React).
+  const focusAt =
+    focusId && workout
+      ? visibleExercises(workout).findIndex(
+          (e) => e.loggedExerciseId === focusId,
+        )
+      : -1;
+  const [appliedFocus, setAppliedFocus] = useState<string | null>(null);
+  if (focusId && focusAt >= 0 && appliedFocus !== focusId) {
+    setAppliedFocus(focusId);
+    setIndex(focusAt);
+  } else if (!focusId && appliedFocus !== null) {
+    setAppliedFocus(null);
+  }
+  useEffect(() => {
+    if (focusId && appliedFocus === focusId) clearCardFocus(loggedSessionId);
+  }, [focusId, appliedFocus, loggedSessionId]);
 
   const scrollTop = useCallback(
     () => scroll.current?.scrollTo({ y: 0, animated: false }),
@@ -164,7 +201,8 @@ export function WorkoutScreen({
     );
   }
 
-  const exercises = workout.exercises;
+  const wingIt = isWingIt(workout);
+  const exercises = visibleExercises(workout);
   const i = Math.min(index ?? 0, Math.max(0, exercises.length - 1));
   const current = exercises[i];
   // The current card's call, only while it is shown as current (OVE-229).
@@ -342,6 +380,16 @@ export function WorkoutScreen({
                 onRetry: () => void insights.refetch(),
               }}
             />
+          ) : wingIt ? (
+            <StateView
+              icon="plus.circle"
+              title={WING_IT_COPY.emptyTitle}
+              message={WING_IT_COPY.emptyMessage}
+              action={{
+                label: WING_IT_COPY.addExercise,
+                onPress: () => router.push(addExerciseHref(loggedSessionId)),
+              }}
+            />
           ) : (
             <StateView
               title="No exercises in this workout."
@@ -377,6 +425,14 @@ export function WorkoutScreen({
               />
             )}
           </View>
+          {wingIt && exercises.length > 0 ? (
+            // Pitch 25: an exercise can be added at any time (design §6.7).
+            <Button
+              label={WING_IT_COPY.addExercise}
+              variant="secondary"
+              onPress={() => router.push(addExerciseHref(loggedSessionId))}
+            />
+          ) : null}
         </View>
       </ScrollView>
     </>

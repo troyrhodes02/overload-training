@@ -25,6 +25,8 @@ import { getTodayView } from "@/lib/views/today";
 import { getThisWeek } from "@/lib/logging/this-week";
 import { ThisWeekStrip } from "@/components/logging/this-week-strip";
 import { tourAnchor } from "@/lib/tour/steps";
+import { WingItToday } from "@/components/logging/wing-it-today";
+import { WING_IT_COPY } from "@overload/shared/logging/wing-it";
 
 export const metadata = { title: "Today · Overload" };
 
@@ -245,11 +247,22 @@ export default async function TodayPage() {
   // it cannot change between renders or between server and browser.
   // Earlier days' workouts still in progress (Pitch 21g OVE-228): under the
   // heading in every dashboard state, so none is ever hidden by today's plan.
+  // Pitch 25: the open Wing-It workout shows in its own section, so it is
+  // not listed twice among the unfinished ones.
+  const openWingIt = view.wingIt?.open?.loggedSessionId ?? null;
   const header = (
     <>
       <TodayHeader today={today} greeting={view.greeting} />
-      <UnfinishedWorkouts workouts={view.unfinishedWorkouts ?? []} />
+      <UnfinishedWorkouts
+        workouts={(view.unfinishedWorkouts ?? []).filter(
+          (w) => w.loggedSessionId !== openWingIt,
+        )}
+      />
     </>
+  );
+  // Pitch 25 (RD-3): on every state, beside — never instead of — the plan.
+  const wingIt = (placement: "no_plan" | "rest" | "planned") => (
+    <WingItToday wingIt={view.wingIt} placement={placement} />
   );
 
   // Goals fill the dashboard ONLY when no training action is pending (Goals
@@ -268,12 +281,13 @@ export default async function TodayPage() {
         >
           <p className="font-medium">No active plan.</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Build and activate a mesocycle to start training.{" "}
+            {WING_IT_COPY.noPlan}{" "}
             <Link href="/plan" className="underline">
               Plan →
             </Link>
           </p>
         </div>
+        {wingIt("no_plan")}
         {goals}
       </section>
     );
@@ -289,6 +303,7 @@ export default async function TodayPage() {
             <CardioFocal entries={dash.cardio} week={dash.week} />
           </div>,
         )}
+        {wingIt("rest")}
         {goals}
       </section>
     );
@@ -312,6 +327,7 @@ export default async function TodayPage() {
             </p>
           </div>,
         )}
+        {wingIt("rest")}
         {goals}
       </section>
     );
@@ -337,6 +353,8 @@ export default async function TodayPage() {
             </div>
           ) : null,
         )}
+        {/* Outside the inert block: Wing-It never waits on the missed day. */}
+        {wingIt("planned")}
       </section>
     );
   }
@@ -345,6 +363,7 @@ export default async function TodayPage() {
     <section className="space-y-6">
       {header}
       {withWeek(<TodayBlock state={dash} view={view} />)}
+      {wingIt("planned")}
       {goals}
     </section>
   );

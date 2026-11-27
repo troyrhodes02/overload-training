@@ -13,6 +13,7 @@ import path from "node:path";
 const MODULES = [
   "src/lib/logging/sessions.ts",
   "src/lib/logging/logged-sets.ts",
+  "src/lib/logging/wing-it.ts",
 ];
 
 /** A write to a workout, one of its exercises, or one of its sets. */
@@ -49,6 +50,8 @@ describe("OVE-220: workout writes take the workout lock", () => {
       "editPlannedSets",
       "completeWorkout",
       "logSetInTx",
+      "startWingItWorkout",
+      "addWingItExercise",
     ]) {
       expect(writers).toContain(name);
     }
@@ -68,7 +71,12 @@ describe("OVE-220: workout writes take the workout lock", () => {
       .filter((f) => WRITE.test(f.body) && !(f.name in EXEMPT))
       // startOrResumeWorkout creates a NEW workout with no lock to take; its
       // resume branch locks before it moves the gym.
-      .filter((f) => f.name !== "startOrResumeWorkout")
+      // startWingItWorkout likewise: it creates a new workout (none to lock);
+      // its resume branch locks before it moves the gym.
+      .filter(
+        (f) =>
+          f.name !== "startOrResumeWorkout" && f.name !== "startWingItWorkout",
+      )
       .filter(
         (f) => f.body.search(/\blockWorkoutForUpdate\(/) > f.body.search(WRITE),
       )

@@ -3,7 +3,8 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
+import { WING_IT_COPY } from "@overload/shared/logging/wing-it";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -40,14 +41,32 @@ export function WorkoutRunner({
   workout,
   activeGyms,
   progression,
+  initialExerciseId,
 }: {
   workout: WorkoutDto;
   activeGyms: GymOption[];
   /** Derived per-occurrence progression, keyed by loggedExerciseId (OVE-28). */
   progression: Record<string, CardProgression>;
+  /** Pitch 25: open on this card (the one just added to a Wing-It workout). */
+  initialExerciseId?: string | null;
 }) {
   const router = useRouter();
-  const [index, setIndex] = useState(0);
+  const wingIt = workout.kind === "wing_it";
+  // Pitch 25: a Wing-It exercise removed from the workout (marked not done,
+  // nothing saved) is not a card (the server hides it too; spec RD-23).
+  const exercises = wingIt
+    ? workout.exercises.filter(
+        (e) => !(e.openEnded && e.skipped && !e.sets.some((s) => s.saved)),
+      )
+    : workout.exercises;
+  const [rawIndex, setIndex] = useState(() => {
+    const at = initialExerciseId
+      ? exercises.findIndex((e) => e.loggedExerciseId === initialExerciseId)
+      : -1;
+    if (at >= 0) return at;
+    // A Wing-It workout opens where the lifter left off: the card added last.
+    return wingIt ? Math.max(0, exercises.length - 1) : 0;
+  });
   // True once the lifter has moved between cards; the first card never
   // takes focus on its own (R13).
   const [navigated, setNavigated] = useState(false);
@@ -58,16 +77,19 @@ export function WorkoutRunner({
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const exercises = workout.exercises;
+  // Clamped: a removed Wing-It card can shorten the list under the index.
+  const index = Math.min(rawIndex, Math.max(0, exercises.length - 1));
   const current = exercises[index];
   const canFinish = exercises.some((e) => e.sets.some((s) => s.saved));
   const unfinished = exercises
     .filter((e) => !e.skipped)
-    .map((e) => ({
-      name: e.performedExerciseName,
-      done: e.sets.filter((s) => s.saved && !s.extra).length,
-      planned: e.plannedSets,
-    }))
+    .map((e) => {
+      const done = e.sets.filter((s) => s.saved && !s.extra).length;
+      // Open-ended: nothing is short of a plan; one with no sets is listed
+      // so the lifter knows it is recorded as not done.
+      const planned = e.openEnded ? (done === 0 ? 1 : done) : e.plannedSets;
+      return { name: e.performedExerciseName, done, planned };
+    })
     .filter((e) => e.done < e.planned);
   const isLast = index >= exercises.length - 1;
   const next = exercises[index + 1];
@@ -103,9 +125,11 @@ export function WorkoutRunner({
         <Link href="/" className="flex items-center text-muted-foreground">
           <ChevronLeft className="size-4" /> {workout.sessionName}
         </Link>
-        <span className="tabular-nums text-muted-foreground">
-          {index + 1} / {exercises.length}
-        </span>
+        {exercises.length > 0 ? (
+          <span className="tabular-nums text-muted-foreground">
+            {index + 1} / {exercises.length}
+          </span>
+        ) : null}
       </div>
 
       {workout.isHistoricalDate ? (
@@ -156,7 +180,8 @@ export function WorkoutRunner({
           focusOnMount={navigated}
           onPlannedSetsDone={focusPrimary}
           swapSlot={
-            current.sets.some((s) => s.saved) ? (
+            // A Wing-It exercise is removed and re-added, never swapped.
+            current.openEnded ? null : current.sets.some((s) => s.saved) ? (
               <Button variant="secondary" className="w-full" disabled>
                 Swap exercise · locked (sets logged)
               </Button>
@@ -171,6 +196,19 @@ export function WorkoutRunner({
             )
           }
         />
+      ) : wingIt ? (
+        // Pitch 25 (design §6.7): a Wing-It workout starts with no exercises.
+        <div className="rounded-lg border border-border bg-card p-6 text-center">
+          <p className="font-medium">{WING_IT_COPY.emptyTitle}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {WING_IT_COPY.emptyMessage}
+          </p>
+          <Button asChild className="mt-4 h-11">
+            <Link href={`/log/${workout.loggedSessionId}/add`}>
+              <Plus aria-hidden /> {WING_IT_COPY.addExercise}
+            </Link>
+          </Button>
+        </div>
       ) : null}
 
       {error ? (
@@ -209,6 +247,20 @@ export function WorkoutRunner({
           </Button>
         )}
       </div>
+      {wingIt && exercises.length > 0 ? (
+        // Pitch 25: an exercise can be added at any time (design §6.7).
+        <Button asChild variant="secondary" className="h-11 w-full">
+          <Link href={`/log/${workout.loggedSessionId}/add`}>
+            <Plus aria-hidden /> {WING_IT_COPY.addExercise}
+          </Link>
+        </Button>
+      ) : null}
+      {wingIt && !canFinish ? (
+        // Pitch 25: a Wing-It workout starts empty, so say why Finish waits.
+        <p className="text-center text-xs text-muted-foreground">
+          Log at least one set before finishing.
+        </p>
+      ) : null}
 
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>

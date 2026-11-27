@@ -1,4 +1,7 @@
 import "server-only";
+import { planSnapshot } from "@/lib/logging/snapshot";
+import { WING_IT_NAME } from "@overload/shared/logging/wing-it";
+import type { StrengthPerformance } from "@overload/shared/progression/history";
 import { isUuid } from "@/lib/actions/result";
 import type { Account } from "@/lib/data/account";
 import type { AccountDb } from "@/lib/data/account-db";
@@ -172,8 +175,11 @@ export async function gatherRows(
   exerciseId: string,
   db: AccountDb = account.db,
 ): Promise<Row[]> {
+  // Planned workouts only (Pitch 25 RD-25): a Wing-It workout has no plan,
+  // so it never enters a segment, a call, or the stall check. Its sets reach
+  // the strength reads (records, trend, goals) through gatherWingItRows.
   const les = await db.loggedExercise.findMany({
-    where: { exerciseId },
+    where: { exerciseId, loggedSession: { kind: "planned" } },
     include: {
       sets: { orderBy: { setNumber: "asc" } },
       gym: { select: { name: true, deletedAt: true } },
@@ -192,7 +198,9 @@ export async function gatherRows(
     },
   });
 
-  return les.map((le) => {
+  return les.flatMap((le) => {
+    const plan = planSnapshot(le);
+    if (!plan) return []; // unreachable: a planned workout keeps its plan
     const scheduledForIso = toIsoDate(le.loggedSession.scheduledFor);
     const startDate = le.loggedSession.mesocycle?.startDate
       ? toIsoDate(le.loggedSession.mesocycle.startDate)
@@ -204,7 +212,7 @@ export async function gatherRows(
     const scheduledDeload = isScheduledDeloadWeek(week, deloadEvery);
 
     const workingSets = le.sets
-      .filter((s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets)
+      .filter((s) => s.setNumber >= 1 && s.setNumber <= plan.plannedSets)
       .map((s) => ({
         setNumber: s.setNumber,
         weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
@@ -212,7 +220,7 @@ export async function gatherRows(
         rir: s.rir,
       }));
     const extraSets = le.sets
-      .filter((s) => s.setNumber > le.plannedSets)
+      .filter((s) => s.setNumber > plan.plannedSets)
       .map((s) => ({
         setNumber: s.setNumber,
         weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
@@ -221,7 +229,7 @@ export async function gatherRows(
       }));
     const completed =
       le.loggedSession.status === "complete" &&
-      workingSets.length >= le.plannedSets;
+      workingSets.length >= plan.plannedSets;
 
     return {
       perf: {
@@ -232,8 +240,8 @@ export async function gatherRows(
         gymId: le.gymId,
         complete: completed,
         finished: le.loggedSession.status === "complete",
-        repMin: le.targetRepMin,
-        repMax: le.targetRepMax,
+        repMin: plan.repMin,
+        repMax: plan.repMax,
         workingSets,
       },
       loggedSessionId: le.loggedSessionId,
@@ -242,12 +250,82 @@ export async function gatherRows(
       extraSets,
       plannedExerciseId: le.plannedExerciseId,
       plannedExerciseName: le.plannedExercise.name,
-      plannedSets: le.plannedSets,
+      plannedSets: plan.plannedSets,
       lineageId: le.loggedSession.session?.lineageId ?? null,
       sessionName: le.loggedSession.session?.name ?? null,
       createdAtIso: le.createdAt.toISOString(),
       completed,
       finished: le.loggedSession.status === "complete",
+    };
+  });
+}
+
+/**
+ * A performance as the strength reads see it (records, trends, Sessions,
+ * goals): its strength facts and display context, never a plan range.
+ * Every PerformanceRow is one; a Wing-It row (Pitch 25) is one with
+ * `wingIt: true` and is never judged by the engine (RD-25).
+ */
+export type StrengthRow = {
+  perf: StrengthPerformance;
+  loggedSessionId: string;
+  gymName: string | null;
+  gymArchived: boolean;
+  extraSets: Performance["workingSets"];
+  plannedExerciseId: string;
+  plannedExerciseName: string;
+  plannedSets: number;
+  sessionName: string | null;
+  createdAtIso: string;
+  finished: boolean;
+  wingIt?: boolean;
+};
+
+/**
+ * Every performance of the PERFORMED exercise in a Wing-It workout (Pitch 25):
+ * all its sets are working sets (no plan, so no extra sets), it is never a
+ * scheduled-deload week, and it carries no planned range. Strength reads only.
+ */
+export async function gatherWingItRows(
+  account: Account,
+  exerciseId: string,
+  db: AccountDb = account.db,
+): Promise<StrengthRow[]> {
+  const les = await db.loggedExercise.findMany({
+    where: { exerciseId, loggedSession: { kind: "wing_it" } },
+    include: {
+      sets: { orderBy: { setNumber: "asc" } },
+      gym: { select: { name: true, deletedAt: true } },
+      plannedExercise: { select: { name: true } },
+      loggedSession: { select: { status: true, scheduledFor: true } },
+    },
+  });
+  return les.map((le) => {
+    const workingSets = le.sets.map((s) => ({
+      setNumber: s.setNumber,
+      weightLbs: s.weightLbs === null ? null : Number(s.weightLbs),
+      reps: s.reps,
+      rir: s.rir,
+    }));
+    return {
+      perf: {
+        loggedExerciseId: le.id,
+        dateIso: toIsoDate(le.loggedSession.scheduledFor),
+        scheduledDeload: false,
+        gymId: le.gymId,
+        workingSets,
+      },
+      loggedSessionId: le.loggedSessionId,
+      gymName: le.gym?.name ?? null,
+      gymArchived: le.gym?.deletedAt != null,
+      extraSets: [],
+      plannedExerciseId: le.plannedExerciseId,
+      plannedExerciseName: le.plannedExercise.name,
+      plannedSets: workingSets.length,
+      sessionName: WING_IT_NAME,
+      createdAtIso: le.createdAt.toISOString(),
+      finished: le.loggedSession.status === "complete",
+      wingIt: true,
     };
   });
 }
@@ -284,7 +362,13 @@ export async function getQualifyingSessionE1rms(
   gymId: string | null,
   db: AccountDb = account.db,
 ): Promise<QualifyingE1rm[]> {
-  const rows = await gatherRows(account, exerciseId, db);
+  // Wing-It sets are demonstrated strength too (Pitch 25 RD-10): they count
+  // toward goals exactly as a finished planned workout's sets do.
+  const [planned, wingIt] = await Promise.all([
+    gatherRows(account, exerciseId, db),
+    gatherWingItRows(account, exerciseId, db),
+  ]);
+  const rows: StrengthRow[] = [...planned, ...wingIt];
   const scoped = (
     gymId ? rows.filter((r) => r.perf.gymId === gymId) : rows
   ).filter((r) => r.finished && !r.perf.scheduledDeload);
@@ -718,14 +802,18 @@ async function plannedAnchor(
       },
       select: { targetRepMin: true, targetRepMax: true, gymId: true },
     });
-    if (le) {
+    const plan = le ? planSnapshot({ ...le, plannedSets: 0 }) : null;
+    if (le && plan) {
       return {
         key: {
           lineageId: session.lineageId,
           exerciseId: occurrence.exerciseId,
           gymId: le.gymId,
         },
-        prescription: prescriptionOf(le),
+        prescription: prescriptionOf({
+          targetRepMin: plan.repMin,
+          targetRepMax: plan.repMax,
+        }),
         gymVariable,
       };
     }
@@ -839,6 +927,10 @@ async function computeOccurrenceProgression(
     },
   });
   if (!le) return null;
+  // An open-ended Wing-It exercise has no plan to judge against (RD-10): no
+  // call, no suggestion, and nothing locked — there is nothing to withhold.
+  const plan = planSnapshot(le);
+  if (!plan) return null;
 
   const gymVariable = isGymVariable(le.exercise);
   const externalLoad = requiresExternalWeight(le.exercise);
@@ -879,7 +971,10 @@ async function computeOccurrenceProgression(
           exerciseId: le.exercise.id,
           gymId: le.gymId,
         },
-        prescription: prescriptionOf(le),
+        prescription: prescriptionOf({
+          targetRepMin: plan.repMin,
+          targetRepMax: plan.repMax,
+        }),
         gymVariable,
       });
   // Any finished workout in scope has a history to link to (R4), bodyweight too.
@@ -971,6 +1066,7 @@ async function computeSessionProgressionSummary(
     where: { id: loggedSessionId },
     select: {
       id: true,
+      kind: true,
       scheduledFor: true,
       mesocycle: { select: { startDate: true, deloadEveryWeeks: true } },
       loggedExercises: {
@@ -985,7 +1081,9 @@ async function computeSessionProgressionSummary(
       },
     },
   });
-  if (!ls) return null;
+  // A Wing-It workout has no plan, so no call per lift (RD-10): no summary,
+  // and no locked note on a Free account (nothing is withheld).
+  if (!ls || ls.kind === "wing_it") return null;
 
   const startDate = ls.mesocycle?.startDate
     ? toIsoDate(ls.mesocycle.startDate)
@@ -1006,8 +1104,10 @@ async function computeSessionProgressionSummary(
       // The UNGATED occurrence: this summary is gated once, as a whole, by
       // gateSessionSummary below (so its `locked` marker sees what it withholds).
       const occ = await computeOccurrenceProgression(account, le.id);
+      // A planned workout keeps its plan (CHECK, migration 9t).
+      const plannedSets = le.plannedSets ?? 0;
       const loggedWorkingSets = le.sets.filter(
-        (s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets,
+        (s) => s.setNumber >= 1 && s.setNumber <= plannedSets,
       ).length;
       return {
         performedExerciseId: le.exercise.id,
@@ -1017,7 +1117,7 @@ async function computeSessionProgressionSummary(
         suggestion: occ?.suggestion ?? null,
         historyHref: occ?.historyHref ?? null,
         recommendation: occ?.recommendation ?? null,
-        plannedSets: le.plannedSets,
+        plannedSets,
         loggedWorkingSets,
       };
     }),

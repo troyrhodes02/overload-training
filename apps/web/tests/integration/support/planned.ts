@@ -68,9 +68,10 @@ export async function plannedOccurrence(
       userId: account.userId,
       sessionId: session.id,
       exerciseId,
-      plannedSets: latest.plannedSets,
-      targetRepMin: latest.targetRepMin,
-      targetRepMax: latest.targetRepMax,
+      // A planned workout keeps its plan (CHECK, migration 9t).
+      plannedSets: latest.plannedSets!,
+      targetRepMin: latest.targetRepMin!,
+      targetRepMax: latest.targetRepMax!,
     },
   });
   await db.loggedSession.updateMany({

@@ -21,6 +21,7 @@ import {
   logSetAndReconcile,
 } from "@/lib/logging/workflows";
 import { logCardio } from "@/lib/cardio/cardio-logs";
+import { addWingItExercise, startWingItWorkout } from "@/lib/logging/wing-it";
 
 /*
  * Guided Workout Logging server actions. Each re-checks the auth session FIRST,
@@ -42,6 +43,37 @@ export async function startWorkoutAction(input: {
     () => startOrResumeWorkout(account, input),
     "Couldn't start the workout. Nothing was changed.",
   );
+  if (result.ok) refresh();
+  return result;
+}
+
+/**
+ * Pitch 25: start a Wing-It workout at a gym, or resume the open one. Never
+ * touches the plan. Refused with `conflict` (details name the workout) while
+ * another workout is in progress with saved sets.
+ */
+export async function startWingItAction(input: {
+  gymId: string;
+}): Promise<ActionResult<{ loggedSessionId: string; resumed: boolean }>> {
+  const account = await requireAccount();
+  const result = await toActionResult(
+    () => startWingItWorkout(account, input),
+    "Couldn't start the workout. Nothing was changed.",
+  );
+  if (result.ok) refresh();
+  return result;
+}
+
+/** Pitch 25: add an exercise to a Wing-It workout (one card per exercise). */
+export async function addWingItExerciseAction(input: {
+  loggedSessionId: string;
+  exerciseId: string;
+}): Promise<ActionResult<{ loggedExerciseId: string; added: boolean }>> {
+  const account = await requireAccount();
+  const result = await toActionResult(async () => {
+    const out = await addWingItExercise(account, input);
+    return { loggedExerciseId: out.loggedExerciseId, added: out.added };
+  }, "Couldn't add the exercise. Nothing was changed.");
   if (result.ok) refresh();
   return result;
 }

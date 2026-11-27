@@ -655,7 +655,14 @@ describe("core fields only (?fields=core, Checkpoint A round 2 RD-28)", () => {
       // Pitch 21g (OVE-228): unfinished earlier workouts are state, not a
       // call, so the core answer carries them, exactly as the full one does.
       unfinishedWorkouts: f.unfinishedWorkouts,
+      // Pitch 25: the Wing-It section is state too, in both answers.
+      wingIt: f.wingIt,
     });
     expect(f.unfinishedWorkouts).toEqual([]);
+    expect(f.wingIt).toEqual({
+      open: null,
+      finishedToday: [],
+      blockedBy: null,
+    });
   });
 });

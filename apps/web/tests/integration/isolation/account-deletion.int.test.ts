@@ -67,7 +67,7 @@ async function populate(account: Account, lib: Lib, label: string) {
   const { loggedSessionId, les } = await startToday(account, plan);
   // Every planned set, so the machine lift establishes a gym baseline.
   for (const le of les) {
-    for (let n = 1; n <= le.plannedSets; n++) {
+    for (let n = 1; n <= (le.plannedSets ?? 0); n++) {
       await logSet(account, {
         loggedExerciseId: le.id,
         setNumber: n,

@@ -31,3 +31,7 @@ export const editSetHref = (
 export function exerciseAboutHref(exerciseId: string): string {
   return `/exercise/${encodeURIComponent(exerciseId)}`;
 }
+
+/** The Add exercise picker over a Wing-It workout (Pitch 25). */
+export const addExerciseHref = (loggedSessionId: string) =>
+  `/workout/${encodeURIComponent(loggedSessionId)}/add` as const;

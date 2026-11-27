@@ -1,4 +1,5 @@
 import "server-only";
+import { getWingItToday } from "@/lib/logging/wing-it";
 import type { Account } from "@/lib/data/account";
 import { accountToday } from "@/lib/data/account";
 import {
@@ -93,9 +94,14 @@ export async function getTodayView(
   // Earlier days' workouts still in progress (Pitch 21g OVE-228), in the core
   // fields too — except a workout the dashboard already shows as its own day
   // (a shifted occurrence keeps its authored, earlier date).
-  const unfinishedWorkouts = await listUnfinishedWorkouts(account, undefined, {
-    excludeIds: shownLoggedSessionIds(dashboard),
-  });
+  const [unfinishedWorkouts, wingIt] = await Promise.all([
+    listUnfinishedWorkouts(account, undefined, {
+      excludeIds: shownLoggedSessionIds(dashboard),
+    }),
+    // Pitch 25: the Wing-It section, on every state and in the core fields
+    // too (it is state, not a call; Free).
+    getWingItToday(account),
+  ]);
 
   // Read right after the dashboard, as the web page always did (release
   // review #5): the date header and the dashboard come from the same moment.
@@ -121,6 +127,7 @@ export async function getTodayView(
       sessionGoals: [],
       goals: null,
       unfinishedWorkouts,
+      wingIt,
     };
   }
 
@@ -195,5 +202,6 @@ export async function getTodayView(
     sessionGoals,
     goals,
     unfinishedWorkouts,
+    wingIt,
   };
 }

@@ -79,6 +79,20 @@ export function historyRows(week: HistoryWeekDto): HistoryRow[] {
         loggedSessionId: d.loggedSessionId,
       }),
     );
+    // Pitch 25: Wing-It workouts belong to no block, so the planned days
+    // never show them; each sits on its day, after that day's workout.
+    (week.view.wingItWorkouts ?? []).forEach((w) =>
+      rows.push({
+        kind: "workout",
+        key: `wi-${w.loggedSessionId}`,
+        dateIso: w.dateIso,
+        order: 0.5,
+        dateLabel: w.dayLabel,
+        sessionName: w.sessionName,
+        state: w.state,
+        loggedSessionId: w.loggedSessionId,
+      }),
+    );
     week.view.cardio.forEach((c, i) => {
       const shown = c.log ?? c.planned;
       rows.push({
