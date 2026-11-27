@@ -136,13 +136,18 @@ it("nothing sends email or push", () => {
   // module is the only file allowed to name it; `resend` stays forbidden
   // everywhere else, and no email/push SDK is ever a dependency.
   const EMAIL_SENDER_EXEMPT = "src/lib/accounts/verification.ts";
+  // OVE-265: the privacy policy names Resend in prose as the provider that
+  // delivers Supabase Auth's mail. It is a static page and sends nothing.
+  const PROVIDER_NAMED_IN_PROSE = "src/app/(marketing)/privacy/page.tsx";
   const offenders = walkCode()
     .filter((f) => rel(f) !== EMAIL_SENDER_EXEMPT)
-    .filter((f) =>
-      /\b(resend|nodemailer|web-push|PushManager|showNotification)\b/i.test(
-        fs.readFileSync(f, "utf8"),
-      ),
-    )
+    .filter((f) => {
+      const banned =
+        rel(f) === PROVIDER_NAMED_IN_PROSE
+          ? /\b(nodemailer|web-push|PushManager|showNotification)\b/i
+          : /\b(resend|nodemailer|web-push|PushManager|showNotification)\b/i;
+      return banned.test(fs.readFileSync(f, "utf8"));
+    })
     .map(rel);
   expect(offenders).toEqual([]);
 });

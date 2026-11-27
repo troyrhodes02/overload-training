@@ -70,6 +70,7 @@ describe("public paths (PA3 / R9)", () => {
     "/welcome",
     "/pricing",
     "/changelog",
+    "/privacy", // OVE-265
     "/robots.txt",
     "/sitemap.xml",
     "/manifest.webmanifest",
