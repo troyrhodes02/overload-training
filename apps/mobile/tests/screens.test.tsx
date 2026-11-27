@@ -3,7 +3,7 @@
  * appearances. The session and the API client are fakes; nothing touches the
  * network.
  */
-import { Appearance } from "react-native";
+import { Appearance, Linking } from "react-native";
 import {
   act,
   fireEvent,
@@ -185,6 +185,22 @@ describe.each(["light", "dark"] as const)("in %s appearance", (scheme) => {
     expect(
       screen.getByRole("button", { name: "Create account" }),
     ).toBeDisabled();
+  });
+
+  it("S3 links the public privacy policy (OVE-265)", async () => {
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    await render(
+      <Providers>
+        <SignUpScreen />
+      </Providers>,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Privacy Policy" }),
+    );
+    expect(open).toHaveBeenCalledWith(
+      "https://www.overloadtraining.app/privacy",
+    );
+    open.mockRestore();
   });
 
   it("S5 shows the web's identical sent copy", async () => {
