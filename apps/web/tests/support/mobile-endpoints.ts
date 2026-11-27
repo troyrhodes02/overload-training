@@ -188,6 +188,18 @@ export const MOBILE_ENDPOINTS: readonly MobileEndpoint[] = [
   // Pitch 21k
   { method: "PUT", route: "api/mobile/v1/me/tour/outcome", auth: "account" },
   { method: "POST", route: "api/mobile/v1/me/tour/offered", auth: "account" },
+  // Pitch 25
+  { method: "POST", route: "api/mobile/v1/wing-it-workouts", auth: "account" },
+  {
+    method: "GET",
+    route: "api/mobile/v1/workouts/[loggedSessionId]/exercise-candidates",
+    auth: "account",
+  },
+  {
+    method: "PUT",
+    route: "api/mobile/v1/workouts/[loggedSessionId]/exercises/[exerciseId]",
+    auth: "account",
+  },
   ...(["GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => ({
     method,
     route: CATCH_ALL,
