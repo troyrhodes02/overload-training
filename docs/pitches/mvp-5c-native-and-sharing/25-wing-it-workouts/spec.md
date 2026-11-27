@@ -120,7 +120,7 @@ New endpoints (`mobileRoute`; token, version gate, suspension, rate limit as eve
 | W3 | `PUT /workouts/{loggedSessionId}/exercises/{exerciseId}` | none | `AddWingItExerciseResponseDto { loggedExerciseId, exerciseId, added }` | natural key |
 Remove uses the existing `PUT /logged-exercises/{loggedExerciseId}/skipped` (21f E11), unchanged.
 
-W1 refusal while another workout is active: 409 `conflict`, `details: { loggedSessionId, sessionName }`. W3 on a planned workout: 409 `invalid_state_transition`.
+W1 refusal while another workout is active: 409 `conflict`, `details: { loggedSessionId, sessionName }`. W3 on a planned workout: 400 `invalid_state_transition` (the existing status for that code).
 
 Additive fields (all optional on the type where an older server could omit them; the server always sends them):
 
