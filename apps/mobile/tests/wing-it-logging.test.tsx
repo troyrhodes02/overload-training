@@ -7,13 +7,19 @@
  * so the next set must come from the server's confirmation itself — which is
  * what these tests pin: Set N+1 is editable right after Set N's 200.
  */
-import { AccessibilityInfo, Appearance } from "react-native";
+import {
+  AccessibilityInfo,
+  Appearance,
+  Keyboard,
+  TextInput,
+} from "react-native";
 import {
   act,
   fireEvent,
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react-native";
 import type {
   ExerciseCardDto,
@@ -31,6 +37,7 @@ import { WorkoutScreen } from "../src/workout/WorkoutScreen";
 import { LoggedWorkoutScreen } from "../src/history/LoggedWorkoutScreen";
 import { requestCardFocus } from "../src/workout/focus-request";
 import { card, rows, view, workout } from "./fixtures/workout";
+import { keypadBarId } from "../src/workout/ExerciseCard";
 
 const mockApi = { request: jest.fn() };
 jest.mock("../src/api/ApiProvider", () => ({ useApi: () => mockApi }));
@@ -412,6 +419,195 @@ describe("planned workouts are unchanged", () => {
     expect(screen.queryByLabelText("Set 3 weight in pounds")).toBeNull();
     expect(await screen.findByText("All 2 sets logged.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add set" })).toBeTruthy();
+    expect(stored.map((s) => s.setNumber)).toEqual([1, 2]);
+  });
+});
+
+/** Every TextInput's focus() — one shared Jest mock in this environment. */
+const inputFocus = () => TextInput.prototype.focus as unknown as jest.Mock;
+
+type Host = ReturnType<typeof screen.getByText>;
+
+/** The keypad bar iOS shows above the keyboard for one input (tests/setup.ts). */
+function keypadBar(id: string) {
+  const found: Host[] = [];
+  const walk = (n: Host) => {
+    if (n.type === "KeyboardAccessoryContent" && n.props.nativeID === id)
+      found.push(n);
+    n.children.forEach((c) => typeof c !== "string" && walk(c as Host));
+  };
+  walk(screen.root as Host);
+  expect(found).toHaveLength(1);
+  return within(found[0]!);
+}
+
+describe("keypad Done and no automatic focus after a save (OVE-274)", () => {
+  let dismiss: jest.SpyInstance;
+  beforeEach(() => {
+    dismiss = jest.spyOn(Keyboard, "dismiss").mockImplementation(() => {});
+    expect(jest.isMockFunction(TextInput.prototype.focus)).toBe(true);
+  });
+  afterEach(() => dismiss.mockRestore());
+
+  it("Done hides the keyboard and saves nothing; Log set saves once; Set 2 is ready with the keyboard closed and nothing focused", async () => {
+    const server = wingItServer();
+    server.add("le-a", "Leg Press");
+    await openWorkout();
+    await screen.findByLabelText("Set 1 weight in pounds");
+    await fireEvent.changeText(
+      screen.getByLabelText("Set 1 weight in pounds"),
+      "200",
+    );
+    await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "10");
+    await fireEvent.press(screen.getByRole("button", { name: "Set 1 RIR 2" }));
+
+    // 1–5: Done on either keypad bar only hides the keyboard.
+    for (const field of ["weight", "reps"] as const) {
+      const bar = keypadBar(keypadBarId("le-a", 1, field));
+      expect(bar.queryByRole("button", { name: /^Log set/ })).toBeNull();
+      await fireEvent.press(bar.getByRole("button", { name: "Done" }));
+    }
+    expect(dismiss).toHaveBeenCalledTimes(2);
+    expect(server.puts).toHaveLength(0);
+    expect(screen.getByLabelText("Set 1 weight in pounds").props.value).toBe(
+      "200",
+    );
+    expect(screen.getByLabelText("Set 1 reps").props.value).toBe("10");
+    expect(
+      screen.getByRole("button", { name: "Set 1 RIR 2" }).props
+        .accessibilityState.selected,
+    ).toBe(true);
+
+    // Positive control: Next on the weight bar does focus reps.
+    inputFocus().mockClear();
+    await fireEvent.press(
+      keypadBar(keypadBarId("le-a", 1, "weight")).getByRole("button", {
+        name: "Next",
+      }),
+    );
+    expect(inputFocus()).toHaveBeenCalledTimes(1);
+
+    // 6–10: the card's Log set saves exactly once; Set 2 is editable, the
+    // keyboard is closed, and no input is focused.
+    inputFocus().mockClear();
+    dismiss.mockClear();
+    const logSet1 = screen.getByRole("button", { name: "Log set 1" });
+    expect(logSet1.props.accessibilityState?.disabled).not.toBe(true);
+    await fireEvent.press(logSet1);
+    await screen.findByLabelText(/^Set 1, 200 pounds, 10 reps.*logged/);
+    expect(server.puts).toHaveLength(1);
+    expect(server.lifts[0]!.sets[0]).toMatchObject({
+      weightLbs: 200,
+      reps: 10,
+      rir: 2,
+    });
+    const set2 = screen.getByLabelText("Set 2 reps");
+    expect(set2.props.editable).not.toBe(false);
+    expect(dismiss).toHaveBeenCalled();
+    expect(inputFocus()).not.toHaveBeenCalled();
+
+    // 11–12: the lifter taps Set 2 when ready, logs it, and Set 3 likewise.
+    await logSet(2, "210", "8");
+    expect(inputFocus()).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Set 3 reps").props.editable).not.toBe(false);
+    await logSet(3, "220", "6");
+    expect(inputFocus()).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Set 4 weight in pounds")).toBeTruthy();
+    expect(server.puts.map((p) => p.setNumber)).toEqual([1, 2, 3]);
+  });
+
+  it("17: the keyboard closes only on the server's confirmation; a failed save leaves it and the numbers alone, and the retry stores one set", async () => {
+    const server = wingItServer();
+    server.add("le-a", "Leg Press");
+    await openWorkout();
+    await screen.findByLabelText("Set 1 weight in pounds");
+    await fireEvent.changeText(
+      screen.getByLabelText("Set 1 weight in pounds"),
+      "200",
+    );
+    await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "10");
+    dismiss.mockClear();
+    server.failNextPut(new ApiError("network", "offline", 0));
+    await fireEvent.press(screen.getByRole("button", { name: "Log set 1" }));
+    await waitFor(() => expect(server.puts).toHaveLength(1));
+    await screen.findByText(/Your numbers are still here/);
+    expect(dismiss).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Set 1 reps").props.value).toBe("10");
+    // The retry: one stored set, then (and only then) the keyboard closes.
+    await fireEvent.press(screen.getByRole("button", { name: "Log set 1" }));
+    await screen.findByLabelText("Set 2 weight in pounds");
+    expect(dismiss).toHaveBeenCalled();
+    expect(server.lifts[0]!.sets).toHaveLength(1);
+    expect(inputFocus()).not.toHaveBeenCalled();
+  });
+
+  it("13–14: after a save the lifter moves to another exercise and logs several sets there, with nothing focused for them", async () => {
+    const server = wingItServer();
+    server.add("le-a", "Leg Press");
+    server.add("le-b", "Cable Fly");
+    await openWorkout();
+    // Opens on the exercise added last (Cable Fly); go to Leg Press first.
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Previous" }),
+    );
+    await screen.findByRole("header", { name: "Leg Press" });
+    inputFocus().mockClear();
+    await logSet(1, "200", "10");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Next: Cable Fly" }),
+    );
+    await screen.findByRole("header", { name: "Cable Fly" });
+    await logSet(1, "30", "12");
+    await logSet(2, "30", "11");
+    expect(inputFocus()).not.toHaveBeenCalled();
+    expect(server.lifts.map((l) => [l.name, l.sets.length])).toEqual([
+      ["Leg Press", 1],
+      ["Cable Fly", 2],
+    ]);
+  });
+
+  it("16: a planned workout saves through the card's Log set with the keyboard closed and nothing focused", async () => {
+    const stored: LoggedSetDto[] = [];
+    mockApi.request.mockImplementation(
+      async (raw: string, opts: { method?: string; body?: unknown } = {}) => {
+        const path = raw.replace(/\?fields=core$/, "");
+        if (path === "/workouts/ls-1")
+          return view(
+            workout({ exercises: [card({ plannedSets: 3, sets: rows(3) })] }),
+          );
+        const m = path.match(/^\/logged-exercises\/le-bench\/sets\/(\d+)$/);
+        if (m && opts.method === "PUT") {
+          const b = opts.body as { weightLbs: number; reps: number };
+          const set: LoggedSetDto = {
+            id: `p${m[1]}`,
+            loggedExerciseId: "le-bench",
+            setNumber: Number(m[1]),
+            weightLbs: b.weightLbs,
+            reps: b.reps,
+            rir: null,
+            createdAt: "2026-11-14T15:00:00.000Z",
+            updatedAt: "2026-11-14T15:00:00.000Z",
+          };
+          stored.push(set);
+          return set;
+        }
+        throw new ApiError("not_found", "nope", 404);
+      },
+    );
+    await render(
+      <Providers>
+        <WorkoutScreen loggedSessionId="ls-1" />
+      </Providers>,
+    );
+    await screen.findByLabelText("Set 1 reps");
+    inputFocus().mockClear();
+    dismiss.mockClear();
+    await logSet(1, "255", "5");
+    expect(dismiss).toHaveBeenCalled();
+    expect(inputFocus()).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Set 2 reps").props.editable).not.toBe(false);
+    await logSet(2, "255", "5");
+    expect(inputFocus()).not.toHaveBeenCalled();
     expect(stored.map((s) => s.setNumber)).toEqual([1, 2]);
   });
 });

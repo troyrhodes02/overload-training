@@ -117,6 +117,7 @@ export function WorkoutScreen({
     row: activeRowRef,
     content: contentRef,
     reveal: revealActiveRow,
+    forget: forgetKeyboard,
   } = useKeepAboveKeyboard(scroll, spacing.md);
 
   const workout = query.data?.workout;
@@ -368,6 +369,7 @@ export function WorkoutScreen({
               position={{ index: i, total: exercises.length }}
               activeRowRef={activeRowRef}
               onActiveRowLayout={revealActiveRow}
+              onKeyboardDismissed={forgetKeyboard}
               insight={{
                 view: currentView ?? { kind: "none" },
                 guidance: currentGuidance,
