@@ -22,7 +22,6 @@ import {
 import { favoriteExerciseIds } from "@/lib/exercises/queries";
 import {
   LEGACY_OPEN_REP_RANGE,
-  WING_IT_MAX_SETS,
   openEndedSchemeLine,
 } from "@overload/shared/logging/wing-it";
 import { isShownOpenEnded } from "./wing-it";
@@ -554,11 +553,9 @@ export async function getWorkout(
         }
       } else {
         // Open-ended (Pitch 25): the saved sets, then — while the workout is
-        // open and the limit allows — one open row for the next set number.
+        // open — one open row for the next set number.
         rows = le.sets.map((s) => savedRow(s, false));
-        const next = le.sets.length + 1;
-        if (open && !le.skippedAt && next <= WING_IT_MAX_SETS)
-          rows.push(openRow(next));
+        if (open && !le.skippedAt) rows.push(openRow(le.sets.length + 1));
       }
       const context = plan
         ? // This recurring workout's comparable history only (Prescription-
