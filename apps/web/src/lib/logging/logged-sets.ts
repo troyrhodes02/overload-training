@@ -99,7 +99,8 @@ export const MAX_EXTRA_SETS = 10;
  *
  * An open-ended exercise of a Wing-It workout (Pitch 25) has no plan
  * (`plannedSets` NULL): every set is a working set, numbered 1, 2, 3, … with
- * no gaps, at most WING_IT_MAX_SETS — the shared rule both clients pre-check.
+ * no gaps, as many as the lifter does — the shared rule both clients
+ * pre-check.
  */
 function isAllowedSetNumber(
   setNumber: number,

@@ -56,6 +56,14 @@ export function cardActiveSet(
   card: ExerciseCardDto,
   pendingExtra: number | null = null,
 ): number | null {
+  // Open-ended (Pitch 25): no plan, so the active set is simply the first
+  // row not yet saved — never bounded by a count that could lag the rows.
+  if (card.openEnded === true) {
+    const open = card.sets
+      .filter((s) => !s.saved)
+      .sort((a, b) => a.setNumber - b.setNumber)[0];
+    return open ? open.setNumber : null;
+  }
   return activeSetNumber(card.sets, card.plannedSets, pendingExtra);
 }
 
