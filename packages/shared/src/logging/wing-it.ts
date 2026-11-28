@@ -14,9 +14,6 @@ export const WING_IT_NAME = "Wing-It workout";
 /** Most exercises one Wing-It workout may hold (input sanity; Bucket C, RD-29). */
 export const WING_IT_MAX_EXERCISES = 30;
 
-/** Most sets one open-ended exercise may hold (input sanity; Bucket C, RD-29). */
-export const WING_IT_MAX_SETS = 20;
-
 /**
  * The rep range sent in the OLD fields (`plannedRepRange`, `repRange`) of a
  * Wing-It row, only so an installed app that predates Wing-It keeps parsing
@@ -96,7 +93,8 @@ export function wingItFinishedLine(w: {
 
 /**
  * The open-ended set rule (the server's, so a client can pre-check): set
- * numbers run 1, 2, 3, … with no gaps, at most WING_IT_MAX_SETS. A number
+ * numbers run 1, 2, 3, … with no gaps, as many as the lifter does (no set
+ * cap; owner decision at acceptance, superseding RD-29's 20). A number
  * already logged is a replay (the server decides identical or conflict).
  */
 export function isAllowedOpenEndedSetNumber(
@@ -104,7 +102,6 @@ export function isAllowedOpenEndedSetNumber(
   logged: readonly number[],
 ): boolean {
   if (!Number.isInteger(setNumber) || setNumber < 1) return false;
-  if (setNumber > WING_IT_MAX_SETS) return false;
   const have = new Set(logged);
   if (have.has(setNumber)) return true;
   for (let n = 1; n < setNumber; n++) if (!have.has(n)) return false;

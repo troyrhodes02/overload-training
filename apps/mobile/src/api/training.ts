@@ -42,7 +42,6 @@ import {
   type TodayDto,
   type WorkoutViewDto,
 } from "@overload/shared/contracts/views";
-import { WING_IT_MAX_SETS } from "@overload/shared/logging/wing-it";
 import { useApi } from "./ApiProvider";
 import type { ApiError } from "./errors";
 
@@ -472,7 +471,7 @@ export function mergeConfirmedSet(
           ? e
           : {
               ...e,
-              sets: upsertSet(e.sets, e.plannedSets, set, e.openEnded === true),
+              ...confirmedCard(e, set, view.workout.status === "in_progress"),
             },
       ),
     },
@@ -500,22 +499,42 @@ function upsertSet(
     ? sets.map((s) => (s.setNumber === set.setNumber ? row : s))
     : [...sets, row];
   // Open-ended: the next set gets its open row right away, as the server's
-  // next read will show it (Pitch 25), up to the shared limit.
+  // next read will show it (Pitch 25).
   if (openEnded && !next.some((s) => !s.saved)) {
-    const n = Math.max(...next.map((s) => s.setNumber)) + 1;
-    if (n <= WING_IT_MAX_SETS) {
-      next.push({
-        setNumber: n,
-        loggedSetId: null,
-        weightLbs: null,
-        reps: null,
-        rir: null,
-        saved: false,
-        extra: false,
-      });
-    }
+    next.push({
+      setNumber: Math.max(...next.map((s) => s.setNumber)) + 1,
+      loggedSetId: null,
+      weightLbs: null,
+      reps: null,
+      rir: null,
+      saved: false,
+      extra: false,
+    });
   }
   return next.sort((a, b) => a.setNumber - b.setNumber);
+}
+
+/**
+ * One card with a set the server confirmed. A planned card keeps its plan.
+ * An open-ended (Wing-It) card is rebuilt as the server builds it: its rows
+ * are the saved sets plus the next open one, and `plannedSets` counts the
+ * rows (spec §8) — so the next set is ready at once, with no re-read. Its
+ * count used to stay at the old value, which left the new row outside the
+ * active-set rule: Set 2 never opened on the iPhone (Pitch 25 acceptance).
+ */
+function confirmedCard(
+  e: WorkoutViewDto["workout"]["exercises"][number],
+  set: LoggedSetDto,
+  inProgress: boolean,
+): Pick<
+  WorkoutViewDto["workout"]["exercises"][number],
+  "sets" | "plannedSets"
+> {
+  const openEnded = e.openEnded === true;
+  // Only an open workout has a next row (the server's rule); a corrected set
+  // of a finished one gets none.
+  const sets = upsertSet(e.sets, e.plannedSets, set, openEnded && inProgress);
+  return { sets, plannedSets: openEnded ? sets.length : e.plannedSets };
 }
 
 export function useLogSet() {

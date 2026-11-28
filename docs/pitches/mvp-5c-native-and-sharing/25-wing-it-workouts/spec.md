@@ -84,7 +84,7 @@ Every function takes the acting `Account`, runs on the scoped client, accepts an
 
 | Module | Change |
 | --- | --- |
-| `logged-sets.ts` | `isAllowedSetNumber`: with `plannedSets` NULL, a set number is allowed when it is 1..`WING_IT_MAX_SETS` (20, Bucket C) and every lower number is logged, or it is a replay. Baseline call unchanged. |
+| `logged-sets.ts` | `isAllowedSetNumber`: with `plannedSets` NULL, a set number is allowed when every lower number is logged (no cap), or it is a replay. Baseline call unchanged. |
 | `gyms/baselines.ts` | With NULL `plannedSets`, the working sets are every logged set; the exercise is "complete" once it has one loaded set. Same transaction, same `(gymId, exerciseId)` row, same median and threshold. |
 | `sessions.ts` | `changeGym` also writes `LoggedSession.gymId` for Wing-It. `swapExercise` refuses a Wing-It exercise (`invalid_state_transition` "Remove it and add the exercise you're doing instead."). `editPlannedSets` refuses a NULL snapshot. `startOrResumeWorkout` unchanged. `completeWorkout` unchanged. |
 | `queries.ts` | `getWorkout` adds `kind`, Wing-It name and gym, open-ended cards; `loadCardHistory` reads planned rows only (planned cards unchanged); `getLoggedWorkoutDetail` adds `kind`/`openEnded`; `listUnfinishedWorkouts` names Wing-It workouts and counts all their sets; `loggedPreview` tolerates NULL. |
@@ -157,7 +157,7 @@ The old client can open a Wing-It workout from History or the unfinished list, l
 | Sets / gym / finish | existing actions | existing endpoints |
 | History | `getHistoryWeek`, `getLoggedWorkoutDetail` | `GET /history`, `GET /history/{id}` |
 
-Shared copy and pure rules: `packages/shared/src/logging/wing-it.ts` — `WING_IT_NAME`, button and helper sentences, `wingItBlockedMessage`, `openEndedSchemeLine`, `wingItSummaryLine`, `WING_IT_MAX_EXERCISES`, `WING_IT_MAX_SETS`, `LEGACY_OPEN_REP_RANGE`, `filterAddCandidates`.
+Shared copy and pure rules: `packages/shared/src/logging/wing-it.ts` — `WING_IT_NAME`, button and helper sentences, `wingItBlockedMessage`, `openEndedSchemeLine`, `wingItSummaryLine`, `WING_IT_MAX_EXERCISES`, `LEGACY_OPEN_REP_RANGE`, `filterAddCandidates`.
 
 UI requirements carried from `preview.tsx`: the Wing-It section is its own card below the planned block (outside the inert missed-day region), secondary button except in the no-plan state, one open row per open-ended card, "Add exercise" under the card navigation, the picker's "All muscle groups" default and "In this workout" marker, and History rows for Wing-It workouts on their day in active weeks.
 
@@ -173,7 +173,7 @@ Release note `2026-11-27-wing-it-workouts` (What's New, significant). No tour st
 
 ## 11. Validation rules
 
-`gymId`: an active gym of the account. `exerciseId`: an active exercise visible to the account. Set values: the existing shared weight, reps, and RIR rules. Set number: sequential from 1, at most 20. Exercises per Wing-It workout: at most 30. `muscle`: a muscle group or `all`; anything else falls back to `all`.
+`gymId`: an active gym of the account. `exerciseId`: an active exercise visible to the account. Set values: the existing shared weight, reps, and RIR rules. Set number: sequential from 1, no cap (the API's set-number path allows 1–999). Exercises per Wing-It workout: at most 30. `muscle`: a muscle group or `all`; anything else falls back to `all`.
 
 ## 12. Testing strategy
 
@@ -234,7 +234,7 @@ Decided in this run:
 - **RD-26 No weight prefill on Wing-It cards.** Reference "Last time" only (any workout, gym-scoped for machines). Prescription-Aware RD forbids another workout's weight as an offer. *PAI spec §7.2.*
 - **RD-27 Planned cards ignore Wing-It history.** `loadCardHistory` reads planned rows only, so planned cards, offers, and references are unchanged. *RD-4; compatibility.*
 - **RD-28 Legacy numeric values (§8).** Old fields stay numbers with documented neutral values; new clients read `openEnded`/`kind`. *Mobile API backward-compatibility rule.*
-- **RD-29 Limits.** 30 exercises, 20 sets per exercise (Bucket C, input sanity, flagged for review). *Judgment.*
+- **RD-29 Limits.** 30 exercises per Wing-It workout (Bucket C, input sanity). No set cap: the owner required at acceptance that sets continue without an artificial limit, superseding the original 20. *Owner, 2026-11-27.*
 - **RD-30 No tour step.** The native tour is under TestFlight review and Today's step already covers the day; a release note only. *RD-14; overload-onboarding.*
 - **RD-31 Picker lists all groups by default.** "All muscle groups" first, favorites first, search over the listed group; same component pattern as Swap. *Design §6.8.*
 
@@ -245,6 +245,8 @@ Decided after the independent review of the feature branch:
 - **RD-34 A Wing-It workout is dated by its start.** One started before midnight and finished after shows on its start day (Today's "finished today" and History), as a planned workout keeps its date. *Review #5; consistency with planned dating.*
 - **RD-35 The planned card's trend link stays planned-only.** `getExerciseProgression`/`trendExists` feed the planned card; the Exercise History page, which the link opens, includes Wing-It sets. *Review #6; RD-25.*
 - **RD-36 Per-set baselines can move with warm-ups.** Accepted: the median damps one light set, nothing offers the baseline as a weight today (PAI RD-9), and it is re-tunable from history. Revisit before any feature reads it as an offer. *Review #10; Architecture Doc top risk.*
+
+- **RD-37 An open-ended card's next set comes from the confirmation.** The app does not re-read a workout after a set (it only marks it stale), so the confirmed-set merge rebuilds an open-ended card as the server does (saved sets + the next open row, `plannedSets` = rows) and the active set of an open-ended card is its first unsaved row. Owner acceptance found Set 2 never opened on the iPhone because the merge left the count behind. *Defect fix, 2026-11-27.*
 
 ## Open Questions
 

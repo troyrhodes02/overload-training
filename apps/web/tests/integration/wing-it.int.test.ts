@@ -23,12 +23,9 @@ import {
   getAddExerciseContext,
   startWingItWorkout,
 } from "@/lib/logging/wing-it";
-import { getTodayDashboard } from "@/lib/logging/queries";
+import { getTodayDashboard, getWorkout } from "@/lib/logging/queries";
 import { resolveMissedDay } from "@/lib/logging/missed-days";
-import {
-  WING_IT_MAX_EXERCISES,
-  WING_IT_MAX_SETS,
-} from "@overload/shared/logging/wing-it";
+import { WING_IT_MAX_EXERCISES } from "@overload/shared/logging/wing-it";
 import { createTestAccount, unknownId } from "./support/accounts";
 import { getTestPrisma } from "./support/db";
 import {
@@ -515,7 +512,7 @@ describe("Wing-It workouts: exercises and sets", () => {
     ).rejects.toMatchObject({ code: "invalid_state_transition" });
   });
 
-  it("sets run 1, 2, 3 with no gaps up to the limit; a replay is idempotent and a different value conflicts", async () => {
+  it("sets run 1, 2, 3 with no gaps and no cap; a replay is idempotent and a different value conflicts", async () => {
     const a = await createTestAccount();
     const { loggedSessionId } = await open(a);
     const bench = await exercise(a, "Bench");
@@ -542,7 +539,8 @@ describe("Wing-It workouts: exercises and sets", () => {
     await expect(
       logSet(a, { loggedExerciseId, setNumber: 1, weightLbs: 105, reps: 5 }),
     ).rejects.toMatchObject({ code: "conflict" });
-    for (let n = 2; n <= WING_IT_MAX_SETS; n++) {
+    // No set cap (owner decision at acceptance): past the old 20 and on.
+    for (let n = 2; n <= 25; n++) {
       await logSet(a, {
         loggedExerciseId,
         setNumber: n,
@@ -550,17 +548,17 @@ describe("Wing-It workouts: exercises and sets", () => {
         reps: 5,
       });
     }
+    // Still no gaps.
     await expect(
-      logSet(a, {
-        loggedExerciseId,
-        setNumber: WING_IT_MAX_SETS + 1,
-        weightLbs: 100,
-        reps: 5,
-      }),
+      logSet(a, { loggedExerciseId, setNumber: 27, weightLbs: 100, reps: 5 }),
     ).rejects.toMatchObject({ code: "validation_error" });
     expect(await db().loggedSet.count({ where: { loggedExerciseId } })).toBe(
-      WING_IT_MAX_SETS,
+      25,
     );
+    // The workout offers the next set.
+    const card = (await getWorkout(a, loggedSessionId))!.exercises[0]!;
+    expect(card.sets.at(-1)).toMatchObject({ setNumber: 26, saved: false });
+    expect(card.plannedSets).toBe(26);
   });
 
   it("a bodyweight exercise logs reps only", async () => {

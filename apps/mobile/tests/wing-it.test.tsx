@@ -545,6 +545,52 @@ describe("open-ended cards (Pitch 25)", () => {
       [1, true, false],
       [2, false, false],
     ]);
+    // What broke on the phone: the merged card must make Set 2 the active
+    // set, with the server's row count (no re-read follows a set).
+    const merged0 = merged!.workout.exercises[0]!;
+    expect(merged0.plannedSets).toBe(2);
+    expect(cardActiveSet(merged0)).toBe(2);
+  });
+
+  it("a confirmation of a set already saved (a 200 retry, or a correction) changes nothing", () => {
+    const c = wingItCard();
+    const replay = mergeConfirmedSet(view(wingItWorkout([c])), {
+      id: "s2",
+      loggedExerciseId: "le-press",
+      setNumber: 2,
+      weightLbs: 290,
+      reps: 10,
+      rir: null,
+      createdAt: "2026-11-27T18:00:00.000Z",
+      updatedAt: "2026-11-27T18:00:00.000Z",
+    })!.workout.exercises[0]!;
+    expect(replay.sets.map((s) => [s.setNumber, s.saved])).toEqual(
+      c.sets.map((s) => [s.setNumber, s.saved]),
+    );
+    expect(replay.plannedSets).toBe(c.plannedSets);
+    expect(cardActiveSet(replay)).toBe(3);
+  });
+
+  it("a corrected set of a finished Wing-It workout adds no open row", () => {
+    const done = wingItCard({
+      plannedSets: 2,
+      sets: wingItCard().sets.filter((s) => s.saved),
+    });
+    const merged = mergeConfirmedSet(
+      view({ ...wingItWorkout([done]), status: "complete" }),
+      {
+        id: "s1",
+        loggedExerciseId: "le-press",
+        setNumber: 1,
+        weightLbs: 275,
+        reps: 12,
+        rir: null,
+        createdAt: "2026-11-27T18:00:00.000Z",
+        updatedAt: "2026-11-27T18:05:00.000Z",
+      },
+    )!.workout.exercises[0]!;
+    expect(merged.sets.every((s) => s.saved)).toBe(true);
+    expect(merged.plannedSets).toBe(2);
   });
 
   it("the logged detail never says 'x of y planned sets'", () => {
