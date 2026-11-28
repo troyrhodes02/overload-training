@@ -81,5 +81,14 @@ export function useKeepAboveKeyboard(
     return () => subs.forEach((s) => s.remove());
   }, [reveal]);
 
-  return { row, content, reveal };
+  /**
+   * The keyboard is being put away on purpose (the card closes it after a
+   * save, Pitch 25 OVE-274): forget its position now, so a row laid out
+   * before keyboardWillHide arrives isn't scrolled against a closing keyboard.
+   */
+  const forget = useCallback(() => {
+    keyboardTop.current = null;
+  }, []);
+
+  return { row, content, reveal, forget };
 }
