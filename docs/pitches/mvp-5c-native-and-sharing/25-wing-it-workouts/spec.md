@@ -248,6 +248,8 @@ Decided after the independent review of the feature branch:
 
 - **RD-37 An open-ended card's next set comes from the confirmation.** The app does not re-read a workout after a set (it only marks it stale), so the confirmed-set merge rebuilds an open-ended card as the server does (saved sets + the next open row, `plannedSets` = rows) and the active set of an open-ended card is its first unsaved row. Owner acceptance found Set 2 never opened on the iPhone because the merge left the count behind. *Defect fix, 2026-11-27.*
 
+- **RD-38 The keypad bar never saves; nothing is focused after a save (iPhone, every workout).** The bar's right-hand action is Done (hide the keyboard, keep the draft); Next on weight moves to reps; Log set is the card's own button only. After a confirmed set the next set is ready on the card (RD-37) and the keyboard closes; the lifter taps a field when ready. An explicit Add set still focuses its new row. Owner feedback from real workouts: Log set sat where the thumb goes to dismiss, and the automatic focus interrupted rest and navigation. *OVE-274, 2026-11-28.*
+
 ## Open Questions
 
 None that block the build. Upstream amendments for the owner: the Architecture Doc's open question "Wing-it workouts: how progression treats an exercise with no planned rep range" is settled by RD-10/RD-25 and can be moved to Settled; the data-model section can note `LoggedSession.kind` and `gymId`.
