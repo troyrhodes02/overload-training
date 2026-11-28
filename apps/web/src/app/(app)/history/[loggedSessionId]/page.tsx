@@ -37,7 +37,9 @@ export default async function LoggedWorkoutPage({
 
       {detail.exercises.map((ex, i) => {
         const workingSets = ex.sets.filter((s) => !s.extra).length;
-        const fellShort = ex.sets.length > 0 && workingSets < ex.plannedSets;
+        // A Wing-It exercise has no plan to fall short of (Pitch 25).
+        const fellShort =
+          !ex.openEnded && ex.sets.length > 0 && workingSets < ex.plannedSets;
         return (
           <div key={i} className="rounded-lg border border-border bg-card p-4">
             <p className="text-sm font-medium">

@@ -69,13 +69,15 @@ describe("no workout logging, plan building, or progression", () => {
       expect(file).toBe("src/lib/goals/goals.ts");
     }
     // Guided Workout Logging (Pitch 4) introduces logged-history/baseline writes,
-    // but only inside the controlled logging modules.
+    // but only inside the controlled logging modules. Wing-It Workouts (Pitch
+    // 25) adds wing-it.ts, which writes workouts and their exercises — never a
+    // LoggedSet (that stays logged-sets.ts only; invariant-guards.test.ts).
     const loggedWriters = writersOutsideDeletion(
       /\.\s*(loggedSession|loggedExercise|loggedSet|gymExerciseBaseline)\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/,
     );
     for (const file of loggedWriters) {
       expect(file).toMatch(
-        /^src\/lib\/(logging\/(logged-sets|sessions)|gyms\/baselines)\.ts$/,
+        /^src\/lib\/(logging\/(logged-sets|sessions|wing-it)|gyms\/baselines)\.ts$/,
       );
     }
   });

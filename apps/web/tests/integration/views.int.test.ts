@@ -68,12 +68,12 @@ async function clearMissedDays(account: Account) {
 /** Log every planned working set of every exercise in today's workout. */
 async function logEverything(
   account: Account,
-  les: { id: string; plannedSets: number }[],
+  les: { id: string; plannedSets: number | null }[],
   weight: number,
   reps: number,
 ) {
   for (const le of les) {
-    for (let n = 1; n <= le.plannedSets; n++) {
+    for (let n = 1; n <= (le.plannedSets ?? 0); n++) {
       await logSetAndReconcile(account, {
         loggedExerciseId: le.id,
         setNumber: n,

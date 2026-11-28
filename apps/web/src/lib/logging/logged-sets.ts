@@ -11,6 +11,7 @@ import type { EquipmentValue } from "@overload/shared/exercises/taxonomy";
 import { checkLoggedReps } from "@overload/shared/logging/reps";
 import { isRir } from "@overload/shared/logging/rir";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
+import { isAllowedOpenEndedSetNumber } from "@overload/shared/logging/wing-it";
 import type {
   LogSetInput,
   EditLoggedSetInput,
@@ -95,14 +96,26 @@ export const MAX_EXTRA_SETS = 10;
  * progression rule, e1RM, goals, and baselines keep evaluating the planned
  * working sets 1..plannedSets only (the plan's set count stays meaningful).
  * (Amends Guided Workout Logging Decision 12, which allowed no extra sets.)
+ *
+ * An open-ended exercise of a Wing-It workout (Pitch 25) has no plan
+ * (`plannedSets` NULL): every set is a working set, numbered 1, 2, 3, … with
+ * no gaps, as many as the lifter does — the shared rule both clients
+ * pre-check.
  */
 function isAllowedSetNumber(
   setNumber: number,
-  le: { plannedSets: number; sets: { setNumber: number }[] },
+  le: { plannedSets: number | null; sets: { setNumber: number }[] },
 ): boolean {
+  if (le.plannedSets === null) {
+    return isAllowedOpenEndedSetNumber(
+      setNumber,
+      le.sets.map((s) => s.setNumber),
+    );
+  }
   if (!Number.isInteger(setNumber) || setNumber < 1) return false;
-  if (setNumber <= le.plannedSets) return true;
-  if (setNumber > le.plannedSets + MAX_EXTRA_SETS) return false;
+  const planned = le.plannedSets;
+  if (setNumber <= planned) return true;
+  if (setNumber > planned + MAX_EXTRA_SETS) return false;
   const logged = new Set(le.sets.map((s) => s.setNumber));
   // Retry of an extra already logged → let the idempotency check decide.
   if (logged.has(setNumber)) return true;

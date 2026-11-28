@@ -52,7 +52,8 @@ export function shouldCorrect(
 /**
  * Establish or correct the baseline for a completed LoggedExercise, in the
  * caller's transaction. No-op unless the PERFORMED exercise is gym-variable, the
- * workout has a gym, and every planned working set is present. The first
+ * workout has a gym, and every planned working set is present (for an
+ * open-ended Wing-It exercise: at least one loaded set). The first
  * collection at a gym ESTABLISHES (never a "correction"); later ones correct
  * only at/above the threshold. Scoped to this (gymId, exerciseId) only — and,
  * because it runs on the acting account's scoped transaction, to that
@@ -72,13 +73,21 @@ export async function applyBaselineOnCompletion(
   if (!requiresExternalWeight(le.exercise)) return;
   if (!isGymVariable(le.exercise)) return;
 
+  // An open-ended exercise of a Wing-It workout (Pitch 25 RD-24) has no plan:
+  // every logged set is a working set and the exercise counts as complete
+  // once it has one, so its baseline is established or corrected by each set,
+  // in that set's transaction, with the same median and threshold.
+  const planned = le.plannedSets;
   const workingWeights = le.sets
-    .filter((s) => s.setNumber >= 1 && s.setNumber <= le.plannedSets)
+    .filter(
+      (s) => s.setNumber >= 1 && (planned === null || s.setNumber <= planned),
+    )
     .map((s) => s.weightLbs)
     .filter((w): w is Prisma.Decimal => w !== null);
   // Only act once the exercise is complete (all planned working sets present,
   // each with a load — a missing load never feeds a baseline).
-  if (workingWeights.length < le.plannedSets) return;
+  if (workingWeights.length === 0) return;
+  if (planned !== null && workingWeights.length < planned) return;
 
   const median = medianWeight(workingWeights);
   const existing = await tx.gymExerciseBaseline.findUnique({

@@ -37,6 +37,8 @@ export type TodayGoalsDto = {
  */
 export type UnfinishedWorkoutDto = {
   loggedSessionId: string;
+  /** Pitch 25; absent from an older server: "planned". */
+  kind?: "planned" | "wing_it";
   /** The planned session's name ("Upper A"), or "Workout" without one. */
   sessionName: string;
   /** The day it was scheduled for (its date never changes on resume). */
@@ -78,6 +80,35 @@ export type TodayDto = {
    * an older server's answer still type-checks: a client treats it as [].
    */
   unfinishedWorkouts?: UnfinishedWorkoutDto[];
+  /**
+   * Pitch 25: the Wing-It workout section, on every dashboard state. Optional
+   * so an older server's answer still type-checks; the installed app that
+   * predates Wing-It ignores it.
+   */
+  wingIt?: WingItTodayDto;
+};
+
+/** One Wing-It workout as Today lists it (Pitch 25). */
+export type WingItSummaryDto = {
+  loggedSessionId: string;
+  gymName: string | null;
+  exerciseCount: number;
+  /** Every saved set (an open-ended exercise has no extra sets). */
+  setsLogged: number;
+  /** The day it was started, account time zone. */
+  startedOn: IsoDate;
+};
+
+export type WingItTodayDto = {
+  /** The account's one open Wing-It workout (any day), or null. */
+  open: WingItSummaryDto | null;
+  /** Wing-It workouts finished on today's date, oldest first. */
+  finishedToday: WingItSummaryDto[];
+  /**
+   * The workout to finish or resume before a Wing-It workout can start: one
+   * in progress with saved sets (newest), when no Wing-It workout is open.
+   */
+  blockedBy: { loggedSessionId: string; sessionName: string } | null;
 };
 
 /**

@@ -10,6 +10,7 @@ import {
   toIsoDate,
 } from "@overload/shared/plan/calendar";
 import { getWeekSchedule } from "./queries";
+import { loggedWorkoutName } from "./snapshot";
 import { resolveRequestedWeek, weekStartFor } from "./history-week-math";
 import type {
   BlockRef,
@@ -17,12 +18,14 @@ import type {
   EarlierBlock,
   HistoryWeekView,
   HistoryWeekDto,
+  WingItHistoryRowDto,
 } from "@overload/shared/contracts/history";
 export type {
   LoggedHistoryDay,
   EarlierBlock,
   HistoryWeekView,
   HistoryWeekDto,
+  WingItHistoryRowDto,
 } from "@overload/shared/contracts/history";
 
 /**
@@ -116,7 +119,10 @@ export async function getHistoryWeek(
       Math.round(
         (Date.parse(weekStart) - Date.parse(active.startDate)) / 86_400_000 / 7,
       ) + 1;
-    const schedule = await getWeekSchedule(account, weekNumber);
+    const [schedule, wingItWorkouts] = await Promise.all([
+      getWeekSchedule(account, weekNumber),
+      wingItWeek(account, weekStart, addDays(weekStart, 6)),
+    ]);
     view = {
       kind: "active",
       blockName: active.name,
@@ -124,6 +130,7 @@ export async function getHistoryWeek(
       lengthWeeks: active.lengthWeeks,
       days: schedule?.days ?? [],
       cardio: schedule?.cardio ?? [],
+      wingItWorkouts,
     };
   } else {
     view = await loggedWeek(account, weekStart, weekEnd);
@@ -159,6 +166,7 @@ async function loggedWeek(
       where: { scheduledFor: range },
       select: {
         id: true,
+        kind: true,
         sessionId: true,
         scheduledFor: true,
         performedOn: true,
@@ -229,8 +237,9 @@ async function loggedWeek(
     day(shownOn(w)).workouts.push({
       ...b,
       loggedSessionId: w.id,
-      sessionName: w.session?.name ?? "Workout",
+      sessionName: loggedWorkoutName(w),
       state: w.status === "complete" ? "complete" : "in_progress",
+      kind: w.kind,
     });
   }
   for (const c of cardio) {
@@ -250,6 +259,41 @@ async function loggedWeek(
       a.dateIso < b.dateIso ? -1 : a.dateIso > b.dateIso ? 1 : 0,
     ),
   };
+}
+
+/**
+ * Wing-It workouts logged in one active-block week (Pitch 25): they belong to
+ * no block, so the week's planned days never show them. A Wing-It workout
+ * with no saved set (an untouched draft) is left out, as Today's unfinished
+ * list leaves it out: there is nothing in it yet.
+ */
+async function wingItWeek(
+  account: Account,
+  weekStart: string,
+  weekEnd: string,
+): Promise<WingItHistoryRowDto[]> {
+  const rows = await account.db.loggedSession.findMany({
+    where: {
+      kind: "wing_it",
+      scheduledFor: {
+        gte: new Date(`${weekStart}T00:00:00.000Z`),
+        lte: new Date(`${weekEnd}T00:00:00.000Z`),
+      },
+      loggedExercises: { some: { sets: { some: {} } } },
+    },
+    orderBy: [{ scheduledFor: "asc" }, { createdAt: "asc" }],
+    select: { id: true, kind: true, scheduledFor: true, status: true },
+  });
+  return rows.map((w) => {
+    const dateIso = toIsoDate(w.scheduledFor);
+    return {
+      loggedSessionId: w.id,
+      dateIso,
+      dayLabel: formatPlanDate(dateIso),
+      sessionName: loggedWorkoutName({ kind: w.kind, session: null }),
+      state: w.status === "complete" ? "complete" : "in_progress",
+    };
+  });
 }
 
 /** Non-active blocks with logged work, newest first, each with a week to open. */

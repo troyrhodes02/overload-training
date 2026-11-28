@@ -21,6 +21,7 @@ import { rirSpoken } from "@overload/shared/logging/rir";
 import { formatWeight } from "@overload/shared/logging/set-entry";
 import { weightGuidance } from "@overload/shared/logging/weight-guidance";
 import { checkWeightLbs } from "@overload/shared/logging/weight";
+import { openEndedSchemeLine } from "@overload/shared/logging/wing-it";
 import { ApiError } from "../api/errors";
 import {
   invalidateTraining,
@@ -47,6 +48,7 @@ import {
   cardContext,
   cardMode,
   cardOffer,
+  isOpenEnded,
   nextExtraSetNumber,
   parseRepsText,
   parseWeightText,
@@ -68,7 +70,11 @@ export function keypadBarId(
   return `overload-set-entry-${loggedExerciseId}-${setNumber}-${field}`;
 }
 
-type BarAction = { label: string; onPress: () => void; disabled?: boolean };
+/**
+ * The keypad bar's optional left action (Next on weight). The bar never
+ * saves a set: Log set lives on the card only (Pitch 25 OVE-274).
+ */
+type BarAction = { label: string; onPress: () => void };
 
 /** `rir` null: not chosen, so nothing is sent and none is recorded (never 0). */
 type Draft = { weight: string | null; reps: string; rir: number | null };
@@ -94,6 +100,7 @@ export function ExerciseCard({
   onPlannedSetsDone,
   activeRowRef,
   onActiveRowLayout,
+  onKeyboardDismissed,
   insight,
 }: {
   card: ExerciseCardDto;
@@ -105,6 +112,8 @@ export function ExerciseCard({
   activeRowRef?: React.Ref<HostInstance>;
   /** The active row moved or changed size (a set saved, an error showed). */
   onActiveRowLayout?: () => void;
+  /** The card put the keyboard away after a save (OVE-274). */
+  onKeyboardDismissed?: () => void;
   /**
    * This card's call (Pitch 21g), shown only while the card is loggable. The
    * card never reads it for input: the weight box keeps its own offer.
@@ -138,7 +147,7 @@ export function ExerciseCard({
   const [notice, setNotice] = useState<string | null>(null);
   const weightRef = useRef<TextInputInstance>(null);
   const repsRef = useRef<TextInputInstance>(null);
-  /** The set whose confirmed save should move focus on (review #1). */
+  /** The set whose confirmed save closes the keyboard (OVE-274). */
   const focusAfter = useRef<number | null>(null);
 
   const mode = cardMode(card);
@@ -186,23 +195,20 @@ export function ExerciseCard({
   const changing = setSkipped.isPending || editPlanned.isPending;
   const context = cardContext(card, workout);
 
-  // Focus follows the lifter's own save (never on open), and only once the
-  // card SHOWS that set confirmed and the inputs are editable again: the next
-  // set's reps when its weight is offered, else its weight; after the last
-  // planned set the keypad closes.
+  // After the lifter's own save, once the card SHOWS that set confirmed: the
+  // keyboard closes and nothing is focused (Pitch 25 OVE-274). The next set
+  // is ready on the card (its row is already there), but the lifter chooses
+  // when to type — resting, scrolling, or moving to another exercise first.
+  // After the last planned set the card hands over to Next/Finish.
   useEffect(() => {
     const n = focusAfter.current;
     if (n === null || saving) return;
     if (!card.sets.some((x) => x.setNumber === n && x.saved)) return;
     focusAfter.current = null;
-    if (active === null) {
-      Keyboard.dismiss();
-      onPlannedSetsDone?.();
-      return;
-    }
-    const target = needsWeight && weightText === "" ? weightRef : repsRef;
-    target.current?.focus();
-  }, [card.sets, saving, active, needsWeight, weightText, onPlannedSetsDone]);
+    onKeyboardDismissed?.();
+    Keyboard.dismiss();
+    if (active === null) onPlannedSetsDone?.();
+  }, [card.sets, saving, active, onPlannedSetsDone, onKeyboardDismissed]);
 
   // Add set: the new extra row's weight is offered ("same as set N"), so
   // focus goes to reps; with nothing to offer, to weight.
@@ -274,6 +280,9 @@ export function ExerciseCard({
     else if (action === "swap") openSwap();
     else if (action === "skip") await markSkipped(true);
     else if (action === "fewer_sets") askFewerSets();
+    // Pitch 25: a Wing-It exercise with no sets leaves the workout (marked
+    // not done on the server, hidden by every Wing-It read; RD-23).
+    else if (action === "remove") await markSkipped(true);
   }
 
   /**
@@ -386,10 +395,16 @@ export function ExerciseCard({
 
   const gymLine =
     card.isGymVariable && card.gymName ? ` · ${card.gymName}` : "";
-  const scheme = `${card.plannedSets} × ${formatRepTarget(
-    card.plannedRepRange.min,
-    card.plannedRepRange.max,
-  )}${needsWeight ? "" : " · bodyweight, reps only"}${gymLine}`;
+  // An open-ended Wing-It card (Pitch 25) has no target: it says what was
+  // logged, never "n × range" (its old fields are only for older builds).
+  const scheme = `${
+    isOpenEnded(card)
+      ? openEndedSchemeLine(card.sets.filter((s) => s.saved).length)
+      : `${card.plannedSets} × ${formatRepTarget(
+          card.plannedRepRange.min,
+          card.plannedRepRange.max,
+        )}`
+  }${needsWeight ? "" : " · bodyweight, reps only"}${gymLine}`;
 
   return (
     <Surface style={{ gap: spacing.lg }}>
@@ -608,11 +623,6 @@ export function ExerciseCard({
                         s.setNumber,
                         "reps",
                       )}
-                      barAction={{
-                        label: saving ? "Saving…" : `Log set ${s.setNumber}`,
-                        onPress: () => void confirm(),
-                        disabled: saving,
-                      }}
                       value={draft.reps}
                       unit="reps"
                       keyboardType="number-pad"
@@ -797,9 +807,9 @@ function LoggedRow({
 }
 
 type NumberFieldProps = {
-  /** This input's own keypad bar id and action (OVE-213). */
+  /** This input's own keypad bar id (OVE-213) and its optional left action. */
   barId: string;
-  barAction: BarAction;
+  barAction?: BarAction;
   value: string;
   unit: string;
   keyboardType: "decimal-pad" | "number-pad";
@@ -898,11 +908,13 @@ function NumberField({
 }
 
 /**
- * The bar above the keypad (design §8): Done on the left hides the keyboard
- * and keeps the draft (OVE-214); the primary action on the right is Next on
- * weight, Log set on reps.
+ * The bar above the keypad (design §8). Done, on the right where the thumb
+ * goes to put the keyboard away, only hides it and keeps the draft (OVE-214);
+ * it never saves a set — Log set is the card's own button (Pitch 25 OVE-274:
+ * a "Log set" here was tapped to dismiss and saved by accident). On weight,
+ * Next on the left moves to reps.
  */
-function KeypadBar({ action }: { action: BarAction }) {
+function KeypadBar({ action }: { action?: BarAction }) {
   const { colors, spacing } = useTheme();
   return (
     <View
@@ -917,18 +929,16 @@ function KeypadBar({ action }: { action: BarAction }) {
         borderTopColor: colors.border,
       }}
     >
+      {action ? (
+        <Button label={action.label} variant="text" onPress={action.onPress} />
+      ) : (
+        <View />
+      )}
       <Button
         label="Done"
         variant="text"
-        accessibilityHint="Hides the keyboard. Your numbers stay."
+        accessibilityHint="Hides the keyboard. Your numbers stay; Log set on the card saves the set."
         onPress={() => Keyboard.dismiss()}
-      />
-      <Button
-        label={action.label}
-        variant="primary"
-        size="md"
-        disabled={action.disabled}
-        onPress={action.onPress}
       />
     </View>
   );

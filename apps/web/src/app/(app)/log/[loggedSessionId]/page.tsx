@@ -9,11 +9,15 @@ export const metadata = { title: "Workout · Overload" };
 
 export default async function WorkoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ loggedSessionId: string }>;
+  /** Pitch 25: `?exercise=` opens the card just added to a Wing-It workout. */
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const account = await requireAccount();
   const { loggedSessionId } = await params;
+  const { exercise } = await searchParams;
   // The one workout composition (Pitch 21c): the workout plus each card's
   // gated call, with the entitlement resolved once.
   const view = await getWorkoutView(account, loggedSessionId, {
@@ -53,9 +57,13 @@ export default async function WorkoutPage({
 
   return (
     <WorkoutRunner
+      // Pitch 25: remount on `?exercise=`, so the card just added opens (the
+      // router otherwise keeps the runner's earlier card index).
+      key={typeof exercise === "string" ? exercise : "runner"}
       workout={workout}
       activeGyms={gyms.map((g) => ({ id: g.id, name: g.name }))}
       progression={progression}
+      initialExerciseId={typeof exercise === "string" ? exercise : null}
     />
   );
 }

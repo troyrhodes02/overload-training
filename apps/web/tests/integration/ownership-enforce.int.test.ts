@@ -302,9 +302,10 @@ describe("same-owner triggers (database second layer)", () => {
     });
   }
 
-  it("covers every owned relation (25 triggers)", async () => {
+  it("covers every owned relation (26 triggers)", async () => {
     const triggers = await installedTriggers();
-    expect(triggers).toHaveLength(25);
+    // 26 since Pitch 25: logged_sessions.gym_id (a Wing-It workout's gym).
+    expect(triggers).toHaveLength(26);
     // Every foreign key from an owned table to an owned or exercise parent.
     const fks = await raw().$queryRawUnsafe<
       { tbl: string; col: string; ref: string }[]

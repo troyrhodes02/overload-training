@@ -155,7 +155,7 @@ function expectNoPlaceholderTakesTouches() {
 beforeEach(() => jest.clearAllMocks());
 
 describe("keypad bar on every set input", () => {
-  it("weight and reps each have their own bar: Next on weight, Log set on reps", async () => {
+  it("weight and reps each have their own bar: Next and Done on weight, Done on reps — never Log set (OVE-274)", async () => {
     serve({ "/workouts/ls-1": view() });
     await open();
     expectOneBarPerInput();
@@ -172,14 +172,12 @@ describe("keypad bar on every set input", () => {
         name: "Next",
       }),
     ).toBeTruthy();
-    expect(
-      within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
-        name: "Log set 1",
-      }),
-    ).toBeTruthy();
+    const repsBar = within(barFor(keypadBarId("le-bench", 1, "reps")));
+    expect(repsBar.getByRole("button", { name: "Done" })).toBeTruthy();
+    expect(repsBar.queryByRole("button", { name: "Log set 1" })).toBeNull();
   });
 
-  it("the reps bar saves the set, and set 2's new inputs get bars of their own", async () => {
+  it("the card's Log set saves the set, and set 2's new inputs get bars of their own", async () => {
     const stored: LoggedSetDto = {
       id: "set-1",
       loggedExerciseId: "le-bench",
@@ -219,11 +217,7 @@ describe("keypad bar on every set input", () => {
     });
     await open();
     await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "5");
-    await fireEvent.press(
-      within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
-        name: "Log set 1",
-      }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "Log set 1" }));
     expect(
       await screen.findByLabelText("Set 1, 255 pounds, 5 reps, logged"),
     ).toBeTruthy();
@@ -235,9 +229,11 @@ describe("keypad bar on every set input", () => {
     );
     expect(
       within(barFor(keypadBarId("le-bench", 2, "reps"))).getByRole("button", {
-        name: "Log set 2",
+        name: "Done",
       }),
     ).toBeTruthy();
+    // The card's own button logs set 2.
+    expect(screen.getByRole("button", { name: "Log set 2" })).toBeTruthy();
   });
 
   it("each bar follows its own input in the same row (so it finds it on mount)", async () => {
@@ -256,7 +252,7 @@ describe("keypad bar on every set input", () => {
     expect(order).toEqual([`input:${w}`, `bar:${w}`, `input:${r}`, `bar:${r}`]);
   });
 
-  it("bodyweight: the one reps input has its bar with Log set", async () => {
+  it("bodyweight: the one reps input has its bar with Done; the card logs", async () => {
     serve({
       "/workouts/ls-1": view(
         workout({
@@ -279,12 +275,13 @@ describe("keypad bar on every set input", () => {
     expectOneBarPerInput();
     expect(
       within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
-        name: "Log set 1",
+        name: "Done",
       }),
     ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Log set 1" })).toBeTruthy();
   });
 
-  it("a failed save shows its message in the active row, keeps the numbers, and the bar retries", async () => {
+  it("a failed save shows its message in the active row, keeps the numbers, and Log set retries", async () => {
     serve({
       "/workouts/ls-1": view(),
       "/logged-exercises/le-bench/sets/1": () => {
@@ -293,10 +290,7 @@ describe("keypad bar on every set input", () => {
     });
     await open();
     await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "4");
-    const logFromBar = () =>
-      within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
-        name: "Log set 1",
-      });
+    const logFromBar = () => screen.getByRole("button", { name: "Log set 1" });
     await fireEvent.press(logFromBar());
     const message = await screen.findByText(
       "Couldn't save — Overload needs a connection. Your numbers are still here.",
@@ -409,6 +403,22 @@ describe("keeping the active row above the keyboard", () => {
       expect(scrollTo).toHaveBeenCalledWith({ y: 30 + 72, animated: true });
     });
 
+    it("after forget() (the card put the keyboard away), a new row's layout doesn't scroll (OVE-274)", async () => {
+      const { hook, scrollTo } = await setup({ y: 300, h: 100 });
+      await act(async () =>
+        listeners.keyboardDidShow!({ endCoordinates: { screenY: 500 } }),
+      );
+      // keyboardWillHide hasn't arrived yet when the next set's row lays out.
+      await act(async () => hook.result.current.forget());
+      hook.result.current.row.current = {
+        measureInWindow: (
+          cb: (x: number, y: number, w: number, h: number) => void,
+        ) => cb(0, 420, 300, 140),
+      } as never;
+      await act(async () => hook.result.current.reveal());
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
     it("does nothing when the row is clear, or when no keyboard is up", async () => {
       const { hook, scrollTo } = await setup({ y: 300, h: 100 });
       await act(async () =>
@@ -499,7 +509,7 @@ describe("inputs keep taking taps across exercises (OVE-214)", () => {
     expect(screen.getByLabelText("Set 1 reps").props.value).toBe("9");
   });
 
-  it("after a saved set, the next set's bar names that set and nothing covers it", async () => {
+  it("after a saved set, the next set has its own bar with Done and nothing covers it", async () => {
     let current = view();
     serve({
       "/workouts/ls-1": () => current,
@@ -537,33 +547,29 @@ describe("inputs keep taking taps across exercises (OVE-214)", () => {
     });
     await open();
     await fireEvent.changeText(screen.getByLabelText("Set 1 reps"), "5");
-    await fireEvent.press(
-      within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
-        name: "Log set 1",
-      }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "Log set 1" }));
     await screen.findByLabelText("Set 1, 255 pounds, 5 reps, logged");
     expectNoPlaceholderTakesTouches();
     const bar = within(barFor(keypadBarId("le-bench", 2, "reps")));
-    expect(bar.getByRole("button", { name: "Log set 2" })).toBeTruthy();
-    expect(bar.queryByRole("button", { name: "Log set 1" })).toBeNull();
+    expect(bar.getByRole("button", { name: "Done" })).toBeTruthy();
+    expect(bar.queryByRole("button", { name: /^Log set/ })).toBeNull();
   });
 });
 
 describe("Done on the keypad bar (OVE-214)", () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it("each bar has Done first, then its primary action", async () => {
+  it("Done is the right-hand (last) action on every bar; weight also has Next", async () => {
     serve({ "/workouts/ls-1": view() });
     await open();
-    for (const [field, primary] of [
-      ["weight", "Next"],
-      ["reps", "Log set 1"],
+    for (const [field, names] of [
+      ["weight", ["Next", "Done"]],
+      ["reps", ["Done"]],
     ] as const) {
-      const names = within(barFor(keypadBarId("le-bench", 1, field)))
+      const found = within(barFor(keypadBarId("le-bench", 1, field)))
         .getAllByRole("button")
         .map((b) => b.props.accessibilityLabel as string);
-      expect(names).toEqual(["Done", primary]);
+      expect(found).toEqual(names);
     }
   });
 
@@ -586,7 +592,7 @@ describe("Done on the keypad bar (OVE-214)", () => {
         { name: "Done" },
       );
       expect(done.props.accessibilityHint).toBe(
-        "Hides the keyboard. Your numbers stay.",
+        "Hides the keyboard. Your numbers stay; Log set on the card saves the set.",
       );
       await fireEvent.press(done);
       expect(dismiss).toHaveBeenCalledTimes(1);
@@ -760,12 +766,8 @@ describe("reps in reserve and corrections keep the keypad working (Pitch 21f)", 
       "262.5",
     );
     expect(screen.getByLabelText("Set 1 reps").props.value).toBe("6");
-    // The reps bar still logs this set.
-    expect(
-      within(barFor(keypadBarId("le-bench", 1, "reps"))).getByRole("button", {
-        name: "Log set 1",
-      }),
-    ).toBeTruthy();
+    // The card's Log set still logs this set.
+    expect(screen.getByRole("button", { name: "Log set 1" })).toBeTruthy();
     expectNoPlaceholderTakesTouches();
   });
 
@@ -850,9 +852,10 @@ describe("reps in reserve and corrections keep the keypad working (Pitch 21f)", 
     expectNoPlaceholderTakesTouches();
     expect(
       within(barFor(keypadBarId("le-bench", 4, "reps"))).getByRole("button", {
-        name: "Log set 4",
+        name: "Done",
       }),
     ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Log set 4" })).toBeTruthy();
     expect(
       within(barFor(keypadBarId("le-bench", 4, "weight"))).getByRole("button", {
         name: "Next",

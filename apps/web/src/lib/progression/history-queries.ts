@@ -16,11 +16,18 @@ import {
   repsPoints,
   weightPoints,
   type HistoryRow,
+  type JudgedHistoryRow,
   type RecordSet,
   type TrendPoint,
 } from "@overload/shared/progression/history";
 import { formatSetLine } from "@overload/shared/progression/history-format";
-import { describeScope, gatherRows, type PerformanceRow } from "./queries";
+import {
+  describeScope,
+  gatherRows,
+  gatherWingItRows,
+  type PerformanceRow,
+  type StrengthRow,
+} from "./queries";
 import {
   anchorOfRow,
   rowSegmentEndingAt,
@@ -75,7 +82,7 @@ type Scope = HistoryScopeDto & {
 };
 
 /** Machine/cable scopes: one per gym with history, plus legacy no-gym rows (R5). */
-function machineScopes(rows: PerformanceRow[]): Scope[] {
+function machineScopes(rows: StrengthRow[]): Scope[] {
   const byKey = new Map<string, Scope>();
   for (const r of rows) {
     const key = r.perf.gymId ?? NO_GYM;
@@ -182,7 +189,12 @@ async function workoutAnchors(
   ];
 }
 
-const toHistoryRow = (r: PerformanceRow): HistoryRow => ({
+const toHistoryRow = (r: StrengthRow): HistoryRow => ({
+  perf: r.perf,
+  finished: r.finished,
+  extraSets: r.extraSets,
+});
+const toJudgedRow = (r: PerformanceRow): JudgedHistoryRow => ({
   perf: r.perf,
   finished: r.finished,
   extraSets: r.extraSets,
@@ -215,10 +227,18 @@ async function computeExerciseHistory(
   const externalLoad = requiresExternalWeight(exercise);
   // Every gathered row feeds the current call (exactly as the progression
   // section reads it); only rows with a logged set are sessions on this page.
-  const allRows = await gatherRows(account, exerciseId);
-  const rows = allRows.filter(
-    (r) => r.perf.workingSets.length + r.extraSets.length > 0,
-  );
+  // Wing-It performances (Pitch 25) are sessions, records, and trend points
+  // too, but never feed a call: the engine's rows stay planned (RD-25).
+  const [allRows, wingItRows] = await Promise.all([
+    gatherRows(account, exerciseId),
+    gatherWingItRows(account, exerciseId),
+  ]);
+  const hasSets = (r: StrengthRow) =>
+    r.perf.workingSets.length + r.extraSets.length > 0;
+  const rows: StrengthRow[] = [
+    ...allRows.filter(hasSets),
+    ...wingItRows.filter(hasSets),
+  ];
 
   const scopes = gymVariable ? machineScopes(rows) : [];
   const selected: Scope | null = gymVariable
@@ -240,6 +260,10 @@ async function computeExerciseHistory(
       ? rows.filter((r) => (r.perf.gymId ?? NO_GYM) === selected.key)
       : rows;
   const historyRows = scopeRows.map(toHistoryRow);
+  // The rows the engine may judge: planned performances in scope.
+  const plannedScopeRows = scopeRows.filter(
+    (r): r is PerformanceRow => r.wingIt !== true,
+  );
   // Segments are cut over EVERY gathered row in scope (review of #227),
   // exactly as the card, Today, and the summary cut them — a skipped
   // occurrence with no sets still breaks a run — so the page and the card
@@ -260,15 +284,20 @@ async function computeExerciseHistory(
   let nextByWorkout: HistoryWorkoutNextDto[] = [];
   if (selected && noGymScope) {
     next = { kind: "no_gym" };
-  } else if (selected && scopeRows.length > 0) {
+  } else if (selected && plannedScopeRows.length > 0) {
     const gym =
       gymVariable && selected.gymId
         ? { id: selected.gymId, name: scopeRows[0]?.gymName ?? "Gym" }
         : null;
-    const entries = await workoutAnchors(account, exercise.id, scopeRows, {
-      gymVariable,
-      gymId: gymVariable ? selected.gymId : null,
-    });
+    const entries = await workoutAnchors(
+      account,
+      exercise.id,
+      plannedScopeRows,
+      {
+        gymVariable,
+        gymId: gymVariable ? selected.gymId : null,
+      },
+    );
     nextByWorkout = await Promise.all(
       entries.map(async (e) => {
         const d = await describeScope(
@@ -355,7 +384,7 @@ async function computeExerciseHistory(
   const performanceById = new Map(
     segmentScope.map((r) => [r.perf.loggedExerciseId, r]),
   );
-  const calls = callsBySession(historyRows, {
+  const calls = callsBySession(plannedScopeRows.map(toJudgedRow), {
     externalLoad,
     noGymScope,
     segmentEndingAt: (hr) => {
@@ -366,7 +395,7 @@ async function computeExerciseHistory(
             exercise.id,
             target,
             gymVariable,
-          ).map(toHistoryRow)
+          ).map(toJudgedRow)
         : [];
     },
   });
@@ -424,7 +453,11 @@ async function computeExerciseHistory(
         swappedFromName:
           r.plannedExerciseId !== exercise.id ? r.plannedExerciseName : null,
         sessionName: r.sessionName,
-        call: calls.get(r.perf.loggedExerciseId) ?? "none",
+        // A Wing-It session is never judged (RD-25): "none" once finished,
+        // "in_progress" while open — as an open planned session reads.
+        call:
+          calls.get(r.perf.loggedExerciseId) ??
+          (r.finished ? "none" : "in_progress"),
       })),
       total: newestFirst.length,
       showingAll: !!opts.allSessions || newestFirst.length <= RECENT_SESSIONS,

@@ -14,11 +14,14 @@ import type {
 import type { GymsResponseDto } from "@overload/shared/contracts/gyms";
 import type { HistoryWeekDto } from "@overload/shared/contracts/history";
 import type {
+  AddExerciseContextDto,
+  AddWingItExerciseResponseDto,
   ChangeGymResponseDto,
   CompleteWorkoutResponseDto,
   EditPlannedSetsResponseDto,
   MissedDayResolutionDto,
   SetSkippedResponseDto,
+  StartWingItResponseDto,
   StartWorkoutResponseDto,
   SwapContextDto,
   SwapExerciseResponseDto,
@@ -73,6 +76,9 @@ export const TRAINING_KEYS = {
   /** The swap picker's list for one muscle group (null: the planned group). */
   swap: (loggedExerciseId: string, muscle: MuscleGroupValue | null) =>
     ["swap", loggedExerciseId, muscle ?? "planned"] as const,
+  /** The Add exercise picker's list for one group, or all (Pitch 25 W2). */
+  addCandidates: (loggedSessionId: string, muscle: MuscleGroupValue | null) =>
+    ["add-candidates", loggedSessionId, muscle ?? "all"] as const,
 };
 
 const enc = encodeURIComponent;
@@ -465,7 +471,7 @@ export function mergeConfirmedSet(
           ? e
           : {
               ...e,
-              sets: upsertSet(e.sets, e.plannedSets, set),
+              ...confirmedCard(e, set, view.workout.status === "in_progress"),
             },
       ),
     },
@@ -476,6 +482,7 @@ function upsertSet(
   sets: WorkoutViewDto["workout"]["exercises"][number]["sets"],
   plannedSets: number,
   set: LoggedSetDto,
+  openEnded = false,
 ) {
   const row = {
     setNumber: set.setNumber,
@@ -484,13 +491,50 @@ function upsertSet(
     reps: set.reps,
     rir: set.rir,
     saved: true,
-    extra: set.setNumber > plannedSets,
+    // An open-ended (Wing-It) exercise has no plan, so no set is extra.
+    extra: !openEnded && set.setNumber > plannedSets,
   };
   const exists = sets.some((s) => s.setNumber === set.setNumber);
   const next = exists
     ? sets.map((s) => (s.setNumber === set.setNumber ? row : s))
     : [...sets, row];
+  // Open-ended: the next set gets its open row right away, as the server's
+  // next read will show it (Pitch 25).
+  if (openEnded && !next.some((s) => !s.saved)) {
+    next.push({
+      setNumber: Math.max(...next.map((s) => s.setNumber)) + 1,
+      loggedSetId: null,
+      weightLbs: null,
+      reps: null,
+      rir: null,
+      saved: false,
+      extra: false,
+    });
+  }
   return next.sort((a, b) => a.setNumber - b.setNumber);
+}
+
+/**
+ * One card with a set the server confirmed. A planned card keeps its plan.
+ * An open-ended (Wing-It) card is rebuilt as the server builds it: its rows
+ * are the saved sets plus the next open one, and `plannedSets` counts the
+ * rows (spec §8) — so the next set is ready at once, with no re-read. Its
+ * count used to stay at the old value, which left the new row outside the
+ * active-set rule: Set 2 never opened on the iPhone (Pitch 25 acceptance).
+ */
+function confirmedCard(
+  e: WorkoutViewDto["workout"]["exercises"][number],
+  set: LoggedSetDto,
+  inProgress: boolean,
+): Pick<
+  WorkoutViewDto["workout"]["exercises"][number],
+  "sets" | "plannedSets"
+> {
+  const openEnded = e.openEnded === true;
+  // Only an open workout has a next row (the server's rule); a corrected set
+  // of a finished one gets none.
+  const sets = upsertSet(e.sets, e.plannedSets, set, openEnded && inProgress);
+  return { sets, plannedSets: openEnded ? sets.length : e.plannedSets };
 }
 
 export function useLogSet() {
@@ -952,5 +996,78 @@ export function useEditCardio() {
         { method: "PATCH", body },
       ),
     onSuccess: () => invalidateCardioReads(client),
+  });
+}
+
+/**
+ * Start a Wing-It workout at a gym, or resume the open one (Pitch 25 W1).
+ * Safe to repeat: an account has at most one open Wing-It workout, so a
+ * second tap, or the web at the same time, answers with the same one.
+ */
+export function useStartWingIt() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<StartWingItResponseDto, ApiError, { gymId: string }>({
+    mutationFn: (body) =>
+      api.request<StartWingItResponseDto>("/wing-it-workouts", {
+        method: "POST",
+        body,
+      }),
+    onSuccess: (data) => {
+      void invalidateTraining(client, data.loggedSessionId);
+    },
+  });
+}
+
+/** The Add exercise picker's list (Pitch 25 W2); null lists every group. */
+export function useAddExerciseCandidates(
+  loggedSessionId: string,
+  muscle: MuscleGroupValue | null,
+) {
+  const api = useApi();
+  return useQuery<AddExerciseContextDto, ApiError>({
+    queryKey: TRAINING_KEYS.addCandidates(loggedSessionId, muscle),
+    queryFn: ({ signal }) =>
+      api.request<AddExerciseContextDto>(
+        `/workouts/${enc(loggedSessionId)}/exercise-candidates${
+          muscle ? `?muscle=${enc(muscle)}` : ""
+        }`,
+        { signal },
+      ),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export type AddWingItExerciseVariables = {
+  loggedSessionId: string;
+  exerciseId: string;
+};
+
+/**
+ * Add an exercise to a Wing-It workout (Pitch 25 W3). A natural-key PUT: one
+ * card per exercise, so a retry or a second tap answers with the same card.
+ * The workout is read again before the picker closes.
+ */
+export function useAddWingItExercise() {
+  const api = useApi();
+  const client = useQueryClient();
+  return useMutation<
+    AddWingItExerciseResponseDto,
+    ApiError,
+    AddWingItExerciseVariables
+  >({
+    mutationFn: ({ loggedSessionId, exerciseId }) =>
+      api.request<AddWingItExerciseResponseDto>(
+        `/workouts/${enc(loggedSessionId)}/exercises/${enc(exerciseId)}`,
+        { method: "PUT" },
+      ),
+    onSuccess: async (_data, { loggedSessionId }) => {
+      void client.invalidateQueries({
+        queryKey: ["add-candidates", loggedSessionId],
+        refetchType: "none",
+      });
+      await refreshWorkout(client, loggedSessionId);
+    },
   });
 }
