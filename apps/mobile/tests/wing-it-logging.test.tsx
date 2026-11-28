@@ -611,3 +611,102 @@ describe("keypad Done and no automatic focus after a save (OVE-274)", () => {
     expect(stored.map((s) => s.setNumber)).toEqual([1, 2]);
   });
 });
+
+/** The footer's buttons in screen order, and which share a row. */
+function footer(names: readonly string[]) {
+  const buttons = screen
+    .getAllByRole("button")
+    .filter((b) =>
+      names.some((n) => String(b.props.accessibilityLabel).startsWith(n)),
+    );
+  const label = (b: (typeof buttons)[number]) =>
+    String(b.props.accessibilityLabel);
+  /** The nearest horizontal row a button sits in. */
+  const rowOf = (b: (typeof buttons)[number]) => {
+    let n = b.parent;
+    while (n) {
+      const style = Array.isArray(n.props.style)
+        ? Object.assign({}, ...n.props.style)
+        : n.props.style;
+      if (style?.flexDirection === "row" && typeof n.type === "string")
+        return n;
+      n = n.parent;
+    }
+    return null;
+  };
+  return { order: buttons.map(label), rowOf, buttons };
+}
+
+describe("the workout's action buttons (OVE-275)", () => {
+  it("Wing-It, last card: Previous and Add exercise share a row; Finish workout is alone below", async () => {
+    const server = wingItServer();
+    server.add("le-a", "Leg Press");
+    server.add("le-b", "Cable Fly");
+    await openWorkout();
+    await screen.findByRole("header", { name: "Cable Fly" });
+    const f = footer(["Previous", "Add exercise", "Finish workout"]);
+    expect(f.order).toEqual(["Previous", "Add exercise", "Finish workout"]);
+    const [prev, add, finish] = f.buttons;
+    expect(f.rowOf(prev!)).toBe(f.rowOf(add!));
+    expect(f.rowOf(finish!)).not.toBe(f.rowOf(add!));
+    // Enabled states are unchanged: Previous works here; Finish waits for a set.
+    expect(prev!.props.accessibilityState?.disabled).not.toBe(true);
+    expect(finish!.props.accessibilityState?.disabled).toBe(true);
+    await logSet(1, "30", "12");
+    expect(
+      screen.getByRole("button", { name: "Finish workout" }).props
+        .accessibilityState?.disabled,
+    ).not.toBe(true);
+    // Add exercise still opens the picker.
+    await fireEvent.press(screen.getByRole("button", { name: "Add exercise" }));
+    expect(mockRouter.push).toHaveBeenCalledWith("/workout/ls-w/add");
+  });
+
+  it("Wing-It, an earlier card: Previous and Add exercise, then Next alone below", async () => {
+    const server = wingItServer();
+    server.add("le-a", "Leg Press");
+    server.add("le-b", "Cable Fly");
+    await openWorkout();
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Previous" }),
+    );
+    await screen.findByRole("header", { name: "Leg Press" });
+    const f = footer(["Previous", "Add exercise", "Next: "]);
+    expect(f.order).toEqual(["Previous", "Add exercise", "Next: Cable Fly"]);
+    expect(f.rowOf(f.buttons[0]!)).toBe(f.rowOf(f.buttons[1]!));
+    expect(f.rowOf(f.buttons[2]!)).not.toBe(f.rowOf(f.buttons[1]!));
+    expect(f.buttons[0]!.props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it("an empty Wing-It workout keeps Previous beside Finish (its card offers Add exercise)", async () => {
+    wingItServer();
+    await openWorkout();
+    await screen.findByText("No exercises yet.");
+    const f = footer(["Previous", "Finish workout"]);
+    expect(f.order).toEqual(["Previous", "Finish workout"]);
+    expect(f.rowOf(f.buttons[0]!)).toBe(f.rowOf(f.buttons[1]!));
+    expect(
+      screen.getAllByRole("button", { name: "Add exercise" }),
+    ).toHaveLength(1);
+  });
+
+  it("a planned workout keeps its row: Previous beside Next or Finish, no Add exercise", async () => {
+    mockApi.request.mockImplementation(async (raw: string) => {
+      const path = raw.replace(/\?fields=core$/, "");
+      if (path === "/workouts/ls-1")
+        return view(
+          workout({ exercises: [card({ plannedSets: 3, sets: rows(3) })] }),
+        );
+      throw new ApiError("not_found", "nope", 404);
+    });
+    await render(
+      <Providers>
+        <WorkoutScreen loggedSessionId="ls-1" />
+      </Providers>,
+    );
+    await screen.findByLabelText("Set 1 reps");
+    const f = footer(["Previous", "Finish workout", "Add exercise"]);
+    expect(f.order).toEqual(["Previous", "Finish workout"]);
+    expect(f.rowOf(f.buttons[0]!)).toBe(f.rowOf(f.buttons[1]!));
+  });
+});
