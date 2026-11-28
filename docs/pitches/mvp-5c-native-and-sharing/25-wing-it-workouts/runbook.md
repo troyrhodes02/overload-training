@@ -11,7 +11,8 @@ What the owner does outside the codebase. The run delivered Pitch 25 to **stagin
 | Staging web deployment | Ready; staging API smoke-checked (§4) |
 | Expo **staging** update (runtime `2e4a65d9cd…`) | Published — group `05da3995…` (§4) |
 | OVE-273 retest — three consecutive sets on the iPhone | Passed (owner, 2026-11-28) |
-| OVE-274 retest — keypad Done, no automatic focus | **Pending (owner)** |
+| OVE-274 retest — keypad Done, no automatic focus | Passed (owner, 2026-11-28) |
+| OVE-275 retest — Wing-It footer order | **Pending (owner)** |
 | Owner device check 1 — Wing-It without a plan | **Pending (owner)** |
 | Owner device check 2 — Wing-It beside a scheduled workout | **Pending (owner)** |
 | Production release (web + migration) | **Not authorized by this run** — a separate owner-run promotion |
@@ -84,7 +85,8 @@ Not part of this run. When the owner approves Pitch 25 for Production, follow `d
 - Expo staging update group: `05da3995-4390-4bd4-b8b8-1825dbabf3d4` · iOS update id: `01a21f50-acc6-76b0-a961-f02c7c98e2ee` · built from `6c13019`.
 - **Superseded for device checks by the OVE-273 fix below.**
 - OVE-273 (owner acceptance: no Set 2 after Set 1 on the iPhone): #370, squash `de57c3ad1f1acb9125b9e9ae28c5b6ded93aa9bf`. Expo staging update group `4b5ad96c-de41-45c2-8952-55fb8eee55b9` · iOS update id `01a21f89-72d8-7692-8848-5ff2b6c7a91d` · built from `de57c3a`. OVE-273 accepted on the iPhone (Set 1 → 2 → 3) on 2026-11-28.
-- OVE-274 (owner feedback: keypad "Log set" logged sets when dismissing; auto-focus after a save): #372, squash `5c7058181546b9855840fd98df82928867a26f6c`. Expo staging update group `f91f33a1-bdf8-46c9-9557-997becf6682c` · iOS update id `01a22076-5c31-7572-8f80-f249bbbccfd1` · built from `5c70581`. **Use this update for the remaining device checks.**
+- OVE-274 (owner feedback: keypad "Log set" logged sets when dismissing; auto-focus after a save): #372, squash `5c7058181546b9855840fd98df82928867a26f6c`. Expo staging update group `f91f33a1-bdf8-46c9-9557-997becf6682c` · iOS update id `01a22076-5c31-7572-8f80-f249bbbccfd1` · built from `5c70581`. OVE-274 accepted on the iPhone (Done closes; Log set only on the card; no auto-focus).
+- OVE-275 (owner UI refinement: Wing-It footer Previous + Add exercise, Finish workout alone below): #374, squash `073a6fedf6743c00ed749fd628dedb95a3b43a06`. Expo staging update group `dbdfe591-6ebd-41a6-9736-68c69b3960cb` · iOS update id `01a2208b-1545-75a1-856d-c91e3d61f615` · built from `073a6fe`. **Use this update for the remaining device checks.**
 - Runtime: `2e4a65d9cda7675d9e8a7f1725dcc6b64468ac6c` (unchanged) · compatible build: `c22ac9a0` (Overload Dev). No new build is needed.
 - Owner accounts (overload-dev, made 2026-11-27): `p25-owner-noplan@example.com` (no plan, gym "P25 Garage"), `p25-owner-planned@example.com` (active block; Friday Upper A, Saturday Lower A).
 
