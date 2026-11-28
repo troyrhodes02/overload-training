@@ -12,9 +12,10 @@ What the owner does outside the codebase. The run delivered Pitch 25 to **stagin
 | Expo **staging** update (runtime `2e4a65d9cd…`) | Published — group `05da3995…` (§4) |
 | OVE-273 retest — three consecutive sets on the iPhone | Passed (owner, 2026-11-28) |
 | OVE-274 retest — keypad Done, no automatic focus | Passed (owner, 2026-11-28) |
-| OVE-275 retest — Wing-It footer order | **Pending (owner)** |
-| Owner device check 1 — Wing-It without a plan | **Pending (owner)** |
-| Owner device check 2 — Wing-It beside a scheduled workout | **Pending (owner)** |
+| OVE-275 retest — Wing-It footer order | Passed (owner, 2026-11-28) |
+| Owner device check 1 — Wing-It without a plan | Passed (owner) |
+| Owner device check 2 — Wing-It beside a scheduled workout | Passed (owner) |
+| Pitch 25 accepted for Production (web, API, migration 9t) | Owner, 2026-11-28; native distribution deferred |
 | Production release (web + migration) | **Not authorized by this run** — a separate owner-run promotion |
 | Production Expo update / iOS build / TestFlight | **Not authorized** — not done; TestFlight 1.0.0 (2) is untouched |
 
