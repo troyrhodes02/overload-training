@@ -399,42 +399,68 @@ export function WorkoutScreen({
             />
           )}
           {finishError ? <Banner message={finishError} /> : null}
-          <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <Button
-              label="Previous"
-              variant="secondary"
-              disabled={i === 0}
-              onPress={() => go(i - 1)}
-              style={{ minWidth: 104 }}
-            />
-            {!isLast && next ? (
+          {(() => {
+            const previous = (
               <Button
-                // One line at any length or text size: the name truncates and
-                // VoiceOver still reads it whole (OVE-213).
-                label={`Next: ${next.performedExerciseName}`}
-                numberOfLines={1}
-                variant={currentDone ? "primary" : "secondary"}
-                onPress={() => go(i + 1)}
-                style={{ flex: 1 }}
+                label="Previous"
+                variant="secondary"
+                disabled={i === 0}
+                onPress={() => go(i - 1)}
+                style={{ minWidth: 104 }}
               />
-            ) : (
-              <Button
-                label="Finish workout"
-                disabled={!finishable}
-                loading={complete.isPending}
-                onPress={requestFinish}
-                style={{ flex: 1 }}
-              />
-            )}
-          </View>
-          {wingIt && exercises.length > 0 ? (
-            // Pitch 25: an exercise can be added at any time (design §6.7).
-            <Button
-              label={WING_IT_COPY.addExercise}
-              variant="secondary"
-              onPress={() => router.push(addExerciseHref(loggedSessionId))}
-            />
-          ) : null}
+            );
+            // The one forward action: the next exercise, or — on the last
+            // card — Finish workout, the workout's terminal action.
+            const forward =
+              !isLast && next ? (
+                <Button
+                  // One line at any length or text size: the name truncates
+                  // and VoiceOver still reads it whole (OVE-213).
+                  label={`Next: ${next.performedExerciseName}`}
+                  numberOfLines={1}
+                  variant={currentDone ? "primary" : "secondary"}
+                  onPress={() => go(i + 1)}
+                  style={{ flex: 1 }}
+                />
+              ) : (
+                <Button
+                  label="Finish workout"
+                  disabled={!finishable}
+                  loading={complete.isPending}
+                  onPress={requestFinish}
+                  style={{ flex: 1 }}
+                />
+              );
+            // A Wing-It workout (Pitch 25, OVE-275): Previous and Add
+            // exercise side by side, then the forward action alone on the
+            // bottom row, so Finish workout is the last thing on the screen.
+            if (wingIt && exercises.length > 0) {
+              return (
+                <>
+                  <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                    {previous}
+                    <Button
+                      label={WING_IT_COPY.addExercise}
+                      variant="secondary"
+                      onPress={() =>
+                        router.push(addExerciseHref(loggedSessionId))
+                      }
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                  <View style={{ flexDirection: "row" }}>{forward}</View>
+                </>
+              );
+            }
+            // A planned workout (and an empty Wing-It one, whose card has
+            // its own Add exercise): Previous beside the forward action.
+            return (
+              <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                {previous}
+                {forward}
+              </View>
+            );
+          })()}
         </View>
       </ScrollView>
     </>
